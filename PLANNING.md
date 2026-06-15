@@ -1,4 +1,4 @@
-# PLANNING — Evergreen Multi-Tools v1.1.0
+# PLANNING — Evergreen Multi-Tools v1.0.1
 
 > 2026 暑假迭代计划 · 内测版 → 稳定版
 
