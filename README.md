@@ -1,4 +1,4 @@
-# Evergreen Multi-Tools（内测版）
+# Evergreen Multi-Tools（内测版，暂时不推广）
 
 > 这是将奥尔波特人格理论引入 AI 记忆的开源实践。  
 > 是自研 Agent 运行时的浙大校园工具。  
