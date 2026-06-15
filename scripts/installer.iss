@@ -1,0 +1,49 @@
+; Inno Setup script for Evergreen Multi-Tools
+; Run after: flutter build windows --release
+; Requires Inno Setup 6+: https://jrsoftware.org/isinfo.php
+
+#define MyAppName "Evergreen Multi-Tools"
+#define MyAppVersion "1.0.0"
+#define MyAppPublisher "绿意不息"
+#define MyAppURL "https://github.com/evergreen-multi-tools"
+#define MyAppExeName "evergreen_multi_tools.exe"
+
+[Setup]
+AppId={{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}}
+AppName={#MyAppName}
+AppVersion={#MyAppVersion}
+AppPublisher={#MyAppPublisher}
+AppPublisherURL={#MyAppURL}
+AppSupportURL={#MyAppURL}
+DefaultDirName={autopf}\{#MyAppName}
+DisableProgramGroupPage=yes
+LicenseFile=..\LICENSE
+OutputDir=..\build\installer
+OutputBaseFilename=EvergreenSetup-{#MyAppVersion}
+Compression=lzma
+SolidCompression=yes
+WizardStyle=modern
+PrivilegesRequired=lowest
+
+[Languages]
+Name: "english"; MessagesFile: "compiler:Default.isl"
+
+[Tasks]
+Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Shortcuts:"
+
+[Files]
+Source: "..\build\windows\x64\runner\Release\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: ".env,.env.example,*.cookies"
+; Python OCR 脚本及依赖
+Source: "..\scripts\*.py"; DestDir: "{app}\scripts"; Flags: ignoreversion
+Source: "..\scripts\requirements.txt"; DestDir: "{app}\scripts"; Flags: ignoreversion
+Source: "..\scripts\dist\*"; DestDir: "{app}\scripts\dist"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+; 预置 Skill 文件
+Source: "..\.greenix\skills\*"; DestDir: "{app}\.greenix\skills"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[Icons]
+Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+
+[Run]
+Filename: "{app}\{#MyAppExeName}"; Description: "Launch Evergreen Multi-Tools"; Flags: nowait postinstall skipifsilent

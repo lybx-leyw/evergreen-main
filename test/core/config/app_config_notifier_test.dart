@@ -1,0 +1,69 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:evergreen_multi_tools/core/config/app_config_notifier.dart';
+
+void main() {
+  group('AppConfigNotifier', () {
+    late SharedPreferences prefs;
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      prefs = await SharedPreferences.getInstance();
+    });
+
+    test('默认 deepseekThinking = true', () async {
+      final notifier = AppConfigNotifier(prefs);
+      await notifier.initialize();
+
+      expect(notifier.state.deepseekThinking, true);
+      expect(notifier.state.deepseekModel, 'deepseek-v4-flash');
+    });
+
+    test('saveAll 持久化往返', () async {
+      final notifier = AppConfigNotifier(prefs);
+      await notifier.initialize();
+
+      await notifier.saveAll({
+        'ZJU_USERNAME': 'testuser',
+        'DEEPSEEK_MODEL': 'custom-model',
+        'DEEPSEEK_THINKING': 'disabled',
+      });
+
+      expect(notifier.state.zjuUsername, 'testuser');
+      expect(notifier.state.deepseekModel, 'custom-model');
+      expect(notifier.state.deepseekThinking, false);
+    });
+
+    test('set 单项更新', () async {
+      final notifier = AppConfigNotifier(prefs);
+      await notifier.initialize();
+
+      notifier.set('ZJU_USERNAME', 'newuser');
+      expect(notifier.state.zjuUsername, 'newuser');
+    });
+
+    test('hasZjuCredentials 签发正确', () async {
+      final notifier = AppConfigNotifier(prefs);
+      await notifier.initialize();
+      expect(notifier.state.hasZjuCredentials, false);
+
+      await notifier.saveAll({
+        'ZJU_USERNAME': 'user',
+        'ZJU_PASSWORD': 'pass',
+      });
+      expect(notifier.state.hasZjuCredentials, true);
+    });
+
+    test('@Secure 字段 toString 脱敏', () async {
+      final notifier = AppConfigNotifier(prefs);
+      await notifier.initialize();
+      await notifier.saveAll({
+        'DEEPSEEK_API_KEY': 'sk-secret-key-12345',
+      });
+
+      final str = notifier.state.toString();
+      expect(str, isNot(contains('sk-secret-key-12345')));
+      expect(str, contains('sk-***'));
+    });
+  });
+}

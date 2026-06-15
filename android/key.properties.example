@@ -1,0 +1,7 @@
+# Android release signing — copy this to key.properties and fill in your values.
+# Generate a keystore:
+#   keytool -genkey -v -keystore evergreen-release.jks -alias evergreen -keyalg RSA -keysize 2048 -validity 10000
+storeFile=evergreen-release.jks
+storePassword=your_store_password
+keyAlias=evergreen
+keyPassword=your_key_password
