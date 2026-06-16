@@ -3,7 +3,7 @@
 ; Requires Inno Setup 6+: https://jrsoftware.org/isinfo.php
 
 #define MyAppName "Evergreen Multi-Tools"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.1.0"
 #define MyAppPublisher "绿意不息"
 #define MyAppURL "https://github.com/evergreen-multi-tools"
 #define MyAppExeName "evergreen_multi_tools.exe"

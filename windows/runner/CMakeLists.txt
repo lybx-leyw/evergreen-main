@@ -38,3 +38,11 @@ target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
 
 # Run the Flutter tool portions of the build. This must not be removed.
 add_dependencies(${BINARY_NAME} flutter_assemble)
+
+# Copy OCR Python scripts to the output directory alongside the exe.
+add_custom_command(TARGET ${BINARY_NAME} POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_directory
+    "${CMAKE_SOURCE_DIR}/../scripts"
+    "$<TARGET_FILE_DIR:${BINARY_NAME}>/scripts"
+  COMMENT "Copying OCR Python scripts to output..."
+)
