@@ -5,6 +5,7 @@ import '../../../core/result.dart';
 import '../../../core/models/zdbk_notification.dart';
 import '../../../widgets/error_card.dart';
 import '../../../widgets/loading_indicator.dart';
+import '../../../widgets/freshness_badge.dart';
 import '../providers/zdbk_notifications_provider.dart';
 
 /// ZDBK 通知公告页。
@@ -16,7 +17,17 @@ class ZdbkNotificationsScreen extends ConsumerWidget {
     final async = ref.watch(zdbkNotificationsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('教务通知')),
+      appBar: AppBar(
+        title: const Text('教务通知'),
+        actions: [
+          const FreshnessBadge(cacheKey: 'zdbk_notifications'),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: '刷新',
+            onPressed: () => ref.invalidate(zdbkNotificationsProvider),
+          ),
+        ],
+      ),
       body: async.when(
         loading: () => const LoadingWidget(message: '加载通知...'),
         error: (e, _) => ErrorCard(

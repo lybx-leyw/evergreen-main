@@ -342,7 +342,7 @@ class _ExpandedSidebar extends ConsumerWidget {
                 const Divider(),
                 _SectionHeader(title: '系统'),
                 _NavItem(icon: Icons.dashboard, label: '仪表盘', path: '/dashboard', current: location),
-                _NavItem(icon: Icons.wifi_tethering, label: '快速连接', path: '/quick-connect', current: location),
+                _NavItem(icon: Icons.wifi_tethering, label: '数据状态', path: '/quick-connect', current: location),
                 _NavItem(icon: Icons.settings, label: '设置', path: '/settings', current: location),
               ],
             ),

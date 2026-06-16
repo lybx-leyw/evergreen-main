@@ -7,6 +7,7 @@ import '../widgets/exam_card.dart';
 import '../../../widgets/loading_indicator.dart';
 import '../../../widgets/error_card.dart';
 import '../../../widgets/empty_state.dart';
+import '../../../widgets/freshness_badge.dart';
 
 /// Exams screen — upcoming exam countdowns + calendar view.
 class ExamsScreen extends ConsumerStatefulWidget {
@@ -25,7 +26,7 @@ class _ExamsScreenState extends ConsumerState<ExamsScreen> {
   void initState() {
     super.initState();
     Future.microtask(() {
-      if (shouldRefresh(ref)) ref.invalidate(examsListProvider);
+      // 不再自动刷新：前端永远读缓存
     });
   }
 
@@ -42,6 +43,7 @@ class _ExamsScreenState extends ConsumerState<ExamsScreen> {
             tooltip: _showCalendar ? '列表视图' : '日历视图',
             onPressed: () => setState(() => _showCalendar = !_showCalendar),
           ),
+          const FreshnessBadge(cacheKey: 'zdbk_exams'),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () => ref.invalidate(examsListProvider),

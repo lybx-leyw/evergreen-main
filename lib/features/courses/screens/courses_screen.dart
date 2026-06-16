@@ -10,6 +10,7 @@ import '../widgets/timetable_grid.dart';
 import '../../../widgets/loading_indicator.dart';
 import '../../../widgets/error_card.dart';
 import '../../../widgets/empty_state.dart';
+import '../../../widgets/freshness_badge.dart';
 
 /// Courses screen — displays enrolled courses list and weekly timetable.
 class CoursesScreen extends ConsumerStatefulWidget {
@@ -25,11 +26,17 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
   int _timetableYear = 0;
   int _timetableSeason = 1; // 按位: 春=1, 夏=2, 秋=4, 冬=8
 
+  String get _currentTimetableCacheKey {
+    final now = DateTime.now();
+    final isAW = now.month >= 9 || now.month <= 2;
+    return 'zdbk_Timetable${isAW ? now.year : now.year - 1}_${isAW ? 3 : 12}';
+  }
+
   @override
   void initState() {
     super.initState();
     Future.microtask(() {
-      if (shouldRefresh(ref)) ref.invalidate(coursesListProvider);
+      // 不再自动刷新：前端永远读缓存
     });
   }
 
@@ -41,6 +48,7 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
       appBar: AppBar(
         title: Text(_showTimetable ? '课表' : '课程列表'),
         actions: [
+          FreshnessBadge(cacheKey: _currentTimetableCacheKey),
           IconButton(
             icon: Icon(_showTimetable ? Icons.list : Icons.calendar_view_week),
             tooltip: _showTimetable ? '列表视图' : '课表视图',

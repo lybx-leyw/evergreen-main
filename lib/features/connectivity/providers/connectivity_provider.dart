@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/connectivity/connection_manager.dart';
 import '../../../core/log.dart';
 import '../../../core/network/dio_client.dart';
+import '../../../core/storage/database.dart';
+import '../../../core/connectivity/data_status_manager.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../zdbk/providers/zdbk_provider.dart';
 
@@ -44,3 +46,31 @@ final connectivityCheckProvider =
 
   return retried;
 });
+
+/// 全局数据状态管理器（持久实例，不被 invalidate 重建）。
+final dataStatusManagerProvider = FutureProvider<DataStatusManager>((ref) async {
+  final db = await WebCacheDatabase.getInstance();
+  final manager = DataStatusManager();
+  manager.registerDefaults();
+  manager.refreshFreshness(db);
+  return manager;
+});
+
+/// 数据状态刷新计数器 —— UI watch 此 provider 可在刷新后重建。
+final dataStatusTickProvider = StateProvider<int>((_) => 0);
+
+/// 刷新单个数据源的状态（供 _refreshDataSource 调用）。
+void updateDataStatus(WidgetRef ref, String name, {required bool ok, String? error}) {
+  final mgr = ref.read(dataStatusManagerProvider).valueOrNull;
+  if (mgr == null) return;
+  final src = mgr.source(name);
+  if (src == null) return;
+  src.connected = ok;
+  if (ok) {
+    src.lastFetchedAt = DateTime.now();
+    src.lastError = null;
+  } else {
+    src.lastError = error;
+  }
+  ref.read(dataStatusTickProvider.notifier).state++;
+}

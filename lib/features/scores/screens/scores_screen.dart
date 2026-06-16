@@ -13,6 +13,7 @@ import '../../../core/config/theme.dart';
 import '../../../widgets/loading_indicator.dart';
 import '../../../widgets/error_card.dart';
 import '../../../widgets/empty_state.dart';
+import '../../../widgets/freshness_badge.dart';
 
 /// Scores & GPA Dashboard.
 class ScoresScreen extends ConsumerStatefulWidget {
@@ -32,7 +33,7 @@ class _ScoresScreenState extends ConsumerState<ScoresScreen> {
   void initState() {
     super.initState();
     Future.microtask(() {
-      if (shouldRefresh(ref)) ref.invalidate(zdbkEverythingProvider);
+      // 不再自动刷新：前端永远读缓存
     });
   }
 
@@ -50,6 +51,7 @@ class _ScoresScreenState extends ConsumerState<ScoresScreen> {
       appBar: AppBar(
         title: const Text('成绩与 GPA'),
         actions: [
+          const FreshnessBadge(cacheKey: 'zdbk_Transcript'),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () => ref.invalidate(zdbkEverythingProvider),

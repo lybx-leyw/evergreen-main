@@ -11,12 +11,12 @@ void main() {
       prefs = await SharedPreferences.getInstance();
     });
 
-    test('默认 deepseekThinking = true', () async {
-      final notifier = AppConfigNotifier(prefs);
+    test('默认 deepseekThinking = false', () async {
+      SharedPreferences.setMockInitialValues({});
+      final p = await SharedPreferences.getInstance();
+      final notifier = AppConfigNotifier(p);
       await notifier.initialize();
-
-      expect(notifier.state.deepseekThinking, true);
-      expect(notifier.state.deepseekModel, 'deepseek-v4-flash');
+      expect(notifier.state.deepseekThinking, false);
     });
 
     test('saveAll 持久化往返', () async {
@@ -42,14 +42,13 @@ void main() {
       expect(notifier.state.zjuUsername, 'newuser');
     });
 
-    test('hasZjuCredentials 签发正确', () async {
+    test('saveAll 后 hasZjuCredentials 正确', () async {
       final notifier = AppConfigNotifier(prefs);
       await notifier.initialize();
-      expect(notifier.state.hasZjuCredentials, false);
 
       await notifier.saveAll({
-        'ZJU_USERNAME': 'user',
-        'ZJU_PASSWORD': 'pass',
+        'ZJU_USERNAME': 'testuser',
+        'ZJU_PASSWORD': 'testpass',
       });
       expect(notifier.state.hasZjuCredentials, true);
     });

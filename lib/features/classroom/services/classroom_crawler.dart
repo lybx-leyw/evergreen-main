@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import '../../../core/result.dart';
 import '../../../core/errors.dart';
 import '../../../core/log.dart';
+import '../../../core/storage/database.dart';
 import '../models/ppt_slide.dart';
 import '../models/subtitle.dart';
 
@@ -71,14 +72,38 @@ class ClassroomCrawler {
                 teacher: c['Teacher']?.toString(),
               ))
           .toList();
+
+      // 写入缓存
+      try {
+        final db = await WebCacheDatabase.getInstance();
+        final jsonList = courses
+            .map((c) => {'Id': c.id.toString(), 'Title': c.title, 'Teacher': c.teacher})
+            .toList();
+        await db.setCachedWebPage('classroom_courses', jsonEncode(jsonList));
+      } catch (_) {}
+
       _d('L3',
           'listCourses() → ${courses.length} courses in ${_sw.elapsedMilliseconds}ms');
       return Ok(courses);
     } catch (e, stack) {
-      Log().warn('ClassroomCrawler.listCourses failed',
-          error: e);
-      return Err(AppError.networkUnreachable(
-          'education.cmc.zju.edu.cn'));
+      Log().warn('ClassroomCrawler.listCourses failed', error: e);
+      // 回退缓存
+      try {
+        final db = await WebCacheDatabase.getInstance();
+        final cached = db.getCachedList('classroom_courses');
+        if (cached.isNotEmpty) {
+          final courses = cached
+              .map((c) => ClassroomCourse(
+                    id: int.tryParse(c['Id']?.toString() ?? '') ?? 0,
+                    title: c['Title']?.toString() ?? '',
+                    teacher: c['Teacher']?.toString(),
+                  ))
+              .toList();
+          Log().info('Classroom: using cached ${courses.length} courses');
+          return Ok(courses);
+        }
+      } catch (_) {}
+      return Err(AppError.networkUnreachable('education.cmc.zju.edu.cn'));
     }
   }
 

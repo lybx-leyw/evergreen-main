@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/result.dart';
@@ -42,6 +43,17 @@ class CoursesApiService {
       _cache.setJson(cacheKey, courses.map((c) => c.toJson()).toList());
       return Ok(courses);
     } on Exception catch (e, stack) {
+      // 网络失败时回退过期缓存（离线降级）
+      final stale = _cache.getJson(cacheKey);
+      if (stale is List) {
+        Log().info('Courses API: using stale cache for $cacheKey',
+            data: {'error': e.toString().substring(0, min(e.toString().length, 100))});
+        try {
+          return Ok(stale
+              .map((c) => Course.fromJson(c as Map<String, dynamic>))
+              .toList());
+        } catch (_) {}
+      }
       return Err(_mapError(e, stack, 'courses.zju.edu.cn'));
     }
   }
@@ -81,6 +93,13 @@ class CoursesApiService {
       _cache.setJson(cacheKey, exams, ttl: const Duration(minutes: 10));
       return Ok(exams);
     } on Exception catch (e, stack) {
+      // 网络失败时回退过期缓存（离线降级）
+      final stale = _cache.getJson(cacheKey);
+      if (stale is List) {
+        Log().info('Courses API: using stale cache for $cacheKey',
+            data: {'error': e.toString().substring(0, min(e.toString().length, 100))});
+        return Ok(stale.cast<Map<String, dynamic>>());
+      }
       return Err(_mapError(e, stack, 'courses.zju.edu.cn'));
     }
   }

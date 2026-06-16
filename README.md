@@ -21,7 +21,7 @@ flutter run -d windows
 - **📋 热加载 Skill 系统** — 丢 `.md` 到 `.greenix/skills/`，AI 即刻加载。支持 inline / subagent 双模式
 - **🔍 两级 OCR** — DeepSeek-OCR 云端高精度 → Tesseract 本地自动降级。PDF 自动拆页逐页识别
 - **🤖 自研 Agent 运行时** — Reasonix 的 Dart 复刻：compose → LLM → tool → loop → readiness，17 种类型化事件
-- **📊 900+ 个自动化测试**
+- **📊 917 个自动化测试**（0 失败）
 
 ## 功能模块（15 个）
 
@@ -72,7 +72,7 @@ flutter build apk --release
 
 ## 项目谱系
 
-- **v1.0**（当前）— Dart/Flutter 桌面应用，15 个功能模块，自研 Agent 运行时
+- **v1.1**（当前）— Dart/Flutter 桌面应用，15 个功能模块，自研 Agent 运行时，数据状态管理
 - Agent 运行时参考 [Reasonix](https://github.com/esengine/reasonix) (MIT)，Dart 独立重写
 - 成绩计算 & 教务交互参考 [Celechron](https://github.com/Celechron/Celechron) (GPL-3.0)
 - 教师评分数据来自 [Lazuli](https://github.com/ADSR1042/Lazuli) (GPL-3.0)

@@ -33,7 +33,7 @@ class ZjuTimetableTool extends Tool {
   Future<String> execute(Map<String, dynamic> args) async {
     try {
       final entries = await _dataSource.getTimetable();
-      if (entries.isEmpty) return '当前没有课表数据。';
+      if (entries.isEmpty) return '当前没有课表数据。请先在数据状态面板或仪表盘刷新数据后重试。';
 
       // 按学期分组
       final bySemester = <String, List<ZjuTimetableEntry>>{};

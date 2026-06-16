@@ -23,7 +23,7 @@ final coursesListProvider =
 
 /// Provider for full course data (activities).
 final courseFullDataProvider =
-    FutureProvider.family<Result<CourseFullData>, int>((ref, courseId) async {
+    FutureProvider.family.autoDispose<Result<CourseFullData>, int>((ref, courseId) async {
   final api = ref.read(coursesApiProvider);
   return api.getCourseFullData(courseId);
 });

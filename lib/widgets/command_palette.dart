@@ -41,7 +41,7 @@ const _allItems = <_PaletteItem>[
   _PaletteItem(title: '查老师', subtitle: '/teachers', icon: Icons.person_search, route: '/teachers', category: '校园'),
   // 系统
   _PaletteItem(title: '课表导出', subtitle: '/schedule-export', icon: Icons.calendar_today, route: '/schedule-export', category: '系统'),
-  _PaletteItem(title: '快速连接', subtitle: '/quick-connect', icon: Icons.wifi_tethering, route: '/quick-connect', category: '系统'),
+  _PaletteItem(title: '数据状态', subtitle: '/quick-connect', icon: Icons.wifi_tethering, route: '/quick-connect', category: '系统'),
   _PaletteItem(title: '设置', subtitle: '/settings', icon: Icons.settings, route: '/settings', category: '系统'),
 ];
 

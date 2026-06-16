@@ -26,7 +26,7 @@ class ZjuCoursesTool extends Tool {
   Future<String> execute(Map<String, dynamic> args) async {
     try {
       final courses = await _dataSource.getCourses();
-      if (courses.isEmpty) return '当前没有课程数据。';
+      if (courses.isEmpty) return '当前没有课程数据。请先在数据状态面板或仪表盘刷新数据后重试。';
 
       final buf = StringBuffer();
       buf.writeln('共有 ${courses.length} 门课程：');

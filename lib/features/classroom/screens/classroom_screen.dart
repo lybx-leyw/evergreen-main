@@ -7,6 +7,7 @@ import '../screens/classroom_viewer_screen.dart';
 import '../../../widgets/loading_indicator.dart';
 import '../../../widgets/error_card.dart';
 import '../../../widgets/empty_state.dart';
+import '../../../widgets/freshness_badge.dart';
 
 class ClassroomScreen extends ConsumerStatefulWidget {
   const ClassroomScreen({super.key});
@@ -22,7 +23,10 @@ class _ClassroomScreenState extends ConsumerState<ClassroomScreen> {
     final coursesAsync = ref.watch(classroomCoursesProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('智云课堂')),
+      appBar: AppBar(
+        title: const Text('智云课堂'),
+        actions: const [FreshnessBadge(cacheKey: 'classroom_courses')],
+      ),
       body: Column(
         children: [
           Padding(

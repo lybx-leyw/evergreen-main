@@ -18,14 +18,14 @@ final classroomCoursesProvider =
 });
 
 final classroomVideosProvider =
-    FutureProvider.family<Result<List<ClassroomVideo>>, int>(
+    FutureProvider.family.autoDispose<Result<List<ClassroomVideo>>, int>(
         (ref, courseId) async {
   final crawler = ref.read(classroomCrawlerProvider);
   return crawler.listVideos(courseId);
 });
 
 final courseContentProvider =
-    FutureProvider.family<CourseContent, ({int courseId, int subId})>(
+    FutureProvider.family.autoDispose<CourseContent, ({int courseId, int subId})>(
         (ref, params) async {
   final crawler = ref.read(classroomCrawlerProvider);
   return crawler.fetchCourseContent(params.courseId, params.subId);

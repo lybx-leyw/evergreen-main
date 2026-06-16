@@ -5,6 +5,7 @@ import '../services/todo_service.dart';
 import '../../../widgets/loading_indicator.dart';
 import '../../../widgets/error_card.dart';
 import '../../../widgets/empty_state.dart';
+import '../../../widgets/freshness_badge.dart';
 import '../../../core/config/theme.dart';
 import '../../../core/utils/auto_refresh.dart';
 
@@ -22,14 +23,13 @@ class TodoScreen extends ConsumerStatefulWidget {
 class _TodoScreenState extends ConsumerState<TodoScreen> {
   bool _showExpired = false;
   TodoSourceFilter _sourceFilter = TodoSourceFilter.all;
-  bool _sortAscending = true; // true = 时间升序（最近的在前）
+  bool _sortAscending = true;
+  DateTime? _lastRefresh;
 
   @override
   void initState() {
     super.initState();
-    Future.microtask(() {
-      if (shouldRefresh(ref)) ref.invalidate(todoListProvider);
-    });
+    Future.microtask(() {});
   }
 
   @override
@@ -40,9 +40,14 @@ class _TodoScreenState extends ConsumerState<TodoScreen> {
       appBar: AppBar(
         title: const Text('待办事项'),
         actions: [
+          FreshnessBadge(cacheKey: '', lastFetchedAt: _lastRefresh),
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () => ref.invalidate(todoListProvider),
+            onPressed: () {
+              _lastRefresh = DateTime.now();
+              ref.invalidate(todoListProvider);
+              setState(() {});
+            },
           ),
         ],
       ),

@@ -66,7 +66,7 @@ flutter build windows --release
 cd scripts
 "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
 
-# 产物: build/installer/EvergreenSetup-1.0.0.exe
+# 产物: build/installer/EvergreenSetup-1.1.0.exe
 ```
 
 ## Android 构建

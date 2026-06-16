@@ -12,6 +12,7 @@ import 'core/config/providers.dart';
 import 'core/log.dart';
 import 'core/network/dio_client.dart';
 import 'core/utils/auto_refresh.dart';
+import 'core/services/background_refresher.dart';
 import 'core/network/auth_interceptor.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/connectivity/providers/connectivity_provider.dart';
@@ -256,7 +257,11 @@ class _EvergreenAppState extends ConsumerState<EvergreenApp> {
   @override
   void initState() {
     super.initState();
-    Future.microtask(() => initAutoRefresh(ref));
+    Future.microtask(() {
+      initAutoRefresh(ref);
+      // 启动后台静默刷新器（监听 auto-refresh tick，静默更新缓存）
+      ref.read(backgroundRefresherProvider);
+    });
   }
 
   @override

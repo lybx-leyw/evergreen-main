@@ -29,7 +29,7 @@ flutter run -d windows
 
 - **🤖 Self-Built Agent Runtime** — A Dart reimplementation of Reasonix: `compose → LLM → tool → loop → readiness`, with 17 typed events.
 
-- **📊 900+ Automated Tests**
+- **📊 917 Automated Tests** (0 failures)
 
 ---
 
@@ -88,7 +88,7 @@ flutter build apk --release
 
 ## Project Lineage
 
-- **v1.0** (current) — Dart/Flutter desktop app, 15 modules, self-built Agent runtime
+- **v1.1** (current) — Dart/Flutter desktop app, 15 modules, self-built Agent runtime, data status management
 - Agent runtime inspired by [Reasonix](https://github.com/esengine/reasonix) (MIT), independently rewritten in Dart
 - Grade calculation & academic affairs integration adapted from [Celechron](https://github.com/Celechron/Celechron) (GPL-3.0)
 - Instructor rating data sourced from [Lazuli](https://github.com/ADSR1042/Lazuli) (GPL-3.0)

@@ -12,7 +12,7 @@ final libraryServiceProvider = Provider<LibraryService>((ref) {
 
 final libraryBooksProvider =
     FutureProvider<Result<List<BorrowedBook>>>((ref) async {
-  final auth = ref.read(authProvider);
+  final auth = ref.watch(authProvider);
   if (!auth.isLoggedIn || auth.ssoCookie == null) {
     return Err(AppError.configMissing('学号和密码')
       ..recoveryHint = '请先登录统一认证');

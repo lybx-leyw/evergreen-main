@@ -26,7 +26,7 @@ class ZjuScoresTool extends Tool {
   Future<String> execute(Map<String, dynamic> args) async {
     try {
       final result = await _dataSource.getScores();
-      if (result == null) return '暂未获取到成绩数据，请确认是否已登录教务网。';
+      if (result == null) return '暂未获取到成绩数据。Agent 使用本地缓存，请先在仪表盘页面刷新数据。';
 
       return '📊 成绩概览\n'
           '- 五分制: ${result.fivePointGpa.toStringAsFixed(2)}  / 5.0\n'

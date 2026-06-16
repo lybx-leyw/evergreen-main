@@ -26,7 +26,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   void initState() {
     super.initState();
     Future.microtask(() {
-      if (!shouldRefresh(ref)) return;
+      // 不再自动刷新：前端永远读缓存，刷新由数据状态面板手动触发
       ref.invalidate(zdbkEverythingProvider);
       ref.invalidate(todoListProvider);
       ref.invalidate(examsListProvider);
@@ -500,7 +500,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget _quickConnectCard(WidgetRef ref) {
     final status = ref.watch(connectivityCheckProvider);
     return _previewCard(
-      title: '快速连接',
+      title: '数据状态',
       icon: Icons.wifi_tethering,
       path: '/quick-connect',
       subtitle: status.when(

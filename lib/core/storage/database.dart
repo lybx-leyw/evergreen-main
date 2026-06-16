@@ -34,6 +34,8 @@ class CacheTtl {
   static const majorGrade = Duration(hours: 1);
   static const exams = Duration(hours: 1);
   static const courseOfferings = Duration(hours: 24);
+  static const notifications = Duration(minutes: 30);
+  static const trainingPlans = Duration(hours: 24);
   static const timetable = Duration(hours: 1);
   static const practiceScores = Duration(hours: 6);
 }
@@ -41,6 +43,10 @@ class CacheTtl {
 /// Lightweight file-based cache database for ZDBK responses.
 class WebCacheDatabase {
   static WebCacheDatabase? _instance;
+
+  /// 同步获取已初始化的实例。在 [zdbkServiceInstanceProvider] 完成前为 null。
+  static WebCacheDatabase? get instanceOrNull => _instance;
+
   late final String _cacheDir;
 
   WebCacheDatabase._(this._cacheDir);
@@ -99,6 +105,14 @@ class WebCacheDatabase {
     } catch (_) {}
     return [];
   }
+
+  /// 获取缓存写入时间（供数据状态面板展示"上次更新时间"）。
+  DateTime? getCacheTimestamp(String key) {
+    return _getEntry(key)?.cachedAt;
+  }
+
+  /// 获取缓存原始条目（供 DataStatusManager 使用）。
+  _CacheEntry? getEntry(String key) => _getEntry(key);
 
   /// 清除所有缓存。
   Future<void> clearAll() async {

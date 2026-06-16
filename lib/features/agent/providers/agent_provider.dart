@@ -40,12 +40,17 @@ import '../../teachers/tools/search_teacher.dart';
 import '../../../core/agent/tools/web_search.dart';
 import '../../../core/models/course_offering.dart';
 import '../../../core/models/timetable_session.dart';
+import '../../../core/models/grade.dart';
+import '../../../core/models/exam.dart';
+import '../../../core/models/training_plan.dart';
+import '../../../core/storage/database.dart';
+import '../../../core/storage/cache_manager.dart';
+import '../../../core/utils/gpa_calculator.dart';
 import '../../zdbk/providers/zdbk_provider.dart';
 import '../../zdbk/providers/zdbk_notifications_provider.dart';
 import '../../zdbk/tools/zju_course_offerings.dart';
 import '../../zdbk/tools/search_course_offerings.dart';
 import '../../zdbk/tools/get_training_plan.dart';
-import '../../../core/models/training_plan.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../classroom/providers/classroom_provider.dart';
 import '../../classroom/services/classroom_crawler.dart';
@@ -58,29 +63,55 @@ import '../services/session_store.dart';
 
 class FlutterZjuDataSource implements ZjuDataSource, CourseOfferingDataSource, CourseOfferingSearchDataSource, TrainingPlanDataSource {
   final Ref _ref;
-  FlutterZjuDataSource(this._ref);
+  final WebCacheDatabase? _db;      // 文件缓存（可能未初始化，此时返回空）
+  final CacheManager _cacheManager; // 内存缓存（Courses API 数据）
+
+  FlutterZjuDataSource(this._ref, this._db, this._cacheManager);
+
+  /// 安全读取文件缓存列表。
+  List<dynamic> _cachedList(String key) =>
+      _db?.getCachedList(key) ?? [];
+
+  /// 当前学年学期（用于动态缓存 key 查找）。
+  ({int year, int semester}) get _currentSem {
+    final now = DateTime.now();
+    final isAutumnWinter = now.month >= 9 || now.month <= 2;
+    final year = isAutumnWinter ? now.year : now.year - 1;
+    final semester = isAutumnWinter ? 3 : 12;
+    return (year: year, semester: semester);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // Agent 永读缓存：以下所有方法只读缓存，不触发 live HTTP。
+  // 例外：searchCourseOfferings（RAG 搜索）、getPlanOcrText（PDF OCR）
+  // ═══════════════════════════════════════════════════════════════
 
   @override
   Future<List<ZjuCourse>> getCourses() async {
-    // 从教务网课表读取（替代原有的 courses.zju.edu.cn）
-    final result = await _ref.read(zdbkTimetableProvider.future);
-    final sessions = result.fold((s) => s, (_) => <TimetableSession>[]);
-    // 按课程名去重：同一门课每周有多条 timetable session
-    final unique = <String, ZjuCourse>{};
-    for (final s in sessions) {
-      if (!unique.containsKey(s.courseName)) {
-        unique[s.courseName] = ZjuCourse(
-          id: _stableCourseId(s.courseName, s.courseId),
-          name: s.courseName,
-          teacher: s.teacher,
-          isActive: !s.isEnded,
-        );
+    final sem = _currentSem;
+    final cached = _cachedList('zdbk_Timetable${sem.year}_${sem.semester}');
+    if (cached.isEmpty) return [];
+    try {
+      final sessions = cached
+          .map((e) => TimetableSession.fromZdbkJson(e as Map<String, dynamic>))
+          .toList();
+      final unique = <String, ZjuCourse>{};
+      for (final s in sessions) {
+        if (!unique.containsKey(s.courseName)) {
+          unique[s.courseName] = ZjuCourse(
+            id: _stableCourseId(s.courseName, s.courseId),
+            name: s.courseName,
+            teacher: s.teacher,
+            isActive: !s.isEnded,
+          );
+        }
       }
+      return unique.values.toList();
+    } catch (_) {
+      return [];
     }
-    return unique.values.toList();
   }
 
-  /// 从课程名和选课课号生成稳定正整数 ID。
   static int _stableCourseId(String name, String? courseId) {
     final seed = courseId ?? name;
     int hash = 0;
@@ -92,99 +123,152 @@ class FlutterZjuDataSource implements ZjuDataSource, CourseOfferingDataSource, C
 
   @override
   Future<ZjuScoreResult?> getScores() async {
-    final result = await _ref.read(zdbkEverythingProvider.future);
-    return result.fold(
-      (data) => ZjuScoreResult(
-        fivePointGpa: data.domesticGpa.fivePoint,
-        fourPointThreeGpa: data.domesticGpa.fourPoint,
-        fourPointGpa: data.domesticGpa.fourPointLegacy,
-        hundredPointGpa: data.domesticGpa.hundredPoint,
-        totalCredits: data.domesticGpa.earnedCredits,
-        courseCount: data.grades.length,
-      ),
-      (_) => null,
-    );
+    final cached = _cachedList('zdbk_Transcript');
+    if (cached.isEmpty) return null;
+    try {
+      final grades = cached
+          .where((e) => e['xkkh'] != null)
+          .map((e) => Grade.fromJson(e as Map<String, dynamic>))
+          .toList();
+      if (grades.isEmpty) return null;
+      final gpa = GpaCalculator.calculateGpa(grades);
+      return ZjuScoreResult(
+        fivePointGpa: gpa.fivePoint,
+        fourPointThreeGpa: gpa.fourPoint,
+        fourPointGpa: gpa.fourPointLegacy,
+        hundredPointGpa: gpa.hundredPoint,
+        totalCredits: gpa.earnedCredits,
+        courseCount: grades.length,
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   @override
   Future<List<ZjuClassroomCourse>> getClassroomCourses() async {
-    final result = await _ref.read(classroomCoursesProvider.future);
-    final courses = result.fold((c) => c, (_) => <ClassroomCourse>[]);
-    return courses
-        .map((c) => ZjuClassroomCourse(id: c.id, title: c.title))
-        .toList();
+    // 智云课堂无文件缓存，读 Provider 当前值（不触发 fetch）
+    final result = _ref.read(classroomCoursesProvider).valueOrNull;
+    if (result == null) return [];
+    return result.fold(
+      (courses) => courses
+          .map((c) => ZjuClassroomCourse(id: c.id, title: c.title))
+          .toList(),
+      (_) => [],
+    );
   }
 
   @override
   Future<ZjuEcardResult?> getEcardBalance() async {
+    // 一卡通无文件缓存（服务已暂停）
     try {
-      final data = await _ref.read(ecardBalanceProvider.future);
+      final data = _ref.read(ecardBalanceProvider).valueOrNull;
       if (data == null) return null;
-      final balance = (data['balance'] ?? data['card_balance'] ?? data['amount']);
+      final balance =
+          (data['balance'] ?? data['card_balance'] ?? data['amount']);
       return ZjuEcardResult(
         balance: (balance is num) ? balance.toDouble() : 0.0,
         cardNumber: data['card_no']?.toString(),
       );
-    } catch (_) { return null; }
+    } catch (_) {
+      return null;
+    }
   }
 
   @override
   Future<List<ZjuTodo>> getTodos() async {
-    final todos = await _ref.read(todoListProvider.future);
-    return todos.map((t) => ZjuTodo(id: t.id, title: t.title, deadline: t.deadline, type: t.type)).toList();
+    // 待办无文件缓存
+    final todos = _ref.read(todoListProvider).valueOrNull ?? [];
+    return todos
+        .map((t) => ZjuTodo(
+            id: t.id, title: t.title, deadline: t.deadline, type: t.type))
+        .toList();
   }
 
   @override
   Future<List<ZjuExam>> getExams() async {
-    final exams = await _ref.read(examsListProvider.future);
-    return exams.map((e) => ZjuExam(name: e.name, startTime: e.startTime, location: e.location)).toList();
+    final cached = _cachedList('zdbk_exams');
+    if (cached.isEmpty) return [];
+    try {
+      return cached
+          .map((e) => Exam.fromZdbk(e as Map<String, dynamic>))
+          .map((e) => ZjuExam(
+              name: e.name, startTime: e.startTime, location: e.location))
+          .toList();
+    } catch (_) {
+      return [];
+    }
   }
 
   @override
   Future<List<ZjuTimetableEntry>> getTimetable() async {
-    final result = await _ref.read(zdbkTimetableProvider.future);
-    final sessions = result.fold((s) => s, (_) => <TimetableSession>[]);
-    return sessions.map((s) => ZjuTimetableEntry(
-      courseName: s.courseName,
-      teacher: s.teacher,
-      location: s.location,
-      dayOfWeek: s.dayOfWeek,
-      periods: s.periods,
-      weekRange: s.weekRange,
-      semesterLabel: semesterBitsToLabel(s.semester, s.courseYear),
-    )).toList();
+    final sem = _currentSem;
+    final cached = _cachedList('zdbk_Timetable${sem.year}_${sem.semester}');
+    if (cached.isEmpty) return [];
+    try {
+      return cached
+          .map((e) => TimetableSession.fromZdbkJson(e as Map<String, dynamic>))
+          .map((s) => ZjuTimetableEntry(
+                courseName: s.courseName,
+                teacher: s.teacher,
+                location: s.location,
+                dayOfWeek: s.dayOfWeek,
+                periods: s.periods,
+                weekRange: s.weekRange,
+                semesterLabel: semesterBitsToLabel(s.semester, s.courseYear),
+              ))
+          .toList();
+    } catch (_) {
+      return [];
+    }
   }
 
   @override
   Future<List<ZjuNotification>> getNotifications() async {
-    final result = await _ref.read(zdbkNotificationsProvider.future);
+    // ZDBK 通知无文件缓存
+    final result = _ref.read(zdbkNotificationsProvider).valueOrNull;
+    if (result == null) return [];
     return result.fold(
-      (list) => list.map((n) => ZjuNotification(
-        id: n.id,
-        title: n.title,
-        publisher: n.publisher,
-        publishDate: n.publishDate,
-        content: n.content,
-      )).toList(),
-      (_) => <ZjuNotification>[],
+      (list) => list
+          .map((n) => ZjuNotification(
+                id: n.id,
+                title: n.title,
+                publisher: n.publisher,
+                publishDate: n.publishDate,
+                content: n.content,
+              ))
+          .toList(),
+      (_) => [],
     );
   }
 
   // ── CourseOfferingDataSource ──────────────────────────────
 
   @override
-  Future<List<CourseOffering>> getCourseOfferings({int year = 2024, int semester = 12}) async {
-    final result = await _ref.read(courseOfferingsProvider((year: year, semester: semester)).future);
-    return result.fold((data) => data, (_) => <CourseOffering>[]);
+  Future<List<CourseOffering>> getCourseOfferings(
+      {int year = 2024, int semester = 12}) async {
+    final cached =
+        _cachedList('zdbk_courseOfferings_${year}_$semester');
+    if (cached.isEmpty) return [];
+    try {
+      return cached
+          .map((e) => CourseOffering.fromJson(e as Map<String, dynamic>))
+          .toList();
+    } catch (_) {
+      return [];
+    }
   }
 
   @override
-  Future<List<CourseOffering>> searchCourseOfferings({required String query, int year = 2025, int semester = 12}) async {
+  Future<List<CourseOffering>> searchCourseOfferings(
+      {required String query, int year = 2025, int semester = 12}) async {
+    // RAG 搜索必须在线获取 —— Agent 缓存策略的唯一例外之一
     final service = await _ref.read(zdbkServiceInstanceProvider.future);
     final auth = _ref.read(authProvider);
     final httpClient = _ref.read(httpClientProvider);
     if (!service.isLoggedIn) await service.login(httpClient, auth.ssoCookie!);
-    final result = await service.searchCourseOfferings(httpClient, query: query, year: year, semester: semester);
+    final result = await service.searchCourseOfferings(httpClient,
+        query: query, year: year, semester: semester);
     return result.fold((data) => data, (_) => <CourseOffering>[]);
   }
 
@@ -192,12 +276,22 @@ class FlutterZjuDataSource implements ZjuDataSource, CourseOfferingDataSource, C
 
   @override
   Future<Result<List<TrainingPlan>>> getTrainingPlans(int grade) async {
-    final result = await _ref.read(trainingPlansProvider(grade).future);
-    return result;
+    final cached = _cachedList('zdbk_trainingPlans');
+    if (cached.isEmpty) return Ok(<TrainingPlan>[]);
+    try {
+      final plans = cached
+          .map((e) => TrainingPlan.fromJson(e as Map<String, dynamic>))
+          .toList();
+      return Ok(plans);
+    } catch (e) {
+      return Err(AppError.dataIntegrity(
+          'zdbk/trainingPlans', 'cache', 'TrainingPlan', e.toString()));
+    }
   }
 
   @override
   Future<Result<String>> getPlanOcrText(String planNo) async {
+    // PDF 下载 + OCR 必须在线获取 —— Agent 缓存策略的唯一例外之二
     try {
       final service = await _ref.read(zdbkServiceInstanceProvider.future);
       final httpClient = _ref.read(httpClientProvider);
@@ -205,21 +299,17 @@ class FlutterZjuDataSource implements ZjuDataSource, CourseOfferingDataSource, C
       if (!service.isLoggedIn && auth.ssoCookie != null) {
         await service.login(httpClient, auth.ssoCookie!);
       }
-
-      // 1. 下载 PDF
       final pdfResult = await service.downloadPlanPdf(httpClient, planNo);
       if (pdfResult.isErr) return Err((pdfResult as Err).error);
       final pdfPath = (pdfResult as Ok<String>).value;
-
-      // 2. 两级 OCR：DeepSeek → Tesseract（PDF 拆分 + 逐页 OCR 由 Pipeline 处理）
       final dio = _ref.read(dioClientProvider);
       final text = await OcrPipeline(dio).recognizeFile(pdfPath);
-
-      // 3. 清理临时 PDF
-      try { await File(pdfPath).delete(); } catch (_) {}
-
+      try {
+        await File(pdfPath).delete();
+      } catch (_) {}
       if (text == null || text.isEmpty) {
-        return Err(AppError.fileError('ocr', 'read', osError: 'OCR 未识别到文字'));
+        return Err(
+            AppError.fileError('ocr', 'read', osError: 'OCR 未识别到文字'));
       }
       return Ok(text);
     } catch (e) {
@@ -254,7 +344,11 @@ final agentRuntimeProvider = Provider<AgentRuntime>((ref) {
   debugPrint('[AgentInit:D] creating AgentRuntime apiKey=${apiKey.isNotEmpty ? "✅ ${apiKey.substring(0, 8)}..." : "❌ empty"} model=$model');
 
   final provider = agent.DeepSeekProvider(dio: dio, apiKey: apiKey, model: model);
-  final dataSource = FlutterZjuDataSource(ref);
+  final dataSource = FlutterZjuDataSource(
+    ref,
+    WebCacheDatabase.instanceOrNull,
+    CacheManager(),
+  );
 
   // 记忆系统：global → 文件存储
   final globalStore = FileMemoryStore('.greenix/memories');

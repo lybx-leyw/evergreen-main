@@ -314,6 +314,7 @@ class ZdbkService {
         Log().debug('Training plans: response is HTML, extracting items');
         final items = HtmlParser.extractItems(html);
         if (items.isNotEmpty) {
+          _db.setCachedWebPage('zdbk_trainingPlans', jsonEncode(items));
           return Ok(items);
         }
         // 真的无法解析
@@ -329,13 +330,14 @@ class ZdbkService {
 
       try {
         final result = items.cast<Map<String, dynamic>>();
+        _db.setCachedWebPage('zdbk_trainingPlans', jsonEncode(items));
         return Ok(result);
       } catch (e) {
         Log().error('Training plans: data conversion failed', error: e);
         return Err(AppError.dataIntegrity(
             'zdbk/trainingPlans', 'items[*]', 'Map', e.toString()));
       }
-    });
+    }, fallbackKey: 'zdbk_trainingPlans');
   }
 
   // ── Search Course Offerings ───────────────────────────────────────
@@ -517,15 +519,14 @@ class ZdbkService {
 
   // ── Notifications ───────────────────────────────────────────────
 
-  /// 获取 ZDBK 通知公告列表。
+  /// 获取 ZDBK 通知公告列表（含缓存 + 失败回退）。
   Future<Result<List<ZdbkNotification>>> getNotifications(
       HttpClient httpClient, String studentId) async {
-    try {
+    return _withAutoRelogin(() async {
       final time = DateTime.now().millisecondsSinceEpoch.toString();
       final url = 'https://zdbk.zju.edu.cn/jwglxt/xtgl/index_cxTctxNews.html'
           '?time=$time&gnmkdm=index&su=$studentId';
 
-      // 直接 POST（与浏览器行为一致），followRedirects=true 跟随跳转
       final request = await httpClient
           .postUrl(Uri.parse(url))
           .timeout(const Duration(seconds: 10));
@@ -540,10 +541,14 @@ class ZdbkService {
       if (rawHtml.trim().isEmpty) return Ok(<ZdbkNotification>[]);
 
       final notifications = parseZdbkNotifications(rawHtml);
+      // 缓存（序列化为简单 JSON 列表）
+      _db.setCachedWebPage('zdbk_notifications',
+          jsonEncode(notifications.map((n) => {
+            'id': n.id, 'title': n.title, 'publisher': n.publisher,
+            'publishDate': n.publishDate, 'content': n.content,
+          }).toList()));
       return Ok(notifications);
-    } catch (e) {
-      return Err(AppError.unknown(e)..recoveryHint = '获取通知失败，请稍后重试');
-    }
+    }, fallbackKey: 'zdbk_notifications');
   }
 
   // ── Everything (orchestration) ─────────────────────────────────────

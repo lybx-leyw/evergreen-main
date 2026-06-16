@@ -8,14 +8,14 @@ void main() {
   late String tmpDir;
 
   var _counter = 0;
+  int _hashCode() => Object.hash(DateTime.now().microsecondsSinceEpoch, _counter);
+
   setUp(() {
     _counter++;
     // 加随机后缀避免并发测试共享目录
-    tmpDir = '${Directory.systemTemp.path}/plan_test_${DateTime.now().millisecondsSinceEpoch}_$__counter${_hashCode()}';
+    tmpDir = '${Directory.systemTemp.path}/plan_test_${DateTime.now().millisecondsSinceEpoch}_$_counter${_hashCode()}';
     Directory(tmpDir).createSync(recursive: true);
   });
-
-  int _hashCode() => Object.hash(DateTime.now().microsecondsSinceEpoch, _counter);
 
   tearDown(() {
     Directory(tmpDir).deleteSync(recursive: true);
