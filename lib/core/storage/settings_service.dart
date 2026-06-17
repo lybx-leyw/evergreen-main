@@ -69,8 +69,10 @@ class SettingsService {
         values[entry.key] = entry.value;
       }
     }
-    // Also write to .env file so settings survive app uninstall / are directly editable
-    await AppConfig.saveToEnvFile(values);
+    // .env file is optional — fails silently on Android (read-only filesystem)
+    try {
+      await AppConfig.saveToEnvFile(values);
+    } catch (_) {}
   }
 
   /// Clear all settings.

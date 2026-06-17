@@ -60,6 +60,7 @@ android/key.properties
 # Test artifact directories
 .test_*
 .greenix/memories/
+.claude/
 
 # Inno Setup output
 build/installer/

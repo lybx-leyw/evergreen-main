@@ -52,7 +52,7 @@ flutter run -d windows
 | 平台 | 状态 | 说明 |
 |------|------|------|
 | Windows | ✅ 完整支持 | 14 个功能模块可用 |
-| Android | 🔴 可构建，未测试 | `flutter build apk --release`（Python 脚本不可用） |
+| Android | 🟡 不稳定 | 部分功能可用，OCR 等尚未良好实现 |
 
 ## Windows 安装包
 
@@ -72,13 +72,16 @@ cd scripts
 ## Android 构建
 
 ```powershell
+# 安装依赖
+flutter pub get
+
 # 构建 APK
 flutter build apk --release
 
 # 产物: build/app/outputs/flutter-apk/app-release.apk
 ```
 
-> ⚠️ **Android 限制**：当前 Android 版本**不支持 Python OCR 脚本**及本地 Tesseract。Android 端无法调用 `scripts/` 下的 `.py` 文件（`pdf_to_images.py`、`ocr_file.py`、`ocr_slides.py`），涉及 OCR 的功能（AI 笔记、文件识别、培养方案 PDF 解析等）仅桌面端可用。Python 脚本目前仅通过 Windows Inno Setup 安装包打包，Android 端需未来引入 Chaquopy 等方案嵌入 CPython 运行时。
+> ⚠️ **Android 状态**：Android 版本目前**不稳定**，仅具备部分功能。OCR、AI 助手等核心功能尚未良好实现，存在已知问题。推荐使用 Windows 桌面版获得完整体验。
 
 ## 自动更新
 

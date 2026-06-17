@@ -101,7 +101,7 @@
 | 一卡通（Ecard）激活 | BlueWare 认证待实现 |
 | 图书馆（Library）激活 | API 端点可能已变更，连接超时 |
 | RVPN 激活 | 需 zju-connect Go 二进制，集成不良 |
-| Android 端适配 | 远期规划，本轮不涉及 |
+| Android 端适配 | 部分实现，不稳定（OCR 等未良好实现） |
 | AI Tutoring 新功能 | 远期规划（子计划 29） |
 
 > **例外**: 若收到相关 PR 或 Issues 强烈反馈，可重新评估优先级。

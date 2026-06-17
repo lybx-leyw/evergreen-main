@@ -78,11 +78,11 @@ Enter your DashScope API Key in Settings and enable the `vanchin/deepseek-ocr` m
 # Windows (includes Python OCR scripts + local Tesseract)
 flutter build windows --release
 
-# Android (buildable but untested; OCR not supported)
+# Android (unstable, limited functionality)
 flutter build apk --release
 ```
 
-> ⚠️ The Android version is **untested**, and Python OCR scripts are not supported. OCR is desktop-only.
+> ⚠️ The Android version is currently **unstable** with only partial functionality. Core features such as OCR and AI assistant are not well-implemented. Windows desktop is recommended for the full experience.
 
 ---
 

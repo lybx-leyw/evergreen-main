@@ -6,10 +6,11 @@ import 'auth_interceptor.dart';
 import 'debug_interceptor.dart';
 import 'retry_interceptor.dart';
 import 'network_config.dart';
+import '../utils/greenix_path.dart';
 
 /// Provides the shared PersistCookieJar — cookies survive app restarts.
 final cookieJarProvider = Provider<PersistCookieJar>((ref) {
-  return PersistCookieJar(storage: FileStorage('.cookies'));
+  return PersistCookieJar(storage: FileStorage(cookieJarPath));
 });
 
 /// Provides a configured Dio HTTP client through Riverpod.

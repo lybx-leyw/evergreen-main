@@ -2,12 +2,36 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 
 import '../config/app_config.dart';
 import '../log.dart';
 import '../utils/python_env.dart';
 import 'deepseek_ocr_service.dart';
+
+// Mobile OCR delegates — set by ocr_mobile.dart at startup on Android/iOS.
+// Null on desktop → Tesseract Python subprocess is used instead.
+@visibleForTesting
+Future<String?> Function(String)? mobileOcrFileDelegate;
+@visibleForTesting
+Future<String> Function(String)? mobileOcrUrlDelegate;
+@visibleForTesting
+void Function()? mobileOcrDisposeDelegate;
+
+/// Register mobile (Android/iOS) OCR handlers.
+///
+/// Called from [initMobileOcr] in `ocr_mobile.dart` at app startup.
+/// On desktop these remain null and the Python Tesseract path is used.
+void registerMobileOcr({
+  required Future<String?> Function(String) ocrFile,
+  required Future<String> Function(String) ocrUrl,
+  required void Function() dispose,
+}) {
+  mobileOcrFileDelegate = ocrFile;
+  mobileOcrUrlDelegate = ocrUrl;
+  mobileOcrDisposeDelegate = dispose;
+}
 
 /// 两级 OCR 编排服务。
 ///
@@ -203,6 +227,12 @@ class OcrPipeline {
   // ── Level 2: Tesseract ──────────────────────────────────────
 
   Future<String?> _tesseractOcr(String filePath) async {
+    // Android/iOS → ML Kit (registered via registerMobileOcr)
+    if ((Platform.isAndroid || Platform.isIOS) && mobileOcrFileDelegate != null) {
+      return await mobileOcrFileDelegate!(filePath);
+    }
+
+    // Desktop → Python subprocess (Tesseract)
     try {
       final envError = await _pythonEnv.ensureReady();
       if (envError != null) {
@@ -236,6 +266,12 @@ class OcrPipeline {
   }
 
   Future<String> _tesseractOcrUrl(String imageUrl) async {
+    // Android/iOS → ML Kit (registered via registerMobileOcr)
+    if ((Platform.isAndroid || Platform.isIOS) && mobileOcrUrlDelegate != null) {
+      return await mobileOcrUrlDelegate!(imageUrl);
+    }
+
+    // Desktop → Python subprocess (Tesseract / ocr_slides)
     try {
       final exeName = Platform.isWindows ? 'ocr_slides.exe' : 'ocr_slides';
       final candidates = <String>[

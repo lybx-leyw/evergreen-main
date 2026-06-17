@@ -46,6 +46,7 @@ import '../../../core/models/training_plan.dart';
 import '../../../core/storage/database.dart';
 import '../../../core/storage/cache_manager.dart';
 import '../../../core/utils/gpa_calculator.dart';
+import '../../../core/utils/greenix_path.dart';
 import '../../zdbk/providers/zdbk_provider.dart';
 import '../../zdbk/providers/zdbk_notifications_provider.dart';
 import '../../zdbk/tools/zju_course_offerings.dart';
@@ -351,10 +352,10 @@ final agentRuntimeProvider = Provider<AgentRuntime>((ref) {
   );
 
   // 记忆系统：global → 文件存储
-  final globalStore = FileMemoryStore('.greenix/memories');
+  final globalStore = FileMemoryStore(greenixMemoriesDir);
 
   // Skill 系统：首次运行时从打包 assets 提取预置 skill 到文件系统
-  const skillDir = '.greenix/skills';
+  final skillDir = greenixSkillsDir;
   const bundledSkills = ['acceptance.md'];
   Directory(skillDir).createSync(recursive: true);
   for (final name in bundledSkills) {

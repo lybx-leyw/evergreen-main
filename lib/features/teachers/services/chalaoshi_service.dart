@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../../core/log.dart';
 
 /// 查老师服务——本地 JSON + 逐条在线更新。
@@ -21,32 +22,27 @@ class ChalaoshiService {
   bool _loaded = false;
   final Set<int> _updatingIds = {}; // 正在更新的教师 ID
 
-  /// 从 asset 或本地文件加载完整数据集。
+  /// 从 asset 或本地缓存文件加载完整数据集。
   Future<void> _loadLocal() async {
     if (_loaded) return;
     Log().debug('Chalaoshi loading local dataset');
 
     late String content;
+    // 1) Bundled asset (works on all platforms, does NOT need package prefix)
     try {
-      content = await rootBundle.loadString('evergreen-multi-tools/assets/data/teacher_ratings.json');
+      content = await rootBundle.loadString('assets/data/teacher_ratings.json');
     } catch (_) {
+      // 2) Cached copy from previous online fetches (app documents dir)
       try {
-        final paths = [
-          'evergreen-multi-tools/assets/data/teacher_ratings.json',
-          'evergreen-multi-tools/assets/data/teacher_ratings.json',
-          '${Directory.current.path}/assets/data/teacher_ratings.json',
-        ];
-        String? found;
-        for (final p in paths) {
-          final f = File(p);
-          if (f.existsSync()) { found = f.readAsStringSync(); break; }
-        }
-        if (found == null) {
+        final cacheFile = await _getCacheFile();
+        if (await cacheFile.exists()) {
+          content = await cacheFile.readAsString();
+          Log().info('Chalaoshi loaded from cache');
+        } else {
           Log().warn('Chalaoshi local data file not found');
           _loaded = true;
           return;
         }
-        content = found;
       } catch (e) {
         Log().warn('Chalaoshi data unavailable', error: e);
         _loaded = true;
@@ -163,23 +159,8 @@ class ChalaoshiService {
         );
       }
     }
-    // 写回文件持久化
-    try {
-      final data = {
-        'colleges': _collegeCache!.entries.map((e) => {'id': e.key, 'name': e.value}).toList(),
-        'teachers': _cache!.map((t) => {
-          'id': t.id, 'name': t.name, 'py': t.py, 'sx': t.sx,
-          'xy': t.collegeId, 'hot': t.hot, 'rate': t.rate,
-        }).toList(),
-      };
-      final file = File('evergreen-multi-tools/assets/data/teacher_ratings.json');
-      if (file.existsSync()) {
-        file.writeAsStringSync(jsonEncode(data));
-        Log().info('Chalaoshi 💾 saved ${online.length} updates to local');
-      }
-    } catch (e) {
-      Log().info('Chalaoshi ⚠️ save failed: $e');
-    }
+    // 写回缓存文件持久化
+    _saveToLocal();
   }
 
   /// 解析 chalaoshi.top 在线搜索结果的 HTML。
@@ -247,8 +228,14 @@ class ChalaoshiService {
     }
   }
 
-  /// 将更新写回本地 JSON 文件。
-  void _saveToLocal() {
+  /// 获取缓存文件路径（app 文档目录下，全平台可用）。
+  Future<File> _getCacheFile() async {
+    final appDir = await getApplicationDocumentsDirectory();
+    return File('${appDir.path}${Platform.pathSeparator}teacher_ratings.json');
+  }
+
+  /// 将更新写回本地缓存文件（app 文档目录下，全平台可用）。
+  Future<void> _saveToLocal() async {
     try {
       final data = {
         'colleges': _collegeCache!.entries.map((e) => {'id': e.key, 'name': e.value}).toList(),
@@ -257,11 +244,9 @@ class ChalaoshiService {
           'xy': t.collegeId, 'hot': t.hot, 'rate': t.rate,
         }).toList(),
       };
-      final file = File('evergreen-multi-tools/assets/data/teacher_ratings.json');
-      if (file.existsSync()) {
-        file.writeAsStringSync(jsonEncode(data));
-        Log().info('Chalaoshi 💾 saved to local');
-      }
+      final file = await _getCacheFile();
+      await file.writeAsString(jsonEncode(data));
+      Log().info('Chalaoshi 💾 saved to local');
     } catch (e) {
       Log().info('Chalaoshi ⚠️ save failed: $e');
     }

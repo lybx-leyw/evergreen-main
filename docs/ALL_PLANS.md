@@ -19,7 +19,7 @@
 | BUG-09 | 进度条等 UI 组件不美观 | 🟢 | 25 | 🟢 |
 | BUG-10 | 主题风格选择重启后丢失 | 🟡 | 03, 24 | 🟢 |
 | BUG-11 | 自动签到无测试/试运行机制 | 🟡 | 21 | ⏸ |
-| BUG-12 | 无法支持手机端 | ⚪ | 29 | ⚪ |
+| BUG-12 | 无法支持手机端 | 🟡 | 29 | 🟡 (部分实现，不稳定) |
 | BUG-13 | 单词背诵不支持批量导入 | 🟡 | 17 | ⏸ |
 | BUG-14 | AI 助手不支持多会话 | 🟡 | 23 | 🟢 |
 | BUG-15 | 暗色模式部分区域对比度不足 | 🟡 | 25 | 🟢 |
@@ -61,7 +61,7 @@
 
 | # | 子计划 | 状态 | 说明 |
 |---|---|---|---|
-| 26 | Engineering + Packaging | 🟡 | lint/Inno Setup/Android 签名配好；Windows 构建成功；Android 待实测 |
+| 26 | Engineering + Packaging | 🟡 | lint/Inno Setup/Android 签名配好；Windows 构建成功；Android 不稳定 |
 | 27 | Test Coverage | 🟢 | 784 tests（Python 63 + Dart 784）已超原目标；OCR/Skill/记忆/渲染全覆盖 |
 | 28 | Documentation + Release | 🟡 | README/CONTRIBUTING/BUILD/ARCHITECTURE 已同步更新；PROMO_SCRIPT 已写 |
 | 29 | AI Tutoring + Mobile | ⚪ | 远期规划 |

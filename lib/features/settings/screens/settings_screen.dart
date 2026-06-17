@@ -644,12 +644,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   void _save() async {
+    debugPrint('[Settings] _save() called');
     final notifier = ref.read(settingsProvider.notifier);
     final values = <String, String>{};
     _controllers.forEach((key, controller) {
       values[key] = controller.text;
     });
+    debugPrint('[Settings] values=$values');
     await notifier.saveAll(values);
+    debugPrint('[Settings] saveAll done, error=${notifier.state.saveError}');
+
+    // 检查是否有保存错误
+    final saveError = notifier.state.saveError;
 
     // 更新自动刷新设置
     initAutoRefresh(ref);
@@ -663,7 +669,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(ok ? '设置已保存，登录成功' : '设置已保存，但登录失败：${authNotifier.state.error?.userMessage ?? "未知错误"}'),
+            content: Text(saveError != null
+                ? '已保存到本地，但配置文件写入失败（Android 正常现象）'
+                : ok
+                    ? '设置已保存，登录成功'
+                    : '设置已保存，但登录失败：${authNotifier.state.error?.userMessage ?? "未知错误"}'),
             duration: const Duration(seconds: 3),
           ),
         );
@@ -671,7 +681,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('设置已保存'), duration: Duration(seconds: 2)),
+          SnackBar(content: Text(saveError != null ? '已保存到本地' : '设置已保存'), duration: const Duration(seconds: 2)),
         );
       }
     }

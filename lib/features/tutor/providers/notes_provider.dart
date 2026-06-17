@@ -1,17 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/network/dio_client.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/config/providers.dart';
-import '../../../core/utils/python_env.dart';
 import '../../../core/services/ocr_pipeline.dart';
 import '../services/deepseek_client.dart';
 import '../../classroom/providers/classroom_provider.dart';
@@ -557,73 +554,17 @@ class NotesNotifier extends StateNotifier<NotesState> {
 
   /// 对单张 PPT 图片运行 OCR，返回提取的文字。
   ///
-  /// 优先使用 DeepSeek-OCR（Level 1），失败降级到本地 Tesseract（Level 2）。
+  /// 优先使用 DeepSeek-OCR（Level 1），失败降级到本地 Tesseract / ML Kit（Level 2）。
   Future<String> _ocrOneSlide(String imageUrl) async {
     try {
-      // Level 1 + Level 2 via OcrPipeline
       final text = await OcrPipeline(_dio).recognizeUrl(imageUrl);
       if (text.isNotEmpty) return _fixOcrText(text);
     } catch (e) {
       debugPrint('[OCR] Pipeline 异常: $e');
     }
 
-    // Pipeline 返回空——回退到 ocr_slides 以获取结构化错误信息（用于安装引导）
-    try {
-      final exeName = Platform.isWindows ? 'ocr_slides.exe' : 'ocr_slides';
-      final candidates = <String>[
-        p.join(Directory.current.path, 'scripts', 'dist', exeName),
-        p.join(Directory.current.path, 'scripts', exeName),
-      ];
-
-      String? ocrExe;
-      for (final c in candidates) {
-        if (File(c).existsSync()) { ocrExe = c; break; }
-      }
-
-      String? pythonScript;
-      if (ocrExe == null) {
-        final pyPath = p.join(Directory.current.path, 'scripts', 'ocr_slides.py');
-        if (File(pyPath).existsSync()) pythonScript = pyPath;
-        if (pythonScript == null) return '';
-      }
-
-      final result = await runOcrProcess(
-        ocrExe ?? 'python',
-        ocrExe != null
-            ? ['--urls', imageUrl]
-            : [pythonScript!, '--urls', imageUrl],
-      ).timeout(const Duration(seconds: 60));
-
-      if (result.exitCode != 0) {
-        final stderr = result.stderr?.toString().trim() ?? '';
-        if (stderr.isNotEmpty) debugPrint('[OCR] 脚本异常: $stderr');
-        return '';
-      }
-
-      final stdout = result.stdout as String? ?? '';
-      final parsed = jsonDecode(stdout) as Map<String, dynamic>;
-
-      if (parsed['error'] != null) {
-        final action = parsed['action']?.toString();
-        if (action == 'pip' || action == 'tesseract') {
-          state = state.copyWith(
-            ocrInstallRequest: OcrInstallRequest(
-              action: action!,
-              hint: parsed['hint']?.toString() ?? parsed['error'].toString(),
-            ),
-          );
-        }
-        return '';
-      }
-
-      final results = parsed['results'] as List?;
-      if (results == null || results.isEmpty) return '';
-      final raw = (results.first as Map)['text']?.toString() ?? '';
-      return _fixOcrText(raw);
-    } catch (e) {
-      debugPrint('[OCR] 单页识别失败: $e');
-      return '';
-    }
+    // Pipeline 返回空（所有 Level 均失败）
+    return '';
   }
 
   String _getPrompt(String mode) {

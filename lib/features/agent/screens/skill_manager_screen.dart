@@ -1,7 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import '../../../../core/agent/skill/skill.dart';
+import '../../../core/agent/skill/skill.dart';
+import '../../../core/utils/greenix_path.dart';
 
 /// Skill 管理全屏页——查看/添加/编辑 Skill 文件。
 class SkillManagerScreen extends StatefulWidget {
@@ -15,7 +16,8 @@ class _SkillManagerScreenState extends State<SkillManagerScreen> {
   List<Skill> _skills = [];
   final Set<int> _expanded = {};
   bool _loading = true;
-  static const _dir = '.greenix/skills';
+
+  static String get _dir => greenixSkillsDir;
 
   @override
   void initState() { super.initState(); _load(); }

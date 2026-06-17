@@ -240,9 +240,134 @@ class _MobileShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final location = GoRouterState.of(context).uri.path;
+
     return Scaffold(
+      appBar: AppBar(
+        leading: Builder(
+          builder: (ctx) => IconButton(
+            icon: const Icon(Icons.menu),
+            onPressed: () => Scaffold.of(ctx).openDrawer(),
+          ),
+        ),
+        title: Text(_mobileTitle(location)),
+      ),
+      drawer: _MobileDrawer(current: location, onTap: (path) {
+        // Navigation happens in _DrawerItem.onTap via context.go()
+      }),
       body: child,
       bottomNavigationBar: _MobileNavBar(),
+    );
+  }
+
+  String _mobileTitle(String path) {
+    if (path.startsWith('/courses')) return '课程';
+    if (path.startsWith('/course-offerings')) return '开课情况';
+    if (path.startsWith('/training-plans')) return '培养方案';
+    if (path.startsWith('/todo')) return '待办';
+    if (path.startsWith('/plan')) return '计划管理';
+    if (path.startsWith('/scores')) return '成绩';
+    if (path.startsWith('/exams')) return '考试';
+    if (path.startsWith('/downloads')) return '下载';
+    if (path.startsWith('/notes')) return 'AI 笔记';
+    if (path.startsWith('/agent')) return 'AI 助手';
+    if (path.startsWith('/classroom')) return '智云课堂';
+    if (path.startsWith('/zdbk-notifications')) return '教务通知';
+    if (path.startsWith('/teachers')) return '查老师';
+    if (path.startsWith('/quick-connect')) return '数据状态';
+    if (path.startsWith('/settings')) return '设置';
+    if (path.startsWith('/pintia-login')) return 'PTA';
+    if (path.startsWith('/schedule-export')) return '课表导出';
+    if (path.startsWith('/tutor')) return 'AI辅导';
+    return 'Evergreen';
+  }
+}
+
+/// Full navigation drawer for mobile — mirrors the desktop sidebar.
+class _MobileDrawer extends ConsumerWidget {
+  final String current;
+  final void Function(String)? onTap;
+  const _MobileDrawer({required this.current, this.onTap});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Drawer(
+      child: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          children: [
+            _DrawerHeader(),
+            const Divider(),
+            _SectionHeader(title: '学习'),
+            _DrawerItem(icon: Icons.school, label: '课程', path: '/courses', current: current, onTap: onTap),
+            _DrawerItem(icon: Icons.book, label: '开课情况', path: '/course-offerings', current: current, onTap: onTap),
+            _DrawerItem(icon: Icons.account_tree, label: '培养方案', path: '/training-plans', current: current, onTap: onTap),
+            _DrawerItem(icon: Icons.checklist, label: '待办', path: '/todo', current: current, onTap: onTap),
+            _DrawerItem(icon: Icons.assignment, label: '计划管理', path: '/plan', current: current, onTap: onTap),
+            _DrawerItem(icon: Icons.grade, label: '成绩', path: '/scores', current: current, onTap: onTap),
+            _DrawerItem(icon: Icons.event, label: '考试', path: '/exams', current: current, onTap: onTap),
+            _DrawerItem(icon: Icons.download, label: '下载', path: '/downloads', current: current, onTap: onTap),
+            const Divider(),
+            _SectionHeader(title: 'AI 工具'),
+            _DrawerItem(icon: Icons.auto_awesome, label: 'AI 笔记', path: '/notes', current: current, onTap: onTap),
+            _DrawerItem(icon: Icons.smart_toy, label: 'AI 助手', path: '/agent', current: current, onTap: onTap),
+            _DrawerItem(icon: Icons.video_library, label: '智云课堂', path: '/classroom', current: current, onTap: onTap),
+            _DrawerItem(icon: Icons.psychology, label: 'AI 辅导', path: '/tutor', current: current, onTap: onTap),
+            const Divider(),
+            _SectionHeader(title: '校园'),
+            _DrawerItem(icon: Icons.campaign, label: '教务通知', path: '/zdbk-notifications', current: current, onTap: onTap),
+            _DrawerItem(icon: Icons.person_search, label: '查老师', path: '/teachers', current: current, onTap: onTap),
+            _DrawerItem(icon: Icons.calendar_month, label: '课表导出', path: '/schedule-export', current: current, onTap: onTap),
+            const Divider(),
+            _SectionHeader(title: '系统'),
+            _DrawerItem(icon: Icons.dashboard, label: '仪表盘', path: '/dashboard', current: current, onTap: onTap),
+            _DrawerItem(icon: Icons.wifi_tethering, label: '数据状态', path: '/quick-connect', current: current, onTap: onTap),
+            _DrawerItem(icon: Icons.settings, label: '设置', path: '/settings', current: current, onTap: onTap),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DrawerHeader extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.eco, color: Theme.of(context).colorScheme.primary, size: 28),
+          const SizedBox(height: 8),
+          Text('Evergreen 多工具集成版',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+          Text('全部功能',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant)),
+        ],
+      ),
+    );
+  }
+}
+
+class _DrawerItem extends StatelessWidget {
+  final IconData icon; final String label; final String path;
+  final String current; final void Function(String)? onTap;
+  const _DrawerItem({required this.icon, required this.label,
+    required this.path, required this.current, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final isActive = current == path || (current.startsWith(path) && path != '/dashboard');
+    return ListTile(
+      leading: Icon(icon, color: isActive ? Theme.of(context).colorScheme.primary : null),
+      title: Text(label, style: TextStyle(fontWeight: isActive ? FontWeight.w600 : FontWeight.normal)),
+      selected: isActive,
+      onTap: () {
+        onTap?.call(path);
+        context.go(path);
+      },
     );
   }
 }
@@ -374,7 +499,7 @@ class _MobileNavBar extends ConsumerWidget {
       selectedIndex: _getMobileIndex(location),
       onDestinationSelected: (index) {
         final paths = [
-          '/dashboard', '/courses', '/todo', '/notes',
+          '/dashboard', '/courses', '/todo', '/notes', '/agent',
         ];
         if (index < paths.length) {
           context.go(paths[index]);
@@ -394,6 +519,7 @@ class _MobileNavBar extends ConsumerWidget {
     if (path.startsWith('/courses')) return 1;
     if (path.startsWith('/todo')) return 2;
     if (path.startsWith('/notes')) return 3;
+    if (path.startsWith('/agent')) return 4;
     return 0;
   }
 }

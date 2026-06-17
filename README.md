@@ -64,11 +64,11 @@ flutter run -d windows
 # Windows (包含 Python OCR 脚本 + 本地 Tesseract)
 flutter build windows --release
 
-# Android (可构建但未经测试，不支持 OCR)
+# Android (不稳定，部分功能未良好实现)
 flutter build apk --release
 ```
 
-> ⚠️ Android 版本**未经测试**，且不支持 Python OCR 脚本。OCR 功能仅桌面端可用。
+> ⚠️ Android 版本目前**不稳定**，仅具备部分功能。OCR、AI 助手等核心功能尚未良好实现，存在已知问题。推荐使用 Windows 桌面版获得完整体验。
 
 ## 项目谱系
 

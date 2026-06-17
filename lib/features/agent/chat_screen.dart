@@ -29,6 +29,7 @@ import 'screens/global_memory_screen.dart';
 import 'screens/skill_manager_screen.dart';
 import '../../../core/network/dio_client.dart' show dioClientProvider;
 import '../../../core/services/ocr_pipeline.dart' show OcrPipeline;
+import '../../core/utils/greenix_path.dart';
 import '../../../core/config/app_config.dart' show AppConfig;
 
 /// AI 聊天主界面。
@@ -252,7 +253,7 @@ class _AgentChatScreenState extends ConsumerState<AgentChatScreen>
           final assistantText = _pendingAnswer.toString();
           if (userText.isNotEmpty && assistantText.isNotEmpty && mounted) {
             final provider = ref.read(agentRuntimeProvider).controller.provider;
-            final memAgent = MemoryAgent(provider, '.greenix/memories');
+            final memAgent = MemoryAgent(provider, greenixMemoriesDir);
             unawaited(memAgent.analyze(
               userText,
               assistantText,
@@ -423,7 +424,7 @@ class _AgentChatScreenState extends ConsumerState<AgentChatScreen>
     });
 
     // 注入全局记忆到 Controller（MemoryAgent 管理的跨会话 key facts）
-    final store = FileMemoryStore('.greenix/memories');
+    final store = FileMemoryStore(greenixMemoriesDir);
     final memCtx = await store.buildContextString();
     if (memCtx.isNotEmpty) {
       runtime.controller.setMemoryContext('## 全局记忆 (跨会话持久化)\n\n$memCtx');

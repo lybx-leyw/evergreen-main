@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../../../core/agent/memory/memory.dart' show Memory, MemoryStore, MemoryType;
+import '../../../core/agent/memory/memory.dart' show Memory, MemoryStore, MemoryType;
+import '../../../core/utils/greenix_path.dart';
 
 /// 全局记忆管理全屏页——查看/添加/修改/删除。
 class GlobalMemoryScreen extends StatefulWidget {
@@ -12,7 +13,8 @@ class GlobalMemoryScreen extends StatefulWidget {
 class _GlobalMemoryScreenState extends State<GlobalMemoryScreen> {
   List<Memory> _memories = [];
   bool _loading = true;
-  static const _dir = '.greenix/memories';
+
+  static String get _dir => greenixMemoriesDir;
 
   @override
   void initState() { super.initState(); _load(); }

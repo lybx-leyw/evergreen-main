@@ -7,9 +7,13 @@
         android:label="Evergreen 多工具集成版"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
-        android:usesCleartextTraffic="true">
+        android:usesCleartextTraffic="true"
+        android:requestLegacyExternalStorage="true">
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="text_recognition_chinese,text_recognition_latin"/>
         <activity
-            android:name=".MainActivity"
+            android:name="com.evergreen.evergreen_multi_tools.MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
             android:taskAffinity=""

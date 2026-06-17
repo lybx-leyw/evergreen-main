@@ -26,7 +26,7 @@ android {
 
     defaultConfig {
         applicationId = "com.evergreen.multi_tools"
-        minSdk = flutter.minSdkVersion
+        minSdk = flutter.minSdkVersion  // ML Kit requires API 21+
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName

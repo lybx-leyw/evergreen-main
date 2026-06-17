@@ -26,6 +26,10 @@
 # SharedPreferences
 -keep class android.content.SharedPreferences { *; }
 
+# ML Kit
+-keep class com.google.mlkit.** { *; }
+-dontwarn com.google.mlkit.**
+
 # General
 -keepattributes *Annotation*
 -keepattributes SourceFile,LineNumberTable
