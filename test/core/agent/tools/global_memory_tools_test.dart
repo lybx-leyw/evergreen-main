@@ -335,6 +335,63 @@ void main() {
   });
 
   // ═══════════════════════════════════════════════════════════
+  // ReadGlobalMemoryTool — 写后读一致性（BUG-16 修复验证）
+  // ═══════════════════════════════════════════════════════════
+
+  group('ReadGlobalMemoryTool 写后读一致性', () {
+    test('写入后立即读取 → 读到最新内容', () async {
+      await writeTool.execute({
+        'action': 'remember',
+        'fact': '[2026年6月] 用户是大三学生',
+      });
+
+      // 写入后立即读取 → 应看到新内容
+      final result = await readTool.execute({});
+      expect(result, contains('大三学生'));
+    });
+
+    test('写入 → 读取 → 再写入 → 再读取：始终读最新', () async {
+      await writeTool.execute({
+        'action': 'remember',
+        'fact': '[2026年6月] 第一批数据',
+      });
+
+      final r1 = await readTool.execute({});
+      expect(r1, contains('第一批数据'));
+
+      // 写入新内容
+      await writeTool.execute({
+        'action': 'remember',
+        'fact': '[2026年6月] 第二批数据',
+      });
+
+      // 再读取 → 应同时包含新旧内容
+      final r2 = await readTool.execute({});
+      expect(r2, contains('第一批数据'));
+      expect(r2, contains('第二批数据'));
+    });
+
+    test('同回合内 AI 多次带不同 query 搜索 → 每次执行精确搜索', () async {
+      await writeTool.execute({
+        'action': 'remember',
+        'fact': '[2026年6月] 用户偏好简洁回答',
+      });
+      await writeTool.execute({
+        'action': 'remember',
+        'fact': '[2026年6月] 用户是浙大学生',
+      });
+
+      // 多次搜索不同关键词
+      final r1 = await readTool.execute({'query': '简洁'});
+      final r2 = await readTool.execute({'query': '浙大'});
+
+      expect(r1, contains('简洁回答'));
+      expect(r1, isNot(contains('浙大')));
+      expect(r2, contains('浙大学生'));
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════
   // 往返集成测试
   // ═══════════════════════════════════════════════════════════
 

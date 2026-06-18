@@ -443,10 +443,13 @@ final agentRuntimeProvider = Provider<AgentRuntime>((ref) {
     if (enabled) {
       provider.setThinking('enabled');
       provider.setReasoningEffort('max');
+      controller.setSystemPrompt('${agent.defaultSystemPrompt}\n\n'
+          '用户已开启深度思考模式。请你尽可能思考更多方面、考虑更全面之后，再给出最终回复。');
       debugPrint('[AgentInit:D] thinking=DEEP (thinking=enabled reasoning_effort=max)');
     } else {
       provider.setThinking('enabled');
       provider.setReasoningEffort('low');
+      controller.setSystemPrompt(agent.defaultSystemPrompt);
       debugPrint('[AgentInit:D] thinking=DEFAULT (thinking=enabled reasoning_effort=low)');
     }
   });

@@ -16,6 +16,7 @@
 | `Compactor` — 上下文压实 | `compact/compact.dart` | ✅ 已实现——4 级阈值自动压缩 |
 | `Session` — 消息历史 | `agent/session.dart` | ✅ 已实现——JSON 可序列化 |
 | Memory → LLM 管道 | `controller → agent → compose` | ⚠️ 作为裸 `String` 传递，未接 `MemorySet` |
+| 回合级去重 | `controller/controller.dart` | ✅ 已修复——`_globalMemoryReadThisTurn` 标记，每回合仅读一次 |
 
 ### 1.2 缺失的架构层
 

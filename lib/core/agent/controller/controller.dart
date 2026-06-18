@@ -46,6 +46,9 @@ class Controller {
   /// Skill 索引——注入到 system prompt 中。
   final String _skillIndexText;
 
+  // 全局记忆回合内已读标记——阻止同一用户回合内重复读取。
+  bool _globalMemoryReadThisTurn = false;
+
   // 批准回调
   Completer<bool>? _approvalCompleter;
 
@@ -110,6 +113,9 @@ class Controller {
       return;
     }
 
+    // 新用户回合 → 重置全局记忆已读标记
+    _globalMemoryReadThisTurn = false;
+
     print('[Ctrl:D] creating Agent provider=${_provider.name} tools=${_registry.enabled().length}');
     final agent = Agent(
       provider: _provider,
@@ -131,12 +137,18 @@ class Controller {
   ///
   /// 在 Agent.run() 之前调用，将 read_global_memory 的结果作为
   /// 已执行的工具调用注入 session，让模型在首轮就能看到记忆上下文。
+  ///
+  /// 通过 [_globalMemoryReadThisTurn] 标记确保同一用户回合内只读取一次，
+  /// 避免 Greenix 多轮思考/分析中重复触发磁盘 I/O。
   Future<void> _autoReadGlobalMemory() async {
+    if (_globalMemoryReadThisTurn) return;
+
     final tool = _registry.get('read_global_memory');
     if (tool == null || !_registry.isEnabled('read_global_memory')) return;
 
     try {
       final result = await tool.execute({});
+      _globalMemoryReadThisTurn = true;
       if (result.isNotEmpty) {
         final callId = 'auto_read_memory_${DateTime.now().millisecondsSinceEpoch}';
         _session.add(Message.assistantTool([
