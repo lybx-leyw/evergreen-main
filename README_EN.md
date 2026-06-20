@@ -29,11 +29,11 @@ flutter run -d windows
 
 - **🤖 Self-Built Agent Runtime** — A Dart reimplementation of Reasonix: `compose → LLM → tool → loop → readiness`, with 17 typed events.
 
-- **📊 917 Automated Tests** (0 failures)
+- **📊 1000+ Automated Tests** (1006 passed)
 
 ---
 
-## Modules (15)
+## Modules (16)
 
 | Module | Description |
 |---|---|
@@ -48,6 +48,7 @@ flutter run -d windows
 | Schedule | iCal timetable export |
 | Tutor | AI notes + DeepSeek + OCR |
 | Agent | AI teaching assistant (chat + tools) |
+| Translate | PDF translation (DeepSeek + pdf2zh engine) |
 | WordPecker | FSRS spaced-repetition vocabulary |
 | Downloads | Course material download manager |
 | Plan | Multi-plan management, outline tasks, weekly timetable color-coding |
@@ -72,6 +73,20 @@ Enter your DashScope API Key in Settings and enable the `vanchin/deepseek-ocr` m
 
 ---
 
+## PDF Translation
+
+PDF translation runs the pdf2zh engine (bundled at `scripts/pdf2zh_next/`) via a Python subprocess, outputting bilingual comparison PDFs with preserved layout, formulas, and figures.
+
+The Windows installer includes a **bundled Python 3.11 runtime** — no manual Python installation required. On first use, translation dependencies (babeldoc, pymupdf, openai, tomlkit) are auto-installed into the bundled environment.
+
+Features:
+- **Zero-config**: bundled Python with automatic detection fallback (bundled → configured → system PATH)
+- **Stage pipeline**: 9-stage visual progress indicator with Chinese labels
+- **In-app reader**: full-screen PDF reader with page navigation (pdfrx)
+- **Batch translation**: multi-file queue with per-file progress and immediate results
+
+---
+
 ## Build
 
 ```bash
@@ -88,11 +103,13 @@ flutter build apk --release
 
 ## Project Lineage
 
-- **v1.1** (current) — Dart/Flutter desktop app, 15 modules, self-built Agent runtime, data status management
+- **v1.1** (current) — Dart/Flutter desktop app, 16 modules, self-built Agent runtime, data status management
 - Agent runtime inspired by [Reasonix](https://github.com/esengine/reasonix) (MIT), independently rewritten in Dart
 - Grade calculation & academic affairs integration adapted from [Celechron](https://github.com/Celechron/Celechron) (GPL-3.0)
 - Instructor rating data sourced from [Lazuli](https://github.com/ADSR1042/Lazuli) (GPL-3.0)
 - WordPecker spaced-repetition engine adapted from [Qwerty Learner](https://github.com/RealKai42/qwerty-learner) (GPL-3.0)
+- PDF translation engine embedded from [PDFMathTranslate-next](https://github.com/PDFMathTranslate-next/PDFMathTranslate-next) (AGPL-3.0)
+- Agent contribution governance inspired by [MemGovern](https://github.com/esengine/memgovern) (MIT)
 
 Full attributions in **[ATTRIBUTION.md](./ATTRIBUTION.md)**.
 

@@ -51,7 +51,7 @@ flutter run -d windows
 
 | 平台 | 状态 | 说明 |
 |------|------|------|
-| Windows | ✅ 完整支持 | 14 个功能模块可用 |
+| Windows | ✅ 完整支持 | 16 个功能模块可用 |
 | Android | 🟡 不稳定 | 部分功能可用，OCR 等尚未良好实现 |
 
 ## Windows 安装包
@@ -86,6 +86,43 @@ flutter build apk --release
 ## 自动更新
 
 `UpdateService`（`lib/core/services/update_service.dart`）通过 GitHub Release API 检查更新。
+
+## Python 依赖
+
+### 嵌入 Python（推荐，用户无需安装）
+
+Release 安装包自带 Python 3.11 运行时，用户**无需手动安装 Python**。
+
+如需在开发环境构建嵌入 Python：
+```powershell
+# 1. 下载 Python embeddable
+Invoke-WebRequest -Uri "https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip" -OutFile "$env:TEMP\python-embed.zip"
+
+# 2. 解压到 scripts/python/
+Expand-Archive -Path "$env:TEMP\python-embed.zip" -DestinationPath scripts\python\ -Force
+
+# 3. 配置 site-packages
+Add-Content scripts\python\python311._pth "Lib\site-packages`nimport site"
+
+# 4. 安装 pip
+Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile "$env:TEMP\get-pip.py"
+scripts\python\python.exe $env:TEMP\get-pip.py
+
+# 5. 安装翻译依赖
+scripts\python\python.exe -m pip install babeldoc pymupdf openai tomlkit -t scripts\python\Lib\site-packages
+```
+
+> `scripts/python/` 已加入 `.gitignore`，不上传 Git。CI/Release 流程中自动执行上述步骤。
+
+### OCR（系统 Python 备选）
+
+若未使用嵌入 Python，可用系统 Python 安装 OCR 依赖：
+```powershell
+pip install -r scripts/requirements.txt
+```
+
+### PDF 翻译
+PDF 翻译引擎源码已内置于 `scripts/pdf2zh_next/`（精简版，仅保留核心）。首次使用时 **自动检测并安装依赖**（babeldoc, pymupdf, openai），无需手动 pip。启动时 `_healLegacyPrefs()` 自动修复旧版本 SharedPreferences 类型残留。
 
 ## 环境变量
 

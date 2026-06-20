@@ -62,8 +62,8 @@
 | # | 子计划 | 状态 | 说明 |
 |---|---|---|---|
 | 26 | Engineering + Packaging | 🟡 | lint/Inno Setup/Android 签名配好；Windows 构建成功；Android 不稳定 |
-| 27 | Test Coverage | 🟢 | 784 tests（Python 63 + Dart 784）已超原目标；OCR/Skill/记忆/渲染全覆盖 |
-| 28 | Documentation + Release | 🟡 | README/CONTRIBUTING/BUILD/ARCHITECTURE 已同步更新；PROMO_SCRIPT 已写 |
+| 27 | Test Coverage | 🟢 | 1006 tests (29 新增翻译)；OCR/Skill/记忆/渲染/翻译全覆盖 |
+| 28 | Documentation + Release | 🟡 | 全部 .md 文档已同步 PDF 翻译功能更新；ATTRIBUTION 补齐 PDFMathTranslate-next |
 | 29 | AI Tutoring + Mobile | ⚪ | 远期规划 |
 | 30 | Wellness Agent | 🟢 | acceptance.md 已实现（借鉴 ACT）；Skill 热加载可用 |
 

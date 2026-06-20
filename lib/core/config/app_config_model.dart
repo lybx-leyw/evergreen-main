@@ -29,6 +29,11 @@ class AppConfigData {
   final String? downloadPath;
   final String? videoPlayerPath;
 
+  // ── PDF 翻译 ──
+  final String translateLangOut;
+  final String translateLangIn;
+  final String? pythonExe;
+
   const AppConfigData({
     this.zjuUsername,
     this.zjuPassword,
@@ -39,6 +44,9 @@ class AppConfigData {
     this.dingtalkWebhook,
     this.downloadPath,
     this.videoPlayerPath,
+    this.translateLangOut = 'zh',
+    this.translateLangIn = 'en',
+    this.pythonExe,
   });
 
   // ── 派生属性 ──
@@ -65,6 +73,9 @@ class AppConfigData {
     String? dingtalkWebhook,
     String? downloadPath,
     String? videoPlayerPath,
+    String? translateLangOut,
+    String? translateLangIn,
+    String? pythonExe,
   }) {
     return AppConfigData(
       zjuUsername: zjuUsername ?? this.zjuUsername,
@@ -76,6 +87,9 @@ class AppConfigData {
       dingtalkWebhook: dingtalkWebhook ?? this.dingtalkWebhook,
       downloadPath: downloadPath ?? this.downloadPath,
       videoPlayerPath: videoPlayerPath ?? this.videoPlayerPath,
+      translateLangOut: translateLangOut ?? this.translateLangOut,
+      translateLangIn: translateLangIn ?? this.translateLangIn,
+      pythonExe: pythonExe ?? this.pythonExe,
     );
   }
 
@@ -90,7 +104,10 @@ class AppConfigData {
         'deepseekModel: $deepseekModel, '
         'deepseekThinking: $deepseekThinking, '
         'ptaSession: ${mask(ptaSession)}, '
-        'downloadPath: $downloadPath'
+        'downloadPath: $downloadPath, '
+        'translateLangOut: $translateLangOut, '
+        'translateLangIn: $translateLangIn, '
+        'pythonExe: $pythonExe'
         ')';
   }
 

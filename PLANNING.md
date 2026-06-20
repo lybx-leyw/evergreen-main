@@ -6,11 +6,28 @@
 
 ## 概述
 
-- **当前版本**: v1.1.0 内测版
+- **当前版本**: v1.1.0 内测版（功能模块 16 个：15 个原有 + PDF 翻译）
 - **目标版本**: v1.1.1
 - **时间窗口**: 2026 年暑假
 - **用户范围**: 内测用户，暂不公开推广
 - **总方针**: 修 Bug > 体验优化 > 功能补全；暂停模块不激活（除非有 PR 或 Issues 强烈反馈）
+
+---
+
+## 已完成
+
+### ✅ PDF 翻译功能（2026-06-19）
+
+- [x] DeepSeek API 驱动的 PDF 翻译（通过 Python 子进程调用 pdf2zh 引擎）
+- [x] 输出保留排版、公式、图表的双语对照 PDF
+- [x] 内嵌 PDF 预览、批量翻译、翻译历史
+- [x] 设置页面：源/目标语言、Python 路径
+- [x] 侧边栏 "PDF 翻译" 入口（AI 工具区）
+- [x] 复用 AppConfig.deepseekApiKey，无需额外配置
+- [x] 首次使用自动检测 Python 并安装依赖（babeldoc, pymupdf, openai）
+- [x] pdf2zh 引擎源码精简至必要部分（config/ translator/ high_level.py），删除 GUI/CLI/资源文件
+- [x] SharedPreferences 类型修复：`_healLegacyPrefs()` 启动时统一所有配置键为 String 类型
+- [x] 运算符优先级 fix：`translate_screen.dart:267` 的 `??` / `?:` 优先级陷阱导致 String→bool 崩溃
 
 ---
 

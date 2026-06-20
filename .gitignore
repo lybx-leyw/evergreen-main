@@ -59,8 +59,16 @@ android/key.properties
 
 # Test artifact directories
 .test_*
+test/feedback/
 .greenix/memories/
 .claude/
+
+# Reference repositories
+.reference/
+MemGovern-main/
+
+# Bundled Python runtime (downloaded at build time)
+scripts/python/
 
 # Inno Setup output
 build/installer/

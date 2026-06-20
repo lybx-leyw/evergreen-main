@@ -38,6 +38,10 @@ Source: "..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignore
 Source: "..\scripts\*.py"; DestDir: "{app}\scripts"; Flags: ignoreversion
 Source: "..\scripts\requirements.txt"; DestDir: "{app}\scripts"; Flags: ignoreversion
 Source: "..\scripts\dist\*"; DestDir: "{app}\scripts\dist"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+; 嵌入式 Python 运行时（自带，无需用户安装 Python）
+Source: "..\scripts\python\*"; DestDir: "{app}\scripts\python"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+; pdf2zh 翻译引擎源码
+Source: "..\scripts\pdf2zh_next\*"; DestDir: "{app}\scripts\pdf2zh_next"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 ; 预置 Skill 文件
 Source: "..\.greenix\skills\*"; DestDir: "{app}\.greenix\skills"; Flags: ignoreversion recursesubdirs createallsubdirs
 

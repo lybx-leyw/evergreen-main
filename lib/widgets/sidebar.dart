@@ -131,6 +131,7 @@ class _CollapsedSidebar extends ConsumerWidget {
     Icons.event,
     Icons.auto_awesome,
     Icons.smart_toy,
+    Icons.translate,
     Icons.video_library,
     Icons.settings,
   ];
@@ -144,6 +145,7 @@ class _CollapsedSidebar extends ConsumerWidget {
     '/exams',
     '/notes',
     '/agent',
+    '/translate',
     '/classroom',
     '/settings',
   ];
@@ -157,6 +159,7 @@ class _CollapsedSidebar extends ConsumerWidget {
     '考试',
     'AI 笔记',
     'AI 助手',
+    'PDF 翻译',
     '智云课堂',
     '设置',
   ];
@@ -279,6 +282,7 @@ class _MobileShell extends StatelessWidget {
     if (path.startsWith('/pintia-login')) return 'PTA';
     if (path.startsWith('/schedule-export')) return '课表导出';
     if (path.startsWith('/tutor')) return 'AI辅导';
+    if (path.startsWith('/translate')) return 'PDF 翻译';
     return 'Evergreen';
   }
 }
@@ -311,6 +315,7 @@ class _MobileDrawer extends ConsumerWidget {
             _SectionHeader(title: 'AI 工具'),
             _DrawerItem(icon: Icons.auto_awesome, label: 'AI 笔记', path: '/notes', current: current, onTap: onTap),
             _DrawerItem(icon: Icons.smart_toy, label: 'AI 助手', path: '/agent', current: current, onTap: onTap),
+            _DrawerItem(icon: Icons.translate, label: 'PDF 翻译', path: '/translate', current: current, onTap: onTap),
             _DrawerItem(icon: Icons.video_library, label: '智云课堂', path: '/classroom', current: current, onTap: onTap),
             _DrawerItem(icon: Icons.psychology, label: 'AI 辅导', path: '/tutor', current: current, onTap: onTap),
             const Divider(),
@@ -459,6 +464,7 @@ class _ExpandedSidebar extends ConsumerWidget {
                 _SectionHeader(title: 'AI 工具'),
                 _NavItem(icon: Icons.auto_awesome, label: 'AI 笔记', path: '/notes', current: location),
                 _NavItem(icon: Icons.smart_toy, label: 'AI 助手', path: '/agent', current: location),
+                _NavItem(icon: Icons.translate, label: 'PDF 翻译', path: '/translate', current: location),
                 _NavItem(icon: Icons.video_library, label: '智云课堂', path: '/classroom', current: location),
                 const Divider(),
                 _SectionHeader(title: '校园'),

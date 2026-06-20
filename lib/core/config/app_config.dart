@@ -36,6 +36,14 @@ class AppConfig {
   static String? _deepseekOcrApiKey;
   static String? get deepseekOcrApiKey => _deepseekOcrApiKey;
 
+  static String? _translateLangOut;
+  static String? _translateLangIn;
+  static String? _pythonExe;
+
+  static String? get translateLangOut => _translateLangOut ?? 'zh';
+  static String? get translateLangIn => _translateLangIn ?? 'en';
+  static String? get pythonExe => _pythonExe;
+
   static bool get hasZjuCredentials =>
       _zjuUsername != null &&
       _zjuUsername!.isNotEmpty &&
@@ -74,6 +82,7 @@ class AppConfig {
       _dingtalkWebhook ??= Platform.environment['DINGTALK_WEBHOOK'];
       _downloadPath ??= Platform.environment['MATERIAL_DOWNLOAD_PATH'];
       _videoPlayerPath ??= Platform.environment['VIDEO_OPENER'];
+      _pythonExe ??= Platform.environment['PYTHON_EXE'];
     } catch (_) {}
   }
 
@@ -91,6 +100,9 @@ class AppConfig {
       _downloadPath ??= prefs.getString('MATERIAL_DOWNLOAD_PATH');
       _videoPlayerPath ??= prefs.getString('VIDEO_OPENER');
       _chalaoshiScriptPath ??= prefs.getString('CHALAOSHI_SCRIPT');
+      _translateLangOut ??= prefs.getString('TRANSLATE_LANG_OUT');
+      _translateLangIn ??= prefs.getString('TRANSLATE_LANG_IN');
+      _pythonExe ??= prefs.getString('PYTHON_EXE');
     } catch (_) {}
   }
 
@@ -139,6 +151,10 @@ class AppConfig {
       buf.writeln();
       _writeLine(buf, 'DINGTALK_WEBHOOK', values['DINGTALK_WEBHOOK'] ?? _dingtalkWebhook);
       buf.writeln();
+      _writeLine(buf, 'TRANSLATE_LANG_OUT', values['TRANSLATE_LANG_OUT'] ?? _translateLangOut);
+      _writeLine(buf, 'TRANSLATE_LANG_IN', values['TRANSLATE_LANG_IN'] ?? _translateLangIn);
+      _writeLine(buf, 'PYTHON_EXE', values['PYTHON_EXE'] ?? _pythonExe);
+      buf.writeln();
       _writeLine(buf, 'MATERIAL_DOWNLOAD_PATH', values['MATERIAL_DOWNLOAD_PATH'] ?? _downloadPath);
       _writeLine(buf, 'VIDEO_OPENER', values['VIDEO_OPENER'] ?? _videoPlayerPath);
 
@@ -177,6 +193,12 @@ class AppConfig {
         _videoPlayerPath = value ?? _videoPlayerPath;
       case 'DEEPSEEK_OCR_API_KEY':
         _deepseekOcrApiKey = value ?? _deepseekOcrApiKey;
+      case 'TRANSLATE_LANG_OUT':
+        _translateLangOut = value ?? _translateLangOut;
+      case 'TRANSLATE_LANG_IN':
+        _translateLangIn = value ?? _translateLangIn;
+      case 'PYTHON_EXE':
+        _pythonExe = value ?? _pythonExe;
     }
   }
 
