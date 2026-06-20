@@ -42,6 +42,9 @@ class AppConfigNotifier extends StateNotifier<AppConfigData> {
       dingtalkWebhook: values['DINGTALK_WEBHOOK'],
       downloadPath: values['MATERIAL_DOWNLOAD_PATH'],
       videoPlayerPath: values['VIDEO_OPENER'],
+      translateLangOut: values['TRANSLATE_LANG_OUT'] ?? 'zh',
+      translateLangIn: values['TRANSLATE_LANG_IN'] ?? 'en',
+      pythonExe: values['PYTHON_EXE'],
     );
 
     // 同步旧版静态类——兼容未迁移的消费者
@@ -85,6 +88,9 @@ class AppConfigNotifier extends StateNotifier<AppConfigData> {
       _pickEnv(out, 'DINGTALK_WEBHOOK');
       _pickEnv(out, 'MATERIAL_DOWNLOAD_PATH');
       _pickEnv(out, 'VIDEO_OPENER');
+      _pickEnv(out, 'TRANSLATE_LANG_OUT');
+      _pickEnv(out, 'TRANSLATE_LANG_IN');
+      _pickEnv(out, 'PYTHON_EXE');
     } catch (_) {}
   }
 
@@ -131,6 +137,9 @@ class AppConfigNotifier extends StateNotifier<AppConfigData> {
       _pickPref(out, 'DINGTALK_WEBHOOK');
       _pickPref(out, 'MATERIAL_DOWNLOAD_PATH');
       _pickPref(out, 'VIDEO_OPENER');
+      _pickPref(out, 'TRANSLATE_LANG_OUT');
+      _pickPref(out, 'TRANSLATE_LANG_IN');
+      _pickPref(out, 'PYTHON_EXE');
     } catch (_) {}
   }
 
@@ -172,6 +181,10 @@ class AppConfigNotifier extends StateNotifier<AppConfigData> {
       buf.writeln();
       _w(buf, 'MATERIAL_DOWNLOAD_PATH', config.downloadPath);
       _w(buf, 'VIDEO_OPENER', config.videoPlayerPath);
+      buf.writeln();
+      _w(buf, 'TRANSLATE_LANG_OUT', config.translateLangOut);
+      _w(buf, 'TRANSLATE_LANG_IN', config.translateLangIn);
+      _w(buf, 'PYTHON_EXE', config.pythonExe);
 
       final file = File(await _envFilePath);
       await file.writeAsString(buf.toString());
@@ -214,6 +227,9 @@ class AppConfigNotifier extends StateNotifier<AppConfigData> {
         'DINGTALK_WEBHOOK': c.dingtalkWebhook ?? '',
         'MATERIAL_DOWNLOAD_PATH': c.downloadPath ?? '',
         'VIDEO_OPENER': c.videoPlayerPath ?? '',
+        'TRANSLATE_LANG_OUT': c.translateLangOut,
+        'TRANSLATE_LANG_IN': c.translateLangIn,
+        'PYTHON_EXE': c.pythonExe ?? '',
       };
 
   AppConfigData _applyUpdates(
@@ -244,6 +260,15 @@ class AppConfigNotifier extends StateNotifier<AppConfigData> {
       videoPlayerPath: updates.containsKey('VIDEO_OPENER')
           ? updates['VIDEO_OPENER']
           : current.videoPlayerPath,
+      translateLangOut: updates.containsKey('TRANSLATE_LANG_OUT')
+          ? (updates['TRANSLATE_LANG_OUT'] ?? current.translateLangOut)
+          : current.translateLangOut,
+      translateLangIn: updates.containsKey('TRANSLATE_LANG_IN')
+          ? (updates['TRANSLATE_LANG_IN'] ?? current.translateLangIn)
+          : current.translateLangIn,
+      pythonExe: updates.containsKey('PYTHON_EXE')
+          ? updates['PYTHON_EXE']
+          : current.pythonExe,
     );
   }
 }

@@ -129,6 +129,22 @@ abstract class AppError implements Exception {
 
   factory AppError.unknown(Object exception) => UnknownError.from(exception);
 
+  factory AppError.validationError(String message) =>
+      ValidationError._(
+        userMessage: message,
+        debugMessage: 'Validation error: $message',
+      )..recoveryHint = '请检查输入后重试';
+
+  factory AppError.translationFailed(String message, [String? details]) =>
+      TranslationError._(
+        userMessage: message,
+        debugMessage: details != null
+            ? 'Translation failed: $message — $details'
+            : 'Translation failed: $message',
+        cause: details,
+      )..recoveryHint = '翻译失败，请检查 API Key 和网络连接后重试';
+
+
   @override
   String toString() => '$runtimeType: $userMessage';
 }
@@ -806,4 +822,23 @@ class UnknownError extends AppError {
             'Unknown error: ${exception.runtimeType} — $exception',
         cause: exception,
       )..recoveryHint = '请尝试重新操作，或联系开发者';
+}
+
+/// PDF 翻译错误 —— Python 子进程或 pdf2zh 引擎返回的错误。
+class TranslationError extends AppError {
+  @override
+  final String userMessage;
+  @override
+  final String debugMessage;
+  @override
+  final Object? cause;
+  @override
+  final String? source;
+
+  TranslationError._({
+    required this.userMessage,
+    required this.debugMessage,
+    this.cause,
+    String? source,
+  }) : source = source ?? AppError._captureSource();
 }

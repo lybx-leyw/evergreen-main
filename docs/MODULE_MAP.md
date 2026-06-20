@@ -16,7 +16,7 @@
 | 下游消费者 | auth（凭证）· tutor（API key）· settings（读写）· downloads（路径） |
 | 入口 | `AppConfig.initialize()`（main.dart 调用） |
 | 关键方法 | `initialize()`, `set(key, value)`, `saveToEnvFile()` |
-| 配置项 | `ZJU_USERNAME`, `ZJU_PASSWORD`, `DEEPSEEK_API_KEY`, `DEEPSEEK_MODEL`, `DEEPSEEK_THINKING`, `PINTIA_COOKIE`, `DINGTALK_WEBHOOK`, `MATERIAL_DOWNLOAD_PATH`, `VIDEO_OPENER`, `STUDENT_GRADE`, `STUDENT_MAJOR`, `STUDENT_MINOR`, `PERSONAL_TRAINING_PLAN_OCR`, `OTHER_TRAINING_PLAN_OCR`, `AUTO_REFRESH_ENABLED`, `AUTO_REFRESH_INTERVAL` |
+| 配置项 | `ZJU_USERNAME`, `ZJU_PASSWORD`, `DEEPSEEK_API_KEY`, `DEEPSEEK_MODEL`, `DEEPSEEK_THINKING`, `DEEPSEEK_OCR_API_KEY`, `PTA_SESSION`, `DINGTALK_WEBHOOK`, `MATERIAL_DOWNLOAD_PATH`, `VIDEO_OPENER`, `TRANSLATE_LANG_OUT`, `TRANSLATE_LANG_IN`, `PYTHON_EXE`, `STUDENT_GRADE`, `STUDENT_MAJOR`, `STUDENT_MINOR`, `PERSONAL_TRAINING_PLAN_OCR`, `OTHER_TRAINING_PLAN_OCR`, `AUTO_REFRESH_ENABLED`, `AUTO_REFRESH_INTERVAL` |
 
 ### Theme
 
@@ -71,9 +71,9 @@
 | 项目 | 内容 |
 |---|---|
 | 路径 | `core/utils/python_env.dart` |
-| 职责 | Python OCR 子进程执行（`runOcrProcess`）+ 依赖管理（`PythonEnv`） |
-| 下游消费者 | notes_provider, chat_screen, agent_provider（OCR 脚本调用） |
-| 关键方法 | `runOcrProcess()`, `PythonEnv.ensureReady()`, `PythonEnv.checkDeps()` |
+| 职责 | Python 子进程执行（`runOcrProcess`）+ 依赖管理（`PythonEnv`）——OCR + PDF 翻译 |
+| 下游消费者 | notes_provider, chat_screen, agent_provider（OCR 脚本调用）；pdf_translate_service（翻译子进程） |
+| 关键方法 | `runOcrProcess()`, `PythonEnv.ensureReady()`, `PythonEnv.checkDeps()`, `checkPdf2zhDeps()`, `installPdf2zhDeps()`, `ensurePdf2zhReady()` |
 
 ### AutoRefresh
 
@@ -420,6 +420,18 @@
 | 入口 Provider | `agentProvider` |
 | 依赖 | `core/agent/`（全套 Agent 运行时）· `DeepSeekProvider` · 所有 ZJU Tools |
 | 关键文件 | `chat_screen.dart` — 聊天 UI<br>`providers/agent_provider.dart` — Agent 实例管理 |
+
+### Translate — PDF 翻译
+
+| 项目 | 内容 |
+|---|---|
+| 路径 | `features/translate/` |
+| 职责 | DeepSeek API 驱动的 PDF 翻译，输出保留排版、公式、图表的双语对照 PDF |
+| 入口 Provider | `translateJobProvider`, `translateBatchProvider`, `translateHistoryProvider` |
+| 依赖 | `AppConfig`（DeepSeek API key）· `PdfTranslateService` · `PythonEnv` |
+| 关键文件 | `screens/translate_screen.dart` — 翻译界面（选文件、语言、进度、历史）<br>`providers/translate_provider.dart` — 状态管理（单文件/批量/历史）<br>`widgets/pdf_preview_widget.dart` — 内嵌 PDF 预览（pdfrx）<br>`core/services/pdf_translate_service.dart` — Python 子进程管理<br>`scripts/pdf_translate.py` — 翻译子进程脚本<br>`scripts/pdf2zh_next/` — pdf2zh 引擎源码 |
+| 外部依赖 | Python 3.10+ · babeldoc · pymupdf · openai |
+| 平台 | Windows（桌面端完整支持）· Android（标记开发中） |
 
 ### WordPecker — 背词
 

@@ -329,7 +329,68 @@ SchedulerScreen
 
 ---
 
-## 12. 关键接口与注入点
+## 12. PDF 翻译
+
+```
+侧栏「PDF 翻译」
+  → /translate
+  → TranslateScreen (ConsumerStatefulWidget)
+      → 用户选择 PDF 文件（file_picker）
+      → 用户选择语言（langIn → langOut，默认 en → zh）
+      → 点击「开始翻译」
+          → TranslateNotifier.startJob()
+              ├── ① Python 自动发现: resolvePythonExe()
+              │     ├── ①a scripts/python/python.exe（安装包自带, 优先级最高）
+              │     ├── ①b PYTHON_EXE 用户配置
+              │     └── ①c 系统 PATH（python3 → python → py）
+              │
+              ├── ② PythonEnv.ensurePdf2zhReady()
+              │     ├── checkPython()               ← python --version
+              │     ├── checkPdf2zhDeps()           ← import pdf2zh_next
+              │     └── [缺失时] installPdf2zhDeps() ← pip install babeldoc pymupdf openai tomlkit
+              │
+              ├── ③ PdfTranslateService.translate()
+              │     └── Process.start(resolvedPython, ['scripts/pdf_translate.py',
+              │           '--input', pdfPath, '--output', outputDir,
+              │           '--api-key', AppConfig.deepseekApiKey,
+              │           '--model', AppConfig.deepseekModel,
+              │           '--lang-in', langIn, '--lang-out', langOut])
+              │         ├── stdout: JSON 事件流
+              │         │   ├── {"type":"stage","stage":"stage_parse","message":"正在解析 PDF..."}
+              │         │   ├── {"type":"progress","current":1,"total":12,"message":"..."}
+              │         │   └── {"type":"finish","dual_pdf":"...","seconds":45,"tokens":{...}}
+              │         └── onProgress/onStage → 更新 UI（阶段管线 + 进度条）
+              │
+              └── ④ 完成
+                  → [阅读] → 全屏 PdfPreviewWidget（应用内翻页阅读）
+                  → [外部打开] → url_launcher
+                  → 保存到历史 (SharedPreferences)
+```
+
+**批量模式（多文件）：**
+```
+BatchNotifier.startBatch()
+  → PythonEnv.ensurePdf2zhReady() 一次性检查
+  → 逐文件 for 循环调用 translate()
+      → currentFilePage/Total/Message 实时更新进度
+      → 完成一个 → 立即展示"阅读"按钮（边翻边读）
+      → overallProgress 反映全部比例
+  → 全部完成 → results 汇总
+```
+
+**中间涉及的模块：**
+- `features/translate/screens/translate_screen.dart` — UI（阶段管线、全屏阅读、批量进度）
+- `features/translate/providers/translate_provider.dart` — 不可变状态管理（copyWith）
+- `features/translate/models/translation_job.dart` — TranslationJob/BatchState/TranslateStage
+- `core/services/pdf_translate_service.dart` — 子进程管理（自动检测 Python）
+- `core/utils/python_env.dart` — Python 环境 + resolvePythonExe()
+- `scripts/pdf_translate.py` — 翻译子进程（stage 中文映射）
+- `scripts/pdf2zh_next/` — pdf2zh 引擎（config/ translator/ high_level.py）
+- `scripts/python/` — 嵌入式 Python 3.11.9 运行时（安装包自带）
+
+---
+
+## 13. 关键接口与注入点
 
 | 接口/Provider | 定义位置 | 注入位置 | 用途 |
 |---|---|---|---|

@@ -40,6 +40,7 @@ import 'features/classroom/screens/classroom_screen.dart';
 import 'features/agent/chat_screen.dart';
 import 'features/tutor/screens/notes_screen.dart';
 import 'features/tutor/screens/tutor_screen.dart';
+import 'features/translate/screens/translate_screen.dart';
 import 'features/schedule/screens/schedule_screen.dart';
 import 'features/connectivity/screens/quick_connect_screen.dart';
 import 'widgets/dashboard.dart';
@@ -153,6 +154,11 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/tutor',
             pageBuilder: (context, state) => _fadePage(TutorScreen(), state),
+          ),
+          GoRoute(
+            path: '/translate',
+            pageBuilder: (context, state) =>
+                _fadePage(const TranslateScreen(), state),
           ),
           GoRoute(
             path: '/wordpecker-wip',

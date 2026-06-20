@@ -21,9 +21,9 @@ flutter run -d windows
 - **📋 热加载 Skill 系统** — 丢 `.md` 到 `.greenix/skills/`，AI 即刻加载。支持 inline / subagent 双模式
 - **🔍 两级 OCR** — DeepSeek-OCR 云端高精度 → Tesseract 本地自动降级。PDF 自动拆页逐页识别
 - **🤖 自研 Agent 运行时** — Reasonix 的 Dart 复刻：compose → LLM → tool → loop → readiness，17 种类型化事件
-- **📊 917 个自动化测试**（0 失败）
+- **📊 1000+ 个自动化测试**（1006 passed）
 
-## 功能模块（15 个）
+## 功能模块（16 个）
 
 | 模块 | 功能 |
 |---|---|
@@ -38,6 +38,7 @@ flutter run -d windows
 | Schedule | 课表 iCal 导出 |
 | Tutor | AI 笔记 + DeepSeek + OCR |
 | Agent | AI 教学助手（对话 + 工具） |
+| Translate | PDF 翻译（DeepSeek + pdf2zh 引擎） |
 | WordPecker | FSRS 间隔重复背词 |
 | Downloads | 课件下载管理 |
 | Plan | 计划管理（多计划、大纲任务、周时间表涂色） |
@@ -58,6 +59,18 @@ flutter run -d windows
 
 在设置页填入 DashScope API Key 并开通 `vanchin/deepseek-ocr` 模型。未配置时自动降级到本地 Tesseract。
 
+## PDF 翻译
+
+PDF 翻译通过 Python 子进程调用内置于 `scripts/pdf2zh_next/` 的 pdf2zh 引擎，输出保留排版、公式、图表的双语对照 PDF。
+
+Windows 安装包**自带 Python 3.11 运行时**，无需手动安装 Python。首次使用时自动检测环境并安装翻译依赖（babeldoc, pymupdf, openai, tomlkit）。
+
+特性：
+- **零配置**：自带 Python + 自动检测降级链（自带 → 用户配置 → 系统 PATH）
+- **中文阶段管线**：9 阶段可视化进度指示器
+- **应用内阅读**：全屏 PDF 阅读器，支持翻页（pdfrx）
+- **批量翻译**：多文件队列，逐文件显示进度，完成即展示阅读按钮
+
 ## 构建
 
 ```bash
@@ -72,11 +85,13 @@ flutter build apk --release
 
 ## 项目谱系
 
-- **v1.1**（当前）— Dart/Flutter 桌面应用，15 个功能模块，自研 Agent 运行时，数据状态管理
+- **v1.1**（当前）— Dart/Flutter 桌面应用，16 个功能模块，自研 Agent 运行时，数据状态管理
 - Agent 运行时参考 [Reasonix](https://github.com/esengine/reasonix) (MIT)，Dart 独立重写
 - 成绩计算 & 教务交互参考 [Celechron](https://github.com/Celechron/Celechron) (GPL-3.0)
 - 教师评分数据来自 [Lazuli](https://github.com/ADSR1042/Lazuli) (GPL-3.0)
 - WordPecker 背词引擎参考 [Qwerty Learner](https://github.com/RealKai42/qwerty-learner) (GPL-3.0)
+- PDF 翻译引擎内嵌自 [PDFMathTranslate-next](https://github.com/PDFMathTranslate-next/PDFMathTranslate-next) (AGPL-3.0)
+- Agent 贡献规范受 [MemGovern](https://github.com/esengine/memgovern) (MIT) 治理框架启发
 
 详细致谢见 **[ATTRIBUTION.md](./ATTRIBUTION.md)**。
 

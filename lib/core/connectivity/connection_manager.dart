@@ -51,6 +51,7 @@ class ConnectionManager {
       'Classroom 智云课堂',
       'PTA 编程题',
       'DeepSeek AI',
+      'PDF Translate',
     ];
     final results = <ConnectionResult>[];
     for (final s in services) {
@@ -111,6 +112,19 @@ class ConnectionManager {
         return _result('DeepSeek AI', () {
           final key = AppConfig.deepseekApiKey;
           if (key == null || key.isEmpty) throw Exception('未配置 API Key');
+        });
+      case 'PDF Translate':
+        return _result('PDF Translate', () {
+          // Lightweight check: verify scripts/pdf2zh_next/ exists
+          final dir = Directory('scripts/pdf2zh_next');
+          if (!dir.existsSync()) {
+            throw Exception('pdf2zh 模块未安装');
+          }
+          // Check that Python is available
+          final result = Process.runSync('python', ['--version']);
+          if (result.exitCode != 0) {
+            throw Exception('Python 不可用');
+          }
         });
       default:
         return ConnectionResult(

@@ -71,13 +71,18 @@
 - 改 `Registry` → 所有注册工具的地方（`agent/chat_screen.dart`）
 - Agent Loop 新增步骤 → 需要考虑 maxSteps 是否足够
 
-### 2.5 改了 `core/utils/python_env.dart`（Python 子进程）
+### 2.5 改了 `core/utils/python_env.dart`（Python 子进程 + 依赖管理）
 
 | 牵连模块 | 原因 | 严重度 |
 |---|---|---|
 | `features/tutor/providers/notes_provider.dart` | OCR 脚本调用 | 🟡 功能降级 |
 | `features/agent/chat_screen.dart` | 文件 OCR | 🟡 功能降级 |
 | `features/agent/providers/agent_provider.dart` | 培养方案 OCR | 🟡 功能降级 |
+| `features/translate/providers/translate_provider.dart` | PDF 翻译子进程 + 自动安装 pdf2zh 依赖 | 🟡 功能降级 |
+
+**修改规范（新增 pdf2zh 相关）：**
+- 修改 `checkPdf2zhDeps()` / `installPdf2zhDeps()` → 影响 PDF 翻译的首次启动体验
+- 修改 `ensurePdf2zhReady()` → 自动安装流程（pip install babeldoc pymupdf openai）
 
 **修改规范：**
 - 改 `runOcrProcess()` → 所有 OCR 子进程调用方自动受影响

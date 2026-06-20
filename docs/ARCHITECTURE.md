@@ -1,7 +1,7 @@
 # 架构总览 — Evergreen Multi-Tools
 
 > Flutter 桌面应用 · 浙江大学多功能集成工具  
-> 15 个功能模块 · Riverpod 状态管理 · 自研 Agent 运行时
+> 16 个功能模块 · Riverpod 状态管理 · 自研 Agent 运行时
 
 ---
 
@@ -119,6 +119,7 @@ lib/
 │   ├── scheduler/                 #    智能调度（Flow）
 │   ├── tutor/                     #    AI 笔记 + DeepSeek 对话
 │   ├── agent/                     #    AI 助手聊天界面
+│   ├── translate/                 #    PDF 翻译（DeepSeek + pdf2zh 引擎）
 │   ├── wordpecker/                #    背词（FSRS 算法）
 │   ├── downloads/                 #    课件下载管理
 │   ├── plan/                      #    计划管理（多计划 + 周时间表）
@@ -229,3 +230,4 @@ Agent 工具通过 `ZjuDataSource` 接口获取数据，Flutter 层通过 Provid
 | wordpecker | 独立（仅依赖本地词典 + DeepSeek） |
 | tutor | AppConfig (DeepSeek API key) |
 | agent | ZjuDataSource 实现（由上层注入） |
+| translate | AppConfig (DeepSeek API key) · Python pdf2zh 引擎 |
