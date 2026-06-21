@@ -42,6 +42,15 @@ final zdbkEverythingProvider =
   final result = await service.getEverything(httpClient);
   return result.fold(
     (data) {
+      // 防御：空数据不覆盖已有缓存（避免网络半失败时丢失数据）
+      if (data.grades.isEmpty && data.exams.isEmpty) {
+        final cached = ref.read(zdbkEverythingCacheProvider);
+        if (cached != null) {
+          Log().warn('ZDBK fetch returned empty, keeping cached data',
+              data: {'cachedGrades': cached.grades.length});
+          return Ok(cached);
+        }
+      }
       ref.read(zdbkEverythingCacheProvider.notifier).state = data;
       return Ok(data);
     },

@@ -26,12 +26,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   void initState() {
     super.initState();
     Future.microtask(() {
-      // 不再自动刷新：前端永远读缓存，刷新由数据状态面板手动触发
-      ref.invalidate(zdbkEverythingProvider);
-      ref.invalidate(todoListProvider);
-      ref.invalidate(examsListProvider);
-      ref.invalidate(connectivityCheckProvider);
-      ref.invalidate(coursesListProvider);
+      // 不再自动刷新：前端永远读缓存，刷新由数据状态面板手动触发。
+      // 各 provider 首次 build 时通过 service 层的缓存优先逻辑自动返回缓存数据。
     });
   }
 

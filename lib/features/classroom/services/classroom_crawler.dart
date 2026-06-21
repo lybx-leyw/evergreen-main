@@ -7,6 +7,8 @@ import '../../../core/log.dart';
 import '../../../core/storage/database.dart';
 import '../models/ppt_slide.dart';
 import '../models/subtitle.dart';
+import '../models/classroom_video.dart';
+import '../models/course_content.dart';
 
 class FetchProgress {
   final String phase;
@@ -54,6 +56,28 @@ class ClassroomCrawler {
     _d('L3', 'listCourses() start');
     _sw.reset();
     _sw.start();
+
+    // 缓存优先：若新鲜文件缓存存在，直接返回
+    try {
+      final db = WebCacheDatabase.instanceOrNull;
+      if (db != null) {
+        final fresh = db.getFreshCachedWebPage('classroom_courses', const Duration(hours: 1));
+        if (fresh != null) {
+          final cached = db.getCachedList('classroom_courses');
+          if (cached.isNotEmpty) {
+            final courses = cached
+                .map((c) => ClassroomCourse(
+                      id: int.tryParse(c['Id']?.toString() ?? '') ?? 0,
+                      title: c['Title']?.toString() ?? '',
+                      teacher: c['Teacher']?.toString(),
+                    ))
+                .toList();
+            _d('L3', 'listCourses() → ${courses.length} courses (cache)');
+            return Ok(courses);
+          }
+        }
+      }
+    } catch (_) { /* 缓存读取失败 → 走网络 */ }
 
     const url =
         'https://education.cmc.zju.edu.cn/personal/courseapi/vlabpassportapi/v1/account-profile/course?nowpage=1&per-page=100&force_mycourse=1';
@@ -113,6 +137,25 @@ class ClassroomCrawler {
     _sw.reset();
     _sw.start();
 
+    // 缓存优先
+    final cacheKey = 'classroom_videos_$courseId';
+    try {
+      final db = WebCacheDatabase.instanceOrNull;
+      if (db != null) {
+        final fresh = db.getFreshCachedWebPage(cacheKey, const Duration(hours: 1));
+        if (fresh != null) {
+          final cached = db.getCachedList(cacheKey);
+          if (cached.isNotEmpty) {
+            final videos = cached
+                .map((e) => ClassroomVideo.fromJson(e as Map<String, dynamic>))
+                .toList();
+            _d('L3', 'listVideos() → ${videos.length} videos (cache)');
+            return Ok(videos);
+          }
+        }
+      }
+    } catch (_) { /* 缓存读取失败 → 走网络 */ }
+
     final url =
         'https://yjapi.cmc.zju.edu.cn/courseapi/v2/course/catalogue?course_id=$courseId';
 
@@ -155,23 +198,61 @@ class ClassroomCrawler {
           })
           .toList();
 
+      // 写入缓存
+      try {
+        final db = await WebCacheDatabase.getInstance();
+        await db.setCachedWebPage(
+            cacheKey, jsonEncode(videos.map((v) => v.toJson()).toList()));
+      } catch (_) {}
+
       _d('L3',
           'listVideos() → ${videos.length} videos in ${_sw.elapsedMilliseconds}ms');
       return Ok(videos);
     } catch (e, stack) {
       Log().warn('ClassroomCrawler.listVideos failed',
           error: e);
+      // 回退过期缓存
+      try {
+        final db = await WebCacheDatabase.getInstance();
+        final cached = db.getCachedList(cacheKey);
+        if (cached.isNotEmpty) {
+          final videos = cached
+              .map((e) => ClassroomVideo.fromJson(e as Map<String, dynamic>))
+              .toList();
+          Log().info('Classroom: using cached ${videos.length} videos');
+          return Ok(videos);
+        }
+      } catch (_) {}
       return Err(
           AppError.networkUnreachable('yjapi.cmc.zju.edu.cn'));
     }
   }
 
   /// Fetch PPT slides for a video.
-  Future<List<PptSlide>> fetchSlides(int courseId, int subId,
+  Future<Result<List<PptSlide>>> fetchSlides(int courseId, int subId,
       {OnFetchProgress? onProgress}) async {
     _d('L3', 'fetchSlides(courseId=$courseId subId=$subId) start');
     _sw.reset();
     _sw.start();
+
+    // 缓存优先
+    final cacheKey = 'classroom_slides_${courseId}_$subId';
+    try {
+      final db = WebCacheDatabase.instanceOrNull;
+      if (db != null) {
+        final fresh = db.getFreshCachedWebPage(cacheKey, const Duration(hours: 1));
+        if (fresh != null) {
+          final cached = db.getCachedList(cacheKey);
+          if (cached.isNotEmpty) {
+            final slides = cached
+                .map((e) => PptSlide.fromJson(e as Map<String, dynamic>))
+                .toList();
+            _d('L3', 'fetchSlides() → ${slides.length} slides (cache)');
+            return Ok(slides);
+          }
+        }
+      }
+    } catch (_) { /* 缓存读取失败 → 走网络 */ }
 
     final items = <PptSlide>[];
     final seenUrls = <String>{};
@@ -237,16 +318,44 @@ class ClassroomCrawler {
       }
     }
 
+    // 写入缓存
+    if (items.isNotEmpty) {
+      try {
+        final db = await WebCacheDatabase.getInstance();
+        await db.setCachedWebPage(
+            cacheKey, jsonEncode(items.map((s) => s.toJson()).toList()));
+      } catch (_) {}
+    }
+
     _d('L3',
         'fetchSlides() → ${items.length} slides in ${_sw.elapsedMilliseconds}ms');
-    return items;
+    return Ok(items);
   }
 
   /// Fetch ASR subtitles.
-  Future<List<Subtitle>> fetchSubtitles(int courseId, int subId) async {
+  Future<Result<List<Subtitle>>> fetchSubtitles(int courseId, int subId) async {
     _d('L3', 'fetchSubtitles(courseId=$courseId subId=$subId) start');
     _sw.reset();
     _sw.start();
+
+    // 缓存优先
+    final cacheKey = 'classroom_subtitles_${courseId}_$subId';
+    try {
+      final db = WebCacheDatabase.instanceOrNull;
+      if (db != null) {
+        final fresh = db.getFreshCachedWebPage(cacheKey, const Duration(hours: 1));
+        if (fresh != null) {
+          final cached = db.getCachedList(cacheKey);
+          if (cached.isNotEmpty) {
+            final subs = cached
+                .map((e) => Subtitle.fromJson(e as Map<String, dynamic>))
+                .toList();
+            _d('L3', 'fetchSubtitles() → ${subs.length} subtitles (cache)');
+            return Ok(subs);
+          }
+        }
+      }
+    } catch (_) { /* 缓存读取失败 → 走网络 */ }
 
     try {
       const base =
@@ -260,13 +369,13 @@ class ClassroomCrawler {
         try {
           rawData = jsonDecode(rawData);
         } catch (_) {
-          return [];
+          return Ok(<Subtitle>[]);
         }
       }
-      if (rawData is! Map) return [];
+      if (rawData is! Map) return Ok(<Subtitle>[]);
 
       final list = (rawData['list'] as List? ?? []);
-      if (list.isEmpty) return [];
+      if (list.isEmpty) return Ok(<Subtitle>[]);
 
       final subs = <Subtitle>[];
       for (final item in list) {
@@ -288,17 +397,39 @@ class ClassroomCrawler {
         }
       }
 
+      // 写入缓存
+      if (subs.isNotEmpty) {
+        try {
+          final db = await WebCacheDatabase.getInstance();
+          await db.setCachedWebPage(
+              cacheKey, jsonEncode(subs.map((s) => s.toJson()).toList()));
+        } catch (_) {}
+      }
+
       _d('L3',
           'fetchSubtitles() → ${subs.length} subtitles in ${_sw.elapsedMilliseconds}ms');
-      return subs;
+      return Ok(subs);
     } catch (e) {
       Log().warn('ClassroomCrawler.fetchSubtitles failed', error: e);
-      return [];
+      // 回退过期缓存
+      try {
+        final db = await WebCacheDatabase.getInstance();
+        final cached = db.getCachedList(cacheKey);
+        if (cached.isNotEmpty) {
+          final subs = cached
+              .cast<Map<String, dynamic>>()
+              .map((e) => Subtitle.fromJson(e))
+              .toList();
+          Log().info('Classroom: using cached ${subs.length} subtitles');
+          return Ok(subs);
+        }
+      } catch (_) {}
+      return Ok(<Subtitle>[]);
     }
   }
 
   /// Fetch all content for a video.
-  Future<CourseContent> fetchCourseContent(int courseId, int subId,
+  Future<Result<CourseContent>> fetchCourseContent(int courseId, int subId,
       {bool includeSlides = true,
       bool includeSubtitles = true,
       OnFetchProgress? onProgress}) async {
@@ -307,26 +438,58 @@ class ClassroomCrawler {
     _sw.reset();
     _sw.start();
 
+    // 缓存优先：课程内容聚合了 slides + subtitles
+    final cacheKey = 'classroom_content_${courseId}_$subId';
+    try {
+      final db = WebCacheDatabase.instanceOrNull;
+      if (db != null) {
+        final fresh = db.getFreshCachedWebPage(cacheKey, const Duration(hours: 1));
+        if (fresh != null) {
+          final cached = db.getCachedList(cacheKey);
+          if (cached.isNotEmpty) {
+            final content = CourseContent.fromJson(
+                cached.first as Map<String, dynamic>);
+            _d('L3', 'fetchCourseContent() → slides=${content.slides.length}, subtitles=${content.subtitles.length} (cache)');
+            return Ok(content);
+          }
+        }
+      }
+    } catch (_) { /* 缓存读取失败 → 走网络 */ }
+
     final results = await Future.wait([
       includeSlides
           ? fetchSlides(courseId, subId, onProgress: onProgress)
-          : Future.value(<PptSlide>[]),
+          : Future.value(Ok(<PptSlide>[])),
       includeSubtitles
           ? fetchSubtitles(courseId, subId)
-          : Future.value(<Subtitle>[]),
+          : Future.value(Ok(<Subtitle>[])),
     ]);
+
+    final slides = (results[0] as Result<List<PptSlide>>).fold(
+      (s) => s,
+      (_) => <PptSlide>[],
+    );
+    final subtitles = (results[1] as Result<List<Subtitle>>).fold(
+      (s) => s,
+      (_) => <Subtitle>[],
+    );
+
+    final content = CourseContent(slides: slides, subtitles: subtitles);
+
+    // 写入缓存
+    try {
+      final db = await WebCacheDatabase.getInstance();
+      await db.setCachedWebPage(cacheKey, jsonEncode([content.toJson()]));
+    } catch (_) {}
 
     onProgress?.call(FetchProgress(
       phase: 'done',
-      completed: (results[0] as List).length,
-      total: (results[1] as List).length,
+      completed: slides.length,
+      total: subtitles.length,
       elapsedMs: _sw.elapsedMilliseconds,
     ));
 
-    return CourseContent(
-      slides: results[0] as List<PptSlide>,
-      subtitles: results[1] as List<Subtitle>,
-    );
+    return Ok(content);
   }
 
   /// Extract video direct URL.
@@ -349,45 +512,4 @@ class ClassroomCourse {
   final String title;
   final String? teacher;
   const ClassroomCourse({required this.id, required this.title, this.teacher});
-}
-
-class ClassroomVideo {
-  final String id;
-  final int courseId;
-  final int subId;
-  final String title;
-  final String? startAt;
-  final String? videoUrl;
-  const ClassroomVideo(
-      {required this.id,
-      required this.courseId,
-      required this.subId,
-      required this.title,
-      this.startAt,
-      this.videoUrl});
-}
-
-class CourseContent {
-  final List<PptSlide> slides;
-  final List<Subtitle> subtitles;
-  const CourseContent({required this.slides, required this.subtitles});
-
-  String get aiContent {
-    final buf = StringBuffer();
-    buf.writeln('## PPT 内容\n');
-    for (final s in slides) {
-      if (s.text != null && s.text!.isNotEmpty) {
-        buf.writeln('### 第${s.page}页\n${s.text}\n');
-      }
-    }
-    if (subtitles.isNotEmpty) {
-      buf.writeln('## 语音转录字幕\n');
-      for (final s in subtitles) {
-        final min = (s.startMs / 60000).floor();
-        final sec = ((s.startMs % 60000) / 1000).floor();
-        buf.writeln('[$min:${sec.toString().padLeft(2, '0')}] ${s.text}');
-      }
-    }
-    return buf.toString();
-  }
 }

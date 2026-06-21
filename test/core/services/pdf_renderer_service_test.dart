@@ -81,7 +81,8 @@ void main() {
       // 8.27 * 150 = 1240.5 → round = 1241
       expect(width, 1241);
       final height = (width * 1.414).round();
-      expect(height, 1754);
+      // 1241 × 1.414 = 1754.774 → round = 1755
+      expect(height, 1755);
     });
 
     test('dpi = 200 → width ≈ 1654 for A4', () {

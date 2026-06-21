@@ -20,6 +20,26 @@ class TodoItem {
     this.source = 'courses',
   });
 
+  factory TodoItem.fromJson(Map<String, dynamic> json) => TodoItem(
+        id: json['id'] as String? ?? '',
+        title: json['title'] as String? ?? '',
+        courseName: json['courseName'] as String? ?? '',
+        type: json['type'] as String? ?? '',
+        deadline: json['deadline'] as String?,
+        isSubmitted: json['isSubmitted'] as bool? ?? false,
+        source: json['source'] as String? ?? 'courses',
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'title': title,
+        'courseName': courseName,
+        'type': type,
+        if (deadline != null) 'deadline': deadline,
+        'isSubmitted': isSubmitted,
+        'source': source,
+      };
+
   DateTime? get deadlineDate {
     if (deadline == null || deadline!.isEmpty) return null;
     return DateTime.tryParse(deadline!);

@@ -55,27 +55,7 @@ class _PptViewerState extends State<PptViewer> {
 
     setState(() => _loading = true);
     try {
-      Uint8List? bytes;
-      if (widget.imageLoader != null) {
-        // Use caller-provided loader (usually shared Dio with cookies)
-        bytes = await widget.imageLoader!(widget.slides[index].imageUrl);
-      } else {
-        // Fallback: standalone Dio (may lack session cookies)
-        final dio = Dio();
-        final response = await dio.get<Uint8List>(
-          widget.slides[index].imageUrl,
-          options: Options(
-            responseType: ResponseType.bytes,
-            followRedirects: true,
-            headers: {
-              'Referer': 'https://classroom.zju.edu.cn/',
-              'User-Agent':
-                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            },
-          ),
-        );
-        bytes = response.data;
-      }
+      final bytes = await widget.imageLoader!(widget.slides[index].imageUrl);
 
       if (bytes != null) {
         _cache[index] = bytes;

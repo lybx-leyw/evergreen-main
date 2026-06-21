@@ -60,6 +60,22 @@ class CoursesApiService {
 
   /// Fetch detailed data for a single course.
   Future<Result<CourseFullData>> getCourseFullData(int courseId) async {
+    final cacheKey = 'courses:full_data:$courseId';
+
+    // 缓存优先
+    if (_cache.isFresh(cacheKey)) {
+      final cached = _cache.getJson(cacheKey);
+      if (cached is Map) {
+        final typed = cached.cast<String, dynamic>();
+        return Ok(CourseFullData(
+          courseId: courseId,
+          activities: (typed['activities'] as List<dynamic>? ?? [])
+              .map((e) => e as Map<String, dynamic>)
+              .toList(),
+        ));
+      }
+    }
+
     try {
       final res = await _dio.get(
         'https://courses.zju.edu.cn/api/courses/$courseId/activities',
@@ -68,8 +84,21 @@ class CoursesApiService {
       final activities = (data['activities'] as List<dynamic>? ?? [])
           .map((e) => e as Map<String, dynamic>)
           .toList();
+      _cache.setJson(cacheKey, {'activities': activities},
+          ttl: const Duration(minutes: 5));
       return Ok(CourseFullData(courseId: courseId, activities: activities));
     } on Exception catch (e, stack) {
+      // 过期缓存兜底
+      final stale = _cache.getJson(cacheKey);
+      if (stale is Map) {
+        final typed = stale.cast<String, dynamic>();
+        return Ok(CourseFullData(
+          courseId: courseId,
+          activities: (typed['activities'] as List<dynamic>? ?? [])
+              .map((e) => e as Map<String, dynamic>)
+              .toList(),
+        ));
+      }
       return Err(_mapError(e, stack, 'courses.zju.edu.cn'));
     }
   }
@@ -106,19 +135,50 @@ class CoursesApiService {
 
   /// Fetch todo items from courses.zju.edu.cn.
   Future<Result<List<Map<String, dynamic>>>> getTodos() async {
+    const cacheKey = 'courses:todos';
+
+    // 缓存优先
+    if (_cache.isFresh(cacheKey)) {
+      final cached = _cache.getJson(cacheKey);
+      if (cached is List) {
+        return Ok(cached.cast<Map<String, dynamic>>());
+      }
+    }
+
     try {
       final res = await _dio.get('https://courses.zju.edu.cn/api/todos');
       final data = _safeJsonParse(res, '待办列表');
-      return Ok((data['todos'] as List<dynamic>? ?? [])
+      final todos = (data['todos'] as List<dynamic>? ?? [])
           .map((e) => e as Map<String, dynamic>)
-          .toList());
+          .toList();
+      _cache.setJson(cacheKey, todos, ttl: const Duration(minutes: 5));
+      return Ok(todos);
     } catch (_) {
+      // 过期缓存兜底
+      final stale = _cache.getJson(cacheKey);
+      if (stale is List) return Ok(stale.cast<Map<String, dynamic>>());
       return Ok(<Map<String, dynamic>>[]);
     }
   }
 
   /// Fetch scores for a course.
   Future<Result<ScoresData>> getScoresAll(int courseId) async {
+    final cacheKey = 'courses:scores:$courseId';
+
+    // 缓存优先
+    if (_cache.isFresh(cacheKey)) {
+      final cached = _cache.getJson(cacheKey);
+      if (cached is Map) {
+        final typed = cached.cast<String, dynamic>();
+        return Ok(ScoresData(
+          activityReads: typed['activityReads'] as Map<String, dynamic>? ?? {},
+          homeworkActivities: typed['homeworkActivities'] as Map<String, dynamic>? ?? {},
+          examScores: typed['examScores'] as Map<String, dynamic>? ?? {},
+          exams: typed['exams'] as Map<String, dynamic>? ?? {},
+        ));
+      }
+    }
+
     try {
       final results = await Future.wait([
         _dio
@@ -138,13 +198,30 @@ class CoursesApiService {
                 'https://courses.zju.edu.cn/api/courses/$courseId/exams')
             .then((r) => _safeJsonParse(r, '考试安排')),
       ]);
-      return Ok(ScoresData(
+      final data = ScoresData(
         activityReads: results[0],
         homeworkActivities: results[1],
         examScores: results[2],
         exams: results[3],
-      ));
+      );
+      _cache.setJson(cacheKey, {
+        'activityReads': data.activityReads,
+        'homeworkActivities': data.homeworkActivities,
+        'examScores': data.examScores,
+        'exams': data.exams,
+      }, ttl: const Duration(minutes: 5));
+      return Ok(data);
     } on Exception catch (e, stack) {
+      final stale = _cache.getJson(cacheKey);
+      if (stale is Map) {
+        final typed = stale.cast<String, dynamic>();
+        return Ok(ScoresData(
+          activityReads: typed['activityReads'] as Map<String, dynamic>? ?? {},
+          homeworkActivities: typed['homeworkActivities'] as Map<String, dynamic>? ?? {},
+          examScores: typed['examScores'] as Map<String, dynamic>? ?? {},
+          exams: typed['exams'] as Map<String, dynamic>? ?? {},
+        ));
+      }
       return Err(_mapError(e, stack, 'courses.zju.edu.cn'));
     }
   }
@@ -152,16 +229,25 @@ class CoursesApiService {
   /// Get classroom list for a course.
   Future<Result<List<Map<String, dynamic>>>> getClassrooms(
       int courseId) async {
+    final cacheKey = 'courses:classrooms:$courseId';
+    if (_cache.isFresh(cacheKey)) {
+      final cached = _cache.getJson(cacheKey);
+      if (cached is List) return Ok(cached.cast<Map<String, dynamic>>());
+    }
     try {
       final res = await _dio.get(
         'https://courses.zju.edu.cn/api/classrooms',
         queryParameters: {'courseId': courseId},
       );
       final data = _safeJsonParse(res, '课堂列表');
-      return Ok((data['classrooms'] as List<dynamic>? ?? [])
+      final list = (data['classrooms'] as List<dynamic>? ?? [])
           .map((e) => e as Map<String, dynamic>)
-          .toList());
+          .toList();
+      _cache.setJson(cacheKey, list, ttl: const Duration(minutes: 5));
+      return Ok(list);
     } on Exception catch (e, stack) {
+      final stale = _cache.getJson(cacheKey);
+      if (stale is List) return Ok(stale.cast<Map<String, dynamic>>());
       return Err(_mapError(e, stack, 'courses.zju.edu.cn'));
     }
   }
@@ -169,15 +255,24 @@ class CoursesApiService {
   /// Get quiz subjects for a classroom.
   Future<Result<List<Map<String, dynamic>>>> getQuizSubjects(
       int classroomId) async {
+    final cacheKey = 'courses:quiz_subjects:$classroomId';
+    if (_cache.isFresh(cacheKey)) {
+      final cached = _cache.getJson(cacheKey);
+      if (cached is List) return Ok(cached.cast<Map<String, dynamic>>());
+    }
     try {
       final res = await _dio.get(
         'https://courses.zju.edu.cn/api/classrooms/$classroomId/activities',
       );
       final data = _safeJsonParse(res, '答题列表');
-      return Ok((data['activities'] as List<dynamic>? ?? [])
+      final list = (data['activities'] as List<dynamic>? ?? [])
           .map((e) => e as Map<String, dynamic>)
-          .toList());
+          .toList();
+      _cache.setJson(cacheKey, list, ttl: const Duration(minutes: 5));
+      return Ok(list);
     } on Exception catch (e, stack) {
+      final stale = _cache.getJson(cacheKey);
+      if (stale is List) return Ok(stale.cast<Map<String, dynamic>>());
       return Err(_mapError(e, stack, 'courses.zju.edu.cn'));
     }
   }

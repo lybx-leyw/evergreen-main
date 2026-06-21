@@ -369,7 +369,7 @@ class NotesNotifier extends StateNotifier<NotesState> {
       final crawler = ClassroomCrawler(_dio);
 
       // 带进度的拉取
-      final content = await crawler.fetchCourseContent(
+      final contentResult = await crawler.fetchCourseContent(
         courseId, subId,
         onProgress: (progress) {
           state = state.copyWith(
@@ -378,6 +378,7 @@ class NotesNotifier extends StateNotifier<NotesState> {
           );
         },
       );
+      final content = contentResult.fold((c) => c, (_) => throw Exception('拉取失败'));
 
       // — 构建输入内容 —
       final buf = StringBuffer();
@@ -401,7 +402,7 @@ class NotesNotifier extends StateNotifier<NotesState> {
 
           // 4 线程并发池执行 OCR
           await Future.wait(
-            List.generate(batchEnd - batchStart, (i) async {
+            List.generate((batchEnd - batchStart).toInt(), (i) async {
               final idx = batchStart + i;
               await limiter.acquire();
               try {
