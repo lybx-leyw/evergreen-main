@@ -102,8 +102,22 @@ class ZdbkService {
   // ── Transcript ─────────────────────────────────────────────────────
 
   /// Get transcript (all semesters grades).
+  ///
+  /// Falls back to file cache on non-auth errors, with proper [Grade]
+  /// deserialization (unlike the generic `_withAutoRelogin` cache fallback
+  /// which returns raw `List<Map>`).
   Future<Result<List<Grade>>> getTranscript(HttpClient httpClient) async {
-    return _withAutoRelogin(() async {
+    // 缓存优先：新鲜缓存直接返回，避免网络请求
+    final cached = _tryFreshCache('zdbk_Transcript', CacheTtl.transcript, (list) {
+      final grades = list.cast<Map<String, dynamic>>()
+          .where((e) => e['xkkh'] != null)
+          .map((e) => Grade.fromJson(e))
+          .toList();
+      return grades.isNotEmpty ? grades : null;
+    });
+    if (cached != null) return Ok(cached);
+
+    final result = await _withAutoRelogin(() async {
       final htmlResult = await _zdbkPost(httpClient,
           'https://zdbk.zju.edu.cn/jwglxt/cxdy/xscjcx_cxXscjIndex.html'
           '?doType=query&queryModel.showCount=5000');
@@ -111,8 +125,8 @@ class ZdbkService {
       if (htmlResult.isErr) {
         final err = (htmlResult as Err<String>).error;
         // Session expired → propagate for retry
-        if (err is AuthError) return Err(err);
-        return Err(err);
+        if (err is AuthError) return Err<List<Grade>>(err);
+        return Err<List<Grade>>(err);
       }
       final html = (htmlResult as Ok<String>).value;
 
@@ -120,7 +134,7 @@ class ZdbkService {
       if (items.isEmpty) {
         Log().warn('Transcript: empty items',
             data: {'htmlPreview': html.substring(0, min(html.length, 200))});
-        return Err(AppError.parseHtml(html, 'grade items'));
+        return Err<List<Grade>>(AppError.parseHtml(html, 'grade items'));
       }
 
       Log().debug('Transcript parsed', data: {'count': items.length});
@@ -130,7 +144,32 @@ class ZdbkService {
           .map((e) => Grade.fromJson(e))
           .toList();
       return Ok(grades);
-    }, fallbackKey: 'zdbk_Transcript');
+    }); // No fallbackKey — handled below with proper deserialization
+
+    // Type-safe cache fallback: parse cached raw items into Grade objects.
+    return result.fold(
+      (grades) => Ok(grades),
+      (error) {
+        if (error is AuthError) return Err(error);
+        final cached = _db.getCachedList('zdbk_Transcript');
+        if (cached.isEmpty) return Err(error);
+        try {
+          final grades = cached
+              .cast<Map<String, dynamic>>()
+              .where((e) => e['xkkh'] != null)
+              .map((e) => Grade.fromJson(e))
+              .toList();
+          if (grades.isNotEmpty) {
+            Log().info('ZDBK transcript: using cached data',
+                data: {'count': grades.length});
+            return Ok(grades);
+          }
+        } catch (e) {
+          Log().warn('ZDBK transcript: cache deserialization failed', error: e);
+        }
+        return Err(error);
+      },
+    );
   }
 
   // ── Major Grade ────────────────────────────────────────────────────
@@ -170,6 +209,11 @@ class ZdbkService {
   /// Get exam schedule from ZDBK.
   Future<Result<List<Map<String, dynamic>>>> getExams(
       HttpClient httpClient) async {
+    // 缓存优先
+    final cached = _tryFreshCache('zdbk_exams', CacheTtl.exams,
+        (list) => list.cast<Map<String, dynamic>>());
+    if (cached != null) return Ok(cached);
+
     return _withAutoRelogin(() async {
       final htmlResult = await _zdbkPost(httpClient,
           'https://zdbk.zju.edu.cn/jwglxt/xskscx/kscx_cxXsgrksIndex.html'
@@ -203,6 +247,15 @@ class ZdbkService {
   }) async {
     Log().debug('getCourseOfferings', data: {'year': year, 'semester': semester});
     final cacheKey = 'zdbk_courseOfferings_${year}_$semester';
+
+    // 缓存优先
+    final cached = _tryFreshCache(cacheKey, CacheTtl.courseOfferings, (list) {
+      final result = list
+          .map((e) => CourseOffering.fromJson(e as Map<String, dynamic>))
+          .toList();
+      return result;
+    });
+    if (cached != null) return Ok(cached);
 
     return _withAutoRelogin(() async {
       final url =
@@ -267,6 +320,11 @@ class ZdbkService {
     int grade = 0, // 0 = 全部年级
   }) async {
     Log().debug('getTrainingPlans', data: {'query': query, 'grade': grade});
+
+    // 缓存优先
+    final cached = _tryFreshCache('zdbk_trainingPlans', CacheTtl.trainingPlans,
+        (list) => list.cast<Map<String, dynamic>>());
+    if (cached != null) return Ok(cached);
 
     return _withAutoRelogin(() async {
       // 先 GET 页面以建立该模块的会话
@@ -405,6 +463,19 @@ class ZdbkService {
     Log().debug('getTimetable', data: {'year': year, 'semester': semester});
     final cacheKey = 'zdbk_Timetable${year}_$semester';
 
+    // 缓存优先
+    final cached = _tryFreshCache(cacheKey, CacheTtl.timetable, (list) {
+      final filteredRaw = list
+          .where((e) => (e as Map<String, dynamic>)['kcb'] != null &&
+              e['sfyjskc'] != '1')
+          .toList();
+      if (filteredRaw.isEmpty) return null;
+      return filteredRaw
+          .map((e) => TimetableSession.fromZdbkJson(e as Map<String, dynamic>))
+          .toList();
+    });
+    if (cached != null) return Ok(cached);
+
     return _withAutoRelogin(() async {
       final url = 'https://zdbk.zju.edu.cn/jwglxt/kbcx/xskbcx_cxXsKb.html';
 
@@ -522,6 +593,22 @@ class ZdbkService {
   /// 获取 ZDBK 通知公告列表（含缓存 + 失败回退）。
   Future<Result<List<ZdbkNotification>>> getNotifications(
       HttpClient httpClient, String studentId) async {
+    // 缓存优先
+    final cached = _tryFreshCache('zdbk_notifications', CacheTtl.notifications,
+        (list) => list
+            .map((e) {
+              final m = e as Map<String, dynamic>;
+              return ZdbkNotification(
+                id: '${m['id'] ?? ''}',
+                title: '${m['title'] ?? ''}',
+                publisher: m['publisher'] as String?,
+                publishDate: m['publishDate'] as String?,
+                content: m['content'] as String?,
+              );
+            })
+            .toList());
+    if (cached != null) return Ok(cached);
+
     return _withAutoRelogin(() async {
       final time = DateTime.now().millisecondsSinceEpoch.toString();
       final url = 'https://zdbk.zju.edu.cn/jwglxt/xtgl/index_cxTctxNews.html'
@@ -554,6 +641,11 @@ class ZdbkService {
   // ── Everything (orchestration) ─────────────────────────────────────
 
   /// Get everything (grades + exams + GPA).
+  ///
+  /// If [getTranscript] fails and no cache fallback is available, the error
+  /// is propagated so the caller can fall back to its own cache rather than
+  /// displaying empty data.  Partial success (exams OK but transcript failed)
+  /// still returns [Ok] with empty grades — the caller decides how to handle it.
   Future<Result<EverythingResult>> getEverything(
       HttpClient httpClient) async {
     final results = await Future.wait([
@@ -561,12 +653,25 @@ class ZdbkService {
       getExams(httpClient),
     ]);
 
-    final grades = (results[0] as Result<List<Grade>>).fold(
+    final transcriptResult = results[0] as Result<List<Grade>>;
+    final examsResult = results[1] as Result<List<Map<String, dynamic>>>;
+
+    // Both failed → propagate the transcript error (most critical data source)
+    if (transcriptResult.isErr && examsResult.isErr) {
+      Log().warn('ZDBK getEverything: both transcript and exams fetch failed');
+      return Err((transcriptResult as Err<List<Grade>>).error);
+    }
+
+    // Transcript failed but exams succeeded → warn, proceed with empty grades
+    if (transcriptResult.isErr) {
+      Log().warn('ZDBK getEverything: transcript fetch failed, grades will be empty');
+    }
+
+    final grades = transcriptResult.fold(
       (g) => g,
       (_) => <Grade>[],
     );
-    final exams =
-        (results[1] as Result<List<Map<String, dynamic>>>).fold(
+    final exams = examsResult.fold(
       (e) => e,
       (_) => <Map<String, dynamic>>[],
     );
@@ -707,6 +812,20 @@ class ZdbkService {
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
       ..add('Accept', 'application/json, text/javascript, */*; q=0.01')
       ..add('X-Requested-With', 'XMLHttpRequest');
+  }
+
+  /// 缓存优先：若 [key] 对应的文件缓存未过期，解析并返回；否则返回 null。
+  ///
+  /// [parser] 负责将 `List<dynamic>` 反序列化为目标类型 [T]。
+  /// 返回 null 表示缓存中无有效数据，应发起网络请求。
+  T? _tryFreshCache<T>(String key, Duration ttl, T? Function(List<dynamic> list) parser) {
+    final raw = _db.getFreshCachedWebPage(key, ttl);
+    if (raw == null) return null;
+    try {
+      return parser(jsonDecode(raw) as List<dynamic>);
+    } catch (_) {
+      return null; // 解析失败 → 走网络
+    }
   }
 
   /// Execute an action with auto-relogin on session expiry.

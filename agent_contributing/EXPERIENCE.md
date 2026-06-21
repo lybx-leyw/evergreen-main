@@ -36,10 +36,18 @@
 
 - [缓存优先架构迁移](experiences/2026-06-16-cache-first-architecture.md) — `cache` `offline` `architecture` `provider` — **坑：Agent 工具空数据、Provider autoDispose、ref.read→ref.watch**
 
+### 数据拉取 / 缓存
+
+- [getEverything 静默吞错误导致成绩缓存被空数据覆盖](experiences/2026-06-20-geteverything-silent-error-swallowing.md) — `zdbk` `cache` `error-handling` `provider` `grades` — **坑：编排方法静默折叠子调用错误、泛型缓存回退类型不匹配**
+- [预存测试修复：浮点舍入 + Python PATH 兜底](experiences/2026-06-20-pre-existing-test-fixes.md) — `testing` `rounding` `python` `path-resolution` — **坑：浮点期望写错、resolvePythonExe 兜底逻辑导致测试误判**
+- [缓存优先架构补全](experiences/2026-06-20-cache-first-completion.md) — `cache` `offline` `zdbk` `classroom` `courses` `performance` — **模式：`_tryFreshCache` 守卫 + Dashboard 去 invalidation + BackgroundRefresher 跳过新鲜数据**
+- [数据新鲜度计算修复](experiences/2026-06-20-freshness-computation-fix.md) — `freshness` `data-status` `cacheKey` `timestamp` `ui-consistency` — **坑：cacheKey=null 源 `??= now` 导致永久"过期"、subtitle "在线"与 badge "过期"矛盾**
+
 ### 失败记录（❌ 此路不通，避免重蹈）
 
+- [❌ dart test -p vm 导入 Flutter 依赖失败](experiences/2026-06-20-dart-test-vm-flutter-import.md) — `testing` `dart` `flutter` `import` — **结论：纯 VM 测试不能 import 任何触及 Flutter SDK 的 package（包括 result.dart → log.dart → flutter/foundation），需自包含类型**
 - [❌ DeepSeek Vision / HuggingFace OCR 尝试](experiences/2026-06-xx-deepseek-vision-ocr-failed.md) — `ocr` `deepseek` `huggingface` `tesseract` — **结论：DeepSeek Chat 不支持 Vision API，HuggingFace 需要 Token+镜像，最终回退本地 Tesseract**
 
 ---
 
-*最后更新：2026-06-19*
+*最后更新：2026-06-20*

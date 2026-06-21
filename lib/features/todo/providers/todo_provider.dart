@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -6,6 +7,7 @@ import '../../../core/result.dart';
 import '../../../core/log.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/network/dio_client.dart';
+import '../../../core/storage/database.dart';
 import '../../../features/courses/models/course.dart';
 import '../../../features/courses/services/courses_api_service.dart';
 import '../../../features/courses/providers/courses_provider.dart';
@@ -60,11 +62,30 @@ final pintiaServiceProvider = FutureProvider<PintiaService?>((ref) async {
 
 /// Provider for todo items (Courses + PTA merged, concurrent).
 final todoListProvider = FutureProvider<List<TodoItem>>((ref) async {
+  const cacheKey = 'todo_list';
+  const ttl = Duration(minutes: 5);
+
+  // 缓存优先
+  try {
+    final db = WebCacheDatabase.instanceOrNull;
+    if (db != null) {
+      final fresh = db.getFreshCachedWebPage(cacheKey, ttl);
+      if (fresh != null) {
+        final cached = db.getCachedList(cacheKey);
+        if (cached.isNotEmpty) {
+          return cached
+              .cast<Map<String, dynamic>>()
+              .map((e) => TodoItem.fromJson(e))
+              .toList();
+        }
+      }
+    }
+  } catch (_) { /* 缓存读取失败 → 走网络 */ }
+
   final todos = <TodoItem>[];
   final api = ref.read(coursesApiProvider);
 
   // ── Courses (并发，从 courses.zju.edu.cn 拉取活动/作业) ──
-  // 课程列表用 courses.zju.edu.cn 的 ID（与 ZDBK 课程 ID 不互通）
   final coursesResult = await api.getMyCourses();
   final courses = coursesResult.fold((c) => c, (_) => <Course>[]);
 
@@ -99,7 +120,7 @@ final todoListProvider = FutureProvider<List<TodoItem>>((ref) async {
     }, (_) => null);
   }
 
-  // ── PTA：只取题集列表（标题+截止时间），不爬取具体题目 ──
+  // ── PTA ──
   final pta = await ref.read(pintiaServiceProvider.future);
   if (pta != null) {
     try {
@@ -136,6 +157,15 @@ final todoListProvider = FutureProvider<List<TodoItem>>((ref) async {
     if (bDate == null) return -1;
     return aDate.compareTo(bDate);
   });
+
+  // 写入缓存
+  if (todos.isNotEmpty) {
+    try {
+      final db = await WebCacheDatabase.getInstance();
+      await db.setCachedWebPage(
+          cacheKey, jsonEncode(todos.map((t) => t.toJson()).toList()));
+    } catch (_) {}
+  }
 
   return todos;
 });

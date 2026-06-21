@@ -3,9 +3,11 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/log.dart';
+import '../../../core/result.dart';
 import '../../../core/network/dio_client.dart';
 import '../../tutor/providers/notes_provider.dart';
-import '../services/classroom_crawler.dart';
+import '../models/course_content.dart';
 import '../providers/classroom_provider.dart';
 import '../widgets/ppt_viewer.dart';
 import '../widgets/subtitle_timeline.dart';
@@ -36,28 +38,18 @@ class ClassroomViewerScreen extends ConsumerStatefulWidget {
 
 class _ClassroomViewerScreenState
     extends ConsumerState<ClassroomViewerScreen> {
-  CourseContent? _content;
-  String? _videoUrl;
-  String? _error;
-  Dio? _sharedDio;
+  late final Dio _dio;
 
   @override
   void initState() {
     super.initState();
-    // Pre-resolve shared Dio for image loading (Step 5)
-    try {
-      _sharedDio = ref.read(dioClientProvider);
-    } catch (_) {
-      _sharedDio = null;
-    }
-    _loadContent();
+    _dio = ref.read(dioClientProvider);
   }
 
-  /// Download PPT image bytes via shared Dio (with session cookies).
+  /// Download PPT image bytes（二进制图片，不适合 JSON 缓存）。
   Future<Uint8List?> _loadPptImage(String url) async {
-    if (_sharedDio == null) return null;
     try {
-      final response = await _sharedDio!.get<Uint8List>(
+      final response = await _dio.get<Uint8List>(
         url,
         options: Options(
           responseType: ResponseType.bytes,
@@ -71,153 +63,111 @@ class _ClassroomViewerScreenState
       );
       return response.data;
     } catch (e) {
-      debugPrint('[Viewer] PPT image load failed: $e');
+      Log().debug('ClassroomViewer: PPT image load failed', data: {'url': url});
       return null;
     }
   }
 
-  /// Navigate to AI Notes — triggers OCR via fetchClassroomContent.
-  void _goToAiNotes() {
-    // 加 PostFrameCallback 确保不在 build/layout 期间触发 Navigator 操作
+  /// Navigate to AI Notes.
+  void _goToAiNotes(CourseContent content) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       try { Navigator.of(context).pop(); } catch (_) {}
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         try { GoRouter.of(context).go('/notes'); } catch (_) {}
-        // 在笔记页中触发带 OCR 的导入
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
           ref.read(notesProvider.notifier).fetchClassroomContent(
             widget.courseId, widget.subId,
-            _content?.slides.firstOrNull?.imageUrl ?? '录播视频',
+            content.slides.firstOrNull?.imageUrl ?? '录播视频',
           );
         });
       });
     });
   }
 
-  Future<void> _loadContent() async {
-    debugPrint('[Viewer:D] _loadContent() start'
-        ' courseId=${widget.courseId} subId=${widget.subId}');
-    try {
-      final crawler = ref.read(classroomCrawlerProvider);
-      final results = await Future.wait([
-        crawler.fetchCourseContent(widget.courseId, widget.subId),
-        crawler.extractVideoUrl(widget.courseId, widget.subId),
-      ]);
-      final videoUrl = results[1] as String?;
-      debugPrint('[Viewer:D] _loadContent() done'
-          ' videoUrl=${videoUrl != null ? "✅ present(${videoUrl.length} chars)" : "❌ null"}'
-          ' slides=${(results[0] as CourseContent).slides.length}'
-          ' subs=${(results[0] as CourseContent).subtitles.length}');
-      if (mounted) {
-        setState(() {
-          _content = results[0] as CourseContent;
-          _videoUrl = videoUrl;
-        });
-      }
-    } catch (e) {
-      debugPrint('[Viewer:D] ❌ _loadContent failed: $e');
-      if (mounted) setState(() => _error = e.toString());
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: _buildAppBar(context),
-      body: _buildBody(context),
-    );
-  }
+    final contentAsync = ref.watch(courseContentProvider((courseId: widget.courseId, subId: widget.subId)));
+    final videosAsync = ref.watch(classroomVideosProvider(widget.courseId));
 
-  PreferredSizeWidget _buildAppBar(BuildContext context) {
-    final loading = _content == null && _error == null;
-    return AppBar(
-      title: Text(
-        widget.title,
-        style: const TextStyle(fontSize: 16),
-        overflow: TextOverflow.ellipsis,
+    final videoUrl = videosAsync.whenOrNull(
+      data: (result) => result.fold(
+        (videos) => videos.where((v) => v.subId == widget.subId).firstOrNull?.videoUrl,
+        (_) => null,
       ),
-      actions: [
-        if (_content != null)
-          IconButton(
-            icon: const Icon(Icons.auto_awesome),
-            tooltip: '生成 AI 笔记',
-            onPressed: _goToAiNotes,
-          ),
-        IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-      ],
-      bottom: loading
-          ? const PreferredSize(
-              preferredSize: Size.fromHeight(2),
-              child: LinearProgressIndicator(),
-            )
-          : null,
     );
-  }
 
-  Widget _buildBody(BuildContext context) {
-    // Loading
-    if (_content == null && _error == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    // Error
-    if (_error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.title, style: const TextStyle(fontSize: 16), overflow: TextOverflow.ellipsis),
+        actions: [
+          if (contentAsync.hasValue && contentAsync.value!.isOk)
+            IconButton(
+              icon: const Icon(Icons.auto_awesome),
+              tooltip: '生成 AI 笔记',
+              onPressed: () => _goToAiNotes(contentAsync.value!.fold((c) => c, (_) => throw '')),
+            ),
+          IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ],
+        bottom: contentAsync.isLoading
+            ? const PreferredSize(preferredSize: Size.fromHeight(2), child: LinearProgressIndicator())
+            : null,
+      ),
+      body: contentAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (err, _) => Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
               const Icon(Icons.error_outline, size: 48, color: Colors.red),
               const SizedBox(height: 16),
               Text('加载失败', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 8),
-              Text(_error!, textAlign: TextAlign.center),
+              Text(err.toString(), textAlign: TextAlign.center),
               const SizedBox(height: 24),
               FilledButton.icon(
-                onPressed: () {
-                  setState(() {
-                    _content = null;
-                    _error = null;
-                  });
-                  _loadContent();
-                },
+                onPressed: () => ref.invalidate(courseContentProvider((courseId: widget.courseId, subId: widget.subId))),
                 icon: const Icon(Icons.refresh),
                 label: const Text('重试'),
               ),
-            ],
+            ]),
           ),
         ),
-      );
-    }
-
-    // Content loaded — delegate to responsive layout
-    final content = _content!;
-    final loader = _loadPptImage;
-    final videoUrl = _videoUrl;
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final layout = constraints.maxWidth >= 1024 ? 'Desktop' :
-                       constraints.maxWidth >= 600  ? 'Tablet' : 'Mobile';
-        debugPrint('[Viewer:D] layout=$layout width=${constraints.maxWidth.toStringAsFixed(0)}px'
-            ' videoUrl=${videoUrl != null ? "✅" : "❌null"}');
-        if (constraints.maxWidth >= 1024) {
-          return _DesktopLayout(
-            content: content, imageLoader: loader, videoUrl: videoUrl);
-        } else if (constraints.maxWidth >= 600) {
-          return _TabletLayout(
-            content: content, imageLoader: loader, videoUrl: videoUrl);
-        } else {
-          return _MobileLayout(
-            content: content, imageLoader: loader, videoUrl: videoUrl);
-        }
-      },
+        data: (result) => result.fold(
+          (content) => LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth >= 1024) {
+                return _DesktopLayout(content: content, imageLoader: _loadPptImage, videoUrl: videoUrl);
+              } else if (constraints.maxWidth >= 600) {
+                return _TabletLayout(content: content, imageLoader: _loadPptImage, videoUrl: videoUrl);
+              } else {
+                return _MobileLayout(content: content, imageLoader: _loadPptImage, videoUrl: videoUrl);
+              }
+            },
+          ),
+          (error) => Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                const SizedBox(height: 16),
+                Text(error.userMessage, style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 24),
+                FilledButton.icon(
+                  onPressed: () => ref.invalidate(courseContentProvider((courseId: widget.courseId, subId: widget.subId))),
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('重试'),
+                ),
+              ]),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
