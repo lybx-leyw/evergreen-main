@@ -52,7 +52,7 @@ flutter run -d windows
 | 平台 | 状态 | 说明 |
 |------|------|------|
 | Windows | ✅ 完整支持 | 16 个功能模块可用 |
-| Android | 🟡 不稳定 | 部分功能可用，OCR 等尚未良好实现 |
+| Android | 🟡 可编译 | 可构建 APK，但**不承诺任何功能可用** |
 
 ## Windows 安装包
 
@@ -60,13 +60,22 @@ flutter run -d windows
 # 1. 构建 Release
 flutter build windows --release
 
-# 2. 安装 Inno Setup (https://jrsoftware.org/isdownload.php)
+# 2. 清理 Python site-packages 中不需要的文件
+#    （避免 MAX_PATH 260 字符限制导致 Inno Setup 编译失败）
+$pkg = "build\windows\x64\runner\Release\scripts\python\Lib\site-packages"
+if (Test-Path $pkg) {
+  Remove-Item -Recurse -Force "$pkg\onnx\backend\test" -ErrorAction SilentlyContinue
+  Remove-Item -Recurse -Force "$pkg\onnxruntime\tools" -ErrorAction SilentlyContinue
+  Get-ChildItem -Path $pkg -Directory -Recurse -Filter "__pycache__" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
+}
 
-# 3. 编译安装包
+# 3. 安装 Inno Setup (https://jrsoftware.org/isdownload.php)
+
+# 4. 编译安装包
 cd scripts
-"C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
+& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
 
-# 产物: build/installer/EvergreenSetup-1.1.0.exe
+# 产物: build/installer/EvergreenSetup-1.2.0.exe
 ```
 
 ## Android 构建
@@ -81,7 +90,7 @@ flutter build apk --release
 # 产物: build/app/outputs/flutter-apk/app-release.apk
 ```
 
-> ⚠️ **Android 状态**：Android 版本目前**不稳定**，仅具备部分功能。OCR、AI 助手等核心功能尚未良好实现，存在已知问题。推荐使用 Windows 桌面版获得完整体验。
+> ⚠️ **Android 状态**：Android 版本可编译构建 APK，但**不承诺任何功能可用**。OCR、AI 助手等高级功能尚未适配移动端，存在已知问题。推荐使用 Windows 桌面版获得完整体验。
 
 ## 自动更新
 

@@ -77,15 +77,15 @@ Windows 安装包**自带 Python 3.11 运行时**，无需手动安装 Python。
 # Windows (包含 Python OCR 脚本 + 本地 Tesseract)
 flutter build windows --release
 
-# Android (不稳定，部分功能未良好实现)
+# Android（可编译，不承诺功能可用）
 flutter build apk --release
 ```
 
-> ⚠️ Android 版本目前**不稳定**，仅具备部分功能。OCR、AI 助手等核心功能尚未良好实现，存在已知问题。推荐使用 Windows 桌面版获得完整体验。
+> ⚠️ Android 版本可编译构建 APK，但**不承诺任何功能可用**。OCR、AI 助手等高级功能尚未适配移动端，存在已知问题。推荐使用 Windows 桌面版获得完整体验。
 
 ## 项目谱系
 
-- **v1.1**（当前）— Dart/Flutter 桌面应用，16 个功能模块，自研 Agent 运行时，数据状态管理
+- **v1.2**（当前）— Dart/Flutter 桌面应用，16 个功能模块，自研 Agent 运行时，数据状态管理，PDF 翻译
 - Agent 运行时参考 [Reasonix](https://github.com/esengine/reasonix) (MIT)，Dart 独立重写
 - 成绩计算 & 教务交互参考 [Celechron](https://github.com/Celechron/Celechron) (GPL-3.0)
 - 教师评分数据来自 [Lazuli](https://github.com/ADSR1042/Lazuli) (GPL-3.0)

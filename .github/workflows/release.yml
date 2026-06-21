@@ -1,0 +1,99 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  # ── Gate: all tests must pass ──
+  test:
+    uses: ./.github/workflows/test.yml
+
+  # ── Build Windows release + Inno Setup installer ──
+  build-windows:
+    needs: test
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse version from tag
+        run: |
+          $tag = '${{ github.ref_name }}'
+          $version = $tag -replace '^v', ''
+          echo "VERSION=$version" >> $env:GITHUB_ENV
+          echo "Version: $version"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.x'
+          channel: 'stable'
+          cache: true
+
+      - run: flutter pub get
+      - run: flutter build windows --release
+
+      # Strip debug symbols before packaging
+      - name: Strip debug symbols
+        run: |
+          if (Test-Path build/windows/x64/runner/Release/*.pdb) {
+            Remove-Item build/windows/x64/runner/Release/*.pdb
+          }
+
+      # Clean Python site-packages cruft (avoids MAX_PATH issues)
+      - name: Clean Python site-packages
+        run: |
+          $pkg = "build\windows\x64\runner\Release\scripts\python\Lib\site-packages"
+          if (Test-Path $pkg) {
+            Remove-Item -Recurse -Force "$pkg\onnx\backend\test" -ErrorAction SilentlyContinue
+            Remove-Item -Recurse -Force "$pkg\onnxruntime\tools" -ErrorAction SilentlyContinue
+            Get-ChildItem -Path $pkg -Directory -Recurse -Filter "__pycache__" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
+          }
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Build installer
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DMyAppVersion="${{ env.VERSION }}" scripts\installer.iss
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer
+          path: build/installer/EvergreenSetup-${{ env.VERSION }}.exe
+          retention-days: 7
+
+  # ── Create GitHub Release ──
+  release:
+    needs: build-windows
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Parse version from tag
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          echo "VERSION=$version" >> $GITHUB_ENV
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: installer
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Evergreen Multi-Tools ${{ github.ref_name }}
+          body: |
+            ## Evergreen Multi-Tools ${{ env.VERSION }}
+
+            ### Windows 安装
+            1. 下载 `EvergreenSetup-${{ env.VERSION }}.exe`
+            2. 双击运行安装向导
+            3. 从开始菜单或桌面快捷方式启动
+
+            > 自动构建自 ${{ github.ref_name }} · 提交 ${{ github.sha }}
+          files: EvergreenSetup-${{ env.VERSION }}.exe
+          generate_release_notes: true

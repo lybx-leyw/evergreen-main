@@ -7,7 +7,7 @@
 - [x] `flutter analyze` — 启用 stricter lint rules, 核心 warning 已清理
 - [x] Windows 安装包 — Inno Setup script (scripts/installer.iss)
 - [x] 自动更新检查 — UpdateService (GitHub Release API)
-- [x] Android 构建 — 更新 BUILD.md 构建指南
+- [x] Android 构建 — 可编译 APK，不承诺功能可用
 - [x] 所有交互元素 `Semantics` 标注 — sidebar _NavItem
 - [ ] 构建产物瘦身
 - [ ] 高对比度主题变体

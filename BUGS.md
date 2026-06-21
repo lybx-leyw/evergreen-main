@@ -53,7 +53,7 @@
 
 ## 特殊说明
 
-- **关于安全漏洞**：请勿在公开 Issue 中描述涉及 API Key、Cookie、Token 等敏感信息，应发送邮件至 `security@example.com`（替换为实际安全邮箱）。
+- **关于安全漏洞**：请勿在公开 Issue 中描述涉及 API Key、Cookie、Token 等敏感信息。
 - **关于网络相关 Bug**：请额外说明是否开启了代理/RVPN，以及校园网环境是否特殊。
 - **关于登录认证问题**：请注明涉及的服务（ZDBK / Courses / PTA 等），不要笼统说“登录失败”。
 

@@ -20,7 +20,7 @@ Evergreen 项目的灵感最早可追溯到 ZJU-live-better，经历了多个迭
 
 - **内部原型（未公开）** — 基于 ZJU-live-better 的 Node.js 代码快速搭建的概念验证版本，用于探索"多工具集成桌面应用"的可行性。此阶段纯属内部试验，**从未公开发布**，仅为后续正式开发积累了 API 交互经验和功能需求。
 - **v0.9.0_alpha.1（预发布版）** — 使用 **Dart / Flutter** 从零构建的第一个桌面应用版本，不再保留任何原始 JavaScript 源代码。此版本确立了 Flutter 桌面端的技术路线，为 v1.0 奠定了基础。自研 Agent 运行时（Greenix）、奥尔波特特质理论记忆系统、热加载 Skill 系统、两级 OCR Pipeline、FSRS 背词引擎等核心模块均为原创设计。
-- **v1.1.0（当前版本）** — 在 v1.0 基础上的进一步迭代；新增数据状态管理系统（离线优先/缓存驱动/后台静默刷新/13源数据面板），功能模块 15 个。
+- **v1.2.0（当前版本）** — 在 v1.1 基础上的进一步迭代；新增 PDF 翻译（嵌入式 Python / 阶段管线 / 应用内阅读）、缓存优先架构、数据新鲜度面板，功能模块 16 个。
 
 以下设计元素继承自 ZJU-live-better（内部原型阶段）：
 - ZJU SSO 认证流程（RSA 加密 → CAS 登录）的基本思路
@@ -207,7 +207,7 @@ Evergreen 的背词模块 **WordPecker**（⏸ 当前已暂停，代码保留）
 
 ## 本项目的许可证
 
-**Evergreen Multi-Tools v1.1.1** 以 **GNU General Public License v3.0 (GPL-3.0)** 发布。
+**Evergreen Multi-Tools v1.2.0** 以 **GNU General Public License v3.0 (GPL-3.0)** 发布。
 
 完整的许可证文本见本仓库根目录下的 [LICENSE](./LICENSE) 文件。
 
