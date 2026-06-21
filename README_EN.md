@@ -93,17 +93,17 @@ Features:
 # Windows (includes Python OCR scripts + local Tesseract)
 flutter build windows --release
 
-# Android (unstable, limited functionality)
+# Android (buildable, no functionality commitment)
 flutter build apk --release
 ```
 
-> ⚠️ The Android version is currently **unstable** with only partial functionality. Core features such as OCR and AI assistant are not well-implemented. Windows desktop is recommended for the full experience.
+> ⚠️ The Android version compiles and produces an APK, but **no functionality is guaranteed**. Advanced features such as OCR and AI assistant have not been adapted for mobile. Windows desktop is recommended for the full experience.
 
 ---
 
 ## Project Lineage
 
-- **v1.1** (current) — Dart/Flutter desktop app, 16 modules, self-built Agent runtime, data status management
+- **v1.2** (current) — Dart/Flutter desktop app, 16 modules, self-built Agent runtime, data status management, PDF translation
 - Agent runtime inspired by [Reasonix](https://github.com/esengine/reasonix) (MIT), independently rewritten in Dart
 - Grade calculation & academic affairs integration adapted from [Celechron](https://github.com/Celechron/Celechron) (GPL-3.0)
 - Instructor rating data sourced from [Lazuli](https://github.com/ADSR1042/Lazuli) (GPL-3.0)
