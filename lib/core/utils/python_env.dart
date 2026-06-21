@@ -205,8 +205,16 @@ from pdf2zh_next.config.translate_engine_model import DeepSeekSettings
   Future<String?> ensurePdf2zhReady(String scriptsDir, {
     void Function(String msg)? onProgress,
   }) async {
-    final exe = await pythonExe;
     onProgress?.call('检查 Python 环境...');
+
+    // 如果显式配置了 Python 路径但文件不存在，直接报错
+    if (_configuredPython != null && _configuredPython!.isNotEmpty) {
+      if (!await File(_configuredPython!).exists()) {
+        return '未找到 Python ($_configuredPython)，请确认路径正确';
+      }
+    }
+
+    final exe = await pythonExe;
     final hasPython = await checkPython();
     if (!hasPython) {
       final label = exe ?? 'python';
@@ -259,6 +267,14 @@ from pdf2zh_next.config.translate_engine_model import DeepSeekSettings
     void Function(String msg)? onProgress,
   }) async {
     onProgress?.call('检查 Python 环境...');
+
+    // 如果显式配置了 Python 路径但文件不存在，直接报错（不降级到系统 Python）
+    if (_configuredPython != null && _configuredPython!.isNotEmpty) {
+      if (!await File(_configuredPython!).exists()) {
+        return '未找到 Python ($_configuredPython)，请确认路径正确';
+      }
+    }
+
     final exe = await pythonExe;
     final hasPython = await checkPython();
     if (!hasPython) {

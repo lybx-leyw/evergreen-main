@@ -58,7 +58,7 @@ void main() {
       ));
       await tester.pump();
       // 允许 overflow（物理上无法放下13行），但不应抛断言
-      final e = tester.takeException();
+      tester.takeException(); // ignore: unused_local_variable
       // 即使 overflow，也是 RenderFlex overflow warning，不是崩溃
     });
 
