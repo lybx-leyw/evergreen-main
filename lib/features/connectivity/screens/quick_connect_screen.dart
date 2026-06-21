@@ -294,7 +294,7 @@ class _QuickConnectScreenState extends ConsumerState<QuickConnectScreen>
         ),
         title: Text(s.name, style: const TextStyle(fontSize: 14)),
         subtitle: Text(
-          s.cacheKey == null ? '在线' : s.relativeTime,
+          s.relativeTime,
           style: TextStyle(
             fontSize: 12,
             color: s.lastFetchedAt == null

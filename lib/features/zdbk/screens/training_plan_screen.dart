@@ -32,37 +32,14 @@ class _TrainingPlanScreenState extends ConsumerState<TrainingPlanScreen> {
   int _grade = 0;
   String _collegeFilter = '';
   String _majorFilter = '';
-  List<TrainingPlan> _allPlans = [];    // 全量缓存数据
   bool _loading = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadFromCache();
-  }
-
-  /// 打开页面：从本地缓存加载数据（不触发网络）。
-  void _loadFromCache() {
-    final db = WebCacheDatabase.instanceOrNull;
-    if (db == null) return;
-    final cached = db.getCachedList('zdbk_trainingPlans');
-    if (cached.isEmpty) return;
-    try {
-      _allPlans = cached
-          .map((e) => TrainingPlan.fromJson(e as Map<String, dynamic>))
-          .toList();
-    } catch (_) {}
-    if (mounted) setState(() {});
-  }
-
-  /// 点击刷新：去 ZDBK 拉取新数据，更新缓存后重新加载。
+  /// 点击刷新：谱仪重新拉取数据→写缓存→Provider 重建→UI 自动更新。
   Future<void> _refresh() async {
     setState(() => _loading = true);
     try {
       ref.invalidate(trainingPlansProvider(0));
-      // 等待 provider 完成（会拉取+写入缓存）
       await ref.read(trainingPlansProvider(0).future);
-      _loadFromCache();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('培养方案 刷新成功'), duration: Duration(seconds: 1)),
@@ -78,9 +55,9 @@ class _TrainingPlanScreenState extends ConsumerState<TrainingPlanScreen> {
     setState(() => _loading = false);
   }
 
-  /// 从 _allPlans 中本地筛选。
-  List<TrainingPlan> get _filtered {
-    var list = _allPlans;
+  /// 从 allPlans 中本地筛选。
+  List<TrainingPlan> _filter(List<TrainingPlan> allPlans) {
+    var list = allPlans;
     if (_grade > 0) list = list.where((p) => p.grade == _grade.toString()).toList();
     if (_collegeFilter.isNotEmpty) list = list.where((p) => p.college == _collegeFilter).toList();
     if (_majorFilter.isNotEmpty) list = list.where((p) => p.major == _majorFilter).toList();
@@ -91,11 +68,18 @@ class _TrainingPlanScreenState extends ConsumerState<TrainingPlanScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final filtered = _filtered;
-    final colleges = _allPlans.map((p) => p.college ?? '').where((c) => c.isNotEmpty).toSet().toList()..sort();
+    final plansAsync = ref.watch(trainingPlansProvider(0));
+
+    final allPlans = plansAsync.whenOrNull<List<TrainingPlan>>(
+          data: (result) => result.fold((p) => p, (_) => []),
+        ) ??
+        [];
+
+    final filtered = _filter(allPlans);
+    final colleges = allPlans.map((p) => p.college ?? '').where((c) => c.isNotEmpty).toSet().toList()..sort();
     final plansForMajor = _collegeFilter.isNotEmpty
-        ? _allPlans.where((p) => p.college == _collegeFilter).toList()
-        : _allPlans;
+        ? allPlans.where((p) => p.college == _collegeFilter).toList()
+        : allPlans;
     final majors = plansForMajor.map((p) => p.major ?? '').where((m) => m.isNotEmpty).toSet().toList()..sort();
 
     return Scaffold(
@@ -112,42 +96,67 @@ class _TrainingPlanScreenState extends ConsumerState<TrainingPlanScreen> {
           ),
         ],
       ),
-      body: _allPlans.isEmpty && !_loading
-          ? Center(
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.school, size: 48, color: Colors.grey[400]),
-                const SizedBox(height: 12),
-                Text('暂无培养方案数据', style: TextStyle(color: Colors.grey[600])),
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('点击刷新'),
-                  onPressed: _refresh,
-                ),
-              ]),
-            )
-          : Column(children: [
-              // 筛选栏
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                child: Row(children: [
-                  _buildFilterChip(label: _grade > 0 ? '${_grade}级' : '全部年级', onTap: _showGradePicker, color: _grade > 0 ? colorScheme.primaryContainer : null),
-                  const SizedBox(width: 6),
-                  Expanded(child: _buildFilterChip(label: _collegeFilter.isNotEmpty ? _collegeFilter : '学院', onTap: () => _showOptionPicker('选择学院', colleges, (v) => setState(() { _collegeFilter = v; _majorFilter = ''; })), color: _collegeFilter.isNotEmpty ? colorScheme.primaryContainer : null)),
-                  const SizedBox(width: 6),
-                  Expanded(child: _buildFilterChip(label: _majorFilter.isNotEmpty ? _majorFilter : '专业', onTap: () => _showOptionPicker('选择专业', majors, (v) => setState(() => _majorFilter = v)), color: _majorFilter.isNotEmpty ? colorScheme.primaryContainer : null)),
+      body: plansAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (_, __) => Center(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.error_outline, size: 48, color: Colors.grey[400]),
+          const SizedBox(height: 12),
+          Text('加载失败', style: TextStyle(color: Colors.grey[600])),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+              icon: const Icon(Icons.refresh),
+              label: const Text('重试'),
+              onPressed: _refresh),
+        ])),
+        data: (result) => result.fold(
+          (_) => allPlans.isEmpty && !_loading
+              ? Center(
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.school, size: 48, color: Colors.grey[400]),
+                    const SizedBox(height: 12),
+                    Text('暂无培养方案数据', style: TextStyle(color: Colors.grey[600])),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('点击刷新'),
+                        onPressed: _refresh),
+                  ]),
+                )
+              : Column(children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                    child: Row(children: [
+                      _buildFilterChip(label: _grade > 0 ? '${_grade}级' : '全部年级', onTap: _showGradePicker, color: _grade > 0 ? colorScheme.primaryContainer : null),
+                      const SizedBox(width: 6),
+                      Expanded(child: _buildFilterChip(label: _collegeFilter.isNotEmpty ? _collegeFilter : '学院', onTap: () => _showOptionPicker('选择学院', colleges, (v) => setState(() { _collegeFilter = v; _majorFilter = ''; })), color: _collegeFilter.isNotEmpty ? colorScheme.primaryContainer : null)),
+                      const SizedBox(width: 6),
+                      Expanded(child: _buildFilterChip(label: _majorFilter.isNotEmpty ? _majorFilter : '专业', onTap: () => _showOptionPicker('选择专业', majors, (v) => setState(() => _majorFilter = v)), color: _majorFilter.isNotEmpty ? colorScheme.primaryContainer : null)),
+                    ]),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: Text('${filtered.length} 个方案${_grade > 0 ? "（$_grade级）" : ""}', style: theme.textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant)),
+                  ),
+                  Expanded(
+                    child: filtered.isEmpty
+                        ? Center(child: Text('未找到符合条件的方案', style: TextStyle(color: Colors.grey[600])))
+                        : ListView(padding: const EdgeInsets.fromLTRB(16, 4, 16, 16), children: [for (final p in filtered) _buildPlanCard(p)]),
+                  ),
                 ]),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                child: Text('${filtered.length} 个方案${_grade > 0 ? "（$_grade级）" : ""}', style: theme.textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant)),
-              ),
-              Expanded(
-                child: filtered.isEmpty
-                    ? Center(child: Text('未找到符合条件的方案', style: TextStyle(color: Colors.grey[600])))
-                    : ListView(padding: const EdgeInsets.fromLTRB(16, 4, 16, 16), children: [for (final p in filtered) _buildPlanCard(p)]),
-              ),
-            ]),
+          (error) => Center(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.error_outline, size: 48, color: Colors.grey[400]),
+            const SizedBox(height: 12),
+            Text(error.userMessage, style: TextStyle(color: Colors.grey[600])),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+                icon: const Icon(Icons.refresh),
+                label: const Text('重试'),
+                onPressed: _refresh),
+          ])),
+        ),
+      ),
     );
   }
 

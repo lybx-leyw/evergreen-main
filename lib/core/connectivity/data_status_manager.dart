@@ -218,10 +218,9 @@ class DataStatusManager {
           if (ts != null) { s.lastFetchedAt = ts; found = true; break; }
         }
       }
-      // 无文件缓存的源（内存数据/API 连通）：如果还没有时间戳，使用当前时间
-      if (!found && s.cacheKey == null) {
-        s.lastFetchedAt ??= now;
-      }
+      // 无文件缓存的源（内存数据/API 连通）：
+      // 时间戳由 updateDataStatus() 显式设置，不在 refreshFreshness 中自动填充。
+      // 避免过期后永久显示"过期"的虚假状态。
     }
   }
 

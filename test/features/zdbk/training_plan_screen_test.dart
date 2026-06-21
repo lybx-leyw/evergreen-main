@@ -3,9 +3,20 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:evergreen_multi_tools/core/result.dart';
+import 'package:evergreen_multi_tools/core/models/training_plan.dart';
 import 'package:evergreen_multi_tools/features/zdbk/screens/training_plan_screen.dart';
+import 'package:evergreen_multi_tools/features/zdbk/providers/zdbk_provider.dart';
 
-Widget _wrap(Widget child) => ProviderScope(child: MaterialApp(home: child));
+Widget _wrap(Widget child) {
+  return ProviderScope(
+    overrides: [
+      // 覆盖 provider 返回空列表，避免真实的网络请求导致 pumpAndSettle 超时
+      trainingPlansProvider(0).overrideWith((ref) async => Ok(<TrainingPlan>[])),
+    ],
+    child: MaterialApp(home: child),
+  );
+}
 
 void main() {
   setUp(() {

@@ -15,8 +15,7 @@ import '../../zdbk/providers/zdbk_provider.dart';
 final connectionManagerProvider = Provider<ConnectionManager>((ref) {
   final httpClient = ref.read(httpClientProvider);
   final cookieJar = ref.read(cookieJarProvider);
-  final auth = ref.read(authProvider);
-  ref.watch(authProvider);
+  final auth = ref.watch(authProvider);
   final zdbkService = ref.watch(zdbkServiceInstanceProvider).valueOrNull;
   return ConnectionManager(
     httpClient,

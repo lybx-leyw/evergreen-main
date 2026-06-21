@@ -131,5 +131,26 @@ void main() {
       // 未写入过缓存的数据源，时间戳为 null
       expect(s.lastFetchedAt, isNull);
     });
+
+    test('cacheKey=null 数据源 refreshFreshness 后保持 null', () async {
+      final db = await WebCacheDatabase.getInstance();
+      // 先设置一个假时间戳，模拟 updateDataStatus 后的状态
+      final s = manager.source('学在浙大 课程')!;
+      s.lastFetchedAt = DateTime.now().subtract(const Duration(minutes: 10));
+      expect(s.cacheKey, isNull);
+
+      // refreshFreshness 不应覆盖 cacheKey=null 源的时间戳
+      manager.refreshFreshness(db);
+      // 保持了上一次 updateDataStatus 设置的值
+      expect(s.lastFetchedAt, isNotNull);
+    });
+
+    test('cacheKey=null 数据源初始 lastFetchedAt 为 null', () {
+      // 从未 updateDataStatus 的 cacheKey=null 源，初始为 null（不是 now）
+      final s = manager.source('待办事项')!;
+      expect(s.cacheKey, isNull);
+      expect(s.lastFetchedAt, isNull);
+      expect(s.freshnessLabel, '从未');
+    });
   });
 }
