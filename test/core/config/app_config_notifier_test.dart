@@ -11,12 +11,12 @@ void main() {
       prefs = await SharedPreferences.getInstance();
     });
 
-    test('默认 deepseekThinking = false', () async {
+    test('默认 deepseekThinking = true', () async {
       SharedPreferences.setMockInitialValues({});
       final p = await SharedPreferences.getInstance();
       final notifier = AppConfigNotifier(p);
       await notifier.initialize();
-      expect(notifier.state.deepseekThinking, false);
+      expect(notifier.state.deepseekThinking, true);
     });
 
     test('saveAll 持久化往返', () async {
