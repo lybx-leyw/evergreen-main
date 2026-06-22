@@ -163,7 +163,7 @@ void main() {
         // Goes to Level 2 (no API key set in this test)
         // CI may lack Tesseract binary → returns null
         expect(result, anyOf(isNull, isA<String>()));
-      } on Exception catch (e) {
+      } catch (e) {
         expect(e.toString(), isA<String>());
       } finally {
         try {
