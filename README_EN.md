@@ -1,8 +1,8 @@
 # Evergreen Multi-Tools (Beta version, not promoted temporarily)
 
 > An open-source practice of bringing Allport's trait theory into AI memory.  
-> A self-built Agent runtime powering the ZJU campus toolkit.  
-> A pioneer in AI Agent contribution governance.  
+> A ZJU campus toolkit with an integrated Agent runtime.  
+> A practitioner in AI Agent contribution governance.  
 > **ZJU students — welcome to build together.**
 
 If you find this project useful, a ⭐ Star would be much appreciated!
