@@ -9,7 +9,7 @@
 /// - zdbkEverythingProvider 收到 Err 时回退到内存缓存
 library;
 
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 // ── Minimal self-contained types ──────────────────────────────────────────
 // 不能 import project packages（result.dart → log.dart → flutter/foundation）
