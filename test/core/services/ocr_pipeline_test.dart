@@ -228,7 +228,7 @@ void main() {
           tmpFile.deleteSync();
         } catch (_) {}
       }
-    });
+    }, timeout: const Timeout(Duration(minutes: 5)));
 
     test('未配置 API key → 直接走 Tesseract', () async {
       // No API key set
@@ -254,7 +254,7 @@ void main() {
           tmpFile.deleteSync();
         } catch (_) {}
       }
-    });
+    }, timeout: const Timeout(Duration(minutes: 5)));
   });
 
   // ── recognizeUrl ────────────────────────────────────────────

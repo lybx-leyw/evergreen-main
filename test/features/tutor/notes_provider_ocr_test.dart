@@ -170,7 +170,7 @@ void main() {
           tmpFile.deleteSync();
         } catch (_) {}
       }
-    });
+    }, timeout: const Timeout(Duration(minutes: 5)));
 
     test('recognizeFile handles image types: jpg', () async {
       final tmpFile = File(

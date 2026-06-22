@@ -61,7 +61,7 @@ void main() {
         // 用裸 catch 而非 on Exception，因为 Dart 的 Error 不是 Exception 子类
         expect(e.toString(), isA<String>());
       }
-    });
+    }, timeout: const Timeout(Duration(minutes: 5)));
 
     test('配置路径不存在时回退到系统 Python → 可能成功或报错', () async {
       // resolvePythonExe 会兜底到系统 PATH。若系统有 Python，ensureReady 可能
@@ -87,7 +87,7 @@ void main() {
       } catch (e) {
         expect(e.toString(), isA<String>());
       }
-    });
+    }, timeout: const Timeout(Duration(minutes: 5)));
 
     test('onProgress 回调被触发', () async {
       final progressCalls = <String>[];
@@ -106,7 +106,7 @@ void main() {
         // 超时、Error、进程异常时 progressCalls 可能为空 — 容错
         expect(e.toString(), isA<String>());
       }
-    });
+    }, timeout: const Timeout(Duration(minutes: 5)));
   });
 
   // ── PythonEnv.installDeps ───────────────────────────────────

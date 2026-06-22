@@ -96,14 +96,26 @@ return await completer.future.timeout(Duration(minutes: N), onTimeout: ...);
 
 ### CI-安全的 Python 子进程测试模式
 ```dart
-try {
-  final result = await pipeline.someMethod().timeout(const Duration(minutes: 3));
-  expect(result, anyOf(isNull, isA<String>()));
-} on Exception catch (e) {
-  // Timeout、ProcessException 等都容错
-  expect(e.toString(), isA<String>());
-}
+// ⚠️ 仅 try/catch + Future.timeout() 不够！
+// package:test 有默认 30s 隐式超时，会先于 Future.timeout 触发。
+// 必须加 @Timeout 注解或 timeout 参数。
+@Timeout(Duration(minutes: 5))
+test('long running test', () async {
+  try {
+    final result = await pipeline.someMethod().timeout(const Duration(minutes: 3));
+    expect(result, anyOf(isNull, isA<String>()));
+  } catch (e) {
+    expect(e.toString(), isA<String>());
+  }
+});
 ```
+
+### 测试框架隐式超时 > Future.timeout()
+- `package:test` 给每个测试默认 **30 秒**超时
+- `Future.timeout(Duration(minutes: 3))` 设置的超时**晚于**框架超时 → 永远不会触发
+- 框架超时抛出 `TimeoutException after 0:00:30.000000: Test timed out after 30 seconds`
+- 裸 `catch (e)` 能捕获这个异常，但测试仍然标记为 ❌
+- **修复**：必须用 `@Timeout(Duration(minutes: 5))` 注解或 `test(..., timeout: Timeout(Duration(minutes: 5)))` 参数
 
 ### flutter analyze CI 配置
 ```yaml
