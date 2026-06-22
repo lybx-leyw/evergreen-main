@@ -62,8 +62,11 @@ related_pr: fix/ci-tests
 
 ## 踩过的坑
 
-### `--no-fatal-infos` 的误导
-以为加了 flag 就能通过 CI，但 662 issues 中的 error 级别（`uri_does_not_exist` 等）仍然致命。
+### `--no-fatal-infos` 只降级 info，不降级 warning
+- `--no-fatal-infos` → info 非致命，**warning 和 error 仍然 exit 1**
+- 需要同时加 `--no-fatal-warnings` 才能让 warning 也非致命
+- 即使没有 error 级别诊断，662 个 warning 也会导致 CI 失败
+- 结论：CI 中应使用 `flutter analyze --no-fatal-infos --no-fatal-warnings`
 
 ### 进程提前退出→ completer 悬挂
 `Process.start` + `Completer` 模式中，stdout 是唯一的事件通道。如果子进程在发出事件之前退出，必须主动监听 exit code 来 complete error。
@@ -119,8 +122,11 @@ test('long running test', () async {
 
 ### flutter analyze CI 配置
 ```yaml
-- run: flutter analyze --no-fatal-infos  # 降级 warning/info，但 error 仍致命
-# 不能靠这个 flag 掩盖 error，必须修复 root cause
+# --no-fatal-infos 只降级 info，不降级 warning
+# --no-fatal-warnings 降级 warning
+# 必须两个都加才能让 analyze 在 CI 上不因 warning 失败：
+- run: flutter analyze --no-fatal-infos --no-fatal-warnings
+# error 级别（uri_does_not_exist 等）仍然致命，必须修 root cause
 ```
 
 ### 包名陷阱
