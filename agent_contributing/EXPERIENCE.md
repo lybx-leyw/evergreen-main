@@ -27,6 +27,7 @@
 
 - [PDF 翻译 Python 子进程环境管理](experiences/2026-06-19-pdf-translate-python-subprocess.md) — `python` `subprocess` `pdf2zh` `pip` `translate` — **坑：Windows 中文路径、SharedPreferences 类型残留、?? 运算符优先级**
 - [嵌入式 Python 与翻译 UX 修复](experiences/2026-06-20-pdf-translate-embedded-python.md) — `python` `bundle` `embed` `ux` `stage` — **模式：安装包自带 Python + 阶段管线 UI**
+- [CI 测试修复：Python 进程悬挂 + analyze error + 默认值不一致](experiences/2026-06-22-ci-test-failures-python-env.md) — `ci` `testing` `python` `subprocess` `timeout` `analyze` — **坑：Process.start+Completer 模式悬挂 30min、--no-fatal-infos 不降级 error、Tesseract 二进制缺失**
 
 ### Agent 运行时
 
@@ -50,4 +51,4 @@
 
 ---
 
-*最后更新：2026-06-20*
+*最后更新：2026-06-22*
