@@ -28,10 +28,54 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-          channel: 'stable'
           cache: true
 
       - run: flutter pub get
+
+      # ── Prepare embedded Python runtime (gitignored, set up per build) ──
+      - name: Download Python 3.10 embeddable
+        run: |
+          $pythonVersion = "3.10.11"
+          $url = "https://www.python.org/ftp/python/$pythonVersion/python-$pythonVersion-embed-amd64.zip"
+          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\python-embed.zip"
+
+      - name: Extract Python to scripts/python
+        run: |
+          Expand-Archive -Path "$env:RUNNER_TEMP\python-embed.zip" -DestinationPath scripts\python\ -Force
+
+      - name: Configure site-packages support
+        run: |
+          Set-Content -Path scripts\python\python310._pth -Encoding UTF8 -Value @"
+          python310.zip
+          .
+
+          # Uncomment to run site.main() automatically
+          import site
+          "@
+
+      - name: Install pip
+        run: |
+          Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile "$env:RUNNER_TEMP\get-pip.py"
+          scripts\python\python.exe $env:RUNNER_TEMP\get-pip.py
+
+      - name: Install Python dependencies
+        run: scripts\python\python.exe -m pip install -r scripts\requirements.txt
+
+      - name: Verify Python imports
+        run: |
+          scripts\python\python.exe -c "import pytesseract, PIL, requests, pdf2image; import babeldoc, fitz, openai, pydantic, tomlkit, rich, peewee, tenacity, yaml; print('OK')"
+
+      # ── Clean site-packages cruft (avoids Inno Setup MAX_PATH 260-char limit) ──
+      - name: Clean Python site-packages
+        run: |
+          $pkg = "scripts\python\Lib\site-packages"
+          if (Test-Path $pkg) {
+            Remove-Item -Recurse -Force "$pkg\onnx\backend\test" -ErrorAction SilentlyContinue
+            Remove-Item -Recurse -Force "$pkg\onnxruntime\tools" -ErrorAction SilentlyContinue
+            Get-ChildItem -Path $pkg -Directory -Recurse -Filter "__pycache__" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
+          }
+
+      # ── Build Flutter (CMake POST_BUILD auto-copies scripts/ to output) ──
       - run: flutter build windows --release
 
       # Strip debug symbols before packaging
@@ -39,16 +83,6 @@ jobs:
         run: |
           if (Test-Path build/windows/x64/runner/Release/*.pdb) {
             Remove-Item build/windows/x64/runner/Release/*.pdb
-          }
-
-      # Clean Python site-packages cruft (avoids MAX_PATH issues)
-      - name: Clean Python site-packages
-        run: |
-          $pkg = "build\windows\x64\runner\Release\scripts\python\Lib\site-packages"
-          if (Test-Path $pkg) {
-            Remove-Item -Recurse -Force "$pkg\onnx\backend\test" -ErrorAction SilentlyContinue
-            Remove-Item -Recurse -Force "$pkg\onnxruntime\tools" -ErrorAction SilentlyContinue
-            Get-ChildItem -Path $pkg -Directory -Recurse -Filter "__pycache__" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
           }
 
       - name: Install Inno Setup
