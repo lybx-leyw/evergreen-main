@@ -175,27 +175,32 @@ class PdfTranslateService {
         },
       );
 
-      // Wait for process exit or timeout
-      final result = await completer.future.timeout(
-        const Duration(minutes: 30),
-        onTimeout: () {
-          process.kill();
-          throw TimeoutException('翻译超时 (30分钟)');
-        },
-      );
-
-      // Await process exit to capture final stderr
-      final exitCode = await process.exitCode;
-      if (exitCode != 0) {
-        final stderr = stderrBuffer.toString().trim();
-        Log().warn('PdfTranslate: non-zero exit',
-            data: {'exitCode': exitCode, 'stderr': stderr});
-        if (result.hasOutput) {
-          // Partial output available — return with warning
-          return Ok(result);
+      // Watch for premature process exit (e.g. deps missing, script crashes).
+      // Must register BEFORE awaiting completer, otherwise a fast-exit process
+      // leaves the completer dangling → 30-minute timeout on CI.
+      process.exitCode.then((code) {
+        if (!completer.isCompleted) {
+          final stderr = stderrBuffer.toString().trim();
+          Log().warn('PdfTranslate: subprocess exited before finish/error',
+              data: {'exitCode': code, 'stderr': stderr});
+          completer.completeError(_TranslationException(
+            '子进程异常退出 (exit $code)', stderr));
         }
-        return Err(AppError.translationFailed(
-            'Python 子进程异常退出 (exit $exitCode)', stderr));
+      });
+
+      // Wait for subprocess events or timeout (30 min per file)
+      final PdfTranslateResult result;
+      try {
+        result = await completer.future.timeout(
+          const Duration(minutes: 30),
+          onTimeout: () {
+            process.kill();
+            throw TimeoutException('翻译超时 (30分钟)');
+          },
+        );
+      } on _TranslationException catch (e) {
+        Log().error('PdfTranslate: translation error', error: e);
+        return Err(AppError.translationFailed(e.message, e.details));
       }
 
       return Ok(result);
