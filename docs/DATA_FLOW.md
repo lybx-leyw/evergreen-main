@@ -4,6 +4,22 @@
 
 ---
 
+## API 来源说明
+
+项目中"DeepSeek"涉及**两个不同的 API 提供商**，容易混淆：
+
+| 配置项 | 提供商 | API 地址 | 用途 |
+|--------|--------|----------|------|
+| `DEEPSEEK_API_KEY` | **DeepSeek 官网** | `api.deepseek.com` | AI 对话、AI 笔记、PDF 翻译 |
+| `DEEPSEEK_OCR_API_KEY` | **阿里云 DashScope** | `dashscope.aliyuncs.com` | DeepSeek-OCR 云端图片识别 |
+
+- **DeepSeek 官网** 的模型（`deepseek-chat` / `deepseek-v4-flash` 等）支持文本对话和翻译，**不支持 Vision / 图片识别**。在 [platform.deepseek.com](https://platform.deepseek.com) 获取 API Key。
+- **阿里云 DashScope** 上架的 `vanchin/deepseek-ocr` 是第三方封装的 OCR 模型，专门用于图片文字识别。在 [dashscope.aliyuncs.com](https://dashscope.aliyuncs.com) 获取 API Key。
+
+两个 Key **不能互换使用**，需分别在设置页面配置。
+
+---
+
 ## 1. 启动流程
 
 ```
@@ -386,7 +402,7 @@ BatchNotifier.startBatch()
 - `core/utils/python_env.dart` — Python 环境 + resolvePythonExe()
 - `scripts/pdf_translate.py` — 翻译子进程（stage 中文映射）
 - `scripts/pdf2zh_next/` — pdf2zh 引擎（config/ translator/ high_level.py）
-- `scripts/python/` — 嵌入式 Python 3.11.9 运行时（安装包自带）
+- `scripts/python/` — 嵌入式 Python 3.10.9 运行时（安装包自带）
 
 ---
 

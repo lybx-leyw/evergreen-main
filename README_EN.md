@@ -1,15 +1,15 @@
-# Evergreen Multi-Tools(Beta version, not promoted temporarily)
+# Evergreen Multi-Tools (Beta version, not promoted temporarily)
 
 > An open-source practice of bringing Allport's trait theory into AI memory.  
 > A self-built Agent runtime powering the ZJU campus toolkit.  
 > A pioneer in AI Agent contribution governance.  
 > **ZJU students — welcome to build together.**
 
-Author: **绿意不息 (Evergreen)**
+If you find this project useful, a ⭐ Star would be much appreciated!
 
 ---
 
-## Getting Started
+## Quick Start
 
 ```bash
 cd evergreen-multi-tools
@@ -21,14 +21,10 @@ flutter run -d windows
 
 ## Core Features
 
-- **🧠 Allport's Trait Theory Memory** — A standalone `MemoryAgent` analyzes user traits after every conversation turn, structured in five layers: *Cardinal Traits / Central Traits / Secondary Traits / User Needs / Key Facts*. Fully transparent — users can view and edit at any time.
-
-- **📋 Hot-Loading Skill System** — Drop a `.md` file into `.greenix/skills/` and the AI loads it instantly. Supports both inline and subagent execution modes.
-
-- **🔍 Dual-Tier OCR** — DeepSeek-OCR cloud high-precision → Tesseract local automatic fallback. PDFs are auto-split into pages for per-page recognition.
-
-- **🤖 Self-Built Agent Runtime** — A Dart reimplementation of Reasonix: `compose → LLM → tool → loop → readiness`, with 17 typed events.
-
+- **🧠 Allport's Trait Theory Memory** — `MemoryAgent` analyzes user traits after every turn, five-layer structure, fully transparent and editable
+- **📋 Hot-Loading Skill System** — Drop a `.md` into `.greenix/skills/` and the AI loads it instantly
+- **🔍 Dual-Tier OCR** — DeepSeek-OCR cloud → Tesseract local automatic fallback
+- **🤖 Self-Built Agent Runtime** — A Dart reimplementation of Reasonix with 17 typed events
 - **📊 1000+ Automated Tests** (1006 passed)
 
 ---
@@ -58,11 +54,15 @@ flutter run -d windows
 
 ---
 
-## OCR Dependencies
+## Installation & Dependencies
+
+### Windows (Recommended)
+
+The Windows installer includes a **bundled Python 3.10 runtime** — no manual dependency installation required. See [BUILD.md](./BUILD.md).
+
+### Local OCR
 
 Dual-tier OCR: Cloud DeepSeek-OCR (DashScope API) → Local Tesseract automatic fallback.
-
-### Local OCR (Required)
 
 1. Download and install [Tesseract OCR](https://github.com/UB-Mannheim/tesseract/wiki). During installation, check the **"Chinese Simplified"** language pack.
 2. `pip install -r scripts/requirements.txt`
@@ -71,13 +71,9 @@ Dual-tier OCR: Cloud DeepSeek-OCR (DashScope API) → Local Tesseract automatic 
 
 Enter your DashScope API Key in Settings and enable the `vanchin/deepseek-ocr` model. Falls back to local Tesseract automatically when not configured.
 
----
-
-## PDF Translation
+### PDF Translation
 
 PDF translation runs the pdf2zh engine (bundled at `scripts/pdf2zh_next/`) via a Python subprocess, outputting bilingual comparison PDFs with preserved layout, formulas, and figures.
-
-The Windows installer includes a **bundled Python 3.11 runtime** — no manual Python installation required. On first use, translation dependencies (babeldoc, pymupdf, openai, tomlkit) are auto-installed into the bundled environment.
 
 Features:
 - **Zero-config**: bundled Python with automatic detection fallback (bundled → configured → system PATH)
@@ -115,12 +111,24 @@ Full attributions in **[ATTRIBUTION.md](./ATTRIBUTION.md)**.
 
 ---
 
+## Contributing
+
+All contributions are welcome:
+
+- 🐛 **[Report Bugs](https://github.com/lybx-leyw/evergreen-main/issues)** / 💡 **[Submit Ideas](https://github.com/lybx-leyw/evergreen-main/issues)**
+- 📋 **[Share Your Skill](https://github.com/lybx-leyw/evergreen-main/issues)** — drop a `.md` into `.greenix/skills/` and the AI loads it instantly
+- 🔧 **[Open a PR](https://github.com/lybx-leyw/evergreen-main/pulls)** — follow [CONTRIBUTING.md](./CONTRIBUTING.md)
+
+See **[CONTRIBUTING.md](./CONTRIBUTING.md)** for details.
+
+---
+
 ## AI Agent Contribution Governance
 
 This project maintains a dual-track contribution protocol:
 
-- **[CONTRIBUTING.md](./CONTRIBUTING.md)** — Architecture, code style, and development standards for all contributors.
-- **[AGENT_CONTRIBUTING.md](./AGENT_CONTRIBUTING.md)** — A dedicated governance document for AI Agents: 10-step delivery pipeline, self-check checklist, prohibited behaviors, and uncertainty-handling rules. AI-generated PRs that violate this guide will be rejected.
+- **[CONTRIBUTING.md](./CONTRIBUTING.md)** — Architecture, code style, and development standards.
+- **[AGENT_CONTRIBUTING.md](./AGENT_CONTRIBUTING.md)** — AI Agent governance. Entry point: [`agent_contributing/SKILL.md`](./agent_contributing/SKILL.md). AI-generated PRs that violate this guide will be rejected.
 
 We believe defining how AI participates in open source is as important as building with AI itself.
 
