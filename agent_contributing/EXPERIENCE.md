@@ -48,6 +48,10 @@
 
 - [Palace Core 实现 + Bug 修复](experiences/2026-06-23-palace-core.md) — `palace` `agent` `memory` `cognitive` `architecture` `integration` `bug-fix` — **模式：零侵入新模块添加 · EventStore 三重索引 · 共享 DeepSeekProvider · envFilePathOverride 测试隔离 · YAML context 缩进解析** — **⚠️ 坑：双重 EventStore 实例、📌 emoji 破坏日期解析、索引损坏无回退**
 
+### CI / DevOps
+
+- [Android CI 中国镜像兼容 + Release 双平台](experiences/2026-06-23-ci-android-china-mirrors.md) — `ci` `github-actions` `android` `gradle` `mirrors` `kotlin` `release` — **模式：标准仓库前置+阿里云镜像后备 · Release 双附件并行** — **⚠️ 坑：Kotlin 插件在 aliyun 镜像缺失、Tencent Cloud Gradle 镜像 CI 不可达**
+
 ### 失败记录（❌ 此路不通，避免重蹈）
 
 - [❌ dart test -p vm 导入 Flutter 依赖失败](experiences/2026-06-20-dart-test-vm-flutter-import.md) — `testing` `dart` `flutter` `import` — **结论：纯 VM 测试不能 import 任何触及 Flutter SDK 的 package（包括 result.dart → log.dart → flutter/foundation），需自包含类型**
