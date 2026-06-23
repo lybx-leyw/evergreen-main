@@ -1,7 +1,7 @@
-# 架构总览 — Evergreen Multi-Tools
+# 架构总览 — Evergreen Multi-Tools v1.3.0
 
 > Flutter 桌面应用 · 浙江大学多功能集成工具  
-> 16 个功能模块 · Riverpod 状态管理 · 自研 Agent 运行时
+> 17 个功能模块 · Riverpod 状态管理 · 自研 Agent 运行时 · Palace 认知中间件
 
 ---
 
@@ -14,10 +14,13 @@
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │  UI Layer (widgets/ + 各 feature 的 screens/)               │
-│  GoRouter (app.dart) · Sidebar · Dashboard                  │
+│  GoRouter (app.dart) · Sidebar · Dashboard · PalaceScreen   │
 ├──────────────────────────────────────────────────────────────┤
 │  Feature Layer (features/*/)                                │
 │  providers/  →  services/  →  screens/  + widgets/          │
+├──────────────────────────────────────────────────────────────┤
+│  Palace Core (core/palace/)       ← 认知中间件（新增）        │
+│  采集管线 · AI 分析 · 教训冶炼 · 认知回响                     │
 ├──────────────────────────────────────────────────────────────┤
 │  Agent Runtime (core/agent/)                                │
 │  Agent · Session · Provider(LLM) · Tool · Registry          │
@@ -33,6 +36,7 @@
 
 - **UI 层** 只能依赖 Feature 层和 Widgets 层，不直接访问 Core 的 `dio`/`httpClient`
 - **Feature 层** 通过 Provider 暴露数据，内部 Service 可访问 Core 的 `dio`/`httpClient`/`AppConfig`
+- **Palace Core** 横切所有 Feature，从 Agent 对话和用户手动输入中采集认知事件。通过 `CaptureToPalaceTool` 注册到 Agent 运行时，不修改其核心循环
 - **Agent 运行时** 独立于 Feature 层，通过 `ZjuDataSource` 接口与业务数据解耦
 - **Core 基础设施** 不依赖任何 Feature 或 UI 代码
 
@@ -69,6 +73,13 @@ lib/
 │   │   ├── token_estimator.dart   #   Token 估算
 │   │   ├── python_env.dart        #   Python 子进程管理 + OCR 依赖
 │   │   └── auto_refresh.dart      #   全局自动刷新（定时 + 打开页面）
+│   ├── palace/                    #   ── Palace 认知中间件 ──
+│   │   ├── palace.dart            #     库入口
+│   │   ├── models/                #     数据模型（事件/教训/情境快照）
+│   │   ├── storage/               #     文件存储（EventStore + 三重索引）
+│   │   ├── capture/               #     事件采集（情境采集 + 快速捕捉）
+│   │   ├── refinery/              #     AI 分析（教训提取/追问生成/标签）
+│   │   └── tools/                 #     Agent 工具（capture_to_palace）
 │   └── agent/                     #   ── Agent 运行时 ──
 │       ├── agent.dart             #     库入口（统一导出）
 │       ├── message.dart           #     消息数据模型
@@ -123,6 +134,7 @@ lib/
 │   ├── wordpecker/                #    背词（FSRS 算法）
 │   ├── downloads/                 #    课件下载管理
 │   ├── plan/                      #    计划管理（多计划 + 周时间表）
+│   ├── palace/                     #    个人世界宫殿（PalaceCore 认知中间件 UI）
 │   └── settings/                  #    设置界面
 │
 ├── widgets/                       # ── 共享 UI 组件 ──
@@ -228,6 +240,7 @@ Agent 工具通过 `ZjuDataSource` 接口获取数据，Flutter 层通过 Provid
 | rvpn | auth |
 | scheduler | zdbk (timetable) |
 | wordpecker | 独立（仅依赖本地词典 + DeepSeek） |
+| palace | Agent Runtime (DeepSeekProvider共享 + CaptureToPalaceTool) · AppConfig · EventStore(文件I/O) |
 | tutor | AppConfig (DeepSeek API key) |
 | agent | ZjuDataSource 实现（由上层注入） |
 | translate | AppConfig (DeepSeek API key) · Python pdf2zh 引擎 |

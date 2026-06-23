@@ -1,4 +1,4 @@
-# 数据流 & 依赖链
+# 数据流 & 依赖链 — Evergreen Multi-Tools v1.3.0
 
 > 从用户操作到数据返回的完整链路。理解这些链路后即可定位问题出在哪一环。
 
@@ -406,7 +406,56 @@ BatchNotifier.startBatch()
 
 ---
 
-## 13. 关键接口与注入点
+## 13. Palace 认知事件流
+
+```
+用户触发捕捉
+  ├── 方式 A：Agent 对话中自然语言触发
+  │     → AI 调用 capture_to_palace({ event_type, content, tags, ... })
+  │         → CaptureToPalaceTool.execute()
+  │             → QuickCaptureService.capture()
+  │                 ├── ① ConsciousnessEvent.create() → 初步事件
+  │                 ├── ② DeepSeekProvider.chat() → AI 摘要
+  │                 ├── ③ AutoTagger.suggest() → 标签建议（如未手动打标签）
+  │                 ├── ④ EventStore.save() → 事件落盘 + 重建三重索引
+  │                 ├── ⑤ LessonExtractor.extract() → 教训草稿 (version=0)
+  │                 └── ⑥ QuestionGenerator.generate() → 3 个追问
+  │
+  ├── 方式 B：Palace 页面手动捕捉
+  │     → FAB 点击 → CaptureDialog.show(context)
+  │         → 用户填写内容 + 类型 + 情绪 + 标签
+  │         → 点击「存入宫殿」
+  │             → PalaceCaptureNotifier.submit()
+  │                 → QuickCaptureService.capture() (同上①-⑥)
+  │
+  └── 存储
+        → EventStore → .greenix/palace/events/{YYYY}/{MM}/{uuid}.md
+        → 索引重建：EVENTS_BY_DATE.md / EVENTS_BY_TYPE.md / EVENTS_BY_TAG.md
+        → 教训（如提炼）→ .greenix/palace/lessons/{id}.md
+
+浏览路径
+  → /palace 路由 → PalaceScreen
+      → palaceEventsProvider (EventStore.all() / 按过滤条件)
+      → EventTreeView (类型→日期→卡片 三层树)
+      → 点击卡片 → EventDetailPanel (全文 + AI 摘要 + 元数据)
+```
+
+**中间涉及的模块：**
+- `core/palace/capture/quick_capture_service.dart` — 捕捉管线编排（写入→AI补全→教训→追问）
+- `core/palace/tools/capture_to_palace_tool.dart` — Agent 工具（用户自然语言指挥）
+- `core/palace/storage/event_store.dart` — 文件存储 + 三重索引
+- `core/palace/refinery/lesson_extractor.dart` — AI 教训提取
+- `core/palace/refinery/question_generator.dart` — 苏格拉底追问
+- `core/palace/refinery/auto_tagger.dart` — 自动标签建议
+- `features/palace/screens/palace_screen.dart` — 主页面 UI
+- `features/palace/dialogs/capture_dialog.dart` — 快速捕捉弹窗
+- `features/palace/widgets/event_tree_view.dart` — 树状视图
+- `features/palace/providers/palace_capture_provider.dart` — 捕捉状态管理
+- `features/palace/providers/palace_events_provider.dart` — 事件列表 + 过滤
+
+---
+
+## 14. 关键接口与注入点
 
 | 接口/Provider | 定义位置 | 注入位置 | 用途 |
 |---|---|---|---|

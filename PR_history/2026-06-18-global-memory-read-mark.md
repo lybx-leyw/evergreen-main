@@ -1,4 +1,4 @@
-# PR_history/2026-06-18-全局记忆回合内已读标记.md
+# PR_history/2026-06-18-global-memory-read-mark.md
 
 ## 修改目的
 

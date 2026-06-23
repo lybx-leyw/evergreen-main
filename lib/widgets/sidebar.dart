@@ -133,6 +133,7 @@ class _CollapsedSidebar extends ConsumerWidget {
     Icons.smart_toy,
     Icons.translate,
     Icons.video_library,
+    Icons.fort,
     Icons.settings,
   ];
 
@@ -147,6 +148,7 @@ class _CollapsedSidebar extends ConsumerWidget {
     '/agent',
     '/translate',
     '/classroom',
+    '/palace',
     '/settings',
   ];
 
@@ -161,6 +163,7 @@ class _CollapsedSidebar extends ConsumerWidget {
     'AI 助手',
     'PDF 翻译',
     '智云课堂',
+    '宫殿',
     '设置',
   ];
 
@@ -283,6 +286,7 @@ class _MobileShell extends StatelessWidget {
     if (path.startsWith('/schedule-export')) return '课表导出';
     if (path.startsWith('/tutor')) return 'AI辅导';
     if (path.startsWith('/translate')) return 'PDF 翻译';
+    if (path.startsWith('/palace')) return '宫殿';
     return 'Evergreen';
   }
 }
@@ -327,6 +331,7 @@ class _MobileDrawer extends ConsumerWidget {
             _SectionHeader(title: '系统'),
             _DrawerItem(icon: Icons.dashboard, label: '仪表盘', path: '/dashboard', current: current, onTap: onTap),
             _DrawerItem(icon: Icons.wifi_tethering, label: '数据状态', path: '/quick-connect', current: current, onTap: onTap),
+            _DrawerItem(icon: Icons.fort, label: '宫殿', path: '/palace', current: current, onTap: onTap),
             _DrawerItem(icon: Icons.settings, label: '设置', path: '/settings', current: current, onTap: onTap),
           ],
         ),
@@ -474,6 +479,7 @@ class _ExpandedSidebar extends ConsumerWidget {
                 _SectionHeader(title: '系统'),
                 _NavItem(icon: Icons.dashboard, label: '仪表盘', path: '/dashboard', current: location),
                 _NavItem(icon: Icons.wifi_tethering, label: '数据状态', path: '/quick-connect', current: location),
+                _NavItem(icon: Icons.fort, label: '宫殿', path: '/palace', current: location),
                 _NavItem(icon: Icons.settings, label: '设置', path: '/settings', current: location),
               ],
             ),

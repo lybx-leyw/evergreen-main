@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -14,6 +15,10 @@ import 'app_config.dart' as legacy;
 /// 优先级（高→低）：env vars → .env 文件 → SharedPreferences。
 class AppConfigNotifier extends StateNotifier<AppConfigData> {
   final SharedPreferences _prefs;
+
+  /// Override for the .env file path (used in tests to isolate file I/O).
+  @visibleForTesting
+  String? envFilePathOverride;
 
   AppConfigNotifier(this._prefs) : super(const AppConfigData());
 
@@ -200,7 +205,9 @@ class AppConfigNotifier extends StateNotifier<AppConfigData> {
   }
 
   /// 稳定的 .env 文件路径——使用应用支持目录。
+  /// 测试可通过 [envFilePathOverride] 注入临时路径以隔离文件 I/O。
   Future<String> get _envFilePath async {
+    if (envFilePathOverride != null) return envFilePathOverride!;
     try {
       final appDir = await getApplicationSupportDirectory();
       return p.join(appDir.path, '.env');

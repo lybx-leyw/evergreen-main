@@ -7,7 +7,7 @@ files_touched:
 difficulty: medium
 outcome: success
 date: 2026-06-18
-related_pr: 2026-06-18-全局记忆回合内已读标记.md
+related_pr: 2026-06-18-global-memory-read-mark.md
 related_files: [lib/core/agent/controller/controller.dart, lib/core/agent/memory/memory.dart]
 ---
 

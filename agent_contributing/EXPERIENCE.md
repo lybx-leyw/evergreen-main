@@ -44,6 +44,10 @@
 - [缓存优先架构补全](experiences/2026-06-20-cache-first-completion.md) — `cache` `offline` `zdbk` `classroom` `courses` `performance` — **模式：`_tryFreshCache` 守卫 + Dashboard 去 invalidation + BackgroundRefresher 跳过新鲜数据**
 - [数据新鲜度计算修复](experiences/2026-06-20-freshness-computation-fix.md) — `freshness` `data-status` `cacheKey` `timestamp` `ui-consistency` — **坑：cacheKey=null 源 `??= now` 导致永久"过期"、subtitle "在线"与 badge "过期"矛盾**
 
+### Palace 认知中间件
+
+- [Palace Core 实现 + Bug 修复](experiences/2026-06-23-palace-core.md) — `palace` `agent` `memory` `cognitive` `architecture` `integration` `bug-fix` — **模式：零侵入新模块添加 · EventStore 三重索引 · 共享 DeepSeekProvider · envFilePathOverride 测试隔离 · YAML context 缩进解析** — **⚠️ 坑：双重 EventStore 实例、📌 emoji 破坏日期解析、索引损坏无回退**
+
 ### 失败记录（❌ 此路不通，避免重蹈）
 
 - [❌ dart test -p vm 导入 Flutter 依赖失败](experiences/2026-06-20-dart-test-vm-flutter-import.md) — `testing` `dart` `flutter` `import` — **结论：纯 VM 测试不能 import 任何触及 Flutter SDK 的 package（包括 result.dart → log.dart → flutter/foundation），需自包含类型**
@@ -51,4 +55,4 @@
 
 ---
 
-*最后更新：2026-06-22*
+*最后更新：2026-06-23*

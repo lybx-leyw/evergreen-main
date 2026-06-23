@@ -4,6 +4,14 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+
+# ── Permissions for the entire workflow ──
+# actions:read — needed by download-artifact
+# contents:write — needed by action-gh-release to create release
+permissions:
+  actions: read
+  contents: write
 
 jobs:
   # ── Gate: all tests must pass ──
@@ -102,10 +110,9 @@ jobs:
   # ── Create GitHub Release ──
   release:
     needs: build-windows
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    permissions:
-      contents: write
     steps:
       - name: Parse version from tag
         run: |

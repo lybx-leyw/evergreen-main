@@ -28,7 +28,7 @@ related_pr: 2026-06-20-修复PDF翻译体验.md
 
 ## 关键决策
 
-- **嵌入式 Python 方案**：下载 python-3.11.9-embed-amd64.zip → 解压到 `scripts/python/`，配置 `import site` + pip + babeldoc/pymupdf/openai/tomlkit。Inno Setup 打包时一同分发。
+- **嵌入式 Python 方案**：下载 python-3.10.9-embed-amd64.zip → 解压到 `scripts/python/`，配置 `import site` + pip + babeldoc/pymupdf/openai/tomlkit。Inno Setup 打包时一同分发。
 - **自动发现优先级**：自带 Python → 用户配置 → 系统 python3 → python → py -3
 - `pythonExe = null` 语义从"默认 'python'"改为"自动检测"——更符合用户预期
 - Stage 映射在 Python 侧（`pdf_translate.py`），UI 侧只管展示
@@ -53,7 +53,7 @@ related_pr: 2026-06-20-修复PDF翻译体验.md
 ### 嵌入式 Python 构建模式
 ```powershell
 # 1. 下载
-Invoke-WebRequest https://www.python.org/ftp/python/3.11.9/python-3.11.9-embed-amd64.zip -OutFile python.zip
+Invoke-WebRequest https://www.python.org/ftp/python/3.10.9/python-3.10.9-embed-amd64.zip -OutFile python.zip
 # 2. 解压
 Expand-Archive python.zip scripts/python/
 # 3. 配置

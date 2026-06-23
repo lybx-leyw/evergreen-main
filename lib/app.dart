@@ -45,6 +45,7 @@ import 'features/schedule/screens/schedule_screen.dart';
 import 'features/connectivity/screens/quick_connect_screen.dart';
 import 'widgets/dashboard.dart';
 import 'widgets/sidebar.dart';
+import 'features/palace/screens/palace_screen.dart';
 import 'widgets/command_palette.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -222,6 +223,10 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/schedule-export',
             pageBuilder: (context, state) => _slidePage(const ScheduleScreen(), state),
+          ),
+          GoRoute(
+            path: '/palace',
+            pageBuilder: (context, state) => _fadePage(const PalaceScreen(), state),
           ),
           GoRoute(
             path: '/settings',

@@ -25,11 +25,12 @@ flutter run -d windows
 - **📋 热加载 Skill 系统** — 丢 `.md` 到 `.greenix/skills/`，AI 即刻加载
 - **🔍 两级 OCR** — DeepSeek-OCR 云端 → Tesseract 本地自动降级
 - **🤖 自研 Agent 运行时** — Reasonix 的 Dart 复刻，17 种类型化事件
-- **📊 1000+ 个自动化测试**（1006 passed）
+- **🏰 Palace 认知中间件** — 事件采集·AI 提炼·教训冶炼·认知回响
+- **📊 1000+ 个自动化测试**（1067 passed）
 
 ---
 
-## 功能模块（16 个）
+## 功能模块（17 个）
 
 | 模块 | 功能 |
 |---|---|
@@ -45,6 +46,7 @@ flutter run -d windows
 | Tutor | AI 笔记 + DeepSeek + OCR |
 | Agent | AI 教学助手（对话 + 工具） |
 | Translate | PDF 翻译（DeepSeek + pdf2zh 引擎） |
+| Palace | 认知宫殿（事件采集·AI 提炼·树状浏览） |
 | WordPecker | FSRS 间隔重复背词 |
 | Downloads | 课件下载管理 |
 | Plan | 计划管理（多计划、大纲任务、周时间表涂色） |
@@ -99,7 +101,7 @@ flutter build apk --release
 
 ## 项目谱系
 
-- **v1.2**（当前）— Dart/Flutter 桌面应用，16 个功能模块，自研 Agent 运行时，数据状态管理，PDF 翻译
+- **v1.3**（当前）— Dart/Flutter 桌面应用，17 个功能模块，自研 Agent 运行时，Palace 认知中间件，PDF 翻译
 - Agent 运行时参考 [Reasonix](https://github.com/esengine/reasonix) (MIT)，Dart 独立重写
 - 成绩计算 & 教务交互参考 [Celechron](https://github.com/Celechron/Celechron) (GPL-3.0)
 - 教师评分数据来自 [Lazuli](https://github.com/ADSR1042/Lazuli) (GPL-3.0)
