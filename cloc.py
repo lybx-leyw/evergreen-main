@@ -31,7 +31,7 @@ EXCLUDE_DIRS = {
     ".dart_tool", ".idea", ".env", ".cookies", ".reasonix",
     "build", "windows", ".github", ".reference", ".achieve",
     "__pycache__", ".claude", ".vscode", ".git",
-    "node_modules", ".pub-cache",
+    "node_modules", ".pub-cache", "python",
 }
 
 EXCLUDE_FILES = {

@@ -25,11 +25,12 @@ flutter run -d windows
 - **📋 Hot-Loading Skill System** — Drop a `.md` into `.greenix/skills/` and the AI loads it instantly
 - **🔍 Dual-Tier OCR** — DeepSeek-OCR cloud → Tesseract local automatic fallback
 - **🤖 Self-Built Agent Runtime** — A Dart reimplementation of Reasonix with 17 typed events
-- **📊 1000+ Automated Tests** (1006 passed)
+- **🏰 Palace Cognitive Middleware** — Event capture · AI refinement · Lesson smelting · Cognitive echo
+- **📊 1000+ Automated Tests** (1067 passed)
 
 ---
 
-## Modules (16)
+## Modules (17)
 
 | Module | Description |
 |---|---|
@@ -45,6 +46,7 @@ flutter run -d windows
 | Tutor | AI notes + DeepSeek + OCR |
 | Agent | AI teaching assistant (chat + tools) |
 | Translate | PDF translation (DeepSeek + pdf2zh engine) |
+| Palace | Cognitive palace (event capture · AI refinement · tree view) |
 | WordPecker | FSRS spaced-repetition vocabulary |
 | Downloads | Course material download manager |
 | Plan | Multi-plan management, outline tasks, weekly timetable color-coding |
@@ -99,7 +101,7 @@ flutter build apk --release
 
 ## Project Lineage
 
-- **v1.2** (current) — Dart/Flutter desktop app, 16 modules, self-built Agent runtime, data status management, PDF translation
+- **v1.3** (current) — Dart/Flutter desktop app, 17 modules, self-built Agent runtime, Palace cognitive middleware, PDF translation
 - Agent runtime inspired by [Reasonix](https://github.com/esengine/reasonix) (MIT), independently rewritten in Dart
 - Grade calculation & academic affairs integration adapted from [Celechron](https://github.com/Celechron/Celechron) (GPL-3.0)
 - Instructor rating data sourced from [Lazuli](https://github.com/ADSR1042/Lazuli) (GPL-3.0)

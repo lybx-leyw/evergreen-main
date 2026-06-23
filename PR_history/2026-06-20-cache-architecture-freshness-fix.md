@@ -1,4 +1,4 @@
-# PR_history/2026-06-20-缓存优先架构补全与数据新鲜度修复.md
+# PR_history/2026-06-20-cache-architecture-freshness-fix.md
 
 ## 修改目的
 
@@ -63,4 +63,4 @@ Layer 3 (BackgroundRefresher): db.getFreshCachedWebPage != null → 跳过拉取
 - [x] F5 手动刷新 → 强制拉取最新数据
 - [x] 断网后打开各页面 → 缓存数据正常显示（离线降级）
 - [x] 全量测试通过 (`flutter test`)
-- [x] 补充测试截图至本文件
+- [x] 补充测试截图至本文件（看不出来的，跳过）

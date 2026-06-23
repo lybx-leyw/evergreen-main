@@ -13,7 +13,7 @@ files_touched:
 difficulty: hard
 outcome: success
 date: 2026-06-16
-related_pr: 2026-06-16-连接改进、v1.1发布.md
+related_pr: 2026-06-16-v1.1-release.md
 ---
 
 ## 做了什么

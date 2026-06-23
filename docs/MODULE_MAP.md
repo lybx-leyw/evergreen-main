@@ -1,4 +1,4 @@
-# 模块速查手册
+# 模块速查手册 — Evergreen Multi-Tools v1.3.0
 
 > 每个模块的职责、依赖、入口、关键文件
 
@@ -124,6 +124,19 @@
 |---|---|
 | 路径 | `core/utils/token_estimator.dart` |
 | 职责 | Token 数量估算（用于上下文压实判断） |
+
+### Palace Core — 认知中间件
+
+| 项目 | 内容 |
+|---|---|
+| 路径 | `core/palace/` |
+| 职责 | 认知事件采集、AI 分析、教训冶炼。横切所有 Feature 的平台层 |
+| 上游依赖 | Agent Runtime (DeepSeekProvider/Tool) |
+| 下游消费者 | `features/palace/`（UI 层）· Agent 工具注册（`agent_provider.dart`） |
+| 入口 | `palace.dart`（库入口） |
+| 子模块 | `models/`（事件/教训/情境快照模型）· `storage/`（EventStore + 三重索引）· `capture/`（采集管线）· `refinery/`（AI 分析：教训提取/追问/标签）· `tools/`（capture_to_palace Agent 工具） |
+| 存储 | `.greenix/palace/events/`（事件文件 + EVENTS_BY_DATE/TYPE/TAG.md 索引）· `.greenix/palace/lessons/`（教训文件） |
+| 测试 | `test/core/palace/`（模型序列化 · EventStore CRUD · 情境采集 · AI 解析） |
 
 ---
 
@@ -459,6 +472,20 @@
 | 路径 | `features/settings/` |
 | 职责 | 配置编辑界面 · 主题切换 |
 | 依赖 | `AppConfig` · `SettingsService` · `themeVariantProvider` |
+
+### Palace — 个人世界宫殿
+
+| 项目 | 内容 |
+|---|---|
+| 路径 | `features/palace/` |
+| 职责 | Palace 认知中间件的 UI 层——宫殿主页面、快速捕捉弹窗、树状视图 |
+| 入口 Provider | `palaceEventStoreProvider` · `palaceEventsProvider` · `palaceCaptureProvider` · `palaceLessonsProvider` · `palaceTagsProvider` · `palaceFilterProvider` |
+| 依赖 | `core/palace/`（平台层）· `features/agent/`（DeepSeekProvider 共享） |
+| 关键文件 | `screens/palace_screen.dart` — 主页面（类型→日期→卡片三层树状视图）<br>`dialogs/capture_dialog.dart` — 快速捕捉弹窗（showDialog）<br>`widgets/event_tree_view.dart` — 树状结构组件<br>`widgets/event_card.dart` — 事件卡片<br>`widgets/event_detail_panel.dart` — 事件详情展开面板 |
+| 路由 | `/palace`（fade transition） |
+| 导航 | 侧栏末尾「宫殿」入口（桌面展开/收起 + 移动端抽屉 + 移动端标题） |
+| Agent 工具 | `capture_to_palace` — 用户在 AI 对话中用自然语言指挥写入 Palace |
+| 测试 | `test/features/palace/`（Widget 渲染 · 树视图交互） |
 
 ---
 

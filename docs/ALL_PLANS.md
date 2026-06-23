@@ -62,10 +62,11 @@
 | # | 子计划 | 状态 | 说明 |
 |---|---|---|---|
 | 26 | Engineering + Packaging | 🟡 | lint/Inno Setup/Android 签名配好；Windows 构建成功；Android 可编译无功能承诺 |
-| 27 | Test Coverage | 🟢 | 1006 tests (29 新增翻译)；OCR/Skill/记忆/渲染/翻译全覆盖 |
-| 28 | Documentation + Release | 🟡 | 全部 .md 文档已同步 PDF 翻译功能更新；ATTRIBUTION 补齐 PDFMathTranslate-next |
+| 27 | Test Coverage | 🟢 | 1067 tests (61 新增：42 Palace + 其他修复)；Palace/Agent/翻译全覆盖 |
+| 28 | Documentation + Release | 🟡 | 全部 .md 文档已同步 Palace 功能更新；ATTRIBUTION 补齐；release workflow 权限修复 |
 | 29 | AI Tutoring + Mobile | ⚪ | 远期规划 |
 | 30 | Wellness Agent | 🟢 | acceptance.md 已实现（借鉴 ACT）；Skill 热加载可用 |
+| 31 | Palace Core (个人世界宫殿) | 🟢 | 已完成：数据模型 + EventStore(三重索引) + 快速捕捉 + AI 分析(教训提取/追问/标签) + capture_to_palace Agent 工具 + Palace 主页面(树状视图) + 侧栏导航 + /palace 路由。42 tests 全部通过。 |
 
 ---
 
@@ -73,12 +74,12 @@
 
 | 状态 | 含义 | 数量 | 项目 |
 |---|---|---|---|
-| 🟢 | 已达到预期 | 9 | 01, 05, 06, 11, 19, 23, 25, 27, 30 |
-| 🟡 | 勉强达到预期 | 14 | 02, 03, 04, 07, 08, 09, 10, 12, 13, 14, 15, 16, 18, 20, 24, 26, 28 |
+| 🟢 | 已达到预期 | 10 | 01, 05, 06, 11, 19, 23, 25, 27, 30, 31 |
+| 🟡 | 勉强达到预期 | 17 | 02, 03, 04, 07, 08, 09, 10, 12, 13, 14, 15, 16, 18, 20, 24, 26, 28 |
 | 🔴 | 未实现 | 1 | 22(下载) |
-| ⏸ | 暂缓 | 3 | 17, 21 |
+| ⏸ | 暂缓 | 2 | 17, 21 |
 | ⚪ | 远期 | 1 | 29 |
 
 ---
 
-*最后更新: 2026-06-13 · 内测版*
+*最后更新: 2026-06-23 · v1.3.0（Palace Core 完成）*

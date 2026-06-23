@@ -402,7 +402,9 @@ priority: cardinal | central | secondary | requirement | high | medium | low
    使用 `flutter test <新增测试文件>` 单独验证通过。
 
 7. **运行全量测试，确保未引入新错误**  
-   执行 `flutter test` 确保所有已有测试仍然通过。
+   优先使用并行脚本加速：`python scripts/run_tests_parallel.py`（将 6 组测试并行运行，对齐 CI）。  
+   也可单独验证某组：`python scripts/run_tests_parallel.py --group core`。  
+   若脚本不可用，回退到串行 `flutter test`。
 
 8. **修改对应的状态文档**  
    按改动类型对照下表更新，保持文档与代码同步：

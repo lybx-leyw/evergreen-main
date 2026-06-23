@@ -1,4 +1,4 @@
-# PR_history/2026-06-19-添加PDF翻译功能.md
+# PR_history/2026-06-19-pdf-translate.md
 
 ## 修改目的
 
@@ -9,7 +9,7 @@
 ### 新建文件
 - `scripts/pdf_translate.py` — Python 翻译子进程脚本（JSON 事件流、中文 stage 映射、依赖检查）
 - `scripts/pdf2zh_next/` — pdf2zh 引擎源码（从 .reference 精简复制：仅保留 config/ translator/ high_level.py 等核心）
-- `scripts/python/` — 嵌入式 Python 3.11.9 运行时（不入 git，构建时下载）
+- `scripts/python/` — 嵌入式 Python 3.10.9 运行时（不入 git，构建时下载）
 - `lib/core/services/pdf_translate_service.dart` — Dart 翻译服务（子进程调用、JSON 解析、Python 自动检测）
 - `lib/features/translate/models/translation_enums.dart` — 状态枚举 + 语言选项
 - `lib/features/translate/models/translation_job.dart` — 翻译任务/PdfTranslateResult/BatchProgress/TranslateStage
@@ -87,7 +87,7 @@
 
 ## 架构决策记录
 
-1. **嵌入式 Python 方案**：安装包自带 Python 3.11.9，用户零配置
+1. **嵌入式 Python 方案**：安装包自带 Python 3.10.9，用户零配置
 2. **自动发现降级链**：自带 Python → 用户配置 → 系统 PATH
 3. **不可变状态模型**：`TranslationJob` + `BatchState` 均不可变 + `copyWith()`，确保 Riverpod 正确通知 UI 重建
 4. **Stage 映射在 Python 侧**：翻译脚本负责翻译，Dart 侧只消费
@@ -127,4 +127,4 @@
 - [x] 已有关键流程（登录、课表、AI 对话）未受影响
 - [x] 补充测试截图至本文件
 
-![alt text](docs/2026-06-19-添加PDF翻译功能/image.png)
+![alt text](docs/2026-06-19-pdf-translate/image.png)

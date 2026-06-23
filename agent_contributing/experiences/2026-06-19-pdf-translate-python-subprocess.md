@@ -13,7 +13,7 @@ files_touched:
 difficulty: hard
 outcome: success
 date: 2026-06-19
-related_pr: 2026-06-19-添加PDF翻译功能.md
+related_pr: 2026-06-19-pdf-translate.md
 ---
 
 ## 做了什么

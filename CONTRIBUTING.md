@@ -110,6 +110,27 @@ Network Layer     → 抛出 DioException（拦截器处理重试）
 - 每个测试用例必须使用独立的 cookie jar 实例（避免文件锁定 / 跨测试污染）
 - 错误路径必须覆盖：成功、空数据、401/404、网络异常
 
+### 2.4 运行测试
+
+```bash
+# 全量并行测试（推荐，对齐 CI 的 6 组 job，比串行 flutter test 快数倍）
+python scripts/run_tests_parallel.py
+
+# 跳过静态分析（更快）
+python scripts/run_tests_parallel.py --no-analyze
+
+# 只跑某一组
+python scripts/run_tests_parallel.py --group core
+
+# 单文件测试
+flutter test test/features/xxx/xxx_test.dart
+
+# 覆盖率
+flutter test --coverage
+```
+
+> 并行脚本要求 Python 3.8+ 且 flutter 在 PATH 中（或设置 `FLUTTER` 环境变量指向可执行文件）。
+
 ---
 
 ## 3. 功能开发规范

@@ -10,7 +10,7 @@ files_touched:
 difficulty: hard
 outcome: success
 date: 2026-06-20
-related_pr: 2026-06-20-缓存优先架构补全与数据新鲜度修复.md
+related_pr: 2026-06-20-cache-architecture-freshness-fix.md
 ---
 
 ## 做了什么

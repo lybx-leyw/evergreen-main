@@ -59,6 +59,13 @@ import '../../ecard/providers/ecard_provider.dart';
 import '../../todo/providers/todo_provider.dart';
 import '../../exams/providers/exams_provider.dart';
 import '../services/session_store.dart';
+import '../../../core/palace/capture/quick_capture_service.dart';
+import '../../../core/palace/refinery/auto_tagger.dart';
+import '../../../core/palace/refinery/lesson_extractor.dart';
+import '../../../core/palace/refinery/question_generator.dart';
+import '../../../core/palace/storage/palace_paths.dart';
+import '../../../core/palace/tools/capture_to_palace_tool.dart';
+import '../../palace/providers/palace_event_store_provider.dart';
 
 // ─── ZJU Data Source ──────────────────────────────────────
 
@@ -375,6 +382,17 @@ final agentRuntimeProvider = Provider<AgentRuntime>((ref) {
     debugPrint('[AgentInit:D] loaded ${skillIndex.all().length} skills');
   }
 
+  // Palace: 事件存储（共享 Agent 的 DeepSeekProvider + 全局单例 EventStore）
+  ensurePalaceDirs();
+  final palaceEventStore = ref.read(palaceEventStoreProvider);
+  final palaceCaptureService = QuickCaptureService(
+    store: palaceEventStore,
+    lessonExtractor: LessonExtractor(provider),
+    questionGenerator: QuestionGenerator(provider),
+    autoTagger: AutoTagger(provider),
+    llm: provider,
+  );
+
   // 注册工具
   final registry = Registry();
   registry.registerAll([
@@ -398,6 +416,7 @@ final agentRuntimeProvider = Provider<AgentRuntime>((ref) {
     WriteGlobalMemoryTool(globalStore),
     RunSkillTool(loader, skillIndex, provider, registry),
     ListSkillsTool(loader, skillIndex),
+    CaptureToPalaceTool(palaceCaptureService),
   ]);
   // 默认禁用联网搜索（由用户开关控制）
   registry.disable('web_search');

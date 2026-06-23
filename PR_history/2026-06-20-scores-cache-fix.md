@@ -1,4 +1,4 @@
-# PR_history/2026-06-20-成绩拉取失败覆盖缓存修复.md
+# PR_history/2026-06-20-scores-cache-fix.md
 
 ## 修改目的
 

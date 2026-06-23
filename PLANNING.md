@@ -1,4 +1,4 @@
-# PLANNING — Evergreen Multi-Tools v1.2.0
+# PLANNING — Evergreen Multi-Tools v1.3.0
 
 > 2026 暑假迭代计划 · 内测版 → 稳定版
 
@@ -6,8 +6,8 @@
 
 ## 概述
 
-- **当前版本**: v1.2.0 内测版（功能模块 16 个：15 个原有 + PDF 翻译）
-- **目标版本**: v1.2.1
+- **当前版本**: v1.3.0 内测版（功能模块 17 个：16 个原有 + Palace 认知中间件）
+- **目标版本**: v1.3.1
 - **时间窗口**: 2026 年暑假
 - **用户范围**: 内测用户，暂不公开推广
 - **总方针**: 修 Bug > 体验优化 > 功能补全；暂停模块不激活（除非有 PR 或 Issues 强烈反馈）
@@ -15,6 +15,25 @@
 ---
 
 ## 已完成
+
+### ✅ Palace 认知中间件（2026-06-23）
+
+- [x] 数据模型：ConsciousnessEvent（意识事件）+ ContextSnapshot（情境快照）+ StructuredLesson（结构化教训）
+- [x] EventStore：文件存储 + 三重索引（EVENTS_BY_DATE/TYPE/TAG.md）+ 文件系统扫描回退
+- [x] 捕捉管线：QuickCaptureService 编排（写入→AI 摘要→自动标签→教训提取→追问生成）
+- [x] Agent 工具：`capture_to_palace` — 用户用自然语言指挥 AI 写入 Palace
+- [x] Palace 主页面：类型过滤栏 + 标签栏 + 三层树状视图（类型→日期→卡片）+ 事件详情面板
+- [x] 快速捕捉弹窗：手动录入事件（内容 + 类型 + 情绪 + 标签）
+- [x] 侧边栏「宫殿」入口（桌面展开/收起 + 移动端抽屉/导航栏）
+- [x] `/palace` 路由（fade transition）
+- [x] Bug 修复：EventStore 双重实例、📌 emoji 解析、索引回退、空断言安全、Provider 缓存复用、copyWith 清空类型
+
+### ✅ 并行测试脚本 + Release 修复 + 文档同步（2026-06-23）
+
+- [x] 并行测试脚本 `scripts/run_tests_parallel.py`：6 组 job 对齐 CI，含失败明细总结栏
+- [x] Release workflow 修复：权限 `actions:read` 缺失导致 `download-artifact` 失败
+- [x] 测试文档更新：`CONTRIBUTING.md` §2.4 运行测试 · `AGENT_CONTRIBUTING.md` 步骤 7
+- [x] 全量 .md 文档同步：版本号 v1.2→v1.3.0、模块数 16→17、测试数 1006→1067
 
 ### ✅ PDF 翻译功能（2026-06-19）
 
@@ -144,4 +163,4 @@
 
 ---
 
-*创建于 2026-06-16 · 暑假迭代*
+*创建于 2026-06-16 · 更新于 2026-06-23（Palace 完成，版本升至 v1.3.0）*

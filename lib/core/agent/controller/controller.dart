@@ -46,7 +46,7 @@ class Controller {
   /// Skill 索引——注入到 system prompt 中。
   final String _skillIndexText;
 
-  // 全局记忆回合内已读标记——阻止同一用户回合内重复读取。
+  // Per-turn global memory read flag — prevents repeated reads within the same user turn.
   bool _globalMemoryReadThisTurn = false;
 
   // 批准回调
@@ -113,7 +113,7 @@ class Controller {
       return;
     }
 
-    // 新用户回合 → 重置全局记忆已读标记
+    // New user turn → reset global memory read flag
     _globalMemoryReadThisTurn = false;
 
     print('[Ctrl:D] creating Agent provider=${_provider.name} tools=${_registry.enabled().length}');
@@ -133,13 +133,13 @@ class Controller {
     _runAgent(agent, input);
   }
 
-  /// 在新会话开始时自动读取全局记忆并注入为工具结果。
+  /// Auto-reads global memory at the start of a new session and injects as tool result.
   ///
-  /// 在 Agent.run() 之前调用，将 read_global_memory 的结果作为
-  /// 已执行的工具调用注入 session，让模型在首轮就能看到记忆上下文。
+  /// Called before Agent.run(), injects read_global_memory results as
+  /// executed tool calls into the session so the model sees memory context in round one.
   ///
-  /// 通过 [_globalMemoryReadThisTurn] 标记确保同一用户回合内只读取一次，
-  /// 避免 Greenix 多轮思考/分析中重复触发磁盘 I/O。
+  /// Uses [_globalMemoryReadThisTurn] flag to ensure only one read per user turn,
+  /// preventing repeated disk I/O during Greenix multi-step reasoning/analysis.
   Future<void> _autoReadGlobalMemory() async {
     if (_globalMemoryReadThisTurn) return;
 
@@ -169,7 +169,7 @@ class Controller {
         )));
       }
     } catch (_) {
-      // 静默失败——读取全局记忆失败不应阻塞对话
+      // Silent failure — global memory read errors should not block conversation
     }
   }
 
@@ -210,7 +210,7 @@ class Controller {
     try {
       int eventCount = 0;
 
-      // 🧠 每轮自动读取全局记忆（确保 AI 看到 MemoryAgent 最新写入的内容）
+      // Auto-read global memory each round (ensures AI sees latest MemoryAgent writes)
       await _autoReadGlobalMemory();
 
       // 构建记忆上下文：MemoryFacade 自动合并三 scope + 兼容旧 setMemoryContext
