@@ -55,10 +55,13 @@ class EventDetailPanel extends StatelessWidget {
                   visualDensity: VisualDensity.compact,
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  '来源：${_sourceLabel(event.source)} · '
-                  '${_formatDate(event.capturedAt)}',
-                  style: theme.textTheme.bodySmall,
+                Expanded(
+                  child: Text(
+                    '来源：${_sourceLabel(event.source)} · '
+                    '${_formatDate(event.capturedAt)}',
+                    style: theme.textTheme.bodySmall,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
             ),

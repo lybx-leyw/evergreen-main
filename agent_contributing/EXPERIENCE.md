@@ -52,6 +52,10 @@
 
 - [Android CI 中国镜像兼容 + Release 双平台](experiences/2026-06-23-ci-android-china-mirrors.md) — `ci` `github-actions` `android` `gradle` `mirrors` `kotlin` `release` — **模式：标准仓库前置+阿里云镜像后备 · Release 双附件并行** — **⚠️ 坑：Kotlin 插件在 aliyun 镜像缺失、Tencent Cloud Gradle 镜像 CI 不可达**
 
+### UI / 布局
+
+- [页面溢出修复：Row Text + 窄屏滚动](experiences/2026-06-24-ui-overflow-fixes.md) — `ui` `overflow` `responsive` `scroll` `row` `expanded` `wrap` — **模式：Row 中可变 Text 包 Expanded+ellipsis · 多控件 Row 窄屏包 SingleChildScrollView**
+
 ### 失败记录（❌ 此路不通，避免重蹈）
 
 - [❌ dart test -p vm 导入 Flutter 依赖失败](experiences/2026-06-20-dart-test-vm-flutter-import.md) — `testing` `dart` `flutter` `import` — **结论：纯 VM 测试不能 import 任何触及 Flutter SDK 的 package（包括 result.dart → log.dart → flutter/foundation），需自包含类型**

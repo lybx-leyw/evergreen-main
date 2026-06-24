@@ -137,34 +137,39 @@ class _CoursesScreenState extends ConsumerState<CoursesScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: [
-              const Text('学年', style: TextStyle(fontSize: 13)),
-              const SizedBox(width: 8),
-              DropdownButton<int>(
-                value: _timetableYear,
-                items: [2023, 2024, 2025, 2026, 2027].map((y) => DropdownMenuItem(
-                  value: y, child: Text('$y-${y+1}', style: const TextStyle(fontSize: 13)),
-                )).toList(),
-                onChanged: (v) => setState(() => _timetableYear = v ?? _timetableYear),
-              ),
-              const SizedBox(width: 16),
-              const Text('学期', style: TextStyle(fontSize: 13)),
-              const SizedBox(width: 8),
-              DropdownButton<int>(
-                value: _timetableSeason,
-                items: const [
-                  DropdownMenuItem(value: 1, child: Text('春', style: TextStyle(fontSize: 13))),
-                  DropdownMenuItem(value: 2, child: Text('夏', style: TextStyle(fontSize: 13))),
-                  DropdownMenuItem(value: 4, child: Text('短①', style: TextStyle(fontSize: 13))),
-                  DropdownMenuItem(value: 8, child: Text('秋', style: TextStyle(fontSize: 13))),
-                  DropdownMenuItem(value: 16, child: Text('冬', style: TextStyle(fontSize: 13))),
-                  DropdownMenuItem(value: 32, child: Text('短②', style: TextStyle(fontSize: 13))),
-                  DropdownMenuItem(value: 64, child: Text('暑', style: TextStyle(fontSize: 13))),
-                ],
-                onChanged: (v) => setState(() => _timetableSeason = v ?? _timetableSeason),
-              ),
-            ],
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                const Text('学年', style: TextStyle(fontSize: 13)),
+                const SizedBox(width: 8),
+                DropdownButton<int>(
+                  value: _timetableYear,
+                  underline: const SizedBox(),
+                  items: [2023, 2024, 2025, 2026, 2027].map((y) => DropdownMenuItem(
+                    value: y, child: Text('$y-${y+1}', style: const TextStyle(fontSize: 13)),
+                  )).toList(),
+                  onChanged: (v) => setState(() => _timetableYear = v ?? _timetableYear),
+                ),
+                const SizedBox(width: 16),
+                const Text('学期', style: TextStyle(fontSize: 13)),
+                const SizedBox(width: 8),
+                DropdownButton<int>(
+                  value: _timetableSeason,
+                  underline: const SizedBox(),
+                  items: const [
+                    DropdownMenuItem(value: 1, child: Text('春', style: TextStyle(fontSize: 13))),
+                    DropdownMenuItem(value: 2, child: Text('夏', style: TextStyle(fontSize: 13))),
+                    DropdownMenuItem(value: 4, child: Text('短①', style: TextStyle(fontSize: 13))),
+                    DropdownMenuItem(value: 8, child: Text('秋', style: TextStyle(fontSize: 13))),
+                    DropdownMenuItem(value: 16, child: Text('冬', style: TextStyle(fontSize: 13))),
+                    DropdownMenuItem(value: 32, child: Text('短②', style: TextStyle(fontSize: 13))),
+                    DropdownMenuItem(value: 64, child: Text('暑', style: TextStyle(fontSize: 13))),
+                  ],
+                  onChanged: (v) => setState(() => _timetableSeason = v ?? _timetableSeason),
+                ),
+              ],
+            ),
           ),
         ),
         Expanded(
