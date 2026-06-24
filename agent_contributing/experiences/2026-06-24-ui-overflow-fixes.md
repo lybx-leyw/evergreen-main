@@ -8,7 +8,7 @@ files_touched:
 difficulty: easy
 outcome: success
 date: 2026-06-24
-related_pr: 2026-06-23-palace-core.md
+related_pr: 2026-06-24-page-overflow-fixes.md
 ---
 
 ## 做了什么

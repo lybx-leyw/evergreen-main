@@ -4,15 +4,21 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:pdfrx/pdfrx.dart';
 
-/// 内嵌 PDF 预览组件——使用 pdfrx 渲染页面为图片显示。
+//// 内嵌 PDF 预览组件——使用 pdfrx 渲染页面为图片显示。
+///
+/// [pdfPath] PDF 文件路径。
+/// [height] 组件高度。默认 300；传 [double.infinity] 表示全屏模式。
+/// [fit] 图片适配方式，默认 [BoxFit.contain]。
 class PdfPreviewWidget extends StatefulWidget {
   final String pdfPath;
   final double height;
+  final BoxFit fit;
 
   const PdfPreviewWidget({
     super.key,
     required this.pdfPath,
     this.height = 300,
+    this.fit = BoxFit.contain,
   });
 
   @override
@@ -37,6 +43,7 @@ class _PdfPreviewWidgetState extends State<PdfPreviewWidget> {
     try {
       final file = File(widget.pdfPath);
       if (!await file.exists()) {
+        if (!mounted) return;
         setState(() {
           _error = '文件不存在';
           _loading = false;
@@ -44,12 +51,14 @@ class _PdfPreviewWidgetState extends State<PdfPreviewWidget> {
         return;
       }
       final doc = await PdfDocument.openFile(widget.pdfPath);
+      if (!mounted) return;
       setState(() {
         _doc = doc;
         _totalPages = doc.pages.length;
       });
       await _renderPage(1);
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = '无法打开 PDF: $e';
         _loading = false;
@@ -58,17 +67,25 @@ class _PdfPreviewWidgetState extends State<PdfPreviewWidget> {
   }
 
   Future<void> _renderPage(int pageNum) async {
-    if (_doc == null) return;
+    if (_doc == null || !mounted) return;
     setState(() => _loading = true);
 
     try {
       final page = _doc!.pages[pageNum - 1];
-      const width = 600;
+
+      // 动态计算渲染分辨率：取屏幕宽度的 80%，乘以设备像素比保证清晰度
+      if (!mounted) return;
+      final screenWidth = MediaQuery.of(context).size.width;
+      final pixelRatio = MediaQuery.of(context).devicePixelRatio;
+      final renderWidth = (screenWidth * 0.8 * pixelRatio).round().clamp(600, 2400);
       final ratio = page.width / page.height;
-      final height = (width / ratio).round();
-      final pdfImage = await page.render(width: width, height: height);
+      final height = (renderWidth / ratio).round();
+
+      final pdfImage = await page.render(width: renderWidth, height: height);
+      if (!mounted) return;
       if (pdfImage != null) {
         final img = await pdfImage.createImage();
+        if (!mounted) return;
         setState(() {
           _pageImage = img;
           _currentPage = pageNum;
@@ -81,6 +98,7 @@ class _PdfPreviewWidgetState extends State<PdfPreviewWidget> {
         });
       }
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = '渲染错误: $e';
         _loading = false;
@@ -113,21 +131,30 @@ class _PdfPreviewWidgetState extends State<PdfPreviewWidget> {
       );
     }
 
+    final isFullscreen = widget.height == double.infinity;
+
     return Column(
       children: [
         Expanded(
           child: _pageImage != null
-              ? Center(
-                  child: RawImage(
-                    image: _pageImage,
-                    fit: BoxFit.contain,
+              ? InteractiveViewer(
+                  minScale: 0.5,
+                  maxScale: 5.0,
+                  child: Center(
+                    child: RawImage(
+                      image: _pageImage,
+                      fit: widget.fit,
+                    ),
                   ),
                 )
               : const SizedBox.shrink(),
         ),
         if (_totalPages > 1)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
+          Container(
+            color: isFullscreen
+                ? Theme.of(context).colorScheme.surfaceContainerHighest
+                : Colors.transparent,
+            padding: const EdgeInsets.symmetric(vertical: 4),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [

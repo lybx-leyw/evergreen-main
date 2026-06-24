@@ -1,4 +1,4 @@
-# 模块速查手册 — Evergreen Multi-Tools v1.3.0
+# 模块速查手册 — Evergreen Multi-Tools v1.3.1
 
 > 每个模块的职责、依赖、入口、关键文件
 

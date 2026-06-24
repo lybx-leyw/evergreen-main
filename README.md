@@ -101,7 +101,7 @@ flutter build apk --release
 
 ## 项目谱系
 
-- **v1.3**（当前）— Dart/Flutter 桌面应用，17 个功能模块，自研 Agent 运行时，Palace 认知中间件，PDF 翻译
+- **v1.3.1**（当前）— Dart/Flutter 桌面应用，17 个功能模块，自研 Agent 运行时，Palace 认知中间件，PDF 翻译
 - Agent 运行时参考 [Reasonix](https://github.com/esengine/reasonix) (MIT)，Dart 独立重写
 - 成绩计算 & 教务交互参考 [Celechron](https://github.com/Celechron/Celechron) (GPL-3.0)
 - 教师评分数据来自 [Lazuli](https://github.com/ADSR1042/Lazuli) (GPL-3.0)

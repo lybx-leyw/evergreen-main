@@ -54,6 +54,9 @@ android/key.properties
 .env/
 .env.example
 
+# Agent flow state (runtime, not versioned)
+/.agent_state.json
+
 # IDE
 .vscode/
 .idea/

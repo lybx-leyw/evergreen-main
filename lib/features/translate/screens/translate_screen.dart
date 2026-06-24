@@ -523,14 +523,18 @@ class _TranslateScreenState extends ConsumerState<TranslateScreen> {
           const Divider(),
           const SizedBox(height: 8),
           if (result.previewPath.isNotEmpty) ...[
-            // Inline preview — tap to open full-screen reader
-            GestureDetector(
-              onTap: () => _openReader(context, result.previewPath),
-              child: SizedBox(
-                height: 300,
-                child: PdfPreviewWidget(pdfPath: result.previewPath),
-              ),
-            ),
+            // 内联预览 — 高度取屏幕 35% 或最小 350px，自适应页面比例
+            Builder(builder: (ctx) {
+              final screenHeight = MediaQuery.of(ctx).size.height;
+              final previewHeight = (screenHeight * 0.35).clamp(350.0, 600.0);
+              return GestureDetector(
+                onTap: () => _openReader(context, result.previewPath),
+                child: SizedBox(
+                  height: previewHeight,
+                  child: PdfPreviewWidget(pdfPath: result.previewPath),
+                ),
+              );
+            }),
             const SizedBox(height: 4),
             Center(
               child: TextButton.icon(

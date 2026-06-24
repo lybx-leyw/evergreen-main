@@ -55,6 +55,20 @@
 ### UI / 布局
 
 - [页面溢出修复：Row Text + 窄屏滚动](experiences/2026-06-24-ui-overflow-fixes.md) — `ui` `overflow` `responsive` `scroll` `row` `expanded` `wrap` — **模式：Row 中可变 Text 包 Expanded+ellipsis · 多控件 Row 窄屏包 SingleChildScrollView**
+- [Palace 过滤栏高度约束修复](experiences/2026-06-24-palace-filter-height-constraint.md) — `palace` `ui` `layout` `column` `constraint` `overflow` `height` — **模式：Column 中混用固定+Expanded 必须给头部高度约束，防止挤压内容区**
+
+### 导航 / 异步陷阱
+
+- [Navigator.pop 在 build 帧中触发 _debugLocked 黑屏](experiences/2026-06-24-navigator-pop-debuglocked.md) — `flutter` `navigator` `dialog` `async` `debugLocked` `black-screen` — **⚠️ 已被否决，方案不适用于 go_router，见下方死路卡片**
+- [❌❌ addPostFrameCallback + Navigator.pop 死路](experiences/2026-06-24-addpostframecallback-pop-dead-end.md) — `flutter` `navigator` `go_router` `addPostFrameCallback` `dead-end` — **结论：延迟 pop 误弹 go_router 根路由导致路由栈清空黑屏，此路不通**
+
+### 生命周期 / 异步安全
+
+- [PdfPreviewWidget setState after dispose](experiences/2026-06-24-pdf-preview-setstate-after-dispose.md) — `flutter` `lifecycle` `async` `setState` `dispose` `mounted` `pdf-preview` — **模式：initState 启动的 async 方法每个 await 后必须 `if (!mounted) return`**
+
+### 测试
+
+- [❌ 培养方案测试 minCredits int→double 类型不匹配](experiences/2026-06-24-training-plan-test-type-mismatch.md) — `testing` `training-plan` `type-mismatch` `compilation` — **坑：写测试辅助函数时必须对照模型源码确认字段类型，int 不能直接传 double**
 
 ### 失败记录（❌ 此路不通，避免重蹈）
 
@@ -63,4 +77,4 @@
 
 ---
 
-*最后更新：2026-06-23*
+*最后更新：2026-06-24*

@@ -3,23 +3,16 @@
 > 当你（AI Agent）被要求为此项目生成代码、修改文件或创建 Pull Request 时，请严格遵循以下规则。  
 > 任何违反本指南的 PR 都会被要求修改或直接拒绝。
 
-**🚨 入口：先加载 `agent_contributing/SKILL.md`。** 该 Skill 定义了完整的强制流程（阅读规则 → 查经验库 → 按工程流程执行 → 写经验卡片）。
+**🚨 入口：先加载 `agent_contributing/skill/SKILL.md`。** 该 Skill 定义了完整 11 步状态机流程，通过 `agent_flow.py` 强制执行。
 
-**本文件与 `CONTRIBUTING.md` 的关系**：  
-- `CONTRIBUTING.md` 定义了项目的基础架构、代码风格和通用开发规范，所有贡献者（包括人类与 AI）必须遵守。  
-- 本文件仅补充 AI Agent 特有的行为约束和交付流程。**当两者冲突时，以本文件为准**，但 Agent 仍需尽量同时满足两者。  
-- Agent 应在阅读完 `CONTRIBUTING.md` 后再阅读本文件。
-
-**本文件与 `agent_contributing/EXPERIENCE.md` 的关系**：  
-- 本文件是**规则**（必须遵守的约束），经验库是**案例**（具体任务中的踩坑记录和可复用模式）。  
-- Agent 在开始任务前必须阅读经验库中与当前任务相关的卡片，任务完成后必须写入新的经验卡片（成功 ✅ 和失败 ❌ 都必须写）。  
-- 详见 [§13 工程流程](#13-工程流程完整交付步骤)。
+- 本文件是**规则**（技术约束），`CONTRIBUTING.md` 是通用开发规范，`EXPERIENCE.md` 是案例库。
+- 当本文件与 `CONTRIBUTING.md` 冲突时，以本文件为准。
 
 ---
 
 ## 0. 核心原则
 
-- **只改该改的**：不要无谓地重构已有稳定代码，不要添加未经要求的“增强功能”。
+- **只改该改的**：不要无谓地重构已有稳定代码，不要添加未经要求的"增强功能"。
 - **不要破坏现有协议**：项目已有基础设施（网络、认证、状态管理）必须遵守。
 - **优先复用，禁止重复造轮子**：已经存在的工具类、拦截器、Provider 必须直接使用。
 - **所有输出必须基于项目当前代码结构**：如果不确定，请要求用户提供相关文件或解释，不要猜测。
@@ -142,7 +135,7 @@ Future<Result<List<Course>>> fetchCourses() async {
 ### 4.1 所有 `AppError` 必须包含
 
 - `userMessage`：用户可读的错误信息
-- `recoveryHint`：如何恢复（如“请检查网络后重试”）
+- `recoveryHint`：如何恢复（如"请检查网络后重试"）
 
 ```dart
 AppError(
@@ -339,7 +332,7 @@ priority: cardinal | central | secondary | requirement | high | medium | low
 - ❌ 在 `build()` 中发起网络请求
 - ❌ 不同认证方式混用
 - ❌ 使用 `print()` / `debugPrint()`
-- ❌ 删除暂时不可用功能的代码（改为”开发中”标记）
+- ❌ 删除暂时不可用功能的代码（改为"开发中"标记）
 - ❌ 在 Provider 中使用 `ref.read(authProvider)` 代替 `ref.watch`
 - ❌ 跳过 `ConnectionManager` 直接调用 Service 登录
 - ❌ Service 抛出异常（必须返回 `Result`）
@@ -364,7 +357,7 @@ priority: cardinal | central | secondary | requirement | high | medium | low
 - [ ] 依赖登录态的 Provider 用了 `ref.watch`
 - [ ] 没有破坏现有路由/侧边栏/登录流程
 - [ ] 测试已更新，且全部通过
-- [ ] 没有删除标记为”开发中”或”暂停”的代码
+- [ ] 没有删除标记为"开发中"或"暂停"的代码
 - [ ] Python 子进程通过封装类调用，`includeParentEnvironment: true`
 - [ ] 新增 Agent 工具已注册到 `BuiltinRegistry`
 - [ ] 新增 AppConfig 字段已五处同步
@@ -376,138 +369,68 @@ priority: cardinal | central | secondary | requirement | high | medium | low
 
 ---
 
-## 13. 工程流程（完整交付步骤）
+## 13. 交付物参考模板
 
-> 当你（AI Agent）完成代码修改后，必须按照以下步骤完成交付，**缺一不可**。
+> 完整交付流程由 `agent_contributing/skill/SKILL.md` 通过 11 步状态机强制执行，本节仅提供流程中所需的**模板和参考表**。
 
-0. **【新增】阅读经验库**  
-   阅读 `agent_contributing/EXPERIENCE.md` 索引，根据当前任务的 tags / files 找到并阅读相关经验卡片。这一步帮你避免重复已知的坑。
+### 13.1 文档更新对照表（对应 SKILL 步骤 8）
 
-1. **阅读所有中文知道的文档（完整）和所有代码的开头**  
-   理解项目的设计哲学、架构约束、已有实现方式，不要凭经验猜测。
+| 改动类型 | 必须更新的文档 |
+|---------|-------------|
+| 新增 Feature / 模块 | `ARCHITECTURE.md` + `MODULE_MAP.md` + `DATA_FLOW.md` + `README.md` |
+| 新增/修改 API 或数据流 | `DATA_FLOW.md` |
+| 新增第三方代码 | `ATTRIBUTION.md` |
+| 修改配置项 | `BUILD.md`（如涉及环境变量） |
+| 新增暂停功能 | `docs/dev/WIP_2026-06.md` |
+| 完成子计划 | `docs/ALL_PLANS.md` |
+| 重大架构变更 | `MODIFICATION_GUIDE.md` |
 
-2. **详细阅读核心代码文件，和与你目标相关的代码文件**  
-   找到你需要修改或扩展的模块（如 Service、Provider、UI），先通读再动手。
+### 13.2 经验卡片模板（对应 SKILL 步骤 10）
 
-3. **询问清楚用户需求**  
-   如果有任何不明确的地方（功能边界、UI 样式、API 行为），必须先向用户确认，不要自行假设。
+**成功**：
+```yaml
+task_type: bug-fix | feature | refactor
+tags: [关键词1, 关键词2, ...]
+difficulty: easy | medium | hard
+outcome: success
+date: YYYY-MM-DD
+---
+## 做了什么 / 关键决策 / 踩过的坑 / 可复用的模式
+```
 
-4. **根据需求修改代码**  
-   遵循本指南第 1–12 条的所有规则进行修改。
+**失败**（同等重要）：
+```yaml
+task_type: experiment | refactor | feature
+tags: [关键词1, 关键词2, ...]
+difficulty: easy | medium | hard
+outcome: failure | abandoned | reverted
+date: YYYY-MM-DD
+superseded_by: 替代方案文件名（可选）
+---
+## 尝试了什么 / 为什么失败 / 学到什么 / 替代方案
+```
 
-5. **写测试，尽量覆盖所有新增代码**  
-   每个新增函数、分支逻辑、错误路径都要有对应的单元测试或 Widget 测试。
+更新 `agent_contributing/EXPERIENCE.md` 索引，失败卡片用 `❌` 标记。
 
-6. **运行新增测试，确保新增代码无错误**  
-   使用 `flutter test <新增测试文件>` 单独验证通过。
+### 13.3 PR_history 模板（对应 SKILL 步骤 11，仅成功时执行）
 
-7. **运行全量测试，确保未引入新错误**  
-   优先使用并行脚本加速：`python scripts/run_tests_parallel.py`（将 6 组测试并行运行，对齐 CI）。  
-   也可单独验证某组：`python scripts/run_tests_parallel.py --group core`。  
-   若脚本不可用，回退到串行 `flutter test`。
+```markdown
+# YYYY-MM-DD-<修改简述>
 
-8. **修改对应的状态文档**  
-   按改动类型对照下表更新，保持文档与代码同步：
+## 修改目的
+## 修改文件清单
+## 核心逻辑说明
+## 潜在影响
+## 测试结果摘要
+- 截图：待人工补充
+## 人工验证清单（由人类执行）
+- [ ] 编译成功
+- [ ] 功能在真机上符合预期
+- [ ] 核心流程未受影响
+- [ ] 补充测试截图
+```
 
-   | 改动类型 | 必须更新的文档 |
-   |---------|-------------|
-   | 新增 Feature / 模块 | `ARCHITECTURE.md` + `MODULE_MAP.md` + `DATA_FLOW.md` + `README.md` |
-   | 新增/修改 API 或数据流 | `DATA_FLOW.md` |
-   | 新增第三方代码 | `ATTRIBUTION.md` |
-   | 修改配置项 | `BUILD.md`（如涉及环境变量） |
-   | 新增暂停功能 | `docs/dev/WIP_2026-06.md` |
-   | 完成子计划 | `docs/ALL_PLANS.md` |
-   | 重大架构变更 | `MODIFICATION_GUIDE.md` |
-
-9. **编译并 release 新的版本，并亲自测试新版本是否能正常运行**  
-   - 编译：`flutter build apk --release`（或对应平台的构建命令）  
-   - 安装到真机或模拟器  
-   - 人工验证新功能正常工作，且未破坏已有核心流程（登录、网络请求、页面跳转）
-
-10. **【新增】写入经验卡片（验证后立即写，成功和失败都必须记录）**  
-    在 `agent_contributing/experiences/` 下创建 `YYYY-MM-DD-<简短描述>.md`。
-
-    **成功**按此模板：
-    ```markdown
-    ---
-    task_type: bug-fix | feature | refactor
-    tags: [关键词1, 关键词2, ...]
-    files_touched: [改动的关键文件]
-    difficulty: easy | medium | hard
-    outcome: success
-    date: YYYY-MM-DD
-    related_pr: xxx.md
-    ---
-
-    ## 做了什么
-    ## 关键决策
-    ## 踩过的坑
-    ## 可复用的模式
-    ## 注意事项
-    ```
-
-    **失败或被废弃的方案**按此模板（同等重要）：
-    ```markdown
-    ---
-    task_type: experiment | refactor | feature
-    tags: [关键词1, 关键词2, ...]
-    difficulty: easy | medium | hard
-    outcome: failure | abandoned | reverted
-    date: YYYY-MM-DD
-    superseded_by: 替代方案的 PR 文件名（可选）
-    ---
-
-    ## 尝试了什么
-    ## 为什么失败 / 为什么废弃
-    ## 发现的问题（具体的错误信息、性能数据等）
-    ## 学到什么（以后不要再走这条路）
-    ## 最终采用了什么替代方案
-    ```
-    然后更新 `agent_contributing/EXPERIENCE.md` 索引（失败卡片用 `❌` 标记）。
-
-    🚨 **分支点**：
-    - **✅ 成功** → 继续步骤 11（写 PR_history）
-    - **❌ 失败** → 回到步骤 4（修改代码），带着经验卡片中记录的教训重新来
-
-11. **将本次修改涉及的所有内容写入根目录 `PR_history`**（仅成功时执行）  
-    - 命名格式：`YYYY-MM-DD-<修改简述>.md`（示例：`2026-06-14-添加计划管理栏目.md`）  
-    - 必须包含以下内容：
-      - 修改目的
-      - 修改的文件清单
-      - 核心逻辑说明
-      - 潜在影响
-      - **测试结果摘要**（Agent 可输出测试命令及预期结果，由人工执行后补充截图）
-      - **人工验证清单**（供人类贡献者勾选，Agent 不得自动打勾）
-    - 模板如下（Agent 应生成此结构，其中截图部分留空或注明”待人工补充”）：
-      ```markdown
-      # PR_history/YYYY-MM-DD-<修改简述>.md
-
-      ## 修改目的
-      ...
-
-      ## 修改文件清单
-      - path/to/file1.dart
-      - path/to/file2.dart
-
-      ## 核心逻辑说明
-      ...
-
-      ## 潜在影响
-      ...
-
-      ## 测试结果摘要
-      - 新增测试：`flutter test test/xxx_test.dart` ✅ 通过（预期）
-      - 全量测试：`flutter test` ✅ 通过（预期）
-      - 截图：待人工补充
-
-      ## 人工验证清单（由人类执行）
-      - [ ] 编译成功
-      - [ ] 新功能在真机上表现符合预期
-      - [ ] 已有核心流程（登录、课表、AI 对话）未受影响
-      - [ ] 补充测试截图至本文件
-      ```
-
-    - **Agent 禁止**声称已执行人工验证或已获得截图，必须明确标注”待人工补充”。
+**Agent 禁止声称已执行人工验证**，截图栏必须标注"待人工补充"。
 
 ---
 
@@ -519,7 +442,7 @@ priority: cardinal | central | secondary | requirement | high | medium | low
 
 - 在生成的代码中插入明确的注释，格式：  
   `// TODO(AI): 需要人工确认 - <具体问题描述>`
-- 在 PR_history 文件中增加一个 **“待确认事项”** 小节，列出所有不确定点。
+- 在 PR_history 文件中增加一个 **"待确认事项"** 小节，列出所有不确定点。
 - 向用户提问，等待用户明确答复后再继续。
 
 ### 14.2 示例
@@ -541,7 +464,7 @@ PR_history 中的待确认事项：
 
 - ❌ 假设一个不存在的方法或参数
 - ❌ 编造示例输出（如假 JSON）
-- ❌ 擅自选择一个“看起来合理”的方案而不告知用户
+- ❌ 擅自选择一个"看起来合理"的方案而不告知用户
 
 ---
 

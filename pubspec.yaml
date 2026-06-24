@@ -1,7 +1,7 @@
 name: evergreen_multi_tools
 description: Evergreen Multi-Tool Integrated Version — 学在浙大 · 智云课堂 · 图书馆 · AI笔记 · 智能调度 · 成绩追踪 · 一卡通
 publish_to: 'none'
-version: 1.1.0+1
+version: 1.3.1+1
 # License inherited from upstream ZJU-live-better (GPL-3.0-only)
 # See ATTRIBUTION.md for full licensing and attribution details
 
