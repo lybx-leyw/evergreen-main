@@ -20,6 +20,7 @@ import '../../../widgets/toast.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../providers/zdbk_provider.dart';
 import '../../../widgets/freshness_badge.dart';
+import '../../translate/widgets/pdf_preview_widget.dart';
 
 class TrainingPlanScreen extends ConsumerStatefulWidget {
   const TrainingPlanScreen({super.key});
@@ -248,12 +249,62 @@ class _TrainingPlanScreenState extends ConsumerState<TrainingPlanScreen> {
 
   void _openPlanViewer(TrainingPlan plan) { if (plan.planNo != null && plan.planNo!.isNotEmpty) _downloadAndOpenPlan(plan); }
 
-  Future<void> _downloadAndOpenPlan(TrainingPlan plan) async { /* ... 保留原有 PDF 下载/转换/查看逻辑 ... */ }
+  Future<void> _downloadAndOpenPlan(TrainingPlan plan) async {
+    // 显示加载对话框
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const PopScope(
+        canPop: false,
+        child: Center(child: CircularProgressIndicator()),
+      ),
+    );
+
+    try {
+      final service = await ref.read(zdbkServiceInstanceProvider.future);
+      final httpClient = ref.read(httpClientProvider);
+      final result = await service.downloadPlanPdf(httpClient, plan.planNo!);
+
+      if (!mounted) return;
+
+      // 必须在 post-frame 中 pop，避免 await 在 build 帧恢复时触发 _debugLocked 断言
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) Navigator.of(context).pop();
+      });
+
+      if (result.isErr) {
+        _fail((result as Err).error);
+        return;
+      }
+
+      final pdfPath = (result as Ok<String>).value;
+      _openPlanPdfReader(pdfPath, plan.planName);
+    } catch (e) {
+      if (!mounted) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) Navigator.of(context).pop();
+      });
+      _fail(AppError.unknown(e));
+    }
+  }
+
+  void _openPlanPdfReader(String pdfPath, String title) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          appBar: AppBar(title: Text(title)),
+          body: PdfPreviewWidget(pdfPath: pdfPath, height: double.infinity),
+        ),
+      ),
+    );
+  }
 
   void _fail(AppError error) {
     Log().error('TrainingPlan: ${error.runtimeType}', data: {'msg': error.debugMessage, 'hint': error.recoveryHint});
     if (!mounted) return;
-    try { Navigator.of(context).pop(); } catch (_) {}
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try { Navigator.of(context).pop(); } catch (_) {}
+    });
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error.userMessage)));
   }
 

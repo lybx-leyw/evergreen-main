@@ -104,8 +104,13 @@ _STAGE_NAME_MAP = {
 }
 
 
-def format_event(event: dict) -> str:
-    """Convert a babeldoc event dict to a JSON line for stdout."""
+def format_event(event: dict, output_dir: Path | None = None,
+                input_stem: str = "") -> str:
+    """Convert a babeldoc event dict to a JSON line for stdout.
+
+    If output_dir and input_stem are provided for a 'finish' event, the
+    function will scan the output directory to verify dual/mono PDF paths.
+    """
 
     raw_type = str(event.get("type", ""))
 
@@ -138,8 +143,24 @@ def format_event(event: dict) -> str:
         }
 
         if result:
-            payload["mono_pdf"] = str(result.mono_pdf_path) if result.mono_pdf_path else None
-            payload["dual_pdf"] = str(result.dual_pdf_path) if result.dual_pdf_path else None
+            mono = str(result.mono_pdf_path) if result.mono_pdf_path else None
+            dual = str(result.dual_pdf_path) if result.dual_pdf_path else None
+        else:
+            mono = None
+            dual = None
+
+        # Verify and correct paths by scanning the output directory.
+        # pdf2zh may report incorrect paths in some versions—this ensures
+        # the Flutter side always receives the correct bilingual/mono file.
+        if output_dir is not None and output_dir.is_dir():
+            found_mono, found_dual = _find_output_files(output_dir, input_stem)
+            if found_mono:
+                mono = found_mono
+            if found_dual:
+                dual = found_dual
+
+        payload["mono_pdf"] = mono
+        payload["dual_pdf"] = dual
 
         if token_usage:
             total_tokens = 0
@@ -166,6 +187,29 @@ def format_event(event: dict) -> str:
         "total": event.get("total", 0),
         "message": friendly,
     }, ensure_ascii=False)
+
+
+def _find_output_files(output_dir: Path, input_stem: str) -> tuple[str | None, str | None]:
+    """Scan output directory for actual dual/mono PDF files.
+
+    pdf2zh may report incorrect paths in some versions, so we verify by
+    scanning the output directory for files matching known naming patterns:
+      - <input>-dual.pdf / <input>_dual.pdf → bilingual
+      - <input>-mono.pdf / <input>_mono.pdf → monolingual
+    """
+    mono = None
+    dual = None
+    if not output_dir.is_dir():
+        return None, None
+
+    for pdf in output_dir.glob("*.pdf"):
+        name_lower = pdf.name.lower()
+        if "dual" in name_lower:
+            dual = str(pdf)
+        elif "mono" in name_lower:
+            mono = str(pdf)
+
+    return mono, dual
 
 
 async def main() -> int:
@@ -202,7 +246,8 @@ async def main() -> int:
     # ── Translate ──────────────────────────────────────────────────────
     try:
         async for event in do_translate_async_stream(settings, input_file):
-            line = format_event(event)
+            line = format_event(event, output_dir=output_dir,
+                              input_stem=input_file.stem)
             print(line, flush=True)
             if event.get("type") in ("finish", "error"):
                 break

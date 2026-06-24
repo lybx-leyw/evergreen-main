@@ -101,7 +101,7 @@ flutter build apk --release
 
 ## Project Lineage
 
-- **v1.3** (current) — Dart/Flutter desktop app, 17 modules, self-built Agent runtime, Palace cognitive middleware, PDF translation
+- **v1.3.1** (current) — Dart/Flutter desktop app, 17 modules, self-built Agent runtime, Palace cognitive middleware, PDF translation
 - Agent runtime inspired by [Reasonix](https://github.com/esengine/reasonix) (MIT), independently rewritten in Dart
 - Grade calculation & academic affairs integration adapted from [Celechron](https://github.com/Celechron/Celechron) (GPL-3.0)
 - Instructor rating data sourced from [Lazuli](https://github.com/ADSR1042/Lazuli) (GPL-3.0)

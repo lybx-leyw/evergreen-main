@@ -104,9 +104,12 @@ class _EventTreeViewState extends State<EventTreeView> {
                     size: 20),
                 const SizedBox(width: 4),
                 Text('$icon ', style: const TextStyle(fontSize: 16)),
-                Text(label,
-                    style: const TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.w600)),
+                Expanded(
+                  child: Text(label,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 15, fontWeight: FontWeight.w600)),
+                ),
                 const SizedBox(width: 8),
                 Text('(${events.length})',
                     style: TextStyle(
@@ -164,10 +167,13 @@ class _EventTreeViewState extends State<EventTreeView> {
                 Icon(isExpanded ? Icons.expand_more : Icons.chevron_right,
                     size: 18),
                 const SizedBox(width: 4),
-                Text(dateLabel,
-                    style: TextStyle(
-                        fontSize: 13,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                Expanded(
+                  child: Text(dateLabel,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 13,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                ),
                 const SizedBox(width: 6),
                 Text('(${events.length})',
                     style: TextStyle(

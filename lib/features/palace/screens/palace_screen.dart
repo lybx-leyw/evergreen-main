@@ -51,31 +51,37 @@ class _PalaceScreenState extends ConsumerState<PalaceScreen> {
       ),
       body: Column(
         children: [
-          // 类型过滤栏
-          TypeFilterBar(
-            selected: filter.type,
-            onChanged: (type) {
-              ref.read(palaceFilterProvider.notifier).setType(type);
-              ref.read(palaceEventsProvider.notifier).refresh();
-            },
+          // 类型过滤栏（固定高度）
+          SizedBox(
+            height: 48,
+            child: TypeFilterBar(
+              selected: filter.type,
+              onChanged: (type) {
+                ref.read(palaceFilterProvider.notifier).setType(type);
+                ref.read(palaceEventsProvider.notifier).refresh();
+              },
+            ),
           ),
 
-          // 标签栏
+          // 标签栏（限制最大高度，超出可滚动）
           if (tags.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: TagChipBar(
-                tags: tags,
-                selectedTag: filter.tag,
-                onSelected: (tag) {
-                  final notifier = ref.read(palaceFilterProvider.notifier);
-                  if (tag == filter.tag) {
-                    notifier.clearTag();
-                  } else {
-                    notifier.setTag(tag);
-                  }
-                  ref.read(palaceEventsProvider.notifier).refresh();
-                },
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 72),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: TagChipBar(
+                  tags: tags,
+                  selectedTag: filter.tag,
+                  onSelected: (tag) {
+                    final notifier = ref.read(palaceFilterProvider.notifier);
+                    if (tag == filter.tag) {
+                      notifier.clearTag();
+                    } else {
+                      notifier.setTag(tag);
+                    }
+                    ref.read(palaceEventsProvider.notifier).refresh();
+                  },
+                ),
               ),
             ),
 
