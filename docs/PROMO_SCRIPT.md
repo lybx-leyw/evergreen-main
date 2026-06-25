@@ -1,6 +1,6 @@
 # Evergreen Multi-Tools — 宣传视频文稿
 
-> 版本：v1.3.1 | 17 个功能模块 | 自研 Agent 运行时 | Palace 认知中间件 | PDF 翻译 | GPL-3.0 开源
+> 版本：v1.4.0 | 18 个功能模块（rvpn 已启用） | 自研 Agent 运行时 | Palace 认知中间件 | PDF 翻译 | GPL-3.0 开源
 
 ---
 

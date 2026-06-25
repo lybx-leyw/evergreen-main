@@ -31,11 +31,13 @@ reasonix_gr ceo
 - **🔍 两级 OCR** — DeepSeek-OCR 云端 → Tesseract 本地自动降级
 - **🤖 自研 Agent 运行时** — Reasonix 的 Dart 复刻，17 种类型化事件
 - **🏰 Palace 认知中间件** — 事件采集·AI 提炼·教训冶炼·认知回响
+- **🖥️ RVPN** — 校园 VPN（zju-connect SOCKS5 代理），v1.4.0 启用
+- **🤖 百级 AI Agent 联邦** — reasonix_gr：每模块持久 Keeper+Executor，闲置零消耗（探索中，v2.0.0 目标）
 - **📊 1000+ 个自动化测试**（1067 passed）
 
 ---
 
-## 功能模块（17 个）
+## 功能模块（18 个）
 
 | 模块 | 功能 |
 |---|---|
@@ -56,8 +58,20 @@ reasonix_gr ceo
 | Downloads | 课件下载管理 |
 | Plan | 计划管理（多计划、大纲任务、周时间表涂色） |
 | Settings | 配置管理 |
+| RVPN | ✅ 校园 VPN（zju-connect SOCKS5 代理）— **v1.4.0 启用** |
 
-> ⚠️ 以下模块因后端 API 不可用等原因暂未启用：图书馆、一卡通、PTA 答题、自动签到、RVPN、智能调度
+> ⚠️ 以下模块因后端 API 不可用等原因暂未启用：图书馆、一卡通、PTA 答题、自动签到、智能调度
+
+---
+
+## AI Agent 双工作模式
+
+| 模式 | 入口 | 适用 | 流程 |
+|------|------|------|------|
+| **11 步 Skill** | 加载 `agent_contributing/skill/SKILL.md` | 单次聚焦任务、日常开发 | 状态机强制 11 步 |
+| **联邦 Fleet** | `reasonix_gr ceo` | 全仓库整改、跨模块重构 | CEO 分派→Keeper→Executor（轻量，探索中） |
+
+> 联邦模式**不走 11 步流程**——跨模块重构足够复杂，叠加完整流程会导致上下文过早枯竭。v2.0.0 将稳定此模式。
 
 ---
 
@@ -98,6 +112,10 @@ flutter build windows --release
 
 # Android（可编译，不承诺功能可用）
 flutter build apk --release
+
+# 百级 AI 集群（reasonix_gr）
+cd agent_contributing\evergreen_agents\reasonix
+go build -o bin/reasonix_gr.exe ./cmd/reasonix_gr
 ```
 
 > ⚠️ Android 版本可编译构建 APK，但**不承诺任何功能可用**。OCR、AI 助手等高级功能尚未适配移动端，存在已知问题。推荐使用 Windows 桌面版获得完整体验。
@@ -106,8 +124,10 @@ flutter build apk --release
 
 ## 项目谱系
 
-- **v1.3.1**（当前）— Dart/Flutter 桌面应用，17 个功能模块，自研 Agent 运行时，Palace 认知中间件，PDF 翻译
+- **v1.4.0**（当前）— Dart/Flutter 桌面应用，18 个功能模块（rvpn 已启用），自研 Agent 运行时，Palace 认知中间件，PDF 翻译
+- **v1.3.1** — 17 个功能模块，自研 Agent 运行时，Palace 认知中间件，PDF 翻译
 - Agent 运行时参考 [Reasonix](https://github.com/esengine/reasonix) (MIT)，Dart 独立重写
+- reasonix_gr 是 [DeepSeek-Reasonix](https://github.com/esengine/DeepSeek-Reasonix) (MIT) 的深度 fork — 多智能体联邦衍生物
 - 成绩计算 & 教务交互参考 [Celechron](https://github.com/Celechron/Celechron) (GPL-3.0)
 - 教师评分数据来自 [Lazuli](https://github.com/ADSR1042/Lazuli) (GPL-3.0)
 - WordPecker 背词引擎参考 [Qwerty Learner](https://github.com/RealKai42/qwerty-learner) (GPL-3.0)
@@ -135,7 +155,7 @@ flutter build apk --release
 本项目维护双轨贡献协议：
 
 - **[CONTRIBUTING.md](./CONTRIBUTING.md)** — 架构、代码风格和开发规范。
-- **[AGENT_CONTRIBUTING.md](./AGENT_CONTRIBUTING.md)** — AI Agent 专属治理文件，入口是 [`agent_contributing/SKILL.md`](./agent_contributing/SKILL.md)。违反本指南的 AI 生成 PR 将被拒绝。
+- **[AGENT_CONTRIBUTING.md](./AGENT_CONTRIBUTING.md)** — AI Agent 专属治理。双模式：11 步 Skill（日常开发）+ 联邦 Fleet（全仓库重构）。违反本指南的 AI 生成 PR 将被拒绝。
 
 我们认为，定义 AI 如何参与开源与用 AI 构建开源同等重要。
 

@@ -52,7 +52,7 @@
 | 19 | Tutor OCR + AI 笔记 | 🟢 | 两级 OCR Pipeline（DeepSeek-OCR → Tesseract）；PDF 拆页逐页识别；OCR API Key 掩码+连接测试；Markdown 导出已实现 |
 | 20 | Library + Teachers | 🟡 | 查老师可用，图书馆 ⚠️ 暂停 |
 | 21 | Ecard + Autosign | ⏸ | 一卡通 + 自动签到均暂停 |
-| 22 | Downloads + Quiz + RVPN + Schedule | 🔴 | 下载进度 UI 已实现但整体未完工；Quiz 暂停；RVPN 暂停；Schedule 可用 |
+| 22 | Downloads + Quiz + RVPN + Schedule | 🟡 | 下载进度 UI 已实现但整体未完工；Quiz 暂停；RVPN ✅ 已启用；Schedule 可用 |
 | 23 | Agent 多会话 + Skill | 🟢 | 多会话 CRUD；会话持久化；MemoryAgent 自动提取；上下文压实；Skill 系统（热加载 + inline/subagent + 管理页）；全局记忆可视化；流式渲染稳定性修复 |
 | 24 | Scheduler + Settings | 🟡 | Settings 基本完整（含 DeepSeek/OCR 连接测试）；Scheduler ⚠️ 暂停 |
 | 25 | Theme + Nav + UI | 🟢 | 暗色模式/过渡动画/快捷键/命令面板/侧栏折叠/Toast/课表日历自适应；全局记忆全屏页；Skill 管理页；代码块安全渲染 |
