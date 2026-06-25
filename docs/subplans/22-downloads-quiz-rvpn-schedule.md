@@ -70,3 +70,5 @@
 - [x] 课表导出支持 iCal + 打开文件夹
 - [ ] 下载进度管理 UI
 - [ ] AI 笔记导出 PDF
+--- v1.4.0 ---
+rvpn: ✅ 已启用 (zju-connect 集成, SOCKS5 代理)

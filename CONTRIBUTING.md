@@ -206,7 +206,7 @@ Pintia (PTASession cookie) ⚠️ 需手动登录
 DeepSeek (Authorization: Bearer API Key) ✅
 └── AI 对话
 
-RVPN ⚠️ 不良集成 — 暂停
+RVPN ✅ 已启用 (zju-connect SOCKS5 代理)
 
 智能调度 ⚠️ 未完善 — 暂停
 

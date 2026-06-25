@@ -1,7 +1,8 @@
-# 架构总览 — Evergreen Multi-Tools v1.3.1
+# 架构总览 — Evergreen Multi-Tools v1.4.0
 
 > Flutter 桌面应用 · 浙江大学多功能集成工具  
-> 17 个功能模块 · Riverpod 状态管理 · 自研 Agent 运行时 · Palace 认知中间件
+> 17 个功能模块（rvpn 已启用）· Riverpod 状态管理 · 自研 Agent 运行时 · Palace 认知中间件  
+> 百级 AI Agent 联邦 (reasonix_gr) 探索中，v2.0.0 发布
 
 ---
 

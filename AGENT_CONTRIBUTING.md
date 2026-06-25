@@ -1,9 +1,18 @@
-# AI Agent 贡献指南
+# AI Agent 贡献指南 v1.4.0
 
 > 当你（AI Agent）被要求为此项目生成代码、修改文件或创建 Pull Request 时，请严格遵循以下规则。  
 > 任何违反本指南的 PR 都会被要求修改或直接拒绝。
 
-**🚨 入口：先加载 `agent_contributing/skill/SKILL.md`。** 该 Skill 定义了完整 11 步状态机流程，通过 `agent_flow.py` 强制执行。
+## 两种工作模式
+
+| 模式 | 入口 | 适用 | 流程 |
+|------|------|------|------|
+| **11 步 Skill** | 加载 `agent_contributing/skill/SKILL.md` | 单次聚焦任务、常规开发 | 状态机强制 11 步 |
+| **联邦 Fleet** | `reasonix_gr ceo` | 全仓库整改、跨模块重构 | CEO 分派→Keeper→Executor（探索中） |
+
+> 联邦模式**不走 11 步流程**——跨模块重构足够复杂，叠加完整流程会导致上下文过早枯竭。
+
+**🚨 11 步模式入口：先加载 `agent_contributing/skill/SKILL.md`。** 该 Skill 定义了完整 11 步状态机流程，通过 `agent_flow.py` 强制执行。
 
 - 本文件是**规则**（技术约束），`CONTRIBUTING.md` 是通用开发规范，`EXPERIENCE.md` 是案例库。
 - 当本文件与 `CONTRIBUTING.md` 冲突时，以本文件为准。

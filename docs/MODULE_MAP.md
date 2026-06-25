@@ -1,4 +1,4 @@
-# 模块速查手册 — Evergreen Multi-Tools v1.3.1
+# 模块速查手册 — Evergreen Multi-Tools v1.4.0
 
 > 每个模块的职责、依赖、入口、关键文件
 
@@ -401,7 +401,7 @@
 | 职责 | 定时签到 · 签到状态 |
 | 依赖 | `authProvider` |
 
-### RVPN — 代理 ⚠️ 暂停
+### RVPN — 代理 ✅ v1.4.0 启用
 
 | 项目 | 内容 |
 |---|---|

@@ -1,13 +1,27 @@
-# 构建指南 — Evergreen Multi-Tools Flutter 桌面应用
+# 构建指南 — Evergreen Multi-Tools v1.4.0
 
-## 前置要求
+## Flutter 桌面应用
+
+### 前置要求
 
 - **Flutter SDK** >= 3.4.0（[安装指南](https://docs.flutter.dev/get-started/install/windows)）
 - **Visual Studio 2022** 或 Build Tools（C++ 桌面开发工作负载）
 - **Inno Setup 6**（[下载](https://jrsoftware.org/isdownload.php)）— Windows 安装包编译
 - **Windows 10** 或更高版本
 
-## 首次构建
+### 首次构建
+
+## 百级 AI Agent 联邦 (reasonix_gr)
+
+```powershell
+cd agent_contributing\evergreen_agents\reasonix
+go build -o bin/reasonix_gr.exe ./cmd/reasonix_gr
+
+# 启动 CEO（推荐）
+reasonix_gr ceo
+```
+
+> 联邦模式用于全仓库整改重构，不走 11 步 Skill 流程（探索中）。v2.0.0 稳定后正式发布。
 
 ```powershell
 # 1. 进入项目目录

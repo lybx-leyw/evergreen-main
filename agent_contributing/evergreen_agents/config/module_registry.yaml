@@ -265,7 +265,7 @@ modules:
     name: "RVPN"
     path: "lib/features/rvpn"
     section: campus
-    status: wip
+    status: active
     description: "校园 VPN 管理"
     keeper_skills: [flutter, dart, vpn, network]
     depends_on: [auth]

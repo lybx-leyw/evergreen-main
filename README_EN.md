@@ -1,20 +1,25 @@
-# Evergreen Multi-Tools (Beta version, not promoted temporarily)
+# Evergreen Multi-Tools v1.4.0
+
+> **v1.4.0**: RVPN enabled · Initial repo-wide refactoring · 100-agent AI fleet trial  
+> **Next: v2.0.0** — after full refactoring + multi-agent federation stabilization
 
 > An open-source practice of bringing Allport's trait theory into AI memory.  
 > A ZJU campus toolkit with an integrated Agent runtime.  
-> A practitioner in AI Agent contribution governance.  
+> A practitioner in AI Agent contribution governance + multi-agent federation.  
 > **ZJU students — welcome to build together.**
-
-If you find this project useful, a ⭐ Star would be much appreciated!
 
 ---
 
 ## Quick Start
 
 ```bash
-cd evergreen-multi-tools
-flutter pub get
-flutter run -d windows
+# Flutter desktop app
+flutter pub get && flutter run -d windows
+
+# 100-agent AI fleet (for repo-wide refactoring)
+cd agent_contributing\evergreen_agents\reasonix
+go build -o bin/reasonix_gr.exe ./cmd/reasonix_gr
+reasonix_gr ceo
 ```
 
 ---
@@ -27,10 +32,12 @@ flutter run -d windows
 - **🤖 Self-Built Agent Runtime** — A Dart reimplementation of Reasonix with 17 typed events
 - **🏰 Palace Cognitive Middleware** — Event capture · AI refinement · Lesson smelting · Cognitive echo
 - **📊 1000+ Automated Tests** (1067 passed)
+- **🖥️ RVPN** — Campus VPN via zju-connect SOCKS5 proxy (enabled in v1.4.0)
+- **🤖 100-Agent AI Fleet** — reasonix_gr: persistent Keeper+Executor per module, zero-cost idle (exploratory, v2.0.0 target)
 
 ---
 
-## Modules (17)
+## Modules (18)
 
 | Module | Description |
 |---|---|
@@ -50,9 +57,21 @@ flutter run -d windows
 | WordPecker | FSRS spaced-repetition vocabulary |
 | Downloads | Course material download manager |
 | Plan | Multi-plan management, outline tasks, weekly timetable color-coding |
+| RVPN | ✅ Campus VPN (zju-connect SOCKS5 proxy) — **enabled in v1.4.0** |
 | Settings | Configuration & preferences |
 
-> ⚠️ The following modules are temporarily disabled due to backend API unavailability: Library, Campus Card, PTA Q&A, Auto Check-in, RVPN, Smart Scheduling.
+> ⚠️ Temporarily disabled: Library, Campus Card, PTA Q&A, Auto Check-in, Smart Scheduling.
+
+---
+
+## Two Work Modes for AI Agents
+
+| Mode | Entry | Use Case | Workflow |
+|------|------|----------|----------|
+| **11-Step Skill** | Load `agent_contributing/skill/SKILL.md` | Single focused tasks, daily dev | State-machine 11-step |
+| **Federation Fleet** | `reasonix_gr ceo` | Repo-wide refactoring, cross-module | CEO→Keeper→Executor (lightweight, exploratory) |
+
+> Federation mode skips the full 11-step workflow — cross-module refactoring is complex enough without the overhead. v2.0.0 will stabilize this.
 
 ---
 
@@ -88,11 +107,15 @@ Features:
 ## Build
 
 ```bash
-# Windows (includes Python OCR scripts + local Tesseract)
+# Flutter desktop
 flutter build windows --release
 
 # Android (buildable, no functionality commitment)
 flutter build apk --release
+
+# 100-agent AI fleet
+cd agent_contributing\evergreen_agents\reasonix
+go build -o bin/reasonix_gr.exe ./cmd/reasonix_gr
 ```
 
 > ⚠️ The Android version compiles and produces an APK, but **no functionality is guaranteed**. Advanced features such as OCR and AI assistant have not been adapted for mobile. Windows desktop is recommended for the full experience.
@@ -101,8 +124,9 @@ flutter build apk --release
 
 ## Project Lineage
 
-- **v1.3.1** (current) — Dart/Flutter desktop app, 17 modules, self-built Agent runtime, Palace cognitive middleware, PDF translation
+- **v1.4.0** (current) — RVPN enabled · Initial repo-wide refactoring · 100-agent AI fleet trial (reasonix_gr)
 - Agent runtime inspired by [Reasonix](https://github.com/esengine/reasonix) (MIT), independently rewritten in Dart
+- reasonix_gr is a deep fork of [DeepSeek-Reasonix](https://github.com/esengine/DeepSeek-Reasonix) (MIT) — multi-agent federation derivative
 - Grade calculation & academic affairs integration adapted from [Celechron](https://github.com/Celechron/Celechron) (GPL-3.0)
 - Instructor rating data sourced from [Lazuli](https://github.com/ADSR1042/Lazuli) (GPL-3.0)
 - WordPecker spaced-repetition engine adapted from [Qwerty Learner](https://github.com/RealKai42/qwerty-learner) (GPL-3.0)
@@ -130,7 +154,7 @@ See **[CONTRIBUTING.md](./CONTRIBUTING.md)** for details.
 This project maintains a dual-track contribution protocol:
 
 - **[CONTRIBUTING.md](./CONTRIBUTING.md)** — Architecture, code style, and development standards.
-- **[AGENT_CONTRIBUTING.md](./AGENT_CONTRIBUTING.md)** — AI Agent governance. Entry point: [`agent_contributing/SKILL.md`](./agent_contributing/SKILL.md). AI-generated PRs that violate this guide will be rejected.
+- **[AGENT_CONTRIBUTING.md](./AGENT_CONTRIBUTING.md)** — AI Agent governance. Two modes: 11-Step Skill (daily dev) + Federation Fleet (repo-wide refactoring). AI-generated PRs that violate this guide will be rejected.
 
 We believe defining how AI participates in open source is as important as building with AI itself.
 
