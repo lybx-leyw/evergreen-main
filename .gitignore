@@ -75,5 +75,11 @@ MemGovern-main/
 # Bundled Python runtime (downloaded at build time)
 scripts/python/
 
+# Bundled zju-connect binary (downloaded at build time)
+vendor/zju-connect/
+
 # Inno Setup output
 build/installer/
+
+# Module OWNERS files
+lib/**/OWNERS

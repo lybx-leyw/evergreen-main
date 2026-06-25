@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../core/registry/modules.dart';
+import '../modules.dart';
 
 /// A single command palette item (mirrors sidebar items).
 class _PaletteItem {
@@ -20,50 +23,39 @@ class _PaletteItem {
   });
 }
 
-/// All registered palette items (mirrors sidebar, excluding WIP by default).
-const _allItems = <_PaletteItem>[
-  // 学习
-  _PaletteItem(title: '仪表盘', subtitle: '/dashboard', icon: Icons.dashboard, route: '/dashboard', category: '系统'),
-  _PaletteItem(title: '课程', subtitle: '/courses', icon: Icons.school, route: '/courses', category: '学习'),
-  _PaletteItem(title: '开课情况', subtitle: '/course-offerings', icon: Icons.book, route: '/course-offerings', category: '学习'),
-  _PaletteItem(title: '培养方案', subtitle: '/training-plans', icon: Icons.account_tree, route: '/training-plans', category: '学习'),
-  _PaletteItem(title: '待办', subtitle: '/todo', icon: Icons.checklist, route: '/todo', category: '学习'),
-  _PaletteItem(title: '成绩', subtitle: '/scores', icon: Icons.grade, route: '/scores', category: '学习'),
-  _PaletteItem(title: '考试', subtitle: '/exams', icon: Icons.event, route: '/exams', category: '学习'),
-  _PaletteItem(title: '下载', subtitle: '/downloads', icon: Icons.download, route: '/downloads', category: '学习'),
-  // AI 工具
-  _PaletteItem(title: 'AI 笔记', subtitle: '/notes', icon: Icons.auto_awesome, route: '/notes', category: 'AI 工具'),
-  _PaletteItem(title: 'AI 助手', subtitle: '/agent', icon: Icons.smart_toy, route: '/agent', category: 'AI 工具'),
-  _PaletteItem(title: '智云课堂', subtitle: '/classroom', icon: Icons.video_library, route: '/classroom', category: 'AI 工具'),
-  // 校园
-  _PaletteItem(title: 'PTA 编程题', subtitle: '/pintia-login', icon: Icons.code, route: '/pintia-login', category: '校园'),
-  _PaletteItem(title: '教务通知', subtitle: '/zdbk-notifications', icon: Icons.campaign, route: '/zdbk-notifications', category: '校园'),
-  _PaletteItem(title: '查老师', subtitle: '/teachers', icon: Icons.person_search, route: '/teachers', category: '校园'),
-  // 系统
-  _PaletteItem(title: '课表导出', subtitle: '/schedule-export', icon: Icons.calendar_today, route: '/schedule-export', category: '系统'),
-  _PaletteItem(title: '数据状态', subtitle: '/quick-connect', icon: Icons.wifi_tethering, route: '/quick-connect', category: '系统'),
-  _PaletteItem(title: '设置', subtitle: '/settings', icon: Icons.settings, route: '/settings', category: '系统'),
-];
-
 const _recentKey = 'command_palette_recent';
 
 /// 全局命令面板 — Ctrl+K 打开。
 ///
 /// 支持模糊搜索、键盘导航、最近访问。
+/// 搜索条目从 [ModuleRegistry.paletteItems] 生成，无需硬编码。
 class CommandPalette extends StatefulWidget {
   final SharedPreferences _prefs;
+  final List<PaletteItemDecl> _items;
 
-  const CommandPalette._({required SharedPreferences prefs, super.key})
-      : _prefs = prefs;
+  const CommandPalette._({
+    required SharedPreferences prefs,
+    required List<PaletteItemDecl> items,
+    super.key,
+  })  : _prefs = prefs,
+      _items = items;
 
   /// 显示命令面板（必须在 UI 启动后调用）。
   static Future<void> show(BuildContext context) async {
     final prefs = await SharedPreferences.getInstance();
     if (!context.mounted) return;
+
+    final container = ProviderScope.containerOf(context);
+    final registry = container.read(moduleRegistryProvider);
+
+    if (!context.mounted) return;
     showDialog(
       context: context,
       barrierColor: Colors.black54,
-      builder: (_) => CommandPalette._(prefs: prefs),
+      builder: (_) => CommandPalette._(
+        prefs: prefs,
+        items: registry.paletteItems,
+      ),
     );
   }
 
@@ -101,10 +93,17 @@ class _CommandPaletteState extends State<CommandPalette> {
 
   void _filter(String query) {
     final q = query.trim().toLowerCase();
+    final allItems = widget._items.map((p) => _PaletteItem(
+          title: p.title,
+          subtitle: p.subtitle,
+          icon: p.icon,
+          route: p.route,
+          category: p.category,
+        )).toList();
     if (q.isEmpty) {
-      _filtered = List.of(_allItems);
+      _filtered = List.of(allItems);
     } else {
-      _filtered = _allItems.where((item) {
+      _filtered = allItems.where((item) {
         return item.title.toLowerCase().contains(q) ||
             item.subtitle.toLowerCase().contains(q) ||
             item.category.toLowerCase().contains(q);

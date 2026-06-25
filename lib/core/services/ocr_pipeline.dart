@@ -297,7 +297,7 @@ class OcrPipeline {
         ocrExe != null
             ? ['--urls', imageUrl]
             : [pythonScript!, '--urls', imageUrl],
-      ).timeout(const Duration(seconds: 60));
+      ).timeout(const Duration(seconds: 15));
 
       if (result.exitCode != 0) return '';
 

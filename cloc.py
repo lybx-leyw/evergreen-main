@@ -22,6 +22,7 @@ ROOT = Path(__file__).parent.resolve()
 TARGETS = [
     ("lib/", [".dart"]),
     ("scripts/", [".py"]),
+    ("agent_contributing/",[".go"]),
     ("test/", [".dart"]),
     ("assets/prompts/", [".md", ".txt"]),
 ]

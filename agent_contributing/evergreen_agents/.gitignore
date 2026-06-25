@@ -1,0 +1,24 @@
+# Runtime data — may contain logs, audit trails, temporary files
+data/
+
+# Local config overrides — may contain API keys or tokens
+evergreen_agents.yaml
+*.local.yaml
+*.local.yml
+
+# Environment files — API keys, secrets
+.env
+.env.*
+!.env.example
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Build artifacts
+/reasonix/bin/
+/reasonix/dist/

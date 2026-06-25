@@ -96,6 +96,22 @@ scripts\python\python.exe -m pytest scripts\tests\ -v
 
 ---
 
+## 嵌入式 zju-connect 二进制（一次性设置）
+
+> `vendor/zju-connect/` 已加入 `.gitignore`，不在 Git 中跟踪。全新 clone 后需要执行以下步骤。
+
+### 下载
+
+```powershell
+$zjuVersion = "v1.1.1"
+Invoke-WebRequest -Uri "https://github.com/Mythologyli/zju-connect/releases/download/$zjuVersion/zju-connect-windows-amd64.zip" -OutFile "$env:TEMP\zju-connect.zip"
+
+New-Item -ItemType Directory -Force -Path vendor\zju-connect\
+Expand-Archive -Path "$env:TEMP\zju-connect.zip" -DestinationPath vendor\zju-connect\ -Force
+```
+
+---
+
 ## 构建 Windows 安装包
 
 每当你需要生成 `.exe` 安装包时执行：

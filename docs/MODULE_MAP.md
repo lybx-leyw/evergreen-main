@@ -84,6 +84,19 @@
 | 关键函数 | `initAutoRefresh()`, `shouldRefresh()`, `restartAutoRefresh()` |
 | 设置项 | `AUTO_REFRESH_ENABLED`, `AUTO_REFRESH_INTERVAL` |
 
+### ModuleRegistry 🆕
+
+| 项目 | 内容 |
+|---|---|
+| 路径 | `core/registry/` (4 files) |
+| 职责 | **插件式模块注册框架**。每个模块通过 `FeatureModule` 接口声明身份和能力，Registry 自动生成路由表、侧边栏、命令面板 |
+| 上游依赖 | flutter_riverpod, go_router |
+| 下游消费者 | `app.dart`（路由）· `sidebar.dart`（导航）· `command_palette.dart`（搜索）· 所有 Feature 的 module.dart |
+| 入口 | `lib/modules.dart` — `moduleRegistryProvider`（每人一行 `reg.register(...)`） |
+| 核心类 | `FeatureModule`（抽象接口）· `ModuleRegistry`（收集器）· `NavEntry`（导航条目） |
+| 关键方法 | `register()`, `seal()`, `buildRoutes()`, `navGroups`, `navFlat`, `paletteItems` |
+| 迁移进度 | ✅ Palace · ✅ Courses · ✅ Agent · ⬜ 其余 21 个模块（渐进迁移中） |
+
 ### SettingsService
 
 | 项目 | 内容 |

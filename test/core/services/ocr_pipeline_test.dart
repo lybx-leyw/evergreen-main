@@ -348,8 +348,8 @@ void main() {
       setupTestAppConfig(ocrApiKey: 'sk-test-ocr');
 
       final (dio, adapter) = createMockDio();
-      // Stub download to fail for DeepSeek path
-      final url = 'https://img.cmc.zju.edu.cn/slides/page_fail.jpg';
+      // Use a URL that fails fast for both Dart Dio AND Python subprocess
+      final url = 'http://127.0.0.1:1/nonexistent.jpg';
       adapter.stubError(
         url,
         DioException(
@@ -361,9 +361,9 @@ void main() {
       final pipeline = OcrPipeline(dio);
       final result = await pipeline.recognizeUrl(url);
 
-      // Falls back to Tesseract (may return '' if Tesseract not available)
+      // Falls back to Tesseract — connection refused → returns ''
       expect(result, isA<String>());
-    });
+    }, timeout: const Timeout(Duration(seconds: 30)));
   });
 
   // ── 集成测试：Tesseract 真实 OCR ────────────────────────────

@@ -3,16 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'breakpoints.dart';
-import '../features/todo/providers/todo_provider.dart';
-import '../features/exams/providers/exams_provider.dart';
+import '../core/registry/modules.dart';
+import '../modules.dart';
 
 /// Navigation sidebar — ports the sidebar from app/index.html.
 ///
-/// Organized into 4 categories matching the original:
-/// - Learning: courses, todo, scores, exams, downloads
-/// - AI Tools: notes, wordpecker, quiz, classroom
-/// - Campus: autosign, ecard, library, teachers, rvpn
-/// - System: dashboard, scheduler, settings
+/// Navigation items are generated from [ModuleRegistry], not hardcoded.
+/// To add a new top-level page, create a [FeatureModule] subclass and
+/// register it in `lib/modules.dart`.
 class AppShell extends StatelessWidget {
   final Widget child;
 
@@ -22,7 +20,6 @@ class AppShell extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // On narrow screens, use bottom navigation bar
         if (constraints.maxWidth <= Breakpoints.mobile) {
           return _MobileShell(child: child);
         }
@@ -122,53 +119,10 @@ class _CollapsedSidebar extends ConsumerWidget {
 
   const _CollapsedSidebar({required this.onExpand});
 
-  static final _icons = <IconData>[
-    Icons.dashboard,
-    Icons.school,
-    Icons.checklist,
-    Icons.assignment,
-    Icons.grade,
-    Icons.event,
-    Icons.auto_awesome,
-    Icons.smart_toy,
-    Icons.translate,
-    Icons.video_library,
-    Icons.fort,
-    Icons.settings,
-  ];
-
-  static final _routes = <String>[
-    '/dashboard',
-    '/courses',
-    '/todo',
-    '/plan',
-    '/scores',
-    '/exams',
-    '/notes',
-    '/agent',
-    '/translate',
-    '/classroom',
-    '/palace',
-    '/settings',
-  ];
-
-  static final _labels = <String>[
-    '仪表盘',
-    '课程',
-    '待办',
-    '计划管理',
-    '成绩',
-    '考试',
-    'AI 笔记',
-    'AI 助手',
-    'PDF 翻译',
-    '智云课堂',
-    '宫殿',
-    '设置',
-  ];
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final registry = ref.watch(moduleRegistryProvider);
+    final navFlat = registry.navFlat;
     final location = GoRouterState.of(context).uri.path;
 
     return Material(
@@ -189,14 +143,17 @@ class _CollapsedSidebar extends ConsumerWidget {
           Expanded(
             child: ListView(
               padding: const EdgeInsets.symmetric(vertical: 4),
-              children: List.generate(_icons.length, (i) {
-                final isActive = location == _routes[i] ||
-                    (location.startsWith(_routes[i]) && _routes[i] != '/dashboard');
+              children: List.generate(navFlat.length, (i) {
+                final entry = navFlat[i];
+                final isActive = location == entry.routePath ||
+                    (location.startsWith(entry.routePath) &&
+                        entry.routePath != '/dashboard');
                 return Tooltip(
-                  message: _labels[i],
+                  message: entry.label,
                   waitDuration: const Duration(milliseconds: 300),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     child: Material(
                       color: isActive
                           ? Theme.of(context).colorScheme.primaryContainer
@@ -204,15 +161,18 @@ class _CollapsedSidebar extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(8),
                       child: InkWell(
                         borderRadius: BorderRadius.circular(8),
-                        onTap: () => context.go(_routes[i]),
+                        onTap: () => context.go(entry.routePath),
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 10),
+                          padding:
+                              const EdgeInsets.symmetric(vertical: 10),
                           child: Icon(
-                            _icons[i],
+                            entry.icon,
                             size: 20,
                             color: isActive
                                 ? Theme.of(context).colorScheme.primary
-                                : Theme.of(context).colorScheme.onSurfaceVariant,
+                                : Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
                           ),
                         ),
                       ),
@@ -230,7 +190,8 @@ class _CollapsedSidebar extends ConsumerWidget {
               tooltip: '展开侧栏',
               onPressed: onExpand,
               style: IconButton.styleFrom(
-                foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
+                foregroundColor:
+                    Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ),
@@ -240,13 +201,14 @@ class _CollapsedSidebar extends ConsumerWidget {
   }
 }
 
-class _MobileShell extends StatelessWidget {
+class _MobileShell extends ConsumerWidget {
   final Widget child;
   const _MobileShell({required this.child});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final location = GoRouterState.of(context).uri.path;
+    final registry = ref.watch(moduleRegistryProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -256,7 +218,7 @@ class _MobileShell extends StatelessWidget {
             onPressed: () => Scaffold.of(ctx).openDrawer(),
           ),
         ),
-        title: Text(_mobileTitle(location)),
+        title: Text(_mobileTitle(registry, location)),
       ),
       drawer: _MobileDrawer(current: location, onTap: (path) {
         // Navigation happens in _DrawerItem.onTap via context.go()
@@ -266,27 +228,22 @@ class _MobileShell extends StatelessWidget {
     );
   }
 
-  String _mobileTitle(String path) {
-    if (path.startsWith('/courses')) return '课程';
-    if (path.startsWith('/course-offerings')) return '开课情况';
-    if (path.startsWith('/training-plans')) return '培养方案';
-    if (path.startsWith('/todo')) return '待办';
-    if (path.startsWith('/plan')) return '计划管理';
-    if (path.startsWith('/scores')) return '成绩';
-    if (path.startsWith('/exams')) return '考试';
-    if (path.startsWith('/downloads')) return '下载';
-    if (path.startsWith('/notes')) return 'AI 笔记';
-    if (path.startsWith('/agent')) return 'AI 助手';
-    if (path.startsWith('/classroom')) return '智云课堂';
-    if (path.startsWith('/zdbk-notifications')) return '教务通知';
-    if (path.startsWith('/teachers')) return '查老师';
-    if (path.startsWith('/quick-connect')) return '数据状态';
-    if (path.startsWith('/settings')) return '设置';
-    if (path.startsWith('/pintia-login')) return 'PTA';
-    if (path.startsWith('/schedule-export')) return '课表导出';
-    if (path.startsWith('/tutor')) return 'AI辅导';
-    if (path.startsWith('/translate')) return 'PDF 翻译';
-    if (path.startsWith('/palace')) return '宫殿';
+  String _mobileTitle(ModuleRegistry registry, String path) {
+    // 遍历所有模块，找匹配的路由
+    for (final entry in registry.navFlat) {
+      if (path.startsWith(entry.routePath) &&
+          entry.routePath != '/dashboard') {
+        return entry.label;
+      }
+    }
+    // 处理子路由（模块可能有多个路由）
+    for (final m in registry.modules) {
+      for (final r in m.buildRoutes()) {
+        if (r is GoRoute && path.startsWith(r.path) && r.path != '/dashboard') {
+          return m.name;
+        }
+      }
+    }
     return 'Evergreen';
   }
 }
@@ -299,6 +256,8 @@ class _MobileDrawer extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final registry = ref.watch(moduleRegistryProvider);
+
     return Drawer(
       child: SafeArea(
         child: ListView(
@@ -306,33 +265,19 @@ class _MobileDrawer extends ConsumerWidget {
           children: [
             _DrawerHeader(),
             const Divider(),
-            _SectionHeader(title: '学习'),
-            _DrawerItem(icon: Icons.school, label: '课程', path: '/courses', current: current, onTap: onTap),
-            _DrawerItem(icon: Icons.book, label: '开课情况', path: '/course-offerings', current: current, onTap: onTap),
-            _DrawerItem(icon: Icons.account_tree, label: '培养方案', path: '/training-plans', current: current, onTap: onTap),
-            _DrawerItem(icon: Icons.checklist, label: '待办', path: '/todo', current: current, onTap: onTap),
-            _DrawerItem(icon: Icons.assignment, label: '计划管理', path: '/plan', current: current, onTap: onTap),
-            _DrawerItem(icon: Icons.grade, label: '成绩', path: '/scores', current: current, onTap: onTap),
-            _DrawerItem(icon: Icons.event, label: '考试', path: '/exams', current: current, onTap: onTap),
-            _DrawerItem(icon: Icons.download, label: '下载', path: '/downloads', current: current, onTap: onTap),
-            const Divider(),
-            _SectionHeader(title: 'AI 工具'),
-            _DrawerItem(icon: Icons.auto_awesome, label: 'AI 笔记', path: '/notes', current: current, onTap: onTap),
-            _DrawerItem(icon: Icons.smart_toy, label: 'AI 助手', path: '/agent', current: current, onTap: onTap),
-            _DrawerItem(icon: Icons.translate, label: 'PDF 翻译', path: '/translate', current: current, onTap: onTap),
-            _DrawerItem(icon: Icons.video_library, label: '智云课堂', path: '/classroom', current: current, onTap: onTap),
-            _DrawerItem(icon: Icons.psychology, label: 'AI 辅导', path: '/tutor', current: current, onTap: onTap),
-            const Divider(),
-            _SectionHeader(title: '校园'),
-            _DrawerItem(icon: Icons.campaign, label: '教务通知', path: '/zdbk-notifications', current: current, onTap: onTap),
-            _DrawerItem(icon: Icons.person_search, label: '查老师', path: '/teachers', current: current, onTap: onTap),
-            _DrawerItem(icon: Icons.calendar_month, label: '课表导出', path: '/schedule-export', current: current, onTap: onTap),
-            const Divider(),
-            _SectionHeader(title: '系统'),
-            _DrawerItem(icon: Icons.dashboard, label: '仪表盘', path: '/dashboard', current: current, onTap: onTap),
-            _DrawerItem(icon: Icons.wifi_tethering, label: '数据状态', path: '/quick-connect', current: current, onTap: onTap),
-            _DrawerItem(icon: Icons.fort, label: '宫殿', path: '/palace', current: current, onTap: onTap),
-            _DrawerItem(icon: Icons.settings, label: '设置', path: '/settings', current: current, onTap: onTap),
+            // 按 section 生成
+            for (final (section, entries) in registry.navGroups) ...[
+              _SectionHeader(title: section.label),
+              for (final entry in entries)
+                _DrawerItem(
+                  icon: entry.icon,
+                  label: entry.label,
+                  path: entry.routePath,
+                  current: current,
+                  onTap: onTap,
+                ),
+              const Divider(),
+            ],
           ],
         ),
       ),
@@ -348,13 +293,17 @@ class _DrawerHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.eco, color: Theme.of(context).colorScheme.primary, size: 28),
+          Icon(Icons.eco,
+              color: Theme.of(context).colorScheme.primary, size: 28),
           const SizedBox(height: 8),
           Text('Evergreen 多工具集成版',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.bold)),
           Text('全部功能',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant)),
         ],
       ),
     );
@@ -362,17 +311,28 @@ class _DrawerHeader extends StatelessWidget {
 }
 
 class _DrawerItem extends StatelessWidget {
-  final IconData icon; final String label; final String path;
-  final String current; final void Function(String)? onTap;
-  const _DrawerItem({required this.icon, required this.label,
-    required this.path, required this.current, this.onTap});
+  final IconData icon;
+  final String label;
+  final String path;
+  final String current;
+  final void Function(String)? onTap;
+  const _DrawerItem(
+      {required this.icon,
+      required this.label,
+      required this.path,
+      required this.current,
+      this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final isActive = current == path || (current.startsWith(path) && path != '/dashboard');
+    final isActive = current == path ||
+        (current.startsWith(path) && path != '/dashboard');
     return ListTile(
-      leading: Icon(icon, color: isActive ? Theme.of(context).colorScheme.primary : null),
-      title: Text(label, style: TextStyle(fontWeight: isActive ? FontWeight.w600 : FontWeight.normal)),
+      leading: Icon(icon,
+          color: isActive ? Theme.of(context).colorScheme.primary : null),
+      title: Text(label,
+          style: TextStyle(
+              fontWeight: isActive ? FontWeight.w600 : FontWeight.normal)),
       selected: isActive,
       onTap: () {
         onTap?.call(path);
@@ -389,6 +349,7 @@ class _ExpandedSidebar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final registry = ref.watch(moduleRegistryProvider);
     final location = GoRouterState.of(context).uri.path;
 
     return Material(
@@ -400,87 +361,42 @@ class _ExpandedSidebar extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(vertical: 12),
               children: [
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'ZJU live better\nand better',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: Theme.of(context).colorScheme.primary),
                       ),
                       const SizedBox(height: 2),
                       Text(
                         'Evergreen 多工具集成版',
-                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
-                            ),
+                        style: Theme.of(context)
+                            .textTheme
+                            .labelSmall
+                            ?.copyWith(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant),
                       ),
                     ],
                   ),
                 ),
                 const Divider(),
-                _SectionHeader(title: '学习'),
-                _NavItem(icon: Icons.school, label: '课程', path: '/courses', current: location),
-                _NavItem(icon: Icons.book, label: '开课情况', path: '/course-offerings', current: location),
-                _NavItem(icon: Icons.account_tree, label: '培养方案', path: '/training-plans', current: location),
-                _NavItemWithBadge(
-                  icon: Icons.checklist, label: '待办', path: '/todo', current: location,
-                  badge: ref.watch(todoListProvider).when(
-                    data: (todos) {
-                      final now = DateTime.now();
-                      final urgent = todos.where((t) {
-                        if (t.deadline == null) return false;
-                        final deadline = DateTime.tryParse(t.deadline!);
-                        if (deadline == null || deadline.isBefore(now)) return false;
-                        final diffDays = deadline.difference(now).inDays;
-                        return diffDays >= 0 && diffDays <= 7;
-                      }).length;
-                      return urgent > 0 ? urgent : null;
-                    },
-                    error: (_, __) => null,
-                    loading: () => null,
-                  ),
-                ),
-                _NavItem(icon: Icons.assignment, label: '计划管理', path: '/plan', current: location),
-                _NavItem(icon: Icons.grade, label: '成绩', path: '/scores', current: location),
-                _NavItemWithBadge(
-                  icon: Icons.event, label: '考试', path: '/exams', current: location,
-                  badge: ref.watch(examsListProvider).when(
-                    data: (exams) {
-                      final now = DateTime.now();
-                      final upcoming = exams.where((e) {
-                        if (e.startTime == null) return false;
-                        final start = e.startTime!;
-                        if (start.isBefore(now)) return false;
-                        final diffDays = start.difference(now).inDays;
-                        return diffDays >= 0 && diffDays <= 21;
-                      }).length;
-                      return upcoming > 0 ? upcoming : null;
-                    },
-                    error: (_, __) => null,
-                    loading: () => null,
-                  ),
-                ),
-                _NavItem(icon: Icons.download, label: '下载', path: '/downloads', current: location),
-                const Divider(),
-                _SectionHeader(title: 'AI 工具'),
-                _NavItem(icon: Icons.auto_awesome, label: 'AI 笔记', path: '/notes', current: location),
-                _NavItem(icon: Icons.smart_toy, label: 'AI 助手', path: '/agent', current: location),
-                _NavItem(icon: Icons.translate, label: 'PDF 翻译', path: '/translate', current: location),
-                _NavItem(icon: Icons.video_library, label: '智云课堂', path: '/classroom', current: location),
-                const Divider(),
-                _SectionHeader(title: '校园'),
-                _NavItem(icon: Icons.campaign, label: '教务通知', path: '/zdbk-notifications', current: location),
-                _NavItem(icon: Icons.person_search, label: '查老师', path: '/teachers', current: location),
-                const Divider(),
-                _SectionHeader(title: '系统'),
-                _NavItem(icon: Icons.dashboard, label: '仪表盘', path: '/dashboard', current: location),
-                _NavItem(icon: Icons.wifi_tethering, label: '数据状态', path: '/quick-connect', current: location),
-                _NavItem(icon: Icons.fort, label: '宫殿', path: '/palace', current: location),
-                _NavItem(icon: Icons.settings, label: '设置', path: '/settings', current: location),
+                // 按 section 生成导航项
+                for (final (section, entries) in registry.navGroups) ...[
+                  _SectionHeader(title: section.label),
+                  for (final entry in entries)
+                    _buildNavItem(context, ref, entry, location),
+                  const Divider(),
+                ],
               ],
             ),
           ),
@@ -492,7 +408,8 @@ class _ExpandedSidebar extends ConsumerWidget {
               tooltip: '收起侧栏',
               onPressed: onCollapse,
               style: IconButton.styleFrom(
-                foregroundColor: Theme.of(context).colorScheme.onSurfaceVariant,
+                foregroundColor:
+                    Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ),
@@ -500,38 +417,62 @@ class _ExpandedSidebar extends ConsumerWidget {
       ),
     );
   }
+
+  Widget _buildNavItem(
+      BuildContext context, WidgetRef ref, NavEntry entry, String location) {
+    final badge = entry.badgeProvider != null
+        ? ref.watch(entry.badgeProvider!)
+        : null;
+
+    if (badge != null && badge > 0) {
+      return _NavItemWithBadge(
+        icon: entry.icon,
+        label: entry.label,
+        path: entry.routePath,
+        current: location,
+        badge: badge,
+      );
+    }
+    return _NavItem(
+      icon: entry.icon,
+      label: entry.label,
+      path: entry.routePath,
+      current: location,
+    );
+  }
 }
 
 class _MobileNavBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final registry = ref.watch(moduleRegistryProvider);
     final location = GoRouterState.of(context).uri.path;
+    // 取前 5 个导航项作为底部导航
+    final topItems = registry.navFlat.take(5).toList();
 
     return NavigationBar(
-      selectedIndex: _getMobileIndex(location),
+      selectedIndex: _getMobileIndex(topItems, location),
       onDestinationSelected: (index) {
-        final paths = [
-          '/dashboard', '/courses', '/todo', '/notes', '/agent',
-        ];
-        if (index < paths.length) {
-          context.go(paths[index]);
+        if (index < topItems.length) {
+          context.go(topItems[index].routePath);
         }
       },
-      destinations: [
-        const NavigationDestination(icon: Icon(Icons.dashboard), label: '仪表盘'),
-        const NavigationDestination(icon: Icon(Icons.school), label: '课程'),
-        const NavigationDestination(icon: Icon(Icons.checklist), label: '待办'),
-        const NavigationDestination(icon: Icon(Icons.auto_awesome), label: 'AI笔记'),
-        const NavigationDestination(icon: Icon(Icons.smart_toy), label: 'AI助手'),
-      ],
+      destinations: topItems
+          .map((e) => NavigationDestination(
+                icon: Icon(e.icon),
+                label: e.label,
+              ))
+          .toList(),
     );
   }
 
-  int _getMobileIndex(String path) {
-    if (path.startsWith('/courses')) return 1;
-    if (path.startsWith('/todo')) return 2;
-    if (path.startsWith('/notes')) return 3;
-    if (path.startsWith('/agent')) return 4;
+  int _getMobileIndex(List<NavEntry> items, String path) {
+    for (int i = 0; i < items.length; i++) {
+      if (path.startsWith(items[i].routePath) &&
+          items[i].routePath != '/dashboard') {
+        return i;
+      }
+    }
     return 0;
   }
 }
@@ -610,7 +551,8 @@ class _NavItemWithBadge extends StatelessWidget {
                 ),
                 if (badge != null && badge! > 0)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: Theme.of(context).colorScheme.error,
                       borderRadius: BorderRadius.circular(10),
@@ -655,48 +597,50 @@ class _NavItem extends StatelessWidget {
       selected: isActive,
       button: true,
       child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      child: Material(
-        color: isActive
-            ? Theme.of(context).colorScheme.primaryContainer
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
-        child: InkWell(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        child: Material(
+          color: isActive
+              ? Theme.of(context).colorScheme.primaryContainer
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
-          onTap: () => context.go(path),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Row(
-              children: [
-                Icon(
-                  icon,
-                  size: 20,
-                  color: isActive
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).colorScheme.onSurfaceVariant,
-                  semanticLabel: label,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-                      color: isActive
-                          ? Theme.of(context).colorScheme.primary
-                          : Theme.of(context).colorScheme.onSurface,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: () => context.go(path),
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                children: [
+                  Icon(
+                    icon,
+                    size: 20,
+                    color: isActive
+                        ? Theme.of(context).colorScheme.primary
+                        : Theme.of(context).colorScheme.onSurfaceVariant,
+                    semanticLabel: label,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight:
+                            isActive ? FontWeight.w600 : FontWeight.normal,
+                        color: isActive
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context).colorScheme.onSurface,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
       ),
-    ),
     );
   }
 }

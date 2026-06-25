@@ -46,3 +46,11 @@ add_custom_command(TARGET ${BINARY_NAME} POST_BUILD
     "$<TARGET_FILE_DIR:${BINARY_NAME}>/scripts"
   COMMENT "Copying OCR Python scripts to output..."
 )
+
+# Copy zju-connect binary to the output directory alongside the exe.
+add_custom_command(TARGET ${BINARY_NAME} POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_directory
+    "${CMAKE_SOURCE_DIR}/../vendor"
+    "$<TARGET_FILE_DIR:${BINARY_NAME}>/vendor"
+  COMMENT "Copying zju-connect binary to output..."
+)
