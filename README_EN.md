@@ -8,8 +8,6 @@
 > A practitioner in AI Agent contribution governance + multi-agent federation.  
 > **ZJU students — welcome to build together.**
 
-If you find this project useful, a ⭐ Star would be much appreciated!
-
 ---
 
 ## Quick Start
@@ -127,7 +125,6 @@ go build -o bin/reasonix_gr.exe ./cmd/reasonix_gr
 ## Project Lineage
 
 - **v1.4.0** (current) — RVPN enabled · Initial repo-wide refactoring · 100-agent AI fleet trial (reasonix_gr)
-- **v1.3.1** — 17 modules, self-built Agent runtime, Palace cognitive middleware, PDF translation
 - Agent runtime inspired by [Reasonix](https://github.com/esengine/reasonix) (MIT), independently rewritten in Dart
 - reasonix_gr is a deep fork of [DeepSeek-Reasonix](https://github.com/esengine/DeepSeek-Reasonix) (MIT) — multi-agent federation derivative
 - Grade calculation & academic affairs integration adapted from [Celechron](https://github.com/Celechron/Celechron) (GPL-3.0)
