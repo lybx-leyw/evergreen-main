@@ -5,7 +5,7 @@
 #define MyAppName "Evergreen Multi-Tools"
 ; Version can be overridden via command line: ISCC.exe /DMyAppVersion="1.2.0" installer.iss
 #ifndef MyAppVersion
-#define MyAppVersion "1.3.1"
+#define MyAppVersion "1.4.0"
 #endif
 #define MyAppPublisher "绿意不息"
 #define MyAppURL "https://github.com/evergreen-multi-tools"
