@@ -43,6 +43,8 @@ Source: "..\scripts\requirements.txt"; DestDir: "{app}\scripts"; Flags: ignoreve
 Source: "..\scripts\dist\*"; DestDir: "{app}\scripts\dist"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 ; 嵌入式 Python 运行时（自带，无需用户安装 Python）
 Source: "..\scripts\python\*"; DestDir: "{app}\scripts\python"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist; Excludes: "__pycache__\*,*.pyc,onnx\backend\test\*"
+; zju-connect VPN 代理二进制（自带，无需用户下载）
+Source: "..\vendor\zju-connect\*"; DestDir: "{app}\vendor\zju-connect"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 ; pdf2zh 翻译引擎源码
 Source: "..\scripts\pdf2zh_next\*"; DestDir: "{app}\scripts\pdf2zh_next"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 ; 预置 Skill 文件

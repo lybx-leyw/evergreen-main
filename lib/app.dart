@@ -16,37 +16,17 @@ import 'core/services/background_refresher.dart';
 import 'core/network/auth_interceptor.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/connectivity/providers/connectivity_provider.dart';
-// import 'features/auth/services/auth_service.dart';  // 由 connection_manager 管理
 import 'features/zdbk/providers/zdbk_provider.dart';
-import 'features/settings/screens/settings_screen.dart';
-import 'features/courses/screens/courses_screen.dart';
 import 'features/courses/providers/courses_provider.dart';
-import 'features/todo/screens/todo_screen.dart';
 import 'features/todo/providers/todo_provider.dart';
-import 'features/plan/screens/plan_screen.dart';
 import 'features/plan/providers/plan_provider.dart';
-import 'features/scores/screens/scores_screen.dart';
-import 'features/exams/screens/exams_screen.dart';
 import 'features/exams/providers/exams_provider.dart';
 import 'features/classroom/providers/classroom_provider.dart';
-import 'features/downloads/screens/downloads_screen.dart';
-import 'features/teachers/screens/teachers_screen.dart';
-import 'features/pintia/screens/pintia_login_screen.dart';
-import 'features/zdbk/screens/course_offerings_screen.dart';
-import 'features/zdbk/screens/zdbk_notifications_screen.dart';
 import 'features/zdbk/providers/zdbk_notifications_provider.dart';
-import 'features/zdbk/screens/training_plan_screen.dart';
-import 'features/classroom/screens/classroom_screen.dart';
-import 'features/agent/chat_screen.dart';
-import 'features/tutor/screens/notes_screen.dart';
-import 'features/tutor/screens/tutor_screen.dart';
-import 'features/translate/screens/translate_screen.dart';
-import 'features/schedule/screens/schedule_screen.dart';
-import 'features/connectivity/screens/quick_connect_screen.dart';
 import 'widgets/dashboard.dart';
 import 'widgets/sidebar.dart';
-import 'features/palace/screens/palace_screen.dart';
 import 'widgets/command_palette.dart';
+import 'modules.dart';
 
 final _rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorKey = GlobalKey<NavigatorState>();
@@ -92,6 +72,8 @@ Page<void> _slidePage(Widget child, GoRouterState state) {
 }
 
 final routerProvider = Provider<GoRouter>((ref) {
+  final registry = ref.watch(moduleRegistryProvider);
+
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/dashboard',
@@ -100,137 +82,13 @@ final routerProvider = Provider<GoRouter>((ref) {
         navigatorKey: _shellNavigatorKey,
         builder: (context, state, child) => AppShell(child: child),
         routes: [
+          // Registry 驱动：所有 24 个模块的路由自动在此注入
+          ...registry.buildRoutes(),
+
+          // Dashboard（lib/widgets/ 中的特殊组件，不属于 feature 模块）
           GoRoute(
             path: '/dashboard',
             pageBuilder: (context, state) => _fadePage(DashboardScreen(), state),
-          ),
-          GoRoute(
-            path: '/courses',
-            pageBuilder: (context, state) => _fadePage(CoursesScreen(), state),
-          ),
-          GoRoute(
-            path: '/teachers',
-            pageBuilder: (context, state) => _fadePage(const TeachersScreen(), state),
-          ),
-          GoRoute(
-            path: '/zdbk-notifications',
-            pageBuilder: (context, state) => _slidePage(const ZdbkNotificationsScreen(), state),
-          ),
-          GoRoute(
-            path: '/course-offerings',
-            pageBuilder: (context, state) => _slidePage(const CourseOfferingsScreen(), state),
-          ),
-          GoRoute(
-            path: '/training-plans',
-            pageBuilder: (context, state) => _slidePage(const TrainingPlanScreen(), state),
-          ),
-          GoRoute(
-            path: '/todo',
-            pageBuilder: (context, state) => _fadePage(TodoScreen(), state),
-          ),
-          GoRoute(
-            path: '/plan',
-            pageBuilder: (context, state) => _fadePage(const PlanScreen(), state),
-          ),
-          GoRoute(
-            path: '/scores',
-            pageBuilder: (context, state) => _fadePage(ScoresScreen(), state),
-          ),
-          GoRoute(
-            path: '/exams',
-            pageBuilder: (context, state) => _fadePage(ExamsScreen(), state),
-          ),
-          GoRoute(
-            path: '/downloads',
-            pageBuilder: (context, state) => _fadePage(DownloadsScreen(), state),
-          ),
-          GoRoute(
-            path: '/notes',
-            pageBuilder: (context, state) => _fadePage(NotesScreen(), state),
-          ),
-          GoRoute(
-            path: '/agent',
-            pageBuilder: (context, state) => _fadePage(const AgentChatScreen(), state),
-          ),
-          GoRoute(
-            path: '/tutor',
-            pageBuilder: (context, state) => _fadePage(TutorScreen(), state),
-          ),
-          GoRoute(
-            path: '/translate',
-            pageBuilder: (context, state) =>
-                _fadePage(const TranslateScreen(), state),
-          ),
-          GoRoute(
-            path: '/wordpecker-wip',
-            pageBuilder: (context, state) => _fadePage(const _WipScreen(title: '背词', message: 'FSRS 间隔重复背词·半成品'), state),
-          ),
-          // GoRoute(
-          //   path: '/wordpecker',
-          //   pageBuilder: (context, state) => _fadePage(WordPeckerScreen(), state),
-          // ),
-          // GoRoute(
-          //   path: '/wordpecker-stats',
-          //   pageBuilder: (context, state) => _fadePage(WordPeckerStatsScreen(), state),
-          // ),
-          GoRoute(
-            path: '/classroom',
-            pageBuilder: (context, state) => _fadePage(ClassroomScreen(), state),
-          ),
-          GoRoute(
-            path: '/quiz-wip',
-            pageBuilder: (context, state) => _fadePage(const _WipScreen(title: '答题'), state),
-          ),
-          // /quiz 路由保留供日后实现；classrooms API 已废弃
-          // GoRoute(
-          //   path: '/quiz',
-          //   pageBuilder: (context, state) => _fadePage(QuizScreen(), state),
-          // ),
-          GoRoute(
-            path: '/library-wip',
-            pageBuilder: (context, state) => _fadePage(const _WipScreen(title: '图书馆'), state),
-          ),
-          // /library 路由保留供日后实现
-          // GoRoute(
-          //   path: '/library',
-          //   pageBuilder: (context, state) => _fadePage(LibraryScreen(), state),
-          // ),
-          GoRoute(
-            path: '/pintia-login',
-            pageBuilder: (context, state) => _slidePage(const PintiaLoginScreen(), state),
-          ),
-          GoRoute(
-            path: '/ecard-wip',
-            pageBuilder: (context, state) => _fadePage(const _WipScreen(), state),
-          ),
-          // /ecard 路由保留供日后实现
-          GoRoute(
-            path: '/autosign-wip',
-            pageBuilder: (context, state) => _fadePage(const _WipScreen(title: '自动签到'), state),
-          ),
-          GoRoute(
-            path: '/rvpn-wip',
-            pageBuilder: (context, state) => _fadePage(const _WipScreen(title: 'RVPN'), state),
-          ),
-          GoRoute(
-            path: '/scheduler-wip',
-            pageBuilder: (context, state) => _fadePage(const _WipScreen(title: '智能调度'), state),
-          ),
-          GoRoute(
-            path: '/quick-connect',
-            pageBuilder: (context, state) => _slidePage(const QuickConnectScreen(), state),
-          ),
-          GoRoute(
-            path: '/schedule-export',
-            pageBuilder: (context, state) => _slidePage(const ScheduleScreen(), state),
-          ),
-          GoRoute(
-            path: '/palace',
-            pageBuilder: (context, state) => _fadePage(const PalaceScreen(), state),
-          ),
-          GoRoute(
-            path: '/settings',
-            pageBuilder: (context, state) => _slidePage(SettingsScreen(), state),
           ),
         ],
       ),
@@ -480,37 +338,3 @@ class _PlaceholderCommandPalette extends StatelessWidget {
   }
 }
 
-/// 开发中占位页面。
-class _WipScreen extends StatelessWidget {
-  final String title;
-  final String? message;
-  const _WipScreen({this.title = '一卡通', this.message});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.construction, size: 64, color: Colors.orange.shade300),
-            const SizedBox(height: 16),
-            const Text('功能开发中',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Text(
-                message ??
-                    '该功能因后端 API 变更暂不可用，待实现后恢复。',
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 13, color: Colors.grey),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

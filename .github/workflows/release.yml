@@ -122,6 +122,15 @@ jobs:
             Get-ChildItem -Path $pkg -Directory -Recurse -Filter "__pycache__" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
           }
 
+      # ── Download zju-connect for RVPN ──
+      - name: Download zju-connect
+        run: |
+          $zjuVersion = "v1.1.1"
+          $url = "https://github.com/Mythologyli/zju-connect/releases/download/$zjuVersion/zju-connect-windows-amd64.zip"
+          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\zju-connect.zip"
+          New-Item -ItemType Directory -Force -Path vendor\zju-connect\
+          Expand-Archive -Path "$env:RUNNER_TEMP\zju-connect.zip" -DestinationPath vendor\zju-connect\ -Force
+
       # ── Build Flutter (CMake POST_BUILD auto-copies scripts/ to output) ──
       - run: flutter build windows --release
 

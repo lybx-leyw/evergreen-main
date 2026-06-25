@@ -56,7 +56,30 @@
 - `_tryRelogin()` → 最大重试 2 次，修改此值可能导致无限重登
 - 重登成功后 `_reloginAttempts` 必须重置为 0
 
-### 2.4 改了 `core/agent/`（Agent 运行时）
+### 2.4 改了 `core/registry/`（模块注册框架）🆕
+
+| 牵连模块 | 原因 | 严重度 |
+|---|---|---|
+| `lib/modules.dart` | 所有模块在此注册，改接口 → 所有 `module.dart` 需同步更新 | 🔴 全量 |
+| `lib/app.dart` | `routerProvider` 通过 `registry.buildRoutes()` 收集路由 | 🔴 必测 |
+| `lib/widgets/sidebar.dart` | 侧边栏从 `registry.navGroups` / `navFlat` 生成导航 | 🔴 必测 |
+| `lib/widgets/command_palette.dart` | 命令面板从 `registry.paletteItems` 生成搜索条目 | 🟡 降级 |
+| 所有 `module.dart` | 实现了 `FeatureModule` 接口的模块 | 🔴 编译验证 |
+
+**修改规范：**
+- `FeatureModule` 新增必填字段 → 所有模块的 module.dart 编译报错，需全部补填
+- `FeatureModule` 新增可选字段（有默认值）→ 不影响现有模块
+- 改 `NavEntry` / `PaletteItemDecl` 结构 → 影响 sidebar 和 command_palette 的渲染代码
+- 改 `ModuleRegistry.seal()` 的校验逻辑 → 可能使已注册成功的模块组合失败
+
+**迁移模块指南（新模块或旧模块迁移）：**
+1. 在模块目录下创建 `module.dart`，实现 `FeatureModule`
+2. 在 `lib/modules.dart` 中 import 并加一行 `reg.register(...)`
+3. 从 `app.dart` 移除该模块的硬编码 GoRoute
+4. 从 `sidebar.dart` 移除硬编码的导航项（如果仍存在）
+5. 运行 `flutter analyze` 确认无编译错误
+
+### 2.5 改了 `core/agent/`（Agent 运行时）
 
 | 牵连模块 | 原因 | 严重度 |
 |---|---|---|

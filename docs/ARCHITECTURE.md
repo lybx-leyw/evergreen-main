@@ -16,8 +16,11 @@
 │  UI Layer (widgets/ + 各 feature 的 screens/)               │
 │  GoRouter (app.dart) · Sidebar · Dashboard · PalaceScreen   │
 ├──────────────────────────────────────────────────────────────┤
+│  Module Registry (core/registry/)  ← 插件式架构基础设施         │
+├──────────────────────────────────────────────────────────────┤
 │  Feature Layer (features/*/)                                │
 │  providers/  →  services/  →  screens/  + widgets/          │
+│  每个模块通过 module.dart 声明：路由 · 导航 · 依赖 · 导出 · 检查  │
 ├──────────────────────────────────────────────────────────────┤
 │  Palace Core (core/palace/)       ← 认知中间件（新增）        │
 │  采集管线 · AI 分析 · 教训冶炼 · 认知回响                     │
@@ -80,6 +83,11 @@ lib/
 │   │   ├── capture/               #     事件采集（情境采集 + 快速捕捉）
 │   │   ├── refinery/              #     AI 分析（教训提取/追问生成/标签）
 │   │   └── tools/                 #     Agent 工具（capture_to_palace）
+│   ├── registry/                  #   ── 模块注册框架（v1.4+）──
+│   │   ├── modules.dart           #     库入口（统一导出）
+│   │   ├── feature_module.dart    #     FeatureModule 抽象接口
+│   │   ├── module_registry.dart   #     ModuleRegistry 收集器
+│   │   └── sidebar_section.dart   #     侧边栏分类枚举
 │   └── agent/                     #   ── Agent 运行时 ──
 │       ├── agent.dart             #     库入口（统一导出）
 │       ├── message.dart           #     消息数据模型
@@ -196,7 +204,35 @@ lib/
 
 Agent 工具通过 `ZjuDataSource` 接口获取数据，Flutter 层通过 Provider 注入实现。这样工具层不依赖 Riverpod，可独立测试。
 
-### 5.4 自动登录链
+### 5.4 模块注册框架（插件式架构）
+
+从 v1.4 开始，模块通过 `FeatureModule` 接口声明自己的身份和能力，由 `ModuleRegistry` 统一收集。每个模块目录下的 `module.dart` 是**唯一对外窗口**。
+
+**模块声明内容：**
+- 基本信息：`id`、`name`、`icon`
+- 导航归属：`sidebarSection`、`sidebarOrder`、`sidebarBadgeProvider`
+- 依赖关系：`dependsOn`（框架在 `seal()` 时校验完整性）
+- 路由：`buildRoutes()` 返回 GoRoute 列表
+- 可选：`connectivityDecl`（自动登录检查）、`dataSources`、`agentTools`
+
+**Registry 自动生成：**
+- GoRouter 路由表 → 注入 `app.dart` 的 `ShellRoute.routes`
+- 侧边栏导航（4 种形态）→ 注入 `sidebar.dart`
+- 命令面板搜索条目 → 注入 `command_palette.dart`
+- 连通性检查列表 → 待接入 `connection_manager.dart`
+
+**模块注册点：** `lib/modules.dart` 中的 `moduleRegistryProvider`——每人一行 `reg.register(MyModule())`。
+
+```dart
+// 示例：添加新模块只需：
+// 1. 建目录 lib/features/my_feature/
+// 2. 写 module.dart 实现 FeatureModule 接口
+// 3. 在 lib/modules.dart 加一行：
+reg.register(MyFeatureModule());
+// 不需要改 sidebar.dart、app.dart、command_palette.dart 等任何文件。
+```
+
+### 5.5 自动登录链
 
 启动时 `app.dart` 的 `_triggerAutoLogin` 串联三个服务：
 
@@ -222,6 +258,7 @@ Agent 工具通过 `ZjuDataSource` 接口获取数据，Flutter 层通过 Provid
 | HtmlParser | `core/utils/html_parser.dart` | HTML 解析工具 |
 | Grade/Models | `core/models/` | 共享数据模型 |
 | Agent Runtime | `core/agent/` | LLM Agent 框架 |
+| **ModuleRegistry** | `core/registry/` | **插件式模块注册框架** |
 | Shared Widgets | `widgets/` | 可复用 UI |
 
 ### 中游（被多个 Feature 依赖）

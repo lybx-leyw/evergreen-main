@@ -1,0 +1,214 @@
+// Package bootstrap handles federation initialization: reading the module
+// registry, creating Keeper/Planner/Librarian/Inspector agents, generating
+// OWNERS files, and rebuilding the EXPERIENCE.md index.
+//
+// Ported from src/core/bootstrap.py.
+package bootstrap
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"gopkg.in/yaml.v3"
+
+	"reasonix_gr/internal/evergreen/experience"
+	"reasonix_gr/internal/evergreen/owners"
+	"reasonix_gr/internal/evergreen/types"
+)
+
+// ModuleRegistryEntry represents one module from module_registry.yaml.
+type ModuleRegistryEntry struct {
+	Slug        string              `yaml:"-"` // populated from map key (e.g. "auth")
+	Name        string              `yaml:"name"`
+	Path        string              `yaml:"path"`
+	Section     string              `yaml:"section"`
+	Status      string              `yaml:"status"`
+	Description string              `yaml:"description"`
+	KeeperSkills []string           `yaml:"keeper_skills"`
+	DependsOn   []string            `yaml:"depends_on"`
+	DependedBy  []string            `yaml:"depended_by"`
+	TestPath    string              `yaml:"test_path"`
+	Contracts   []map[string]interface{} `yaml:"contracts"`
+}
+
+// ModuleRegistry is the top-level structure of module_registry.yaml.
+// modules is a map keyed by module slug (e.g. "auth", "palace").
+type ModuleRegistry struct {
+	Version string                       `yaml:"version"`
+	Modules map[string]ModuleRegistryEntry `yaml:"modules"`
+}
+
+// ModulesAsList returns the modules as a flat list with Names set from map keys.
+func (r *ModuleRegistry) ModulesAsList() []ModuleRegistryEntry {
+	list := make([]ModuleRegistryEntry, 0, len(r.Modules))
+	for slug, m := range r.Modules {
+		m.Slug = slug
+		list = append(list, m)
+	}
+	return list
+}
+
+// BootstrapResult holds the results of federation initialization.
+type BootstrapResult struct {
+	PlannerCreated    bool
+	ModuleKeepers     int
+	InspectorCreated  bool
+	LibrarianCreated  bool
+	OwnersFilesWritten int
+	CardsLoaded       int
+	CardsApproved     int
+	Errors            []string
+}
+
+// Bootstrap reads the module registry and initializes the federation.
+func Bootstrap(registryPath, experiencesDir, workspaceRoot string) (*BootstrapResult, error) {
+	result := &BootstrapResult{}
+
+	// 1. Read module_registry.yaml
+	reg, err := LoadModuleRegistry(registryPath)
+	if err != nil {
+		return result, fmt.Errorf("bootstrap: load registry: %w", err)
+	}
+
+	// 2. Create agent identities
+	_ = createPlannerIdentity() // placeholder
+	result.PlannerCreated = true
+
+	for _, mod := range reg.ModulesAsList() {
+		if mod.Status == "active" {
+			_ = createKeeperIdentity(mod) // placeholder
+			result.ModuleKeepers++
+		}
+	}
+
+	_ = createInspectorIdentity()   // placeholder
+	result.InspectorCreated = true
+	_ = createLibrarianIdentity()   // placeholder
+	result.LibrarianCreated = true
+
+	// 3. Generate OWNERS files
+	result.OwnersFilesWritten = generateOwnersFiles(reg, workspaceRoot)
+
+	// 4. Load experience cards
+	store := experience.NewStore(experiencesDir)
+	result.CardsLoaded = store.LoadFromDisk()
+	for _, c := range store.ListAll() {
+		if c.Status == types.CardApproved {
+			result.CardsApproved++
+		}
+	}
+
+	return result, nil
+}
+
+// LoadModuleRegistry reads and parses module_registry.yaml.
+func LoadModuleRegistry(path string) (*ModuleRegistry, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("read registry file: %w", err)
+	}
+
+	var reg ModuleRegistry
+	if err := yaml.Unmarshal(data, &reg); err != nil {
+		return nil, fmt.Errorf("parse registry YAML: %w", err)
+	}
+
+	return &reg, nil
+}
+
+// createPlannerIdentity creates a Planner agent identity.
+func createPlannerIdentity() types.AgentIdentity {
+	return types.NewAgentIdentity(types.RolePlanner, "Planner")
+}
+
+// createKeeperIdentity creates a Keeper agent identity for a module.
+func createKeeperIdentity(mod ModuleRegistryEntry) types.AgentIdentity {
+	id := types.NewAgentIdentity(types.RoleModuleKeeper, mod.Name+" Keeper")
+	id.Module = mod.Name
+	id.Skills = mod.KeeperSkills
+	return id
+}
+
+// createInspectorIdentity creates an Inspector agent identity.
+func createInspectorIdentity() types.AgentIdentity {
+	return types.NewAgentIdentity(types.RoleInspector, "Inspector")
+}
+
+// createLibrarianIdentity creates a Librarian agent identity.
+func createLibrarianIdentity() types.AgentIdentity {
+	return types.NewAgentIdentity(types.RoleLibrarian, "Librarian")
+}
+
+// generateOwnersFiles writes OWNERS files in each module directory.
+// The OWNERS file contains the Keeper agent IDs for that module.
+func generateOwnersFiles(reg *ModuleRegistry, workspaceRoot string) int {
+	count := 0
+	for _, mod := range reg.ModulesAsList() {
+		if mod.Status != "active" {
+			continue
+		}
+
+		modDir := filepath.Join(workspaceRoot, mod.Path)
+		if err := os.MkdirAll(modDir, 0755); err != nil {
+			continue
+		}
+
+		// Generate OWNERS file content
+		ownerContent := fmt.Sprintf(`# OWNERS — Module Keeper agents for %s
+# Auto-generated by eva bootstrap. Do not edit manually.
+
+module: %s
+section: %s
+status: %s
+keeper_skills: [%s]
+depends_on: [%s]
+depended_by: [%s]
+`, mod.Name, mod.Name, mod.Section, mod.Status,
+			strings.Join(mod.KeeperSkills, ", "),
+			strings.Join(mod.DependsOn, ", "),
+			strings.Join(mod.DependedBy, ", "))
+
+		ownersPath := filepath.Join(modDir, "OWNERS")
+		if err := os.WriteFile(ownersPath, []byte(ownerContent), 0644); err != nil {
+			continue
+		}
+		count++
+	}
+	return count
+}
+
+// RebuildIndex rebuilds the EXPERIENCE.md index from the experience store.
+func RebuildIndex(experiencesDir, outputPath string) (string, error) {
+	store := experience.NewStore(experiencesDir)
+	store.LoadFromDisk()
+	index := store.BuildIndex()
+
+	if outputPath != "" {
+		if err := os.WriteFile(outputPath, []byte(index), 0644); err != nil {
+			return "", fmt.Errorf("bootstrap: write index: %w", err)
+		}
+	}
+	return index, nil
+}
+
+// CreateOwnersRegistry builds an OwnersRegistry from the module registry.
+func CreateOwnersRegistry(registryPath string) (*owners.Registry, error) {
+	reg, err := LoadModuleRegistry(registryPath)
+	if err != nil {
+		return nil, err
+	}
+
+	or := owners.NewRegistry()
+	for _, mod := range reg.ModulesAsList() {
+		if mod.Status != "active" {
+			continue
+		}
+		// Create a Keeper identity and register it
+		keeperID := fmt.Sprintf("eva-keeper-%s", mod.Name)
+		or.Register(keeperID, mod.Name)
+	}
+
+	return or, nil
+}

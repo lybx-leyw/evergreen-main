@@ -86,15 +86,14 @@ JOBS: list[Job] = [
 ]
 
 # ── Output helpers ──────────────────────────────────────────────────────
-_print_lock = threading.Lock()
 
 
 def _tagged_print(tag: str, line: str):
-    """Thread-safe tagged line output."""
+    """Thread-safe tagged output.  No custom lock, no explicit flush —
+    sys.stdout.write() is just a memory copy to the buffer and returns
+    in microseconds, so the reader thread is never blocked."""
     prefix = f"[{tag}]".ljust(14)
-    with _print_lock:
-        sys.stdout.write(f"{prefix} {line.rstrip()}\n")
-        sys.stdout.flush()
+    sys.stdout.write(f"{prefix} {line.rstrip()}\n")
 
 
 @dataclass
@@ -156,7 +155,9 @@ def _parse_test_counts(lines: list[str]) -> int:
 
 # ── Runner ─────────────────────────────────────────────────────────────
 def run_job(job: Job) -> JobResult:
-    """Run a single Flutter command, tee stdout/stderr with tags."""
+    """Run a single Flutter command with real-time tagged output.
+    _tagged_print does only sys.stdout.write() (no flush, no lock) so
+    the reader thread never blocks — no pipe-buffer deadlock possible."""
     cmd = [FLUTTER, *job.args]
     _tagged_print(job.name, f"▶ START  {' '.join(cmd)}")
 
@@ -178,6 +179,7 @@ def run_job(job: Job) -> JobResult:
     output_lines: list[str] = []
 
     def _reader():
+        """Read pipe + buffer + print in real-time — write() is microsecond-fast."""
         assert proc.stdout is not None
         for line in proc.stdout:
             output_lines.append(line)
@@ -271,6 +273,9 @@ def main():
             results[jr.name] = jr
 
     total = time.monotonic() - t_start
+
+    # Flush any remaining buffered output before printing summary
+    sys.stdout.flush()
 
     # ── Summary ────────────────────────────────────────────────────
     passed = sum(1 for r in results.values() if r.passed)

@@ -1,0 +1,99 @@
+# Evergreen Agents — Default Configuration
+# Resolution order: CLI flags > env vars > project config > user config > this file
+
+agent:
+  max_steps: 30
+  temperature: 0.3
+  max_debate_rounds: 3
+  max_risk_rounds: 3
+  reasoning_language: zh
+  compaction_ratio: 0.8
+  plan_mode_default: false
+
+llm_routing:
+  deep_thinking:
+    provider: deepseek
+    model: deepseek-v4-pro
+    used_by: [planner, librarian]
+  quick_thinking:
+    provider: deepseek
+    model: deepseek-v4-flash
+    used_by: [module_keeper, task_executor, inspector]
+
+providers:
+  deepseek:
+    kind: openai
+    base_url: https://api.deepseek.com
+    api_key_env: DEEPSEEK_API_KEY
+    models: [deepseek-v4-flash, deepseek-v4-pro, deepseek-chat, deepseek-reasoner]
+    context_window: 131072
+  openai:
+    kind: openai
+    base_url: https://api.openai.com/v1
+    api_key_env: OPENAI_API_KEY
+    models: [gpt-4o, gpt-4o-mini]
+    context_window: 128000
+  anthropic:
+    kind: anthropic
+    base_url: https://api.anthropic.com
+    api_key_env: ANTHROPIC_API_KEY
+    models: [claude-sonnet-4-6, claude-haiku-4-5]
+    context_window: 200000
+  ollama:
+    kind: openai
+    base_url: http://localhost:11434/v1
+    api_key_env: ""
+    models: [llama3.2, qwen3, deepseek-r1]
+    context_window: 128000
+
+tools:
+  enabled: []  # empty = all built-ins enabled
+  disabled: []
+  shell_timeout_ms: 120000
+  shell_preference: powershell
+
+permissions:
+  mode: ask
+  allow_rules: [read_file, code_search, experience_query, git_diff, lint_check]
+  ask_rules: [write_file, shell_run, test_run]
+  deny_rules: []
+
+workspace:
+  root: .
+  modules_dir: lib/
+  experiences_dir: agent_contributing/experiences/
+  contracts_dir: agent_contributing/contracts/
+
+experience:
+  store_backend: file
+  index_path: agent_contributing/EXPERIENCE.md
+  cards_dir: agent_contributing/experiences/
+  auto_generate: true
+  require_human_approval: true
+  max_cards_per_task: 3
+
+credit:
+  initial_score: 100.0
+  min_score_for_tasks: 50.0
+  weights:
+    code_quality: 0.25
+    test_quality: 0.20
+    review_accuracy: 0.20
+    experience_quality: 0.15
+    error_budget_respect: 0.10
+    collaboration: 0.10
+
+merge_queue:
+  enabled: true
+  max_batch_size: 5
+  ci_timeout_minutes: 30
+  auto_revert_on_failure: true
+
+feature_flags:
+  require_flag_for_new_features: true
+  flag_max_lifetime_days: 90
+
+slo:
+  default_slo: 99.9
+  freeze_on_budget_exhausted: true
+  budget_warning_threshold: 20.0

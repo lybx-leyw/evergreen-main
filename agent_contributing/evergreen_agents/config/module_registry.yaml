@@ -1,0 +1,453 @@
+# Evergreen Module Registry — 实时代码模块映射
+# 每个模块对应一个 Module Keeper Agent
+# 由 bootstrap 加载 → 创建 Agent 实例
+
+modules:
+  # ==========================================================================
+  # 基础层 (Foundation) — 被其他模块依赖的核心服务
+  # ==========================================================================
+  auth:
+    name: "认证服务"
+    path: "lib/features/auth"
+    section: foundation
+    status: active
+    description: "ZJU SSO 统一认证，提供登录/登出/cookie管理"
+    keeper_skills: [flutter, dart, oauth, cookie]
+    depends_on: []
+    depended_by: [courses, todo, plan, scores, exams, downloads, classroom, zdbk, pintia, library, ecard, autosign, rvpn, settings]
+    test_path: "test/features/auth"
+    contracts: []
+
+  agent:
+    name: "AI 助手"
+    path: "lib/features/agent"
+    section: ai_tools
+    status: active
+    description: "应用内 AI Agent 运行时，工具注册表，会话管理"
+    keeper_skills: [flutter, dart, llm, agent, tool-system]
+    depends_on: []
+    depended_by: [palace]
+    test_path: "test/features/agent"
+    contracts: [{to: "core_agent", interface: "Agent Tool Registry"}]
+
+  # ==========================================================================
+  # 教务数据层 (Academic Data Backbone)
+  # ==========================================================================
+  zdbk:
+    name: "教务系统"
+    path: "lib/features/zdbk"
+    section: campus
+    status: active
+    description: "浙江大学教务数据库，提供课程/成绩/考试/通知/培养方案等数据源"
+    keeper_skills: [flutter, dart, html-parsing, cache, api]
+    depends_on: [auth]
+    depended_by: [courses, scores, exams, todo, scheduler]
+    test_path: "test/features/zdbk"
+    contracts:
+      - {to: "courses", interface: "Course Data"}
+      - {to: "scores", interface: "Grade Data"}
+      - {to: "exams", interface: "Exam Data"}
+
+  # ==========================================================================
+  # 学习模块 (Learning Section)
+  # ==========================================================================
+  courses:
+    name: "课程管理"
+    path: "lib/features/courses"
+    section: learning
+    status: active
+    description: "课程列表/详情/树形展示，课表视图，学期切换"
+    keeper_skills: [flutter, dart, timetable, tree-view]
+    depends_on: [auth, zdbk]
+    depended_by: [todo, exams, schedule, tutor]
+    test_path: "test/features/courses"
+    contracts: [{to: "zdbk", interface: "Course Data"}, {to: "schedule", interface: "Timetable Data"}]
+
+  todo:
+    name: "待办管理"
+    path: "lib/features/todo"
+    section: learning
+    status: active
+    description: "任务/待办 CRUD，DingTalk 推送，与课程/考试关联"
+    keeper_skills: [flutter, dart, notification, dingtalk]
+    depends_on: [auth, zdbk, courses]
+    depended_by: []
+    test_path: "test/features/todo"
+    contracts: [{to: "zdbk", interface: "Todo Sync"}]
+
+  plan:
+    name: "计划管理"
+    path: "lib/features/plan"
+    section: learning
+    status: active
+    description: "学习计划/培养方案管理，进度追踪，GPA 计算"
+    keeper_skills: [flutter, dart, gpa, training-plan]
+    depends_on: [auth]
+    depended_by: []
+    test_path: "test/features/plan"
+    contracts: []
+
+  scores:
+    name: "成绩查询"
+    path: "lib/features/scores"
+    section: learning
+    status: active
+    description: "成绩查看，4种 GPA 格式，成绩趋势图，学期筛选"
+    keeper_skills: [flutter, dart, gpa, chart]
+    depends_on: [auth, zdbk]
+    depended_by: []
+    test_path: "test/features/scores"
+    contracts: [{to: "zdbk", interface: "Grade Data"}]
+
+  exams:
+    name: "考试倒计时"
+    path: "lib/features/exams"
+    section: learning
+    status: active
+    description: "考试列表，倒计时 badge，考试详情"
+    keeper_skills: [flutter, dart, countdown, badge]
+    depends_on: [auth, zdbk, courses]
+    depended_by: []
+    test_path: "test/features/exams"
+    contracts: [{to: "zdbk", interface: "Exam Data"}, {to: "courses", interface: "Course Match"}]
+
+  downloads:
+    name: "课件下载"
+    path: "lib/features/downloads"
+    section: learning
+    status: active
+    description: "课件/资料浏览与下载管理"
+    keeper_skills: [flutter, dart, file-download, storage]
+    depends_on: [auth]
+    depended_by: []
+    test_path: "test/features/downloads"
+    contracts: []
+
+  # ==========================================================================
+  # AI 工具模块 (AI Tools Section)
+  # ==========================================================================
+  tutor:
+    name: "AI 辅导"
+    path: "lib/features/tutor"
+    section: ai_tools
+    status: active
+    description: "AI 辅导笔记：OCR 识别课堂 PPT → DeepSeek 生成笔记"
+    keeper_skills: [flutter, dart, ocr, llm, deepseek]
+    depends_on: [classroom]
+    depended_by: []
+    test_path: "test/features/tutor"
+    contracts: [{to: "classroom", interface: "Video/Slide Data"}, {to: "core_services", interface: "OCR Pipeline"}]
+
+  translate:
+    name: "PDF 翻译"
+    path: "lib/features/translate"
+    section: ai_tools
+    status: active
+    description: "PDF 文档翻译（DeepSeek + pdf2zh 引擎），嵌入式 Python 子进程"
+    keeper_skills: [flutter, dart, python, pdf2zh, deepseek, subprocess]
+    depends_on: []
+    depended_by: []
+    test_path: "test/features/translate"
+    contracts: [{to: "core_services", interface: "Python Env"}, {to: "core_services", interface: "PDF Renderer"}]
+
+  classroom:
+    name: "智云课堂"
+    path: "lib/features/classroom"
+    section: ai_tools
+    status: active
+    description: "课堂视频/PPT 播放（media_kit），课程回放"
+    keeper_skills: [flutter, dart, media-kit, video, player]
+    depends_on: [auth]
+    depended_by: [tutor]
+    test_path: "test/features/classroom"
+    contracts: [{to: "tutor", interface: "Video/Slide Data"}]
+
+  wordpecker:
+    name: "背词"
+    path: "lib/features/wordpecker"
+    section: ai_tools
+    status: wip
+    description: "FSRS 间隔重复背单词，闪卡系统"
+    keeper_skills: [flutter, dart, fsrs, spaced-repetition, flashcard]
+    depends_on: []
+    depended_by: []
+    test_path: null
+    contracts: []
+
+  quiz:
+    name: "答题"
+    path: "lib/features/quiz"
+    section: ai_tools
+    status: wip
+    description: "AI 生成答题/测验系统"
+    keeper_skills: [flutter, dart, quiz, llm]
+    depends_on: []
+    depended_by: []
+    test_path: null
+    contracts: []
+
+  # ==========================================================================
+  # 校园模块 (Campus Section)
+  # ==========================================================================
+  pintia:
+    name: "PTA 编程题"
+    path: "lib/features/pintia"
+    section: campus
+    status: active
+    description: "PTA 编程题平台集成"
+    keeper_skills: [flutter, dart, api, pintia]
+    depends_on: [auth]
+    depended_by: []
+    test_path: "test/features/pintia"
+    contracts: []
+
+  teachers:
+    name: "查老师"
+    path: "lib/features/teachers"
+    section: campus
+    status: active
+    description: "教师评价查询（chalaoshi），评分/评论"
+    keeper_skills: [flutter, dart, api, chalaoshi]
+    depends_on: []
+    depended_by: []
+    test_path: "test/features/teachers"
+    contracts: []
+
+  schedule:
+    name: "课表导出"
+    path: "lib/features/schedule"
+    section: campus
+    status: active
+    description: "课表查看与导出（iCal/图片）"
+    keeper_skills: [flutter, dart, ical, export, image]
+    depends_on: [courses]
+    depended_by: []
+    test_path: "test/features/schedule"
+    contracts: [{to: "courses", interface: "Timetable Data"}]
+
+  library:
+    name: "图书馆"
+    path: "lib/features/library"
+    section: campus
+    status: wip
+    description: "图书馆馆藏查询/借阅管理"
+    keeper_skills: [flutter, dart, api, library]
+    depends_on: [auth]
+    depended_by: []
+    test_path: null
+    contracts: []
+
+  ecard:
+    name: "一卡通"
+    path: "lib/features/ecard"
+    section: campus
+    status: wip
+    description: "校园一卡通余额/流水查询"
+    keeper_skills: [flutter, dart, api, ecard]
+    depends_on: [auth]
+    depended_by: []
+    test_path: "test/features/ecard"
+    contracts: []
+
+  autosign:
+    name: "自动签到"
+    path: "lib/features/autosign"
+    section: campus
+    status: wip
+    description: "课堂自动签到服务"
+    keeper_skills: [flutter, dart, background-service, notification]
+    depends_on: [auth]
+    depended_by: []
+    test_path: null
+    contracts: []
+
+  rvpn:
+    name: "RVPN"
+    path: "lib/features/rvpn"
+    section: campus
+    status: wip
+    description: "校园 VPN 管理"
+    keeper_skills: [flutter, dart, vpn, network]
+    depends_on: [auth]
+    depended_by: []
+    test_path: null
+    contracts: []
+
+  # ==========================================================================
+  # 系统模块 (System Section)
+  # ==========================================================================
+  palace:
+    name: "宫殿"
+    path: "lib/features/palace"
+    section: system
+    status: active
+    description: "Palace 认知中间件 — 个人知识图谱、意识事件、Echo 复习"
+    keeper_skills: [flutter, dart, knowledge-graph, spaced-repetition, agent]
+    depends_on: [agent]
+    depended_by: []
+    test_path: "test/features/palace"
+    contracts: [{to: "agent", interface: "Agent Tool Registry"}, {to: "core_palace", interface: "EventStore"}]
+
+  connectivity:
+    name: "数据状态"
+    path: "lib/features/connectivity"
+    section: system
+    status: active
+    description: "全局数据新鲜度面板，缓存状态可视化管理"
+    keeper_skills: [flutter, dart, cache, data-status, freshness]
+    depends_on: []
+    depended_by: []
+    test_path: "test/features/connectivity"
+    contracts: [{to: "core_storage", interface: "Cache Manager"}]
+
+  scheduler:
+    name: "智能调度"
+    path: "lib/features/scheduler"
+    section: system
+    status: wip
+    description: "后台智能数据刷新调度"
+    keeper_skills: [flutter, dart, background-service, scheduling]
+    depends_on: [zdbk]
+    depended_by: []
+    test_path: null
+    contracts: [{to: "zdbk", interface: "Data Refresh"}]
+
+  settings:
+    name: "设置"
+    path: "lib/features/settings"
+    section: system
+    status: active
+    description: "应用设置页面（主题/语言/缓存/关于）"
+    keeper_skills: [flutter, dart, settings, preferences]
+    depends_on: [auth]
+    depended_by: []
+    test_path: null
+    contracts: [{to: "core_config", interface: "AppConfig"}]
+
+  # ==========================================================================
+  # 核心基础设施 (Core Infrastructure) — 无 UI，纯服务
+  # ==========================================================================
+  core_agent:
+    name: "Agent 运行时核心"
+    path: "lib/core/agent"
+    section: core
+    status: active
+    description: "Agent 核心引擎：事件、门禁、钩子、会话、记忆、工具"
+    keeper_skills: [dart, agent, llm, event-system, memory, tool-system]
+    depends_on: []
+    depended_by: [agent, palace]
+    test_path: "test/core/agent"
+    contracts:
+      - {to: "agent", interface: "Agent Tool Registry"}
+      - {to: "palace", interface: "Agent Memory Access"}
+      - {to: "core_network", interface: "LLM HTTP Client"}
+
+  core_network:
+    name: "网络层"
+    path: "lib/core/network"
+    section: core
+    status: active
+    description: "Dio HTTP 客户端、Cookie 管理、认证/调试/重试拦截器"
+    keeper_skills: [dart, dio, http, cookie, auth, interceptor]
+    depends_on: []
+    depended_by: [auth, zdbk, core_agent]
+    test_path: "test/core/network"
+    contracts:
+      - {to: "auth", interface: "Auth Interceptor"}
+      - {to: "core_agent", interface: "LLM HTTP Client"}
+
+  core_storage:
+    name: "存储层"
+    path: "lib/core/storage"
+    section: core
+    status: active
+    description: "Drift SQLite 数据库、缓存管理器、SharedPreferences、文件系统"
+    keeper_skills: [dart, drift, sqlite, cache, shared-prefs, file-system]
+    depends_on: []
+    depended_by: [所有模块]
+    test_path: "test/core/storage"
+    contracts:
+      - {to: "connectivity", interface: "Cache Manager"}
+      - {to: "settings", interface: "Settings Service"}
+
+  core_palace:
+    name: "Palace 认知引擎"
+    path: "lib/core/palace"
+    section: core
+    status: active
+    description: "Palace 后端：EventStore、AutoTagger、LessonExtractor、Refinery"
+    keeper_skills: [dart, event-store, knowledge-graph, nlp, tagging]
+    depends_on: []
+    depended_by: [palace]
+    test_path: "test/core/palace"
+    contracts:
+      - {to: "palace", interface: "EventStore"}
+      - {to: "core_agent", interface: "Memory Integration"}
+
+  core_services:
+    name: "核心服务"
+    path: "lib/core/services"
+    section: core
+    status: active
+    description: "OCR 管线（MLKit + DeepSeek）、PDF 翻译服务、更新服务、BackgroundRefresher"
+    keeper_skills: [dart, python, ocr, pdf, subprocess, background-service]
+    depends_on: []
+    depended_by: [tutor, translate]
+    test_path: "test/core/services"
+    contracts:
+      - {to: "tutor", interface: "OCR Pipeline"}
+      - {to: "translate", interface: "Python Env + PDF Renderer"}
+
+  core_config:
+    name: "配置与主题"
+    path: "lib/core/config"
+    section: core
+    status: active
+    description: "AppConfig 五点同步、主题管理、Riverpod Provider 配置"
+    keeper_skills: [dart, config, theme, riverpod, shared-prefs]
+    depends_on: []
+    depended_by: [settings]
+    test_path: "test/core/config"
+    contracts:
+      - {to: "settings", interface: "AppConfig"}
+
+  core_registry:
+    name: "模块注册表"
+    path: "lib/core/registry"
+    section: core
+    status: active
+    description: "FeatureModule 抽象类、ModuleRegistry、插件架构"
+    keeper_skills: [dart, plugin-system, dependency-graph, validation]
+    depends_on: []
+    depended_by: [所有模块]
+    test_path: "test/core/registry"
+    contracts: []
+
+  core_utils:
+    name: "工具集"
+    path: "lib/core/utils"
+    section: core
+    status: active
+    description: "GPA 计算器、日期工具、HTML 解析、文件工具、Token 估算"
+    keeper_skills: [dart, utilities, gpa, html, date, tokenizer]
+    depends_on: []
+    depended_by: [所有模块]
+    test_path: "test/core/utils"
+    contracts: []
+
+# ==========================================================================
+# 统计汇总
+# ==========================================================================
+summary:
+  total_modules: 32
+  active: 23
+  wip: 9
+  sections:
+    foundation: 2
+    learning: 6
+    ai_tools: 5
+    campus: 8
+    system: 4
+    core: 7
+  total_contracts: 24
+  total_keepers_needed: 32
