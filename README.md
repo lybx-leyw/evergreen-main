@@ -125,7 +125,6 @@ go build -o bin/reasonix_gr.exe ./cmd/reasonix_gr
 ## 项目谱系
 
 - **v1.4.0**（当前）— Dart/Flutter 桌面应用，18 个功能模块（rvpn 已启用），自研 Agent 运行时，Palace 认知中间件，PDF 翻译
-- **v1.3.1** — 17 个功能模块，自研 Agent 运行时，Palace 认知中间件，PDF 翻译
 - Agent 运行时参考 [Reasonix](https://github.com/esengine/reasonix) (MIT)，Dart 独立重写
 - reasonix_gr 是 [DeepSeek-Reasonix](https://github.com/esengine/DeepSeek-Reasonix) (MIT) 的深度 fork — 多智能体联邦衍生物
 - 成绩计算 & 教务交互参考 [Celechron](https://github.com/Celechron/Celechron) (GPL-3.0)
