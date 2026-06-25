@@ -1,20 +1,25 @@
-# Evergreen Multi-Tools（内测版，暂时不推广）
+# Evergreen Multi-Tools v1.4.0
+
+> **v1.4.0**：rvpn 启用 · 全代码初步重构 · 百级专属 AI 集群试探  
+> **下一站 v2.0.0**：完整重构 + 多 Agent 联邦稳定后发布
 
 > 这是将奥尔波特人格理论引入 AI 记忆的开源实践。  
 > 是集成 Agent 运行时的浙大校园工具。  
-> 更是 AI Agent 贡献规约的实践者。  
+> 更是 AI Agent 贡献规约 + 百级多 Agent 联邦协作的实践者。  
 > **欢迎广大浙大学子共建共创。**
-
-如果这个项目对你有用，欢迎给个 ⭐ Star 支持一下～
 
 ---
 
 ## 快速开始
 
 ```bash
-cd evergreen-multi-tools
-flutter pub get
-flutter run -d windows
+# Flutter 桌面应用
+flutter pub get && flutter run -d windows
+
+# 百级 AI Agent 联邦（全仓库重构时启用）
+cd agent_contributing\evergreen_agents\reasonix
+go build -o bin/reasonix_gr.exe ./cmd/reasonix_gr
+reasonix_gr ceo
 ```
 
 ---
