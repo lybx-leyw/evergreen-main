@@ -189,9 +189,9 @@ class _SettingsViewState extends ConsumerState<SettingsView> {
     }
   }
 
-  Future<void> _saveSetting(String key, String value) async {
+  Future<bool> _saveSetting(String key, String value) async {
     final base = _baseUrl;
-    if (base == null) return;
+    if (base == null) return false;
 
     try {
       final client =
@@ -207,15 +207,51 @@ class _SettingsViewState extends ConsumerState<SettingsView> {
           debugPrint('[settings] 已保存 $key = $value');
           // 本地更新值以即时反映 UI 变化
           _updateLocalValue(key, value);
+          return true;
         } else {
           debugPrint('[settings] 保存 $key 失败: HTTP ${resp.statusCode}');
+          return false;
         }
       } finally {
         client.close();
       }
     } catch (e) {
       debugPrint('[settings] 保存 $key 异常: $e');
+      return false;
     }
+  }
+
+  Future<void> _saveAllSettings() async {
+    var saved = 0;
+    var failed = 0;
+
+    for (final item in _items) {
+      // 获取当前实际值：文本控件从 controller 取，其他从 item.value 取
+      String currentValue;
+      if (item.type == 'string' || item.type == 'path') {
+        currentValue = _controllers[item.key]?.text ?? item.value;
+      } else {
+        currentValue = item.value;
+      }
+
+      final ok = await _saveSetting(item.key, currentValue);
+      if (ok) {
+        saved++;
+      } else {
+        failed++;
+      }
+    }
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('已保存 $saved 项' +
+            (failed > 0 ? '，$failed 项失败' : '')),
+        backgroundColor: failed > 0 ? Colors.orange : Colors.green,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   void _updateLocalValue(String key, String newValue) {
@@ -303,18 +339,35 @@ class _SettingsViewState extends ConsumerState<SettingsView> {
   Widget _buildHeader(ThemeData theme) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            widget.descriptor.name,
-            style: theme.textTheme.headlineSmall
-                ?.copyWith(fontWeight: FontWeight.bold),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.descriptor.name,
+                  style: theme.textTheme.headlineSmall
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                Text(widget.descriptor.description,
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+              ],
+            ),
           ),
-          const SizedBox(height: 4),
-          Text(widget.descriptor.description,
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+          ElevatedButton.icon(
+            onPressed: _saveAllSettings,
+            icon: const Icon(Icons.save, size: 18),
+            label: const Text('保存所有'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green.shade700,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            ),
+          ),
         ],
       ),
     );
