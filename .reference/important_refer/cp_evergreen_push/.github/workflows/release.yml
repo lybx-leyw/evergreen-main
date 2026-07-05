@@ -1,0 +1,189 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+# ── Permissions for the entire workflow ──
+# actions:read — needed by download-artifact
+# contents:write — needed by action-gh-release to create release
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  # ── Gate: all tests must pass ──
+  test:
+    uses: ./.github/workflows/test.yml
+
+  # ── Build Android APK ──
+  build-android:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse version from tag
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          echo "VERSION=$version" >> $GITHUB_ENV
+          echo "Version: $version"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - run: flutter pub get
+
+      - run: flutter build apk --release
+
+      - name: Rename APK
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk "Evergreen-${{ env.VERSION }}-android.apk"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: Evergreen-${{ env.VERSION }}-android.apk
+          retention-days: 7
+
+  # ── Build Windows release + Inno Setup installer ──
+  build-windows:
+    needs: test
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse version from tag
+        run: |
+          $tag = '${{ github.ref_name }}'
+          $version = $tag -replace '^v', ''
+          echo "VERSION=$version" >> $env:GITHUB_ENV
+          echo "Version: $version"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - run: flutter pub get
+
+      # ── Prepare embedded Python runtime (gitignored, set up per build) ──
+      - name: Download Python 3.10 embeddable
+        run: |
+          $pythonVersion = "3.10.11"
+          $url = "https://www.python.org/ftp/python/$pythonVersion/python-$pythonVersion-embed-amd64.zip"
+          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\python-embed.zip"
+
+      - name: Extract Python to scripts/python
+        run: |
+          Expand-Archive -Path "$env:RUNNER_TEMP\python-embed.zip" -DestinationPath scripts\python\ -Force
+
+      - name: Configure site-packages support
+        run: |
+          Set-Content -Path scripts\python\python310._pth -Encoding UTF8 -Value @"
+          python310.zip
+          .
+
+          # Uncomment to run site.main() automatically
+          import site
+          "@
+
+      - name: Install pip
+        run: |
+          Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile "$env:RUNNER_TEMP\get-pip.py"
+          scripts\python\python.exe $env:RUNNER_TEMP\get-pip.py
+
+      - name: Install Python dependencies
+        run: scripts\python\python.exe -m pip install -r scripts\requirements.txt
+
+      - name: Verify Python imports
+        run: |
+          scripts\python\python.exe -c "import pytesseract, PIL, requests, pdf2image; import babeldoc, fitz, openai, pydantic, tomlkit, rich, peewee, tenacity, yaml; print('OK')"
+
+      # ── Clean site-packages cruft (avoids Inno Setup MAX_PATH 260-char limit) ──
+      - name: Clean Python site-packages
+        run: |
+          $pkg = "scripts\python\Lib\site-packages"
+          if (Test-Path $pkg) {
+            Remove-Item -Recurse -Force "$pkg\onnx\backend\test" -ErrorAction SilentlyContinue
+            Remove-Item -Recurse -Force "$pkg\onnxruntime\tools" -ErrorAction SilentlyContinue
+            Get-ChildItem -Path $pkg -Directory -Recurse -Filter "__pycache__" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force
+          }
+
+      # ── Download zju-connect for RVPN ──
+      - name: Download zju-connect
+        run: |
+          $zjuVersion = "v1.1.1"
+          $url = "https://github.com/Mythologyli/zju-connect/releases/download/$zjuVersion/zju-connect-windows-amd64.zip"
+          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\zju-connect.zip"
+          New-Item -ItemType Directory -Force -Path vendor\zju-connect\
+          Expand-Archive -Path "$env:RUNNER_TEMP\zju-connect.zip" -DestinationPath vendor\zju-connect\ -Force
+
+      # ── Build Flutter (CMake POST_BUILD auto-copies scripts/ to output) ──
+      - run: flutter build windows --release
+
+      # Strip debug symbols before packaging
+      - name: Strip debug symbols
+        run: |
+          if (Test-Path build/windows/x64/runner/Release/*.pdb) {
+            Remove-Item build/windows/x64/runner/Release/*.pdb
+          }
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Build installer
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DMyAppVersion="${{ env.VERSION }}" scripts\installer.iss
+
+      - name: Rename installer
+        run: |
+          ren "build\installer\EvergreenSetup-${{ env.VERSION }}.exe" "EvergreenSetup-${{ env.VERSION }}-Win.exe"
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer
+          path: build/installer/EvergreenSetup-${{ env.VERSION }}-Win.exe
+          retention-days: 7
+
+  # ── Create GitHub Release ──
+  release:
+    needs: [build-windows, build-android]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Parse version from tag
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          echo "VERSION=$version" >> $GITHUB_ENV
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: installer
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-apk
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Evergreen ${{ github.ref_name }}
+          files: |
+            EvergreenSetup-${{ env.VERSION }}-Win.exe
+            Evergreen-${{ env.VERSION }}-android.apk
+          generate_release_notes: true

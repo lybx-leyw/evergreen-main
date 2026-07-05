@@ -1,0 +1,26 @@
+{
+  "type": "module",
+  "id": "mesh_demo",
+  "name": "Mesh Demo",
+  "description": "微服务网格架构演示——展示插件如何通过端口文件发现并调用平台所有服务",
+  "icon": "hub",
+  "route": "/mesh-demo",
+  "ui": "dashboard",
+
+  "sidebar": { "section": "系统", "sectionOrder": 90, "order": 10 },
+
+  "layout": {
+    "mode": "scroll",
+    "grid": { "columns": 2, "gap": 16 }
+  },
+
+  "data": [
+    { "type": "mesh_status", "display": "card" }
+  ],
+
+  "actions": {
+    "refresh": { "enabled": true, "pullToRefresh": true }
+  },
+
+  "dependencies": ["agent"]
+}

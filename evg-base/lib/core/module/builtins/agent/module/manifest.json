@@ -1,0 +1,22 @@
+{
+  "type": "module",
+  "id": "agent_from",
+  "name": "AI 助手",
+  "description": "插件版 AI 助手——流式对话 + 工具调用 + 会话管理",
+  "icon": "smart_toy",
+  "route": "/agent-from",
+  "ui": "chat",
+  "sidebar": { "section": "AI 工具", "sectionOrder": 10, "order": 10 },
+  "chat": {
+    "stream": { "enabled": true, "animation": "typewriter" }
+  },
+  "input": {
+    "mode": "free-text",
+    "multiline": false,
+    "sendOnEnter": true,
+    "autoFocus": true,
+    "maxLength": 100000
+  },
+  "process": { "exe": "agent_bridge.exe", "protocol": "http", "preferredPort": 0 },
+  "dependencies": []
+}

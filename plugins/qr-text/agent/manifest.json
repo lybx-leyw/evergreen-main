@@ -1,0 +1,15 @@
+{
+  "name": "qr_text",
+  "description": "文本转二维码（ASCII 终端输出）。适合在控制台快速展示 URL 或文本。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "text": { "type": "string", "description": "要编码的文本（URL/短文本）" },
+      "size": { "type": "integer", "description": "二维码版本(1-10)，越大数据量越大，默认 1" }
+    },
+    "required": ["text"]
+  },
+  "readOnly": true,
+  "argMode": "args",
+  "argSpec": { "style": "flag", "prefix": "--", "flags": { "text": "-t", "size": "-s" } }
+}

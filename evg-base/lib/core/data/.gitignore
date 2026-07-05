@@ -1,0 +1,14 @@
+.claude
+.dart_tool
+pubspec.lock
+
+# test 运行时产物
+.dart_test.yaml
+test/.cache
+
+# example 运行时产物
+example/.cache
+example/plugins/douban/build
+example/plugins/douban/dist
+example/plugins/douban/*.spec
+example/plugins/douban/data/plugin.exe

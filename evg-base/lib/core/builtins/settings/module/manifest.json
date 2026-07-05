@@ -1,0 +1,12 @@
+{
+  "type": "module",
+  "id": "settings",
+  "name": "设置",
+  "description": "Evergreen 应用设置——API Key、模型、主题等全局配置",
+  "icon": "settings",
+  "route": "/settings",
+  "ui": "settings",
+  "process": { "exe": "module/settings.exe", "protocol": "http" },
+  "sidebar": { "section": "系统", "order": 90 },
+  "dependencies": []
+}

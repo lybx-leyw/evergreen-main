@@ -1,0 +1,24 @@
+{
+  "type": "module",
+  "id": "ai-assistant",
+  "name": "AI 助手",
+  "description": "内置 AI 对话模块——代理到 AgentHttpServer 的 9 个端点",
+  "icon": "smart_toy",
+  "route": "/ai-assistant",
+  "ui": "chat",
+  "chat": {
+    "thinking": { "visible": true, "transparent": true, "mode": "scroll" },
+    "toolCalls": { "visible": true, "showArgs": true, "showResult": true },
+    "stream": { "enabled": true, "animation": "fade", "cursorStyle": "static" }
+  },
+  "workspace": {
+    "enabled": true,
+    "maxFiles": 50,
+    "maxSizeMb": 50,
+    "aiCreatable": ["md", "json", "py", "dart", "txt", "csv", "html", "css", "js", "pptx", "pdf"],
+    "persistAcrossSessions": true
+  },
+  "sidebar": { "section": "主功能", "order": 10 },
+  "input": { "mode": "free-text", "multiline": true, "maxLength": 4096, "sendOnEnter": true },
+  "dependencies": []
+}

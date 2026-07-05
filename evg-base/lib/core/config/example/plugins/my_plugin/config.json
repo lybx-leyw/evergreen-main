@@ -1,0 +1,31 @@
+{
+  "id": "my_plugin",
+  "name": "示例插件",
+  "settings": [
+    {
+      "key": "MY_API_KEY",
+      "label": "API 密钥",
+      "type": "string",
+      "isSecure": true,
+      "hint": "从开发者后台获取"
+    },
+    {
+      "key": "MY_FEATURE",
+      "label": "启用高级功能",
+      "type": "bool",
+      "default": "false"
+    },
+    {
+      "key": "MY_MODE",
+      "label": "运行模式",
+      "type": "option",
+      "default": "normal",
+      "options": [
+        { "value": "fast",   "label": "快速" },
+        { "value": "normal", "label": "标准" },
+        { "value": "full",   "label": "完整" }
+      ],
+      "hint": "快速模式跳过校验"
+    }
+  ]
+}

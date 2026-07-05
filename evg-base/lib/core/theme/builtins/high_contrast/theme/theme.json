@@ -1,0 +1,33 @@
+{
+  "type": "theme",
+  "id": "high_contrast",
+  "name": "高对比度",
+  "colors": {
+    "primary": "#0044CC",
+    "secondary": "#0055EE",
+    "background": "#FFFFFF",
+    "surface": "#FFFFFF",
+    "error": "#CC0000",
+    "success": "#006600",
+    "warning": "#884400",
+    "text": "#000000",
+    "textSecondary": "#222222",
+    "border": "#000000",
+    "shadow": "#000000",
+    "overlay": "#000000",
+
+    "sidebar": { "bg": "#000000", "text": "#FFFFFF", "active": "#0044CC", "hover": "#333333" },
+    "bubble": { "user": "#0044CC", "assistant": "#F0F0F0", "text": "#000000", "timestamp": "#444444" },
+    "thinking": { "bg": "#F0F0F0", "text": "#000000", "border": "#000000" },
+    "toolCall": { "bg": "#FFFFFF", "text": "#000000", "border": "#000000" },
+    "codeBlock": { "bg": "#000000", "text": "#FFFFFF", "border": "#000000", "header": "#222222" },
+    "input": { "bg": "#FFFFFF", "text": "#000000", "border": "#000000", "focus": "#0044CC", "placeholder": "#555555", "error": "#CC0000" },
+    "progressBar": { "track": "#DDDDDD", "fill": "#0044CC", "text": "#FFFFFF" },
+    "table": { "header": "#000000", "stripe": "#FFFFFF", "text": "#000000", "border": "#000000", "hover": "#F0F0F0" },
+    "card": { "bg": "#FFFFFF", "border": "#000000", "shadow": "#000000", "text": "#000000" },
+    "button": { "primary": "#0044CC", "hover": "#0033AA", "active": "#002288", "disabled": "#CCCCCC", "text": "#FFFFFF" },
+    "badge": { "bg": "#CC0000", "text": "#FFFFFF" },
+    "divider": { "color": "#000000", "thickness": "2" },
+    "scrollbar": { "thumb": "#000000", "track": "#FFFFFF" }
+  }
+}

@@ -1,0 +1,4 @@
+.dart_tool
+.claude
+pubspec.lock
+docs/output/

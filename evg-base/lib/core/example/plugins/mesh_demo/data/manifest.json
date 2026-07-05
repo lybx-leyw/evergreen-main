@@ -1,0 +1,16 @@
+{
+  "type": "data-source",
+  "id": "mesh_demo_data",
+  "name": "微服务网格演示数据",
+  "process": { "exe": "mesh_server.py" },
+  "preferredPort": 0,
+  "dataTypes": [
+    {
+      "name": "mesh_status",
+      "category": "系统",
+      "displayName": "服务网格状态",
+      "ttl": "30s",
+      "endpoint": "/mesh/status"
+    }
+  ]
+}

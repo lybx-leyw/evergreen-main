@@ -1,0 +1,19 @@
+{
+  "name": "calculator",
+  "description": "四则运算 + 幂运算/取余，支持链式计算。操作: add/sub/mul/div/pow/mod。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "operation": {
+        "type": "string",
+        "description": "运算类型",
+        "enum": ["add", "sub", "mul", "div", "pow", "mod"]
+      },
+      "a": { "type": "number", "description": "第一个操作数" },
+      "b": { "type": "number", "description": "第二个操作数" }
+    },
+    "required": ["operation", "a", "b"]
+  },
+  "readOnly": true,
+  "argMode": "stdin"
+}

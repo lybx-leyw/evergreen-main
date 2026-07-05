@@ -1,0 +1,29 @@
+name: evergreen_base
+publish_to: none
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    path: lib/flutter_stub
+  flutter_riverpod:
+    path: lib/flutter_riverpod_stub
+  go_router:
+    path: lib/go_router_stub
+  shared_preferences:
+    path: lib/shared_preferences_stub
+  google_fonts:
+    path: lib/google_fonts_stub
+  markdown:
+    path: lib/markdown_stub
+  flutter_highlight:
+    path: lib/flutter_highlight_stub
+  flutter_math_fork:
+    path: lib/flutter_math_fork_stub
+  flutter_mermaid:
+    path: lib/flutter_mermaid_stub
+  flutter_widget_from_html_core:
+    path: lib/flutter_widget_from_html_core_stub
+  html:
+    path: lib/html_stub

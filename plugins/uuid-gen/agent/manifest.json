@@ -1,0 +1,16 @@
+{
+  "name": "uuid_gen",
+  "description": "UUID 生成器。格式: uuid1(时间)/uuid4(随机)。默认 uuid4。数量 1-20。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "version": { "type": "integer", "description": "UUID 版本: 1 或 4，默认 4", "enum": [1, 4] },
+      "count": { "type": "integer", "description": "生成数量，默认 1" },
+      "uppercase": { "type": "boolean", "description": "大写输出，默认 false" }
+    },
+    "required": []
+  },
+  "readOnly": true,
+  "argMode": "args",
+  "argSpec": { "style": "positional", "order": ["version", "count"] }
+}

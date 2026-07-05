@@ -1,0 +1,12 @@
+name: evergreen_base
+publish_to: none
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  shared_preferences:
+    path: lib/shared_preferences_stub
+
+dev_dependencies:
+  test: ^1.24.0

@@ -1,0 +1,22 @@
+{
+  "type": "theme", "id": "violet", "name": "紫罗兰",
+  "colors": {
+    "primary": "#7C3AED", "secondary": "#A78BFA",
+    "background": "#F5F6F8", "surface": "#FFFFFF",
+    "error": "#FF4D4F", "success": "#52C41A", "warning": "#FA8C16",
+    "text": "#1A1D21", "textSecondary": "#656D78", "border": "#D0D5DD",
+    "shadow": "#000000", "overlay": "#000000",
+    "sidebar": { "bg": "#F2F3F5", "text": "#1A1D21", "active": "#7C3AED", "hover": "#E8EAED" },
+    "bubble": { "user": "#7C3AED", "assistant": "#F2F3F5", "text": "#1A1D21", "timestamp": "#656D78" },
+    "thinking": { "bg": "#F3E8FF", "text": "#7C3AED", "border": "#C4B5FD" },
+    "toolCall": { "bg": "#F2F3F5", "text": "#1A1D21", "border": "#D0D5DD" },
+    "codeBlock": { "bg": "#1A1D21", "text": "#E6EDF3", "border": "#30363D", "header": "#21262D" },
+    "input": { "bg": "#F2F3F5", "text": "#1A1D21", "border": "#D0D5DD", "focus": "#7C3AED", "placeholder": "#656D78", "error": "#FF4D4F" },
+    "progressBar": { "track": "#E8EAED", "fill": "#7C3AED", "text": "#FFFFFF" },
+    "table": { "header": "#F2F3F5", "stripe": "#F5F6F8", "text": "#1A1D21", "border": "#D0D5DD", "hover": "#E8EAED" },
+    "button": { "primary": "#7C3AED", "hover": "#6D28D9", "active": "#6D28D9", "disabled": "#D0D5DD", "text": "#FFFFFF" },
+    "badge": { "bg": "#FF4D4F", "text": "#FFFFFF" },
+    "divider": { "color": "#E8EAED", "thickness": "1" },
+    "scrollbar": { "thumb": "#D0D5DD", "track": "#F5F6F8" }
+  }
+}

@@ -1,0 +1,20 @@
+name: evergreen_base
+publish_to: none
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  dio:
+    path: lib/dio_stub
+  uuid:
+    path: lib/uuid_stub
+  flutter:
+    path: lib/flutter_stub
+  flutter_riverpod:
+    path: lib/flutter_riverpod_stub
+  shared_preferences:
+    path: lib/shared_preferences_stub
+
+dev_dependencies:
+  test: ^1.24.0

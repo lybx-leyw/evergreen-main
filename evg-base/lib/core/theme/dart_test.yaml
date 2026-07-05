@@ -1,0 +1,3 @@
+# HTTP 测试绑定端口，需顺序执行避免冲突。
+concurrency: 1
+timeout: 30s

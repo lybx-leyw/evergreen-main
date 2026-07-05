@@ -1,0 +1,2 @@
+# SharedPreferences 桩共享状态——需要顺序执行以避免测试间状态竞争。
+concurrency: 1

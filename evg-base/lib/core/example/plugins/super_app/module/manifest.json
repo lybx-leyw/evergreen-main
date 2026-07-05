@@ -1,0 +1,31 @@
+{
+  "type": "module",
+  "id": "super_app",
+  "name": "Super App",
+  "description": "跨模块联动演示——data + module + agent tool + theme",
+  "icon": "rocket",
+  "route": "/super-app",
+  "ui": "default",
+
+  "sidebar": { "section": "AI 工具", "sectionOrder": 20, "order": 30 },
+
+  "layout": {
+    "mode": "scroll",
+    "grid": { "columns": 2, "gap": 16 },
+    "search": { "enabled": true, "placeholder": "搜索成绩..." },
+    "drawers": ["left"]
+  },
+
+  "data": [
+    { "type": "super_grades", "display": "table", "filter": true },
+    { "type": "super_grades", "display": "chart" }
+  ],
+
+  "actions": {
+    "sortable": ["name", "score"],
+    "refresh": { "enabled": true, "pullToRefresh": true },
+    "exportable": ["csv", "pdf"]
+  },
+
+  "dependencies": ["agent"]
+}

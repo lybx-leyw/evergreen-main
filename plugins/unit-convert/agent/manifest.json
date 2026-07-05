@@ -1,0 +1,21 @@
+{
+  "name": "unit_convert",
+  "description": "单位换算工具。支持长度/重量/温度/面积/体积/速度/时间/数据存储。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "value": { "type": "number", "description": "数值" },
+      "from": { "type": "string", "description": "源单位。如 km/m/cm/mm/mi/ft/in 等" },
+      "to": { "type": "string", "description": "目标单位" },
+      "category": {
+        "type": "string",
+        "description": "类别: length/weight/temperature/area/volume/speed/time/data",
+        "enum": ["length", "weight", "temperature", "area", "volume", "speed", "time", "data"]
+      }
+    },
+    "required": ["value", "from", "to"]
+  },
+  "readOnly": true,
+  "argMode": "args",
+  "argSpec": { "style": "flag", "prefix": "--", "flags": { "value": "-v", "from": "-f", "to": "-t", "category": "-c" } }
+}

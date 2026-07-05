@@ -1,0 +1,14 @@
+{
+  "name": "query_super_grades",
+  "description": "查询 Super App 的成绩数据。通过 HTTP 调用已注册的 super_grades 数据源（DataOrchestrator），本地过滤后返回。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "query": { "type": "string", "description": "搜索关键词（可选，按姓名/分数匹配）" },
+      "sort": { "type": "string", "enum": ["name", "score"], "description": "排序字段" },
+      "order": { "type": "string", "enum": ["asc", "desc"], "description": "排序方向" }
+    }
+  },
+  "readOnly": true,
+  "argMode": "args"
+}

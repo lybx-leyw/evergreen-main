@@ -1,0 +1,10 @@
+.claude
+.dart_tool
+pubspec.lock
+
+# example 运行时产物
+example/.cache
+example/plugins/*/build
+example/plugins/*/dist
+example/plugins/*/*.spec
+example/plugins/*/*.exe

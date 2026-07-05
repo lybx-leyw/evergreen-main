@@ -1,0 +1,16 @@
+{
+  "type": "data-source",
+  "id": "douban-top250",
+  "name": "豆瓣电影 Top250",
+  "process": "plugin.exe",
+  "dataTypes": [
+    {
+      "name": "douban_top250",
+      "category": "影音",
+      "displayName": "豆瓣 Top250",
+      "ttl": "1h",
+      "persistentKey": "douban_top250",
+      "endpoint": "/api/top250"
+    }
+  ]
+}

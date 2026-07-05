@@ -1,0 +1,29 @@
+{
+  "name": "python_runner",
+  "description": "Python 3.10 解释器 + pip 包管理。三种模式：run（执行代码）、pip（install/uninstall/list/show/freeze）、sys（系统信息）。已安装第三方包：requests, Pillow, PyInstaller, pytesseract, pdf2image 等。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "mode": {
+        "type": "string",
+        "enum": ["run", "pip", "sys"],
+        "description": "运行模式。run=执行Python代码(默认), pip=包管理, sys=系统信息。"
+      },
+      "code": {
+        "type": "string",
+        "description": "[mode=run] 要执行的 Python 3 代码段。可多行，可使用 import 引入标准库。print() 输出返回给模型。"
+      },
+      "pip_cmd": {
+        "type": "string",
+        "enum": ["install", "uninstall", "list", "show", "freeze"],
+        "description": "[mode=pip] pip 子命令。install=安装包, uninstall=卸载包, list=列出已安装, show=查看包详情, freeze=冻结依赖。"
+      },
+      "package": {
+        "type": "string",
+        "description": "[mode=pip, pip_cmd=install/uninstall/show] 包名（可含版本号如 requests==2.28.0）。install 时可用空格分隔多个包。"
+      }
+    },
+    "required": []
+  },
+  "readOnly": false
+}

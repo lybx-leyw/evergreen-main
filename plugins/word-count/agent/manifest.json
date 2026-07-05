@@ -1,0 +1,15 @@
+{
+  "name": "word_count",
+  "description": "文本统计工具：字符数/词数/段落数/行数/阅读时间/词频TOP10。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "text": { "type": "string", "description": "输入文本" },
+      "top_n": { "type": "integer", "description": "词频 TOP-N，默认 10" }
+    },
+    "required": ["text"]
+  },
+  "readOnly": true,
+  "argMode": "args",
+  "argSpec": { "style": "flag", "prefix": "--", "flags": { "text": "-t", "top_n": "-n" } }
+}

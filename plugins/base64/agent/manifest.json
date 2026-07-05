@@ -1,0 +1,20 @@
+{
+  "name": "base64",
+  "description": "Base64 编解码工具。操作: encode/decode。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "text": { "type": "string", "description": "输入文本" },
+      "operation": {
+        "type": "string",
+        "description": "encode 或 decode",
+        "enum": ["encode", "decode"]
+      },
+      "urlsafe": { "type": "boolean", "description": "使用 URL 安全模式，默认 false" }
+    },
+    "required": ["text", "operation"]
+  },
+  "readOnly": true,
+  "argMode": "args",
+  "argSpec": { "style": "flag", "prefix": "--", "flags": { "text": "-t", "operation": "-o", "urlsafe": "-u" } }
+}

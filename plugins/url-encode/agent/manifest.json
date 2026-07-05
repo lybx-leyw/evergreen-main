@@ -1,0 +1,20 @@
+{
+  "name": "url_encode",
+  "description": "URL 编码/解码工具。操作: encode/decode。支持完整 URL 或单个参数。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "text": { "type": "string", "description": "输入文本" },
+      "operation": {
+        "type": "string",
+        "description": "encode 或 decode",
+        "enum": ["encode", "decode"]
+      },
+      "component": { "type": "boolean", "description": "编码为 URL 组件(component模式)，默认 false 为 query 模式" }
+    },
+    "required": ["text", "operation"]
+  },
+  "readOnly": true,
+  "argMode": "args",
+  "argSpec": { "style": "flag", "prefix": "--", "flags": { "text": "-t", "operation": "-o", "component": "-c" } }
+}

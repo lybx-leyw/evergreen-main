@@ -1,0 +1,25 @@
+# Flutter / Dart
+.dart_tool/
+.packages
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.iml
+*.lock
+
+# IDE
+.idea/
+.vscode/
+*.suo
+*.user
+*.userosscache
+
+# Greenix 运行时数据（sessions/memories/skills/workspaces/python）
+.greenix/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Reference
+.reference

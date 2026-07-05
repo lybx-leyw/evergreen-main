@@ -1,0 +1,85 @@
+{
+  "type": "module",
+  "id": "my_module",
+  "name": "示例模块",
+  "description": "一个演示全部 manifest 字段的插件模板",
+
+  "icon": "extension",
+  "route": "/my-module",
+  "ui": "default",
+
+  "sidebar": {
+    "section": "AI 工具",
+    "sectionOrder": 20,
+    "order": 50,
+    "badge": false
+  },
+
+  "secondaryNavs": [
+    {
+      "icon": "notifications",
+      "label": "通知",
+      "routePath": "/my-module/notifications",
+      "section": "AI 工具"
+    }
+  ],
+
+  "layout": {
+    "mode": "scroll",
+    "grid": { "columns": 2, "gap": 16 },
+    "zoom": {
+      "enabled": true,
+      "min": 0.5,
+      "max": 3.0
+    },
+    "drawers": ["left", "right"],
+    "search": {
+      "enabled": true,
+      "placeholder": "搜索内容..."
+    },
+    "panels": [
+      { "id": "main",   "label": "概览", "path": "/my-module",         "default": true },
+      { "id": "detail", "label": "详情", "path": "/my-module/detail"                    }
+    ]
+  },
+
+  "data": [
+    { "type": "scores", "display": "table", "filter": true },
+    { "type": "news",   "display": "list",  "filter": false }
+  ],
+
+  "input": {
+    "mode": "free-text",
+    "autoFocus": false,
+    "maxLength": 200,
+    "multiline": false,
+    "sendOnEnter": true
+  },
+
+  "media": {
+    "accept": "*.pdf",
+    "mode": "dropdown",
+    "document": { "paginated": true, "zoomable": true, "searchable": true }
+  },
+
+  "actions": {
+    "itemTap": "detail",
+    "itemLongPress": "context_menu",
+    "itemSwipe": "delete",
+    "selection": "multi",
+    "refresh": { "enabled": true, "pullToRefresh": true, "autoInterval": 60 },
+    "sortable": ["name", "date"],
+    "creatable": true,
+    "editable": true,
+    "deletable": { "enabled": true, "confirm": true },
+    "exportable": ["csv", "pdf"]
+  },
+
+  "process": {
+    "exe": "module/plugin.exe",
+    "protocol": "http",
+    "preferredPort": 8080
+  },
+
+  "dependencies": ["agent"]
+}

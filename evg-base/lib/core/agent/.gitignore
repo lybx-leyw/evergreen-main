@@ -1,0 +1,12 @@
+.claude
+.dart_tool
+pubspec.lock
+
+# example 运行时产物
+example/.dart_tool
+example/pubspec.lock
+example/plugins/**/*.exe
+example/plugins/**/*.spec
+example/plugins/**/build/
+example/plugins/**/dist/
+example/plugins/**/__pycache__/

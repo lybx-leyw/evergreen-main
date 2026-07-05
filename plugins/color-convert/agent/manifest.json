@@ -1,0 +1,19 @@
+{
+  "name": "color_convert",
+  "description": "颜色空间转换工具。HEX ↔ RGB ↔ HSL。输入格式自动检测。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "color": { "type": "string", "description": "颜色值。如 #ff5733 / rgb(255,87,51) / hsl(10,100%,60%)" },
+      "target": {
+        "type": "string",
+        "description": "目标格式: hex / rgb / hsl / all",
+        "enum": ["hex", "rgb", "hsl", "all"]
+      }
+    },
+    "required": ["color"]
+  },
+  "readOnly": true,
+  "argMode": "args",
+  "argSpec": { "style": "flag", "prefix": "--", "flags": { "color": "-c", "target": "-t" } }
+}

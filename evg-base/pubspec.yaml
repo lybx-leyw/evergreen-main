@@ -1,0 +1,57 @@
+name: evergreen_base
+description: Evergreen 2.0 — 双轨架构平台底层（core 声明层 + renderer 渲染层）
+publish_to: 'none'
+version: 0.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # 状态管理 + 路由
+  flutter_riverpod: ^2.6.1
+  go_router: ^14.8.1
+
+  # 网络 + 存储
+  dio: ^5.9.2
+  shared_preferences: ^2.3.0
+  path_provider: ^2.1.0
+
+  # ── Windows 平台实现（显式依赖，避免 pub cache 损坏导致缺失） ──
+  shared_preferences_windows: ^2.1.0
+  path_provider_windows: ^2.1.0
+  url_launcher_windows: ^3.1.0
+
+  # 桌面窗口
+  window_manager: ^0.4.0
+  screen_retriever_windows: ^0.2.2
+
+  # 工具
+  uuid: ^4.5.0
+  path: ^1.9.0
+  url_launcher: ^6.3.2
+  meta: ^1.3.0
+  archive: ^3.4.0
+  crypto: ^3.0.3
+
+  # 渲染——Markdown / 数学 / 代码 / HTML / 图表 / 字体
+  flutter_markdown: ^0.7.6
+  flutter_math_fork: ^0.7.0
+  markdown: ^7.0.0
+  flutter_widget_from_html_core: ^0.15.0
+  flutter_highlight: ^0.7.0
+  flutter_mermaid: ^0.1.0
+  google_fonts: ^6.2.1
+  file_picker: ^8.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - .greenix/skills/

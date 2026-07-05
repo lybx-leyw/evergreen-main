@@ -1,0 +1,15 @@
+{
+  "name": "mkdir",
+  "description": "创建目录。指定路径和是否递归创建。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "path": { "type": "string", "description": "要创建的目录路径（相对于 workspace 或绝对路径）" },
+      "parents": { "type": "boolean", "description": "是否递归创建父目录，默认 true" }
+    },
+    "required": ["path"]
+  },
+  "readOnly": false,
+  "argMode": "args",
+  "argSpec": { "style": "flag", "prefix": "--", "flags": { "path": "-p", "parents": "-r" } }
+}

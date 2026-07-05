@@ -1,0 +1,28 @@
+name: evergreen_base
+publish_to: none
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  path: ^1.8.0
+  flutter:
+    path: module/lib/flutter_stub
+  archive:
+    path: lib/archive_stub
+  crypto:
+    path: lib/crypto_stub
+  dio:
+    path: lib/archive_stub
+  path_provider:
+    path: data/lib/path_provider_stub
+  shared_preferences:
+    path: config/lib/shared_preferences_stub
+
+dev_dependencies:
+  test: ^1.24.0
+
+dependency_overrides:
+  archive: ^3.4.0
+  crypto: ^3.0.3
+  dio: ^5.0.0

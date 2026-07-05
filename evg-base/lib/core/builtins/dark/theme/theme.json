@@ -1,0 +1,20 @@
+{
+  "type": "theme",
+  "id": "dark",
+  "name": "深色",
+  "colors": {
+    "primary": "#4096FF",
+    "secondary": "#1677FF",
+    "background": "#1E1E2E",
+    "surface": "#252536",
+    "error": "#FF7875",
+    "success": "#73D13D",
+    "text": "#E5E6EB",
+    "textSecondary": "#9CA3AF",
+    "border": "#3A3B45",
+    "sidebar": { "bg": "#1A1D21", "text": "#E5E6EB", "active": "#4096FF", "hover": "#252536" },
+    "tab": { "text": "#9CA3AF", "active": "#4096FF", "indicator": "#4096FF" },
+    "bubble": { "user": "#4096FF", "assistant": "#252536", "text": "#E5E6EB" },
+    "button": { "primary": "#4096FF", "hover": "#69B1FF", "text": "#FFFFFF" }
+  }
+}

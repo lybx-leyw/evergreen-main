@@ -1,0 +1,13 @@
+{
+  "name": "mesh_discover",
+  "description": "发现并报告平台微服务网格状态。读取所有 .xxx_port 文件，检查各服务健康状态，返回可用服务列表。演示插件 .exe 如何通过端口文件发现平台能力。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "service": { "type": "string", "description": "要检查的服务名（core/data/agent/config/module/theme），不填则全量检查" }
+    }
+  },
+  "readOnly": true,
+  "argMode": "args",
+  "argSpec": { "style": "flag" }
+}

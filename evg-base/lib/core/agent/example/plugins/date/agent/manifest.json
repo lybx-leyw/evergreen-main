@@ -1,0 +1,13 @@
+{
+  "name": "date",
+  "description": "获取当前日期，支持指定格式。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "format": { "type": "string", "description": "日期格式：iso / cn / us，默认 iso", "enum": ["iso", "cn", "us"] }
+    },
+    "required": []
+  },
+  "readOnly": true,
+  "argMode": "stdin"
+}

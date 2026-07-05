@@ -1,0 +1,17 @@
+{
+  "id": "evergreen-core",
+  "name": "Evergreen Core 默认设置",
+  "settings": [
+    {"key":"DEEPSEEK_API_KEY",     "label":"DeepSeek API Key",  "type":"string", "isSecure":true,  "hint":"从 platform.deepseek.com 获取"},
+    {"key":"DEEPSEEK_MODEL",       "label":"DeepSeek 模型",     "type":"string", "default":"deepseek-v4-flash"},
+    {"key":"DEEPSEEK_THINKING",    "label":"深度思考",           "type":"bool",   "default":"true"},
+    {"key":"DEEPSEEK_OCR_API_KEY", "label":"DeepSeek OCR Key",  "type":"string", "isSecure":true,  "hint":"用于 OCR 管线的 Level 1"},
+    {"key":"PYTHON_EXE",           "label":"Python 解释器路径",   "type":"path",   "hint":"默认使用内置 scripts/python/python.exe"},
+    {"key":"MATERIAL_DOWNLOAD_PATH","label":"下载目录",           "type":"path"}
+  ],
+  "permissions": [
+    {"key":"NETWORK", "label":"网络访问", "description":"允许插件访问互联网"},
+    {"key":"FILE_READ", "label":"读取文件", "description":"允许插件读取用户文档目录"},
+    {"key":"FILE_WRITE", "label":"写入文件", "description":"允许插件写入文件"}
+  ]
+}

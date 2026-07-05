@@ -1,0 +1,21 @@
+{
+  "name": "json_format",
+  "description": "JSON 格式化/压缩工具。操作: beautify(美化)/minify(压缩)/validate(校验)。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "text": { "type": "string", "description": "JSON 字符串" },
+      "operation": {
+        "type": "string",
+        "description": "操作: beautify / minify / validate",
+        "enum": ["beautify", "minify", "validate"]
+      },
+      "indent": { "type": "integer", "description": "美化缩进空格数，默认 2" },
+      "sort_keys": { "type": "boolean", "description": "按键排序，默认 false" }
+    },
+    "required": ["text", "operation"]
+  },
+  "readOnly": true,
+  "argMode": "args",
+  "argSpec": { "style": "flag", "prefix": "--", "flags": { "text": "-t", "operation": "-o", "indent": "-i", "sort_keys": "-s" } }
+}

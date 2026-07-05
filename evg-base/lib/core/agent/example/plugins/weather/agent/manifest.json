@@ -1,0 +1,19 @@
+{
+  "name": "weather",
+  "description": "查询指定城市天气（模拟）。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "city": { "type": "string", "description": "城市名" },
+      "days": { "type": "integer", "description": "预报天数，默认 1" }
+    },
+    "required": ["city"]
+  },
+  "readOnly": true,
+  "argMode": "args",
+  "argSpec": {
+    "style": "flag",
+    "prefix": "--",
+    "flags": { "city": "-c", "days": "-d" }
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "type": "theme",
+  "id": "liyu",
+  "name": "黎语未央",
+  "colors": {
+    "primary": "#CF222E",
+    "secondary": "#FF6B6B",
+    "background": "#F5F6F8",
+    "surface": "#FFFFFF",
+    "error": "#FF4D4F",
+    "success": "#52C41A",
+    "warning": "#FA8C16",
+    "text": "#1A1D21",
+    "textSecondary": "#656D78",
+    "border": "#D0D5DD",
+    "shadow": "#000000",
+    "overlay": "#000000",
+
+    "sidebar": { "bg": "#F2F3F5", "text": "#1A1D21", "active": "#CF222E", "hover": "#E8EAED" },
+    "bubble": { "user": "#CF222E", "assistant": "#F2F3F5", "text": "#1A1D21", "timestamp": "#656D78" },
+    "thinking": { "bg": "#FFF0F0", "text": "#A0111F", "border": "#FFCDD2" },
+    "toolCall": { "bg": "#F2F3F5", "text": "#1A1D21", "border": "#D0D5DD" },
+    "codeBlock": { "bg": "#1A1D21", "text": "#E6EDF3", "border": "#30363D", "header": "#21262D" },
+    "input": { "bg": "#F2F3F5", "text": "#1A1D21", "border": "#D0D5DD", "focus": "#CF222E", "placeholder": "#656D78", "error": "#FF4D4F" },
+    "progressBar": { "track": "#E8EAED", "fill": "#CF222E", "text": "#FFFFFF" },
+    "table": { "header": "#F2F3F5", "stripe": "#F5F6F8", "text": "#1A1D21", "border": "#D0D5DD", "hover": "#E8EAED" },
+    "card": { "bg": "#FFFFFF", "border": "#D0D5DD", "shadow": "#000000", "text": "#1A1D21" },
+    "button": { "primary": "#CF222E", "hover": "#A0111F", "active": "#A0111F", "disabled": "#D0D5DD", "text": "#FFFFFF" },
+    "badge": { "bg": "#CF222E", "text": "#FFFFFF" },
+    "divider": { "color": "#E8EAED", "thickness": "1" },
+    "scrollbar": { "thumb": "#D0D5DD", "track": "#F5F6F8" }
+  }
+}

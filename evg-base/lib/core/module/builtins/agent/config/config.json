@@ -1,0 +1,59 @@
+{
+  "id": "agent_from",
+  "name": "AI 助手",
+  "settings": [
+    {
+      "key": "DEEPSEEK_API_KEY",
+      "label": "API 密钥",
+      "type": "string",
+      "isSecure": true,
+      "hint": "DeepSeek API Key，从 platform.deepseek.com 获取"
+    },
+    {
+      "key": "DEEPSEEK_MODEL",
+      "label": "模型",
+      "type": "option",
+      "default": "deepseek-v4-flash",
+      "options": [
+        { "value": "deepseek-v4-flash", "label": "V4 Flash（快速）" },
+        { "value": "deepseek-v4-pro", "label": "V4 Pro（平衡）" },
+        { "value": "deepseek-v4-max", "label": "V4 Max（最强）" }
+      ],
+      "hint": "模型选择影响速度、质量和成本"
+    },
+    {
+      "key": "DEEPSEEK_BASE_URL",
+      "label": "API 地址",
+      "type": "string",
+      "default": "https://api.deepseek.com/v1",
+      "hint": "自定义 API 代理地址（兼容 OpenAI 格式）"
+    },
+    {
+      "key": "OUTPUT_STYLE",
+      "label": "输出风格",
+      "type": "option",
+      "default": "explanatory",
+      "options": [
+        { "value": "explanatory", "label": "解释型" },
+        { "value": "learning", "label": "学习型" },
+        { "value": "concise", "label": "简洁型" },
+        { "value": "socratic", "label": "苏格拉底式" }
+      ],
+      "hint": "AI 回复的风格偏好"
+    },
+    {
+      "key": "DEEP_THINKING",
+      "label": "深度思考",
+      "type": "bool",
+      "default": "false",
+      "hint": "启用后 AI 会展示详细推理过程（消耗更多 token）"
+    },
+    {
+      "key": "WEB_SEARCH_ENABLED",
+      "label": "联网搜索",
+      "type": "bool",
+      "default": "false",
+      "hint": "允许 AI 使用 web_search 工具查找实时信息"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "type": "theme", "id": "sunset", "name": "日落暖橙",
+  "colors": {
+    "primary": "#E65100", "secondary": "#FF9800",
+    "background": "#F5F6F8", "surface": "#FFFFFF",
+    "error": "#FF4D4F", "success": "#52C41A", "warning": "#FA8C16",
+    "text": "#1A1D21", "textSecondary": "#656D78", "border": "#D0D5DD",
+    "shadow": "#000000", "overlay": "#000000",
+    "sidebar": { "bg": "#F2F3F5", "text": "#1A1D21", "active": "#E65100", "hover": "#E8EAED" },
+    "bubble": { "user": "#E65100", "assistant": "#F2F3F5", "text": "#1A1D21", "timestamp": "#656D78" },
+    "thinking": { "bg": "#FFF3E0", "text": "#E65100", "border": "#FFB74D" },
+    "toolCall": { "bg": "#F2F3F5", "text": "#1A1D21", "border": "#D0D5DD" },
+    "codeBlock": { "bg": "#1A1D21", "text": "#E6EDF3", "border": "#30363D", "header": "#21262D" },
+    "input": { "bg": "#F2F3F5", "text": "#1A1D21", "border": "#D0D5DD", "focus": "#E65100", "placeholder": "#656D78", "error": "#FF4D4F" },
+    "progressBar": { "track": "#E8EAED", "fill": "#E65100", "text": "#FFFFFF" },
+    "table": { "header": "#F2F3F5", "stripe": "#F5F6F8", "text": "#1A1D21", "border": "#D0D5DD", "hover": "#E8EAED" },
+    "button": { "primary": "#E65100", "hover": "#BF360C", "active": "#BF360C", "disabled": "#D0D5DD", "text": "#FFFFFF" },
+    "badge": { "bg": "#FF4D4F", "text": "#FFFFFF" },
+    "divider": { "color": "#E8EAED", "thickness": "1" },
+    "scrollbar": { "thumb": "#D0D5DD", "track": "#F5F6F8" }
+  }
+}
