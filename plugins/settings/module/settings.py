@@ -3,8 +3,9 @@
 访问 http://127.0.0.1:{PORT}/ 即可看到所有设置项并直接编辑保存。
 同时保留 /api/* JSON 端点供 Flutter 端通过 HTTP 消费。
 """
-import argparse, json, os, sys, urllib.request, urllib.error, html
+import argparse, json, os, sys, urllib.request, urllib.error, html, http.client
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from urllib.parse import urlparse
 
 # ═══════ 项目根路径 ═══════
 
@@ -29,19 +30,30 @@ AGENT_BASE = None
 
 # ═══════ HTTP 工具 ═══════
 
-def _get(url):
+def _http_request(method, url, body=None):
+    """统一的 HTTP 请求函数，使用 http.client 直接控制请求。"""
     try:
-        return json.loads(urllib.request.urlopen(url, timeout=5))
+        parsed = urlparse(url)
+        conn = http.client.HTTPConnection(parsed.hostname, parsed.port, timeout=5)
+        headers = {"Content-Type": "application/json"} if body is not None else {}
+        body_bytes = json.dumps(body).encode("utf-8") if body is not None else None
+        conn.request(method, parsed.path, body=body_bytes, headers=headers)
+        resp = conn.getresponse()
+        raw = resp.read().decode("utf-8")
+        conn.close()
+        return (resp.status, json.loads(raw))
     except Exception as e:
-        return {"error": str(e)}
+        return (0, {"error": str(e)})
+
+def _get(url):
+    _, data = _http_request("GET", url)
+    return data
 
 def _post(url, body):
-    try:
-        data = json.dumps(body).encode()
-        req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"}, method="POST")
-        return json.loads(urllib.request.urlopen(req, timeout=5))
-    except Exception as e:
-        return {"error": str(e)}
+    status, data = _http_request("POST", url, body)
+    if status == 0:
+        return data  # exception case, already {"error": ...}
+    return data
 
 # ═══════ HTML 渲染 ═══════
 
@@ -339,28 +351,50 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         path = self.path.split("?")[0]
-        raw = self.rfile.read(int(self.headers.get("Content-Length", 0))) if self.headers.get("Content-Length") else b""
-        body = json.loads(raw) if raw else {}
+        cl = self.headers.get("Content-Length")
+        if cl:
+            raw = self.rfile.read(int(cl))
+        else:
+            raw = b""
+        body = json.loads(raw) if raw and raw.strip() else {}
 
         if path.startswith("/api/settings/") and CONFIG_BASE:
             key = path.rsplit("/", 1)[-1]
-            return self._json(_post(f"{CONFIG_BASE}/config/settings/{key}", body))
+            result = _post(f"{CONFIG_BASE}/config/settings/{key}", body)
+            if "error" in result:
+                return self._json(result, 502)
+            return self._json(result)
 
         if path.startswith("/api/permissions/") and CONFIG_BASE:
             pid = path.rsplit("/", 1)[-1]
-            return self._json(_post(f"{CONFIG_BASE}/config/permissions/{pid}", body))
+            result = _post(f"{CONFIG_BASE}/config/permissions/{pid}", body)
+            if "error" in result:
+                return self._json(result, 502)
+            return self._json(result)
 
         if path == "/api/sources" and CONFIG_BASE:
-            return self._json(_post(f"{CONFIG_BASE}/config/sources", body))
+            result = _post(f"{CONFIG_BASE}/config/sources", body)
+            if "error" in result:
+                return self._json(result, 502)
+            return self._json(result)
 
         if path == "/api/themes/active" and THEME_BASE:
-            return self._json(_post(f"{THEME_BASE}/theme/active", body))
+            result = _post(f"{THEME_BASE}/theme/active", body)
+            if "error" in result:
+                return self._json(result, 502)
+            return self._json(result)
 
         if path == "/api/memories" and AGENT_BASE:
-            return self._json(_post(f"{AGENT_BASE}/agent/memories", body))
+            result = _post(f"{AGENT_BASE}/agent/memories", body)
+            if "error" in result:
+                return self._json(result, 502)
+            return self._json(result)
 
         if path == "/api/styles" and AGENT_BASE:
-            return self._json(_post(f"{AGENT_BASE}/agent/styles", body))
+            result = _post(f"{AGENT_BASE}/agent/styles", body)
+            if "error" in result:
+                return self._json(result, 502)
+            return self._json(result)
 
         if path == "/api/import" and CONFIG_BASE:
             items = body.get("settings", [])
@@ -369,8 +403,9 @@ class Handler(BaseHTTPRequestHandler):
                 key = item.get("key", "")
                 val = item.get("value", "")
                 if key:
-                    _post(f"{CONFIG_BASE}/config/settings/{key}", {"value": str(val)})
-                    count += 1
+                    result = _post(f"{CONFIG_BASE}/config/settings/{key}", {"value": str(val)})
+                    if "error" not in result:
+                        count += 1
             return self._json({"imported": True, "count": count})
 
         return self._json({"endpoint": path, "available": False}, 404)

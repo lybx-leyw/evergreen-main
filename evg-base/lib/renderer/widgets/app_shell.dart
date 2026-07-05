@@ -175,7 +175,7 @@ class _CollapsedSidebar extends ConsumerWidget {
                             entry.icon,
                             size: 20,
                             color: isActive
-                                ? Theme.of(context).colorScheme.primary
+                                ? Theme.of(context).colorScheme.onPrimaryContainer
                                 : Theme.of(context)
                                     .colorScheme
                                     .onSurfaceVariant,
@@ -541,7 +541,7 @@ class _NavItemWithBadge extends StatelessWidget {
                   icon,
                   size: 20,
                   color: isActive
-                      ? Theme.of(context).colorScheme.primary
+                      ? Theme.of(context).colorScheme.onPrimaryContainer
                       : Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
                 const SizedBox(width: 12),
@@ -552,7 +552,7 @@ class _NavItemWithBadge extends StatelessWidget {
                       fontSize: 14,
                       fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
                       color: isActive
-                          ? Theme.of(context).colorScheme.primary
+                          ? Theme.of(context).colorScheme.onPrimaryContainer
                           : Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
@@ -625,7 +625,7 @@ class _NavItem extends StatelessWidget {
                     icon,
                     size: 20,
                     color: isActive
-                        ? Theme.of(context).colorScheme.primary
+                        ? Theme.of(context).colorScheme.onPrimaryContainer
                         : Theme.of(context).colorScheme.onSurfaceVariant,
                     semanticLabel: label,
                   ),
@@ -640,7 +640,7 @@ class _NavItem extends StatelessWidget {
                         fontWeight:
                             isActive ? FontWeight.w600 : FontWeight.normal,
                         color: isActive
-                            ? Theme.of(context).colorScheme.primary
+                            ? Theme.of(context).colorScheme.onPrimaryContainer
                             : Theme.of(context).colorScheme.onSurface,
                       ),
                     ),

@@ -197,9 +197,11 @@ class _SettingsViewState extends ConsumerState<SettingsView> {
       final client =
           HttpClient()..connectionTimeout = const Duration(seconds: 5);
       try {
+        final bodyBytes = utf8.encode(jsonEncode({'value': value}));
         final req = await client.postUrl(Uri.parse('$base/api/settings/$key'));
         req.headers.contentType = ContentType.json;
-        req.write(jsonEncode({'value': value}));
+        req.contentLength = bodyBytes.length;
+        req.add(bodyBytes);
         final resp = await req.close().timeout(const Duration(seconds: 5));
         if (resp.statusCode == 200) {
           debugPrint('[settings] 已保存 $key = $value');

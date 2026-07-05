@@ -1,3 +1,3 @@
-port=54448
-root=C:\Users\19389\Desktop\Evergreen-Multi-Tools\core\Win\evergreen-base - 副本\evg-base
-cwd=C:\Users\19389\Desktop\Evergreen-Multi-Tools\core\Win\evergreen-base - 副本\plugins\pomodoro
+port=52461
+root=D:\study_and_try\try_add\evg-base
+cwd=D:\study_and_try\try_add\plugins\pomodoro

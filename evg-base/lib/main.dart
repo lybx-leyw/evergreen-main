@@ -224,8 +224,8 @@ void main() async {
   for (final entry in servers.entries) {
     try {
       final r = (entry.value as dynamic).start();
-      final p = (r is Future) ? await r : (entry.value as dynamic).port;
-      final port = p is int ? p : 0;
+      final pVal = (r is Future) ? await r : (entry.value as dynamic).port;
+      final port = pVal is int ? pVal : 0;
       textModeServerPorts[entry.key] = port;
       // 统一写入端口发现文件到 _projectRoot
       final portFileName = '.${entry.key.toLowerCase()}_port';
