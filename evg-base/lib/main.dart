@@ -81,10 +81,7 @@ late final String _projectRoot = _findProjectRoot();
 
 // ═══════ 路径常量 ═══════
 
-/// 内置模块/主题/设置统一目录。
-String get _builtinsDir => p.join(_projectRoot, 'lib/core/builtins');
-
-/// 插件目录（plugins/ 位于 evg-base/ 的父目录，以实现核心与插件的隔离）。
+/// 插件目录（位于项目根上级，统一存放所有模块/主题/设置）。
 String get _pluginsDir => p.join(_projectRoot, '..', 'plugins');
 
 /// 文本模式下各 HttpServer 实际端口（main 启动后填充，app.dart 读取）。
@@ -123,19 +120,18 @@ void main() async {
     prefs = await SharedPreferences.getInstance();
   }
 
-  // ── 设置初始化（内置 + 插件 config.json，写入默认值） ──
+  // ── 设置初始化（扫描 plugins/ 下所有 config.json，写入默认值） ──
   await initSettings(
     prefs,
-    pluginDirs: [_builtinsDir, _pluginsDir],
+    pluginDirs: [_pluginsDir],
   );
 
   // ── 数据谱仪器 ──
   final orchestrator = DataOrchestrator();
   orchestrator.refreshStatusFromDisk();
 
-  // ── 主题（内置 → 插件，后者覆盖同 id） ──
+  // ── 主题（从 plugins/ 加载） ──
   final themeStore = ThemeStore();
-  loadThemes(_builtinsDir, themeStore);
   loadThemes(_pluginsDir, themeStore);
 
   // ── ⚠️ 启动各模块 HttpServer 必须在模块 .exe 之前 —— 确保 .xxx_port 文件已写入 ──
@@ -244,13 +240,12 @@ void main() async {
   // ── 模块注册中心（HttpServer 就绪后再启动 .exe，确保端口文件已存在） ──
   final registry = ModuleRegistry();
 
-  final builtinLoaders = await scanAndLoadModules(_builtinsDir, registry, projectRoot: _projectRoot);
-  await scanAndLoadModules(_pluginsDir, registry, projectRoot: _projectRoot);
+  final loaders = await scanAndLoadModules(_pluginsDir, registry, projectRoot: _projectRoot);
 
-  for (final loader in builtinLoaders) {
+  for (final loader in loaders) {
     if (loader.isRunning && loader.port != null) {
       textModeServerPorts[loader.manifest.id] = loader.port!;
-      stderr.writeln('[main] 内置模块 ${loader.manifest.id} → http://127.0.0.1:${loader.port}');
+      stderr.writeln('[main] 模块 ${loader.manifest.id} → http://127.0.0.1:${loader.port}');
     }
   }
   registry.seal();
@@ -286,8 +281,8 @@ void main() async {
         // 插件目录（供渲染层构造模块工作目录）
         pluginsDirProvider.overrideWith((ref) => _pluginsDir),
 
-        // 内置模块目录（PLAN_NOW composite 模式用）
-        builtinsDirProvider.overrideWith((ref) => _builtinsDir),
+        // 模块端口映射（供渲染层通过 HTTP 与模块 .exe 通信）
+        modulePortsProvider.overrideWith((ref) => textModeServerPorts),
 
         // Agent Controller——Chat 视图通过此 provider 发送消息
         agentControllerProvider.overrideWith((ref) => controller),

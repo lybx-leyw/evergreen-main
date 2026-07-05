@@ -35,10 +35,13 @@ final pluginsDirProvider = Provider<String>((ref) {
   );
 });
 
-/// 内置模块根目录——`$projectRoot/lib/core/builtins/`。
-final builtinsDirProvider = Provider<String>((ref) {
+/// 模块 ID → HTTP 端口映射。
+///
+/// 由 main() 在启动模块 .exe 后填充，供渲染层通过 HTTP 与模块后端通信。
+/// key 为模块 id（如 "settings"、"pomodoro"），value 为监听端口。
+final modulePortsProvider = Provider<Map<String, int>>((ref) {
   throw UnimplementedError(
-    'builtinsDirProvider 未注入——请在 main() 的 ProviderScope.overrides 中提供内置模块目录路径。',
+    'modulePortsProvider 未注入——请在 main() 的 ProviderScope.overrides 中提供模块端口映射。',
   );
 });
 

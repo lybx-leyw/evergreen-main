@@ -104,21 +104,15 @@ Page<void> _fadePage(Widget child, GoRouterState state) {
 
 /// 为 [ModuleRegistry] 中的所有模块生成 GoRoute 列表。
 ///
-/// [pluginsDir] 为外部插件根目录，[builtinsDir] 为内置模块根目录。
-/// 优先从 [pluginsDir] 解析工作目录，不存在时回退到 [builtinsDir]。
-List<GoRoute> _buildModuleRoutes(ModuleRegistry registry, String pluginsDir, String builtinsDir) {
+/// [pluginsDir] 为插件根目录，所有模块的工作目录均从该目录解析。
+List<GoRoute> _buildModuleRoutes(ModuleRegistry registry, String pluginsDir) {
   final seen = <String>{};
   final routes = <GoRoute>[];
   final modules = registry.modules;
   debugPrint('[Router] registry has ${modules.length} modules');
   for (final m in modules) {
     debugPrint('[Router] module: id=${m.id} route=${m.route} ui=${m.ui}');
-    // PLAN_NOW: 工作目录解析——先查 plugins/，再回退到 builtins/
-    final pluginPath = p.join(pluginsDir, m.id);
-    final builtinPath = p.join(builtinsDir, m.id);
-    final workingDir = (Directory(pluginPath).existsSync()
-        ? pluginPath
-        : builtinPath) + p.separator;
+    final workingDir = p.join(pluginsDir, m.id) + p.separator;
     // 主路由
     if (m.route != null && m.route!.isNotEmpty && seen.add(m.route!)) {
       routes.add(GoRoute(
@@ -176,7 +170,6 @@ List<GoRoute> _buildModuleRoutes(ModuleRegistry registry, String pluginsDir, Str
 final routerProvider = Provider<GoRouter>((ref) {
   final registry = ref.watch(moduleRegistryProvider);
   final pluginsDir = ref.watch(pluginsDirProvider);
-  final builtinsDir = ref.watch(builtinsDirProvider);
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
@@ -195,7 +188,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             ),
           ),
           // Registry 驱动：所有模块路由
-          ..._buildModuleRoutes(registry, pluginsDir, builtinsDir),
+          ..._buildModuleRoutes(registry, pluginsDir),
         ],
       ),
     ],

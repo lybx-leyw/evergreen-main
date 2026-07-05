@@ -14,7 +14,6 @@
 ///
 /// | 函数 | 输入 | 输出 | 说明 |
 /// |---|---|---|---|
-/// | `loadBuiltinModules(dir, registry)` | `String`, `ModuleRegistry` | `void` | 加载内置模块 |
 /// | `scanModules(dir)` | `String` | `List<ModuleDescriptor>` | 纯扫描，不启动进程 |
 /// | `scanAndLoadModules(dir, registry)` | `String`, `ModuleRegistry` | `List<ModuleLoader>` | 扫描 + 注册 + 启动进程 |
 library;
@@ -185,25 +184,6 @@ void _scanDir(String parentDir, void Function(ModuleDescriptor, String dirPath) 
       Log().warn('ModuleLoader: 解析失败 ${manifestFile.path}', error: e);
     }
   }
-}
-
-/// 加载内置模块——扫描 [builtinsDir] 下各子目录的 manifest.json 并注册。
-///
-/// 内置模块优先注册，插件模块可覆盖（同 id 先注册者生效）。
-/// 自动调用 [discoverCapabilities] 检测每个模块的能力维度。
-void loadBuiltinModules(String builtinsDir, ModuleRegistry registry) {
-  final ids = <String>[];
-  _scanDir(builtinsDir, (d, dirPath) {
-    registry.register(d);
-    ids.add(d.id);
-    // 自动发现能力维度并注册
-    final dims = discoverCapabilities(dirPath, descriptor: d);
-    if (dims.isNotEmpty) {
-      registry.setCapabilities(d.id, dims);
-    }
-  });
-  Log().info('ModuleLoader: 加载 ${ids.length} 个内置模块',
-      data: {'ids': ids});
 }
 
 /// 扫描目录下的 manifest.json，返回 [ModuleDescriptor] 列表（不启动进程）。
