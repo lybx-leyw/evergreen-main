@@ -29,7 +29,7 @@ import 'package:evergreen_base/core/agent/controller/controller.dart' show Contr
 import 'package:evergreen_base/core/agent/agent_factory.dart';
 import 'package:evergreen_base/core/agent/memory/file_memory_store.dart';
 import 'package:evergreen_base/providers.dart';
-import 'package:evergreen_base/core/agent/agent_runtime.dart' show webSearchEnabledProvider, deepThinkingEnabledProvider, agentRuntimeProvider;
+import 'package:evergreen_base/core/agent/agent_runtime.dart' show webSearchEnabledProvider, deepThinkingEnabledProvider, reasoningEffortProvider, validReasoningEfforts, agentRuntimeProvider;
 import 'package:evergreen_base/providers.dart' show agentControllerProvider;
 import 'package:evergreen_base/core/agent/session_manager.dart';
 import 'package:evergreen_base/renderer/widgets/models.dart';
@@ -925,6 +925,14 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
       ),
       child: Row(
         children: [
+          // 工具选项按钮
+          IconButton(
+            icon: Icon(Icons.handyman_outlined, size: 16,
+                color: isDark ? Colors.grey.shade400 : Colors.grey.shade600),
+            tooltip: '工具选项',
+            onPressed: () => _showToolsSheet(context),
+            visualDensity: VisualDensity.compact,
+          ),
           Expanded(
             child: TextField(
               controller: _inputCtrl,
@@ -1028,6 +1036,11 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
               onPressed: () => _scaffoldKey.currentState?.openEndDrawer(),
             ),
           IconButton(
+            icon: const Icon(Icons.handyman_outlined),
+            tooltip: '工具选项',
+            onPressed: () => _showToolsSheet(context),
+          ),
+          IconButton(
             icon: const Icon(Icons.auto_fix_high),
             tooltip: '技能管理',
             onPressed: () => Navigator.of(context).push(
@@ -1090,6 +1103,189 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     );
   }
 
+  // ── 工具管理面板 ──
+
+  void _showToolsSheet(BuildContext context) {
+    final registry = ref.read(toolRegistryProvider);
+    final tools = registry.all()..sort((a, b) => a.name.compareTo(b.name));
+    final theme = Theme.of(context);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetCtx) {
+        // 响应式：工具启用/禁用状态变化时自动重建列表
+        return Consumer(
+          builder: (ctx, ref, _) {
+            final disabled = ref.watch(toolDisabledProvider);
+            return DraggableScrollableSheet(
+              expand: false,
+              initialChildSize: 0.55,
+              maxChildSize: 0.85,
+              minChildSize: 0.3,
+              builder: (ctx, scrollCtrl) {
+                final enabledCount =
+                    tools.where((t) => !disabled.contains(t.name)).length;
+                return Column(
+                  children: [
+                    // ── 拖动条 ──
+                    const SizedBox(height: 8),
+                    Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade400,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    // ── 标题行 ──
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+                      child: Row(
+                        children: [
+                          Icon(Icons.handyman_outlined,
+                              size: 20, color: theme.colorScheme.primary),
+                          const SizedBox(width: 8),
+                          Text('Agent 工具选项',
+                              style: theme.textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w600)),
+                          const Spacer(),
+                          Text('$enabledCount/${tools.length} 已启用',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                  color:
+                                      theme.colorScheme.onSurfaceVariant)),
+                        ],
+                      ),
+                    ),
+                    const Divider(),
+                    // ── 工具列表 ──
+                    Expanded(
+                      child: ListView.builder(
+                        controller: scrollCtrl,
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        itemCount: tools.length,
+                        itemBuilder: (ctx, index) {
+                          final tool = tools[index];
+                          final isEnabled =
+                              !disabled.contains(tool.name);
+                          final toolIsEssential = isEssentialTool(tool.name);
+                          return _ToolTile(
+                            name: tool.name,
+                            description: tool.description,
+                            readOnly: tool.readOnly,
+                            enabled: isEnabled,
+                            isEssential: toolIsEssential,
+                            onToggle: (v) {
+                              // 关闭核心工具时弹出警告
+                              if (!v && toolIsEssential) {
+                                _confirmDisableEssential(ctx, tool.name, () {
+                                  _applyToggle(
+                                      registry, tool.name, v, disabled, ref);
+                                });
+                                return;
+                              }
+                              _applyToggle(
+                                  registry, tool.name, v, disabled, ref);
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ── 工具管理辅助方法 ──
+
+  /// 需要警告的禁用影响说明。
+  static const _essentialWarnings = <String, String>{
+    'read_global_memory': 'Agent 将无法读取跨会话记忆，\n失去个性化上下文和用户偏好。',
+    'write_global_memory': 'Agent 将无法记住你的偏好和特质，\n所有对话结束后信息丢失。',
+    'read_file': 'Agent 将无法访问工作区中的文件，\n无法读取代码、文档等内容。',
+    'write_file': 'Agent 将无法创建或编辑工作区中的文件，\n无法保存任何产出。',
+  };
+
+  /// 弹出警告——禁用核心工具前确认。
+  void _confirmDisableEssential(
+      BuildContext ctx, String toolName, VoidCallback onConfirm) {
+    final warning = _essentialWarnings[toolName] ?? '该工具是 Agent 基础功能的一部分。';
+    showDialog(
+      context: ctx,
+      builder: (dialogCtx) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber, color: Colors.amber.shade700, size: 24),
+            const SizedBox(width: 8),
+            const Text('确认禁用核心工具', style: TextStyle(fontSize: 16)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('「$toolName」是 Agent 的基础功能工具：',
+                style: const TextStyle(fontSize: 13)),
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.withValues(alpha: 0.15)),
+              ),
+              child: Text(warning,
+                  style: TextStyle(
+                      fontSize: 13, color: Colors.red.shade700)),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('取消'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(dialogCtx);
+              onConfirm();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade600,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('仍然禁用'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 应用工具启用/禁用状态——更新 Registry + SharedPreferences + Riverpod。
+  void _applyToggle(agent.Registry registry, String name, bool enable,
+      Set<String> disabled, WidgetRef r) {
+    final prefs = r.read(sharedPreferencesProvider);
+    final newDisabled = Set<String>.from(disabled);
+    if (enable) {
+      registry.enable(name);
+      newDisabled.remove(name);
+    } else {
+      registry.disable(name);
+      newDisabled.add(name);
+    }
+    prefs.setString('tool_disabled', newDisabled.join(','));
+    r.read(toolDisabledProvider.notifier).state = newDisabled;
+  }
+
   // ── 状态指示灯 ──
 
   Widget _buildStatusBar(ThemeData theme) {
@@ -1134,7 +1330,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
   Widget _buildInputBar(ThemeData theme) {
     final isRunning = ref.watch(controllerStateProvider) == ControllerState.running;
     final webSearch = ref.watch(webSearchEnabledProvider);
-    final deepThink = ref.watch(deepThinkingEnabledProvider);
+    final effort = ref.watch(reasoningEffortProvider);
     final hasWorkspace = widget.descriptor.workspace != null;
 
     return Container(
@@ -1174,13 +1370,18 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                   activeColor: const Color(0xFF1565C0),
                 ),
                 const SizedBox(width: 4),
-                _ToggleChip(
-                  icon: Icons.auto_awesome,
-                  label: '深度思考',
-                  value: deepThink,
+                _EffortSelector(
+                  effort: effort,
                   onChanged: (v) =>
-                      ref.read(deepThinkingEnabledProvider.notifier).state = v,
-                  activeColor: const Color(0xFF7B1FA2),
+                      ref.read(reasoningEffortProvider.notifier).state = v,
+                ),
+                const SizedBox(width: 4),
+                _ToggleChip(
+                  icon: Icons.handyman_outlined,
+                  label: '工具',
+                  value: false,
+                  onChanged: (_) => _showToolsSheet(context),
+                  activeColor: const Color(0xFF2E7D32),
                 ),
                 const Spacer(),
                 IconButton(
@@ -2007,6 +2208,127 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
+// ═══════ _EffortSelector ═══════
+
+/// 深度思考档位选择器——在工具栏中显示为芯片，点击弹出多档菜单。
+class _EffortSelector extends StatelessWidget {
+  final String effort;
+  final ValueChanged<String> onChanged;
+
+  const _EffortSelector({required this.effort, required this.onChanged});
+
+  static const _labels = <String, String>{
+    'off': '思考: 关',
+    'low': '思考: 低',
+    'medium': '思考: 中',
+    'high': '思考: 高',
+    'max': '思考: 最强',
+  };
+
+  static const _descriptions = <String, String>{
+    'off': '关闭深度思考',
+    'low': '快速回答，适合简单问题',
+    'medium': '适度思考，日常对话推荐',
+    'high': '深入推理，复杂问题适用',
+    'max': '全面思考，最复杂场景',
+  };
+
+  static const _icons = <String, IconData>{
+    'off': Icons.bolt,
+    'low': Icons.speed,
+    'medium': Icons.auto_awesome,
+    'high': Icons.psychology,
+    'max': Icons.rocket_launch,
+  };
+
+  static const _levelColor = Color(0xFF7B1FA2);
+  static const _offColor = Color(0xFF757575);
+
+  @override
+  Widget build(BuildContext context) {
+    final isOn = effort != 'off';
+    final color = isOn ? _levelColor : _offColor;
+    final label = _labels[effort] ?? '思考';
+
+    return FilterChip(
+      avatar: Icon(
+        _icons[effort] ?? Icons.auto_awesome,
+        size: 16,
+        color: isOn ? Colors.white : color,
+      ),
+      label: Text(label,
+          style: TextStyle(fontSize: 12, color: isOn ? Colors.white : null)),
+      selected: isOn,
+      selectedColor: _levelColor,
+      checkmarkColor: Colors.white,
+      showCheckmark: false,
+      onSelected: (_) => _showMenu(context),
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    );
+  }
+
+  void _showMenu(BuildContext context) {
+    final renderBox = context.findRenderObject() as RenderBox;
+    final offset = renderBox.localToGlobal(Offset.zero);
+    final size = renderBox.size;
+
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        offset.dx,
+        offset.dy + size.height + 4,
+        offset.dx + size.width,
+        offset.dy + size.height + 4,
+      ),
+      items: validReasoningEfforts.map((level) {
+        final isSelected = level == effort;
+        final icon = _icons[level] ?? Icons.auto_awesome;
+        final desc = _descriptions[level] ?? '';
+        return PopupMenuItem<String>(
+          value: level,
+          child: Row(
+            children: [
+              Icon(icon,
+                  size: 18,
+                  color: isSelected ? _levelColor : null),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _labels[level] ?? level,
+                      style: TextStyle(
+                        fontWeight:
+                            isSelected ? FontWeight.w700 : FontWeight.w500,
+                        fontSize: 13,
+                      ),
+                    ),
+                    if (desc.isNotEmpty)
+                      Text(desc,
+                          style: TextStyle(
+                              fontSize: 11,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant)),
+                  ],
+                ),
+              ),
+              if (isSelected)
+                Icon(Icons.check, size: 16,
+                    color: Theme.of(context).colorScheme.primary),
+            ],
+          ),
+        );
+      }).toList(),
+    ).then((selected) {
+      if (selected != null) onChanged(selected);
+    });
+  }
+}
+
 // ═══════ _ToggleChip ═══════
 
 class _ToggleChip extends StatelessWidget {
@@ -2096,4 +2418,145 @@ class _LocalChatMessagesNotifier extends StateNotifier<List<ChatMessage>> {
   }
 
   void clear() => state = [];
+}
+
+// ═══════ _ToolTile ═══════
+
+/// 工具选项面板中的单个工具行——名称、描述、开关。
+class _ToolTile extends StatelessWidget {
+  final String name;
+  final String description;
+  final bool readOnly;
+  final bool enabled;
+  final bool isEssential;
+  final ValueChanged<bool> onToggle;
+
+  const _ToolTile({
+    required this.name,
+    required this.description,
+    required this.readOnly,
+    required this.enabled,
+    required this.isEssential,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final iconData = _toolIcon(name);
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 3),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.grey.shade900 : Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: enabled
+              ? isEssential
+                  ? Colors.amber.withValues(alpha: 0.35)
+                  : theme.colorScheme.primary.withValues(alpha: 0.2)
+              : Colors.transparent,
+        ),
+      ),
+      child: ListTile(
+        leading: CircleAvatar(
+          radius: 18,
+          backgroundColor: enabled
+              ? (isEssential
+                  ? Colors.amber.withValues(alpha: 0.2)
+                  : theme.colorScheme.primary.withValues(alpha: 0.15))
+              : Colors.grey.shade400,
+          child: Icon(
+            iconData,
+            size: 18,
+            color: enabled
+                ? (isEssential ? Colors.amber.shade700 : theme.colorScheme.primary)
+                : Colors.grey.shade600,
+          ),
+        ),
+        title: Row(
+          children: [
+            if (isEssential) ...[
+              Text('★ ',
+                  style: TextStyle(
+                      fontSize: 13, color: Colors.amber.shade700, fontWeight: FontWeight.bold)),
+            ],
+            Text(
+              name,
+              style: theme.textTheme.bodyMedium
+                  ?.copyWith(fontWeight: FontWeight.w600, fontSize: 13),
+            ),
+            if (isEssential) ...[
+              const SizedBox(width: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                decoration: BoxDecoration(
+                  color: Colors.amber.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text('核心',
+                    style: TextStyle(fontSize: 9, color: Color(0xFFB8860B))),
+              ),
+            ],
+            if (readOnly) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: BoxDecoration(
+                  color: Colors.green.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text('只读',
+                    style: TextStyle(fontSize: 9, color: Colors.green)),
+              ),
+            ],
+          ],
+        ),
+        subtitle: description.length > 60
+            ? Text('${description.substring(0, 60)}…',
+                style: theme.textTheme.bodySmall?.copyWith(
+                    fontSize: 11,
+                    color: theme.colorScheme.onSurfaceVariant))
+            : Text(description,
+                style: theme.textTheme.bodySmall?.copyWith(
+                    fontSize: 11,
+                    color: theme.colorScheme.onSurfaceVariant)),
+        trailing: Switch(
+          value: enabled,
+          onChanged: onToggle,
+          activeColor: isEssential ? Colors.amber.shade600 : theme.colorScheme.primary,
+        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+        visualDensity: VisualDensity.compact,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  /// 根据工具名称推断合适的图标。
+  static IconData _toolIcon(String name) {
+    final lower = name.toLowerCase();
+    if (lower.contains('read') || lower.contains('file')) return Icons.file_open;
+    if (lower.contains('write') || lower.contains('edit')) return Icons.edit_note;
+    if (lower.contains('search') || lower.contains('web')) return Icons.language;
+    if (lower.contains('python') || lower.contains('run') || lower.contains('code'))
+      return Icons.code;
+    if (lower.contains('memory') || lower.contains('remember')) return Icons.psychology;
+    if (lower.contains('skill') || lower.contains('plugin')) return Icons.auto_fix_high;
+    if (lower.contains('calculator') || lower.contains('math')) return Icons.calculate;
+    if (lower.contains('password') || lower.contains('gen')) return Icons.lock;
+    if (lower.contains('convert') || lower.contains('transform')) return Icons.transform;
+    if (lower.contains('json') || lower.contains('format')) return Icons.data_object;
+    if (lower.contains('url') || lower.contains('encode')) return Icons.link;
+    if (lower.contains('text') || lower.contains('string')) return Icons.text_fields;
+    if (lower.contains('image') || lower.contains('photo')) return Icons.image;
+    if (lower.contains('color')) return Icons.palette;
+    if (lower.contains('qr') || lower.contains('barcode')) return Icons.qr_code;
+    if (lower.contains('uuid') || lower.contains('id')) return Icons.fingerprint;
+    if (lower.contains('unit') || lower.contains('measure')) return Icons.straighten;
+    if (lower.contains('timer') || lower.contains('pomodoro')) return Icons.timer;
+    if (lower.contains('vocab') || lower.contains('word')) return Icons.spellcheck;
+    return Icons.toggle_on; // 默认图标
+  }
 }

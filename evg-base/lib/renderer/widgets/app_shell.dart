@@ -180,6 +180,9 @@ class _CollapsedSidebar extends ConsumerWidget {
                       child: InkWell(
                         borderRadius: BorderRadius.circular(8),
                         onTap: () => _handleNavTap(ref, context, entry),
+                        hoverColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+                        splashColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+                        highlightColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.04),
                         child: Padding(
                           padding:
                               const EdgeInsets.symmetric(vertical: 10),
@@ -546,6 +549,8 @@ class _NavItemWithBadge extends StatelessWidget {
         child: InkWell(
           borderRadius: BorderRadius.circular(8),
           onTap: () => context.go(path),
+          hoverColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+          splashColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
@@ -631,7 +636,12 @@ class _NavItem extends ConsumerWidget {
           child: InkWell(
             borderRadius: BorderRadius.circular(8),
             onTap: () => _handleNavTap(ref, context, entry),
-            child: Padding(
+            hoverColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+            splashColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+            highlightColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.04),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
               padding:
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               child: Row(

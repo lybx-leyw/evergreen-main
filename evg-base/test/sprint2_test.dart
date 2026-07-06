@@ -74,6 +74,7 @@ Widget _materialApp(Widget child) {
 // ═══════════════════════════════════════════════════════════════════
 
 void main() {
+  SharedPreferences.setMockInitialValues({});
   group('AbilityDim', () {
     test('6 个枚举值', () {
       expect(AbilityDim.values.length, 6);

@@ -4,7 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
-import 'package:evergreen_base/core/agent/agent_runtime.dart' show webSearchEnabledProvider, deepThinkingEnabledProvider;
+import 'package:evergreen_base/core/agent/agent_runtime.dart' show webSearchEnabledProvider, reasoningEffortProvider, validReasoningEfforts;
 import '../shared/theme_provider.dart';
 
 /// 聊天输入栏。
@@ -62,7 +62,7 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
 
     // 从 provider 读取开关状态，确保 UI 与后端同步
     final webSearch = ref.watch(webSearchEnabledProvider);
-    final deepThink = ref.watch(deepThinkingEnabledProvider);
+    final effort = ref.watch(reasoningEffortProvider);
 
     return Container(
       decoration: BoxDecoration(
@@ -102,11 +102,10 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
                 ),
                 const SizedBox(width: 4),
                 // 深度思考 — 直接读写 provider，同步 reasoning_effort
-                _ToolbarButton(
-                  icon: Icons.psychology_outlined,
-                  label: '深度思考',
-                  active: deepThink,
-                  onTap: () => ref.read(deepThinkingEnabledProvider.notifier).state = !deepThink,
+                _EffortButton(
+                  effort: effort,
+                  onChanged: (v) =>
+                      ref.read(reasoningEffortProvider.notifier).state = v,
                 ),
               ],
             ),
@@ -170,6 +169,57 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
 }
 
 // ═══════ _ToolbarButton ═══════
+
+/// 深度思考档位按钮—— chat_input_bar 用。
+class _EffortButton extends StatelessWidget {
+  final String effort;
+  final ValueChanged<String> onChanged;
+
+  const _EffortButton({required this.effort, required this.onChanged});
+
+  static const _labels = <String, String>{
+    'off': '深度思考: 关',
+    'low': '深度思考: 低',
+    'medium': '深度思考: 中',
+    'high': '深度思考: 高',
+    'max': '深度思考: 最强',
+  };
+  static const _levelColor = Color(0xFF7B1FA2);
+
+  @override
+  Widget build(BuildContext context) {
+    final isOn = effort != 'off';
+    return _ToolbarButton(
+      icon: Icons.psychology_outlined,
+      label: _labels[effort] ?? '深度思考',
+      active: isOn,
+      onTap: () => _showMenu(context),
+    );
+  }
+
+  void _showMenu(BuildContext context) {
+    final renderBox = context.findRenderObject() as RenderBox;
+    final offset = renderBox.localToGlobal(Offset.zero);
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        offset.dx, offset.dy + renderBox.size.height + 4,
+        offset.dx + renderBox.size.width, offset.dy + renderBox.size.height + 4,
+      ),
+      items: validReasoningEfforts.map((level) => PopupMenuItem<String>(
+        value: level,
+        child: Text(
+          _labels[level] ?? level,
+          style: TextStyle(
+            fontWeight: level == effort ? FontWeight.w700 : FontWeight.w400,
+          ),
+        ),
+      )).toList(),
+    ).then((selected) {
+      if (selected != null) onChanged(selected);
+    });
+  }
+}
 
 class _ToolbarButton extends StatelessWidget {
   final IconData icon;

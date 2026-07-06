@@ -212,7 +212,8 @@ class DeepSeekProvider implements Provider {
     _thinking = thinking;
   }
 
-  /// 设置推理深度（'' / 'high' / 'max'）。
+  /// 设置推理深度（'low' / 'medium' / 'high' / 'max' / '' 默认）。
+  /// 由 [reasoningEffortProvider] 驱动，参见 agent_runtime.dart。
   void setReasoningEffort(String effort) => _reasoningEffort = effort;
 
   @override

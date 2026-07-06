@@ -292,19 +292,87 @@ class _CompositeViewState extends State<CompositeView>
   }
 
   Widget _buildTabBar(List<PageDescriptor> pages) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     return Material(
-      color: Theme.of(context).colorScheme.surfaceContainerLow,
-      child: TabBar(
-        controller: _tabController,
-        isScrollable: pages.length > 4,
-        tabs: pages
-            .map((p) => Tab(
-                  text: p.label,
-                  iconMargin: EdgeInsets.zero,
-                ))
-            .toList(),
+      elevation: 1,
+      shadowColor: Colors.black.withValues(alpha: 0.08),
+      color: theme.colorScheme.surfaceContainerLow,
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(
+            bottom: BorderSide(
+              color: isDark ? Colors.grey.shade800 : Colors.grey.shade300,
+              width: 0.5,
+            ),
+          ),
+        ),
+        child: TabBar(
+          controller: _tabController,
+          isScrollable: pages.length > 4,
+          labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          unselectedLabelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w400),
+          labelColor: theme.colorScheme.primary,
+          unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+          indicatorWeight: 3,
+          indicatorColor: theme.colorScheme.primary,
+          indicator: UnderlineTabIndicator(
+            borderSide: BorderSide(width: 3, color: theme.colorScheme.primary),
+            insets: const EdgeInsets.symmetric(horizontal: 16),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(2)),
+          ),
+          splashBorderRadius: BorderRadius.circular(8),
+          dividerColor: Colors.transparent,
+          tabAlignment: pages.length > 4 ? TabAlignment.start : TabAlignment.fill,
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          labelPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          tabs: pages
+              .map((p) => _buildTab(p.label, isDark))
+              .toList(),
+        ),
       ),
     );
+  }
+
+  /// 从 label 中提取 emoji 前缀和文本，分别渲染为图标和文字。
+  Widget _buildTab(String label, bool isDark) {
+    // 用 rune 判断首字符是否为 emoji（BMP 之外或已知 emoji 范围）
+    if (label.isNotEmpty) {
+      final firstRune = label.runes.first;
+      final isEmoji = firstRune > 0x1F000 ||
+          (firstRune >= 0x2600 && firstRune <= 0x27BF) ||
+          (firstRune >= 0x2300 && firstRune <= 0x23FF) ||
+          (firstRune >= 0x2B50 && firstRune <= 0x2B55) ||
+          (firstRune >= 0x2702 && firstRune <= 0x27B0) ||
+          firstRune == 0x26A1 || // ⚡
+          firstRune == 0x2714 || // ✅
+          firstRune == 0x26A0 || // ⚠️
+          firstRune == 0x2139 || // ℹ️
+          firstRune == 0x1F4A1;  // 💡
+      if (isEmoji) {
+        // 分离 emoji 前缀（可能含 variation selector 0xFE0F 和 ZWJ 0x200D）
+        var end = 1;
+        final runes = label.runes.toList();
+        while (end < runes.length &&
+            (runes[end] == 0xFE0F || runes[end] == 0x200D || runes[end] > 0x1F000)) {
+          end++;
+          if (runes[end - 1] == 0x200D && end < runes.length) end++; // ZWJ + next emoji
+        }
+        final emoji = String.fromCharCodes(runes.sublist(0, end));
+        final text = label.substring(emoji.length).trim();
+        if (text.isNotEmpty) {
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 16)),
+              const SizedBox(width: 4),
+              Text(text),
+            ],
+          );
+        }
+      }
+    }
+    return Tab(text: label, iconMargin: EdgeInsets.zero);
   }
 
   Widget _buildPageContent(PageDescriptor page) {
@@ -791,20 +859,30 @@ class SlotDispatch extends StatelessWidget {
     return '*无内容*\n\n在 config 中设置 `content` 字段来显示 Markdown 内容。';
   }
 
-  /// 用 Card 包裹每个 slot 内容（对齐 HTML .evg-slot 样式）。
+  /// 用 Card 包裹每个 slot 内容（对齐 HTML .evg-slot 样式，并增强视觉层次）。
   Widget _buildSlotCard(
       BuildContext context, String key, Widget content) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
     final isCompact = config.type == 'lottery-wheel' ||
         config.type == 'calendar';
 
     return Container(
+      margin: const EdgeInsets.only(bottom: 2),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(8),
+        color: theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: Theme.of(context).dividerColor,
+          color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
           width: 1,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.12 : 0.04),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -815,15 +893,21 @@ class SlotDispatch extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              color: theme.colorScheme.surfaceContainerHighest,
               border: Border(
-                bottom: BorderSide(color: Theme.of(context).dividerColor),
+                bottom: BorderSide(
+                  color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+                ),
               ),
             ),
             child: Row(
               children: [
                 Text('📌 $key',
-                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    )),
                 const SizedBox(width: 6),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),

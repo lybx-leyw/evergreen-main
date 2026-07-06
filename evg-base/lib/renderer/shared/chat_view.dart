@@ -12,7 +12,7 @@ import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'package:evergreen_base/core/agent/event.dart' as agent;
 import 'package:evergreen_base/core/agent/controller/controller.dart' show ControllerState;
 import 'package:evergreen_base/providers.dart';
-import 'package:evergreen_base/core/agent/agent_runtime.dart' show webSearchEnabledProvider, deepThinkingEnabledProvider;
+import 'package:evergreen_base/core/agent/agent_runtime.dart' show webSearchEnabledProvider, reasoningEffortProvider, validReasoningEfforts;
 import 'package:evergreen_base/core/agent/session_manager.dart' show activeSessionIdProvider, createSessionProvider;
 import 'package:evergreen_base/renderer/widgets/models.dart';
 import 'package:evergreen_base/renderer/widgets/markdown_renderer.dart';
@@ -198,7 +198,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
     final theme = Theme.of(context);
     final isRunning = ref.watch(controllerStateProvider) == ControllerState.running;
     final webSearch = ref.watch(webSearchEnabledProvider);
-    final deepThink = ref.watch(deepThinkingEnabledProvider);
+    final effort = ref.watch(reasoningEffortProvider);
 
     return Column(
       children: [
@@ -261,11 +261,10 @@ class _ChatViewState extends ConsumerState<ChatView> {
                       ref.read(webSearchEnabledProvider.notifier).state = !webSearch,
                 ),
                 const SizedBox(width: 4),
-                _MiniToggle(
-                  icon: Icons.auto_awesome, label: '深思', value: deepThink,
-                  onTap: () =>
-                      ref.read(deepThinkingEnabledProvider.notifier).state = !deepThink,
-                  activeColor: const Color(0xFF7B1FA2),
+                _MiniEffortSelector(
+                  effort: effort,
+                  onChanged: (v) =>
+                      ref.read(reasoningEffortProvider.notifier).state = v,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -443,6 +442,75 @@ class _ChatBubbleState extends State<_ChatBubble> {
 }
 
 // ═══════ _MiniToggle ═══════
+
+/// 迷你版思考档位选择器—— chat_view 用。
+class _MiniEffortSelector extends StatelessWidget {
+  final String effort;
+  final ValueChanged<String> onChanged;
+
+  const _MiniEffortSelector({required this.effort, required this.onChanged});
+
+  static const _labels = <String, String>{
+    'off': '关', 'low': '低', 'medium': '中', 'high': '高', 'max': '最强',
+  };
+  static const _levelColor = Color(0xFF7B1FA2);
+
+  @override
+  Widget build(BuildContext context) {
+    final isOn = effort != 'off';
+    return GestureDetector(
+      onTap: () => _showMenu(context),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: BoxDecoration(
+          color: isOn ? _levelColor.withValues(alpha: 0.12) : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isOn ? _levelColor.withValues(alpha: 0.4) : Colors.grey.shade400,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.auto_awesome, size: 14, color: isOn ? _levelColor : Colors.grey),
+            const SizedBox(width: 4),
+            Text(
+              _labels[effort] ?? '关',
+              style: TextStyle(fontSize: 11, color: isOn ? _levelColor : Colors.grey, fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showMenu(BuildContext context) {
+    final renderBox = context.findRenderObject() as RenderBox;
+    final offset = renderBox.localToGlobal(Offset.zero);
+    const fullLabels = <String, String>{
+      'off': '思考: 关', 'low': '思考: 低', 'medium': '思考: 中',
+      'high': '思考: 高', 'max': '思考: 最强',
+    };
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        offset.dx, offset.dy + renderBox.size.height + 4,
+        offset.dx + renderBox.size.width, offset.dy + renderBox.size.height + 4,
+      ),
+      items: validReasoningEfforts.map((level) => PopupMenuItem<String>(
+        value: level,
+        child: Text(
+          fullLabels[level] ?? level,
+          style: TextStyle(
+            fontWeight: level == effort ? FontWeight.w700 : FontWeight.w400,
+          ),
+        ),
+      )).toList(),
+    ).then((selected) {
+      if (selected != null) onChanged(selected);
+    });
+  }
+}
 
 class _MiniToggle extends StatelessWidget {
   final IconData icon;

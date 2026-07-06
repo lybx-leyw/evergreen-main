@@ -13,6 +13,7 @@ import 'package:evergreen_base/core/agent/event.dart' as agent;
 import 'package:evergreen_base/core/agent/memory/file_memory_store.dart';
 import 'package:evergreen_base/core/agent/skill/skill.dart';
 import 'package:evergreen_base/core/agent/controller/controller.dart' show ControllerState;
+import 'package:evergreen_base/core/agent/tool.dart' show Registry;
 
 /// 全局模块注册中心——在 main() 中创建、填充、密封后通过 ProviderScope.overrides 注入。
 final moduleRegistryProvider = Provider<ModuleRegistry>((ref) {
@@ -95,3 +96,34 @@ final skillIndexProvider = Provider<SkillIndex>((ref) {
 final controllerStateProvider = StateProvider<ControllerState>((ref) {
   return ControllerState.idle;
 });
+
+// ═══════ 工具管理 ═══════
+
+/// Agent 工具注册表——由 main() 注入，供渲染层读取工具列表和控制启用/禁用。
+final toolRegistryProvider = Provider<Registry>((ref) {
+  throw UnimplementedError(
+    'toolRegistryProvider 未注入——请在 main() 的 ProviderScope.overrides 中提供 Registry 实例。',
+  );
+});
+
+/// 被用户禁用的工具名称集合——持久化到 SharedPreferences。
+/// UI 通过此 provider 响应式获取禁用状态。
+final toolDisabledProvider = StateProvider<Set<String>>((ref) => {});
+
+/// Agent 基础功能所必需的工具名称——禁用时会弹出警告。
+///
+/// | 工具 | 角色 | 禁用影响 |
+/// |------|------|---------|
+/// | `read_global_memory` | 记忆读取 | Agent 失去跨会话记忆，无法回忆用户偏好 |
+/// | `write_global_memory` | 记忆写入 | Agent 无法记住用户特质和偏好 |
+/// | `read_file` | 文件读取 | Agent 无法访问工作区文件 |
+/// | `write_file` | 文件写入 | Agent 无法创建/编辑/保存文件 |
+const essentialToolNames = <String>{
+  'read_global_memory',
+  'write_global_memory',
+  'read_file',
+  'write_file',
+};
+
+/// 判断工具名是否为 Agent 基础功能所必需。
+bool isEssentialTool(String name) => essentialToolNames.contains(name);

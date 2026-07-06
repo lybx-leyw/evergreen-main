@@ -51,6 +51,7 @@ import 'package:evergreen_base/core/services/plugin_installer.dart';
 import 'package:evergreen_base/core/services/ocr_pipeline.dart';
 import 'package:evergreen_base/core/services/update_service.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
+import 'package:evergreen_base/core/utils/python_env.dart';
 import 'package:evergreen_base/providers.dart';
 import 'package:evergreen_base/renderer/shared/renderer_providers.dart';
 
@@ -193,21 +194,46 @@ void main() async {
   toolRegistry.register(WebSearchTool(dioAgent));
   toolRegistry.register(ReadFileTool(workspaceDir: aiWorkspace));
   toolRegistry.register(WriteFileTool(workspaceDir: aiWorkspace));
-  // 注册嵌入式 Python 解释器工具 (.greenix/python/)
-  final pythonExe = p.join(greenixPythonDir, 'python.exe');
-  if (File(pythonExe).existsSync()) {
+  // 注册嵌入式 Python 解释器工具——多级回退发现
+  // ① .greenix/python/python.exe（同学打包的嵌入式 Python，最高优先级）
+  // ② scripts/python/python.exe（安装包自带）
+  // ③ 用户配置路径 → 系统 PATH（python3 → python → py -3）
+  final bundledCandidate = p.join(greenixPythonDir, 'python.exe');
+  final resolvedPython = await resolvePythonExe(configuredPath: bundledCandidate);
+  if (resolvedPython != null) {
+    // workDir: 嵌入式 Python 用其所在目录；系统 PATH 命令用 workspace
+    final isBundled = resolvedPython == bundledCandidate ||
+        p.isAbsolute(resolvedPython);
+    // 当是完整路径时用父目录，否则（系统 PATH 命令如 python/python3）用 workspace
+    final workDir = isBundled
+        ? Directory(resolvedPython).parent.path
+        : aiWorkspace;
     toolRegistry.register(PythonRunnerTool(
-      pythonExePath: pythonExe,
-      pythonWorkDir: greenixPythonDir,
+      pythonExePath: resolvedPython,
+      pythonWorkDir: workDir,
       workspaceDir: aiWorkspace,
     ));
-    stderr.writeln('[main] PythonRunnerTool 已注册 ($pythonExe)');
+    stderr.writeln('[main] PythonRunnerTool 已注册 ($resolvedPython, workDir: $workDir)');
   } else {
-    stderr.writeln('[main] ⚠ Python 解释器未找到: $pythonExe');
+    stderr.writeln('[main] ⚠ Python 解释器未找到——已尝试 .greenix/python/、scripts/python/、系统 PATH。');
+    stderr.writeln('[main]    AI 将无法执行 Python 代码。安装 Python 3.8+ 或放置 python.exe 到 .greenix/python/。');
   }
   // 注册插件 Agent 工具
   PluginBridge.registerAll(toolRegistry, Directory(_pluginsDir));
   stderr.writeln('[main] Agent 工具: ${toolRegistry.all().map((t) => t.name).toList()}');
+
+  // ── 加载用户禁用的工具（持久化） ──
+  final toolDisabledRaw = prefs.getString('tool_disabled') ?? '';
+  final toolDisabled = <String>{};
+  if (toolDisabledRaw.isNotEmpty) {
+    toolDisabled.addAll(toolDisabledRaw.split(','));
+  }
+  for (final name in toolDisabled) {
+    toolRegistry.disable(name);
+  }
+  if (toolDisabled.isNotEmpty) {
+    stderr.writeln('[main] 已禁用工具: ${toolDisabled.toList()}');
+  }
 
   final session = agent.Session();
   final sink = agent.StreamEventSink();
@@ -355,6 +381,12 @@ void main() async {
 
         // Agent Controller——Chat 视图通过此 provider 发送消息
         agentControllerProvider.overrideWith((ref) => controller),
+
+        // Agent 工具注册表——供工具管理面板读取/控制
+        toolRegistryProvider.overrideWith((ref) => toolRegistry),
+
+        // 已禁用的工具名称——持久化状态
+        toolDisabledProvider.overrideWith((ref) => toolDisabled),
 
         // Agent 事件流——Chat 视图订阅此流以接收响应
         agentEventStreamProvider.overrideWith((ref) => sink.stream),

@@ -5,10 +5,20 @@ import 'package:evergreen_base/core/log.dart';
 
 /// 按优先级自动发现 Python 可执行文件路径。
 ///
-/// 1. `scripts/python/python.exe`（安装包自带的嵌入 Python）
-/// 2. 用户手动配置的 [configuredPath]
+/// 1. [configuredPath] 用户/项目指定的路径（如 `.greenix/python/python.exe`）
+/// 2. `scripts/python/python.exe`（安装包自带的嵌入 Python）
 /// 3. 系统 PATH：`python3` → `python` → `py -3`
 Future<String?> resolvePythonExe({String? configuredPath}) async {
+  // ① 优先使用调用方指定的路径
+  if (configuredPath != null && configuredPath.isNotEmpty) {
+    final configuredFile = File(configuredPath);
+    if (await configuredFile.exists()) {
+      Log().info('PythonEnv: using configured Python', data: {'path': configuredPath});
+      return configuredPath;
+    }
+  }
+
+  // ② 安装包自带的嵌入 Python
   try {
     final bundled = p.join(Directory.current.path, 'scripts', 'python', 'python.exe');
     final bundledFile = File(bundled);
@@ -18,14 +28,7 @@ Future<String?> resolvePythonExe({String? configuredPath}) async {
     }
   } catch (_) {}
 
-  if (configuredPath != null && configuredPath.isNotEmpty) {
-    final configuredFile = File(configuredPath);
-    if (await configuredFile.exists()) {
-      Log().info('PythonEnv: using configured Python', data: {'path': configuredPath});
-      return configuredPath;
-    }
-  }
-
+  // ③ 系统 PATH 回退
   for (final candidate in ['python3', 'python', 'py']) {
     try {
       final checkArgs = candidate == 'py' ? ['-3', '--version'] : ['--version'];

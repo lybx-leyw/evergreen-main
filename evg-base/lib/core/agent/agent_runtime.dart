@@ -120,11 +120,36 @@ final agentRuntimeProvider = Provider<AgentRuntime>((ref) {
     else { registry.disable('web_search'); registry.disable('web_fetch'); }
   });
 
+  // ── 深度思考档位（主要入口） ──
+  ref.listen<String>(reasoningEffortProvider, (prev, effort) {
+    // 同步到旧的 bool provider
+    ref.read(deepThinkingEnabledProvider.notifier).state = (effort != 'off');
+
+    if (effort == 'off') {
+      provider.setThinking('disabled');
+      controller.setSystemPrompt(agent.defaultSystemPrompt);
+    } else {
+      provider.setThinking('enabled');
+      provider.setReasoningEffort(effort);
+      final effortDescriptions = <String, String>{
+        'low': '请简要思考后回答。',
+        'medium': '请适度思考后回答。',
+        'high': '请深入思考后再回答。',
+        'max': '请做最全面的思考，考虑多种方案和边界情况后再回答。',
+      };
+      controller.setSystemPrompt(agent.defaultSystemPrompt +
+          '\n\n深度思考模式：${effort} 级。${effortDescriptions[effort] ?? ''}');
+    }
+  });
+
+  // ── 向后兼容：旧 UI 写入 bool 时同步到 effort ──
   ref.listen<bool>(deepThinkingEnabledProvider, (prev, enabled) {
-    provider.setThinking('enabled');
-    provider.setReasoningEffort(enabled ? 'max' : 'low');
-    controller.setSystemPrompt(agent.defaultSystemPrompt +
-        (enabled ? '\n\n用户已开启深度思考模式。请思考更全面之后再回复。' : ''));
+    final currentEffort = ref.read(reasoningEffortProvider);
+    if (enabled && currentEffort == 'off') {
+      ref.read(reasoningEffortProvider.notifier).state = 'medium';
+    } else if (!enabled && currentEffort != 'off') {
+      ref.read(reasoningEffortProvider.notifier).state = 'off';
+    }
   });
 
   ref.onDispose(() {
@@ -137,6 +162,21 @@ final agentRuntimeProvider = Provider<AgentRuntime>((ref) {
 // ═══════ 开关 ═══════
 
 final webSearchEnabledProvider = StateProvider<bool>((ref) => false);
+
+/// 深度思考档位——'off' | 'low' | 'medium' | 'high' | 'max'。
+///
+/// 这是思考深度的主要控制入口。UI 应使用此 provider 替代旧的 bool 开关。
+/// 旧的 [deepThinkingEnabledProvider] 保留以向后兼容——写入 bool 会同步到此 provider。
+final reasoningEffortProvider = StateProvider<String>((ref) => 'off');
+
+/// 有效的 reasoning_effort 值列表。
+const validReasoningEfforts = ['off', 'low', 'medium', 'high', 'max'];
+
+/// 深度思考开关（向后兼容）。
+///
+/// 新代码应使用 [reasoningEffortProvider]。此 provider 与 [reasoningEffortProvider]
+/// 双向同步：写入 true → effort='medium'；写入 false → effort='off'；
+/// effort 变化 → 自动更新此 bool。
 final deepThinkingEnabledProvider = StateProvider<bool>((ref) => false);
 
 // ═══════ ChatMessage ═══════
