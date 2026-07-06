@@ -597,7 +597,8 @@ void main() {
           ),
         ),
       );
-      // pumpWidget 已触发首帧渲染，SettingsView 同步读取设置
+      // 首帧: loading; pump() 触发 addPostFrameCallback → _ready=true → 表单
+      await tester.pump();
       expect(find.byType(SettingsView), findsOneWidget);
     });
   });
@@ -751,7 +752,7 @@ void main() {
           ),
         ),
       );
-      // pumpWidget 已触发首帧渲染
+      await tester.pump();
       expect(find.byType(SettingsView), findsOneWidget);
     });
   });
