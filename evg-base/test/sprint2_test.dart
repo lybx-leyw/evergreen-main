@@ -597,7 +597,7 @@ void main() {
           ),
         ),
       );
-      await tester.pump(const Duration(milliseconds: 100));
+      // pumpWidget 已触发首帧渲染，SettingsView 同步读取设置
       expect(find.byType(SettingsView), findsOneWidget);
     });
   });
@@ -751,7 +751,7 @@ void main() {
           ),
         ),
       );
-      await tester.pump(const Duration(milliseconds: 100));
+      // pumpWidget 已触发首帧渲染
       expect(find.byType(SettingsView), findsOneWidget);
     });
   });
