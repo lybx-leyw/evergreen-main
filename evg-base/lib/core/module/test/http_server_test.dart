@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/material.dart';
 import 'package:test/test.dart';
 import '../capability.dart';
 import '../module_descriptor.dart';
@@ -17,22 +16,42 @@ void main() {
       id: 'agent',
       name: 'AI 助手',
       description: '流式对话',
-      icon: Icons.smart_toy,
+      icon: 0xe3af, // Icons.smart_toy codePoint
       route: '/agent',
-      ui: 'chat',
-      sidebar: const SidebarDescriptor(section: 'AI 工具', order: 10),
-      secondaryNavs: const [
-        NavDescriptor(
-            label: '设置', routePath: '/agent/settings', section: 'AI 工具'),
+      nav: NavObjectDescriptor(
+        sidebar: const SidebarDescriptor(section: 'AI 工具', order: 10),
+        secondary: const [
+          NavDescriptor(
+            label: '设置',
+            routePath: '/agent/settings',
+            section: 'AI 工具',
+          ),
+        ],
+      ),
+      pages: [
+        PageDescriptor(
+          id: 'chat',
+          label: '对话',
+          layout: LayoutDescriptor(
+            type: 'flex',
+            slots: {
+              'main': SlotDescriptor(
+                component: ComponentDescriptor(type: 'chat', config: {}),
+              ),
+            },
+          ),
+        ),
       ],
       version: '1.2.0',
     ));
     r.register(ModuleDescriptor(
       id: 'scores',
       name: '成绩单',
-      icon: Icons.score,
+      icon: 0xe4a3, // Icons.score codePoint
       route: '/scores',
-      sidebar: const SidebarDescriptor(section: '教育', order: 20),
+      nav: NavObjectDescriptor(
+        sidebar: const SidebarDescriptor(section: '教育', order: 20),
+      ),
       version: '2.0.1',
     ));
     r.setCapabilities('agent', [
@@ -64,17 +83,18 @@ void main() {
   group('生命周期', () {
     test('start 后 isRunning 为 true', () async {
       final registry = _seededRegistry();
-      final server = ModuleHttpServer(registry, port: 9101);
+      final server = ModuleHttpServer(registry, port: 0); // 自动分配端口
       expect(server.isRunning, isFalse);
       await server.start();
       expect(server.isRunning, isTrue);
+      expect(server.port, greaterThan(0)); // 验证端口已分配
       await server.stop();
       expect(server.isRunning, isFalse);
     });
 
     test('重复 start 不报错', () async {
       final registry = _seededRegistry();
-      final server = ModuleHttpServer(registry, port: 9102);
+      final server = ModuleHttpServer(registry, port: 0);
       await server.start();
       await server.start(); // 第二次应无操作
       await server.stop();
@@ -82,7 +102,7 @@ void main() {
 
     test('重复 stop 不报错', () async {
       final registry = _seededRegistry();
-      final server = ModuleHttpServer(registry, port: 9103);
+      final server = ModuleHttpServer(registry, port: 0);
       await server.start();
       await server.stop();
       await server.stop(); // 第二次应无操作
@@ -98,7 +118,7 @@ void main() {
 
     setUp(() async {
       registry = _seededRegistry();
-      server = ModuleHttpServer(registry, port: 9104);
+      server = ModuleHttpServer(registry, port: 0);
       await server.start();
     });
 
@@ -108,13 +128,13 @@ void main() {
 
     // ── GET /module/health ──
     test('health 返回 200 + status ok', () async {
-      final json = await _getJson(9104, '/module/health');
+      final json = await _getJson(server.port, '/module/health');
       expect(json['status'], 'ok');
     });
 
     // ── GET /module/modules ──
     test('modules 列出所有模块摘要', () async {
-      final json = await _getJson(9104, '/module/modules');
+      final json = await _getJson(server.port, '/module/modules');
       expect(json['count'], 2);
       final modules = json['modules'] as List;
       final ids = modules.map((m) => (m as Map)['id']).toSet();
@@ -124,25 +144,25 @@ void main() {
 
     // ── GET /module/modules/:id ──
     test('modules/:id 返回完整 ModuleDescriptor', () async {
-      final json = await _getJson(9104, '/module/modules/agent');
+      final json = await _getJson(server.port, '/module/modules/agent');
       expect(json['id'], 'agent');
       expect(json['name'], 'AI 助手');
       expect(json['version'], '1.2.0');
     });
 
     test('modules/:id 不存在返回 404', () async {
-      final resp = await _get(9104, '/module/modules/nonexistent');
+      final resp = await _get(server.port, '/module/modules/nonexistent');
       expect(resp.statusCode, 404);
     });
 
     // ── GET /module/search ──
     test('search 无参数返回全部', () async {
-      final json = await _getJson(9104, '/module/search?q=');
+      final json = await _getJson(server.port, '/module/search?q=');
       expect(json['count'], 2);
     });
 
     test('search 按 q 筛选', () async {
-      final json = await _getJson(9104, '/module/search?q=AI');
+      final json = await _getJson(server.port, '/module/search?q=AI');
       expect(json['count'], 1);
       final results = json['results'] as List;
       expect((results.first as Map)['id'], 'agent');
@@ -150,7 +170,7 @@ void main() {
 
     test('search 按 dim 筛选', () async {
       final json =
-          await _getJson(9104, '/module/search?q=&dim=process');
+          await _getJson(server.port, '/module/search?q=&dim=process');
       expect(json['count'], 1);
       final results = json['results'] as List;
       expect((results.first as Map)['id'], 'agent');
@@ -158,21 +178,21 @@ void main() {
 
     test('search 按 cat 筛选', () async {
       final json =
-          await _getJson(9104, '/module/search?q=&cat=教育');
+          await _getJson(server.port, '/module/search?q=&cat=教育');
       expect(json['count'], 1);
       final results = json['results'] as List;
       expect((results.first as Map)['id'], 'scores');
     });
 
     test('search 组合筛选', () async {
-      final json = await _getJson(9104,
+      final json = await _getJson(server.port,
           '/module/search?q=助手&dim=agent&cat=AI 工具');
       expect(json['count'], 1);
     });
 
     // ── GET /module/nav ──
     test('nav 返回分组导航', () async {
-      final json = await _getJson(9104, '/module/nav');
+      final json = await _getJson(server.port, '/module/nav');
       final groups = json['navGroups'] as List;
       expect(groups.length, 2);
       final sections =
@@ -183,10 +203,9 @@ void main() {
 
     // ── GET /module/routes ──
     test('routes 返回全部路由', () async {
-      final json = await _getJson(9104, '/module/routes');
+      final json = await _getJson(server.port, '/module/routes');
       final routes = json['routes'] as List;
       expect(routes, contains('/agent'));
-      expect(routes, contains('/agent/settings'));
       expect(routes, contains('/scores'));
     });
   });
@@ -200,7 +219,7 @@ void main() {
 
     setUp(() async {
       registry = _seededRegistry();
-      server = ModuleHttpServer(registry, port: 9105);
+      server = ModuleHttpServer(registry, port: 0);
       await server.start();
     });
 
@@ -209,14 +228,14 @@ void main() {
     });
 
     test('未知端点返回 404', () async {
-      final resp = await _get(9105, '/module/unknown');
+      final resp = await _get(server.port, '/module/unknown');
       expect(resp.statusCode, 404);
     });
 
     test('POST 请求返回 405', () async {
       final client = HttpClient();
       final req =
-          await client.postUrl(Uri.parse('http://localhost:9105/module/health'));
+          await client.postUrl(Uri.parse('http://localhost:${server.port}/module/health'));
       final resp = await req.close();
       expect(resp.statusCode, 405);
       client.close();

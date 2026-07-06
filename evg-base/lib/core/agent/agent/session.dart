@@ -113,6 +113,27 @@ class Session {
     return total;
   }
 
+  /// 移除从指定索引开始的所有消息（含该索引）。
+  /// 用于编辑：删除原用户消息及其后续所有 AI 回复 / 工具调用。
+  void removeFrom(int index) {
+    if (index < 0 || index >= messages.length) return;
+    messages.removeRange(index, messages.length);
+    updatedAt = DateTime.now();
+  }
+
+  /// 移除最后一轮对话（最后一条 user 消息及其后续所有消息）。
+  /// 用于重新生成：删除最后一对 user+assistant，让 AI 重新回答。
+  /// 返回被移除的最后一条 user 消息内容，无 user 消息则返回 null。
+  String? removeLastTurn() {
+    // 从后往前找最后一条 user 消息（排除 system）
+    final userIdx = messages.lastIndexWhere((m) => m.role == Role.user);
+    if (userIdx < 0) return null;
+    final userContent = messages[userIdx].content;
+    messages.removeRange(userIdx, messages.length);
+    updatedAt = DateTime.now();
+    return userContent;
+  }
+
   /// 创建快照（用于序列化/持久化）。
   Map<String, dynamic> toJson() => {
         'id': id,

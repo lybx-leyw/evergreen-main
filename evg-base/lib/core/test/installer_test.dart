@@ -45,9 +45,6 @@ List<int> _makePluginZip({
   return ZipEncoder().encode(archive)!;
 }
 
-/// 创建一个写入 .plugin 文件的临时目录。
-Directory _tmpPluginDir() => Directory.systemTemp.createTempSync('plugin_test_');
-
 void main() {
   late String tmpDir;
   late PluginInstaller installer;

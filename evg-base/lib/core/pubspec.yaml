@@ -13,7 +13,7 @@ dependencies:
   crypto:
     path: lib/crypto_stub
   dio:
-    path: lib/archive_stub
+    path: lib/dio_stub
   path_provider:
     path: data/lib/path_provider_stub
   shared_preferences:

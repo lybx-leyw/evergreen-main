@@ -9,6 +9,8 @@ dependencies:
   meta: ^1.9.0
   path_provider:
     path: lib/path_provider_stub
+  flutter_riverpod:
+    path: lib/flutter_riverpod_stub
 
 dev_dependencies:
   test: ^1.24.0

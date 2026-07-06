@@ -120,6 +120,12 @@ evg-base/scripts/python/
 evg-base/.history_docs
 evg-base/愿景.md
 DEVELOPER_GUIDE.md
+PLAN.md
+愿景.md
+PLAN_NOW.md
+.achieve/
+prompt/
+ROLES.md
 
 # ──────────────────────────────────────────────────────────
 # evg-base/ 子树规则
@@ -772,3 +778,4 @@ ${REF_ZJUN}/build/debian/debian
 ${REF_ZJUN}/build/rpm/zjunet-*
 ${REF_ZJUN}/build/rpm/zjunet.spec
 ${REF_ZJUN}/build/openwrt/debian
+evergreen_title.mp4

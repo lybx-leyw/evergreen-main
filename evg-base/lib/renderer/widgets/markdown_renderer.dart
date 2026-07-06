@@ -28,6 +28,7 @@ class MarkdownRenderer extends StatelessWidget {
   final bool markdownFailed;
   final bool useCard;
   final EdgeInsets padding;
+  final double fontScale;
 
   const MarkdownRenderer({
     super.key,
@@ -35,6 +36,7 @@ class MarkdownRenderer extends StatelessWidget {
     this.markdownFailed = false,
     this.useCard = true,
     this.padding = const EdgeInsets.all(16),
+    this.fontScale = 1.0,
   });
 
   /// 检测文本是否包含 HTML 标签（排除泛型 `<T>` 和比较符号 `<`）。
@@ -158,7 +160,7 @@ class MarkdownRenderer extends StatelessWidget {
         child: HtmlWidget(
           html,
           textStyle: TextStyle(
-            fontSize: 15, height: 1.7,
+            fontSize: 15 * fontScale, height: 1.7,
             color: colorScheme.onSurface,
           ),
           customStylesBuilder: _tableStyles,
@@ -171,7 +173,7 @@ class MarkdownRenderer extends StatelessWidget {
         child: HtmlWidget(
           text,
           textStyle: TextStyle(
-            fontSize: 15, height: 1.7,
+            fontSize: 15 * fontScale, height: 1.7,
             color: colorScheme.onSurface,
           ),
         ),
@@ -325,7 +327,7 @@ class MarkdownRenderer extends StatelessWidget {
       child: SelectableText(
         cleanText,
         style: TextStyle(
-          fontSize: 15, height: 1.7,
+          fontSize: 15 * fontScale, height: 1.7,
           color: colorScheme.onSurface,
         ),
       ),

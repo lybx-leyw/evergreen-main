@@ -7,7 +7,7 @@
   "route": "/super-app",
   "ui": "default",
 
-  "sidebar": { "section": "AI 工具", "sectionOrder": 20, "order": 30 },
+  "nav": { "sidebar": { "section": "AI 工具", "sectionOrder": 20, "order": 30 } },
 
   "layout": {
     "mode": "scroll",

@@ -88,7 +88,7 @@ class WriteFileTool extends Tool {
     try {
       final fullPath = _sandbox.confine(rawPath);
       if (fullPath == null) {
-        return '[越界拒绝] 路径 "$rawPath" 不在工作区内。只能写入 $_workspaceDir 下的文件。';
+        return '[越界拒绝] 路径 "$rawPath" 不在工作区内。文件操作仅限工作区内。';
       }
 
       if (action == 'write') return _doWrite(fullPath, rawPath, args);

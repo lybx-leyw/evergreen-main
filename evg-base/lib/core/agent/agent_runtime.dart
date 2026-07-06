@@ -164,6 +164,48 @@ class ChatMessagesNotifier extends StateNotifier<List<ChatMessage>> {
     )];
   }
 
+  /// 替换最后一条 AI 消息（流式场景）。
+  void replaceLastAssistant(String text) {
+    if (state.isNotEmpty && state.last.role == agent.Role.assistant) {
+      final updated = [...state];
+      updated[updated.length - 1] = ChatMessage(
+        role: agent.Role.assistant, content: text,
+      );
+      state = updated;
+    } else {
+      state = [...state, ChatMessage(role: agent.Role.assistant, content: text)];
+    }
+  }
+
+  /// 移除最后一条 AI 消息（重新生成用）。
+  @Deprecated('Use removeLastTurn instead — 需同时清理 Session 中的消息')
+  void removeLastAssistant() {
+    if (state.isNotEmpty && state.last.role == agent.Role.assistant) {
+      state = [...state]..removeLast();
+    }
+  }
+
+  /// 移除最后一轮对话：从最后一条 user 消息开始的所有消息。
+  /// 返回被移除的 user 消息内容，无 user 消息则返回 null。
+  String? removeLastTurn() {
+    final userIdx = state.lastIndexWhere((m) => m.isUser);
+    if (userIdx < 0) return null;
+    final userContent = state[userIdx].content;
+    state = [...state]..removeRange(userIdx, state.length);
+    return userContent;
+  }
+
+  /// 移除指定索引及其后的所有消息。
+  void removeFrom(int index) {
+    if (index < 0 || index >= state.length) return;
+    state = [...state]..removeRange(index, state.length);
+  }
+
+  /// 添加一条系统通知消息。
+  void addNotice(String text) {
+    state = [...state, ChatMessage(role: agent.Role.system, content: text)];
+  }
+
   void updateLastAssistant(String text, {String reasoning = ''}) {
     if (state.isEmpty || state.last.role != agent.Role.assistant ||
         state.last.isToolCall || state.last.isToolResultCard) {

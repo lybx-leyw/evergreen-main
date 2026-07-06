@@ -11,11 +11,12 @@ import '../widgets/empty_state.dart';
 
 /// 电子表格范式完整视图。
 ///
-/// 读取 [ModuleDescriptor.spreadsheet] 中的 [SpreadsheetOptions]。
+/// V2: 选项从 [ComponentDescriptor.config] 中解析。
 class SpreadsheetView extends StatefulWidget {
   final ModuleDescriptor descriptor;
+  final ComponentDescriptor? component;
 
-  const SpreadsheetView({super.key, required this.descriptor});
+  const SpreadsheetView({super.key, required this.descriptor, this.component});
 
   @override
   State<SpreadsheetView> createState() => _SpreadsheetViewState();
@@ -24,8 +25,11 @@ class SpreadsheetView extends StatefulWidget {
 class _SpreadsheetViewState extends State<SpreadsheetView> {
   int _activeSheet = 0;
 
-  SpreadsheetOptions get _opts =>
-      widget.descriptor.spreadsheet ?? const SpreadsheetOptions();
+  SpreadsheetOptions get _opts {
+    final raw = widget.component?.config['spreadsheet'];
+    if (raw is Map<String, dynamic>) return SpreadsheetOptions.fromJson(raw);
+    return const SpreadsheetOptions();
+  }
 
   @override
   Widget build(BuildContext context) {

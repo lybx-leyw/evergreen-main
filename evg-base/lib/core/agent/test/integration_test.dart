@@ -213,8 +213,17 @@ void main() {
       expect(sb.record('bash', 'error'), false); // 重新从 1 开始
     });
 
-    test('重复成功触发抑制（2次）', () {
-      final sb = StormBreaker(threshold: 3);
+    test('重复成功触发抑制（默认 5 次）', () {
+      final sb = StormBreaker(); // successThreshold 默认 5
+      expect(sb.record('echo', null), false); // 1
+      expect(sb.record('echo', null), false); // 2
+      expect(sb.record('echo', null), false); // 3
+      expect(sb.record('echo', null), false); // 4
+      expect(sb.record('echo', null), true);  // 5 — 触发抑制
+    });
+
+    test('重复成功触发抑制（自定义阈值）', () {
+      final sb = StormBreaker(successThreshold: 2);
       expect(sb.record('echo', null), false);
       expect(sb.record('echo', null), true); // 第 2 次重复成功触发
     });

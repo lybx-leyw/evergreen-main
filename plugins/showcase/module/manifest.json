@@ -1,0 +1,1049 @@
+{
+  "schemaVersion": "2.0",
+  "renderMode": "html",
+  "type": "module",
+  "id": "showcase",
+  "name": "🎭 展示大厅",
+  "description": "Evergreen 插件系统全功能展示——覆盖 Agent/Module/Theme/Data/Config/Skill 六维能力矩阵",
+  "icon": "auto_awesome",
+  "route": "/showcase",
+  "ui": "composite",
+  "version": "2.0.0",
+  "dependencies": [],
+  "activateSkills": [
+    "showcase-master"
+  ],
+  "nav": {
+    "sidebar": {
+      "section": "展示",
+      "sectionOrder": 100,
+      "order": 1,
+      "badge": true
+    },
+    "secondary": [
+      {
+        "label": "AI 助手",
+        "route": "/showcase/chat",
+        "section": "展示",
+        "icon": "smart_toy"
+      },
+      {
+        "label": "编程器",
+        "route": "/showcase/code",
+        "section": "展示",
+        "icon": "code"
+      },
+      {
+        "label": "仪表盘",
+        "route": "/showcase/dashboard",
+        "section": "展示",
+        "icon": "dashboard"
+      },
+      {
+        "label": "抽奖机",
+        "route": "/showcase/lottery",
+        "section": "展示",
+        "icon": "star",
+        "badge": true
+      },
+      {
+        "label": "数据视图",
+        "route": "/showcase/data-view",
+        "section": "展示",
+        "icon": "storage"
+      },
+      {
+        "label": "文档+表格",
+        "route": "/showcase/docs",
+        "section": "展示",
+        "icon": "description"
+      },
+      {
+        "label": "媒体",
+        "route": "/showcase/media",
+        "section": "展示",
+        "icon": "videocam"
+      },
+      {
+        "label": "学习工具",
+        "route": "/showcase/learn",
+        "section": "展示",
+        "icon": "school"
+      },
+      {
+        "label": "地图+日历",
+        "route": "/showcase/planner",
+        "section": "展示",
+        "icon": "explore"
+      }
+    ]
+  },
+  "process": [
+    {
+      "exe": "module/showcase_module.exe",
+      "protocol": "http"
+    }
+  ],
+  "actions": {
+    "itemTap": "detail",
+    "itemLongPress": "context_menu",
+    "itemSwipe": "delete",
+    "selection": "multi",
+    "sortable": [
+      "title"
+    ],
+    "creatable": true,
+    "editable": true,
+    "deletable": {
+      "enabled": true,
+      "confirm": "确定要删除此条目吗？"
+    },
+    "exportable": [
+      "json",
+      "csv"
+    ],
+    "refresh": {
+      "enabled": true,
+      "pullToRefresh": true,
+      "autoInterval": 300
+    }
+  },
+  "actionButtons": [
+    {
+      "id": "export_action",
+      "label": "📤 导出数据",
+      "icon": "download",
+      "process": {
+        "exe": "module/showcase_export.exe",
+        "protocol": "http"
+      }
+    }
+  ],
+  "pages": [
+    {
+      "id": "chat_page",
+      "label": "💬 AI 助手",
+      "routePath": "/showcase/chat",
+      "default": true,
+      "layout": {
+        "slots": {
+          "center": {
+            "process": {
+              "exe": "module/showcase_chat.exe",
+              "protocol": "http"
+            },
+            "component": {
+              "config": {
+                "thinking": {
+                  "visible": true,
+                  "transparent": true,
+                  "mode": "scroll"
+                },
+                "toolCalls": {
+                  "visible": true,
+                  "showArgs": true,
+                  "showResult": true
+                },
+                "stream": {
+                  "enabled": true,
+                  "animation": "fade",
+                  "cursorStyle": "blink"
+                },
+                "bubble": {
+                  "showTimestamp": true,
+                  "showAvatar": true
+                },
+                "placeholder": "向展示 AI 助手提问，体验完整聊天功能..."
+              },
+              "input": {
+                "mode": "free-text",
+                "multiline": true,
+                "maxLength": 4096,
+                "sendOnEnter": false,
+                "attachments": {
+                  "enabled": true,
+                  "maxSizeMb": 10,
+                  "accept": [
+                    "image/*",
+                    ".pdf",
+                    ".txt",
+                    ".json",
+                    ".md"
+                  ]
+                },
+                "voice": {
+                  "enabled": true
+                },
+                "slashCommands": [
+                  {
+                    "command": "/help",
+                    "description": "显示帮助"
+                  },
+                  {
+                    "command": "/clear",
+                    "description": "清空对话"
+                  },
+                  {
+                    "command": "/export",
+                    "description": "导出对话"
+                  }
+                ],
+                "quickReplies": [
+                  {
+                    "label": "👋 你好",
+                    "text": "你好！介绍一下自己吧"
+                  },
+                  {
+                    "label": "📋 功能列表",
+                    "text": "你能做什么？"
+                  },
+                  {
+                    "label": "🎯 示例",
+                    "text": "给我一个示例"
+                  }
+                ]
+              },
+              "type": "chat"
+            }
+          }
+        },
+        "features": {
+          "search": {
+            "enabled": false
+          },
+          "zoom": {
+            "enabled": false
+          }
+        },
+        "type": "grid",
+        "preset": {
+          "columns": 1,
+          "gap": 0
+        }
+      }
+    },
+    {
+      "id": "code_page",
+      "label": "💻 编程器",
+      "routePath": "/showcase/code",
+      "layout": {
+        "slots": {
+          "left": {
+            "component": {
+              "config": {
+                "language": "python",
+                "autoIndent": true,
+                "tabSize": 4
+              },
+              "input": {
+                "mode": "code",
+                "language": "python",
+                "autoIndent": true,
+                "tabSize": 4
+              },
+              "type": "code-editor"
+            }
+          },
+          "right": {
+            "events": {
+              "subscribe": [
+                "code_executed"
+              ]
+            },
+            "component": {
+              "config": {
+                "display": "table",
+                "filter": true,
+                "sortable": true,
+                "columns": [
+                  {
+                    "key": "line",
+                    "label": "行号",
+                    "width": 60
+                  },
+                  {
+                    "key": "type",
+                    "label": "类型",
+                    "width": 80
+                  },
+                  {
+                    "key": "message",
+                    "label": "消息"
+                  }
+                ]
+              },
+              "type": "data-table"
+            }
+          }
+        },
+        "type": "grid",
+        "preset": {
+          "columns": 2,
+          "gap": 8
+        }
+      },
+      "globalProcess": {
+        "exe": "module/showcase_page_code.exe",
+        "protocol": "http"
+      }
+    },
+    {
+      "id": "dashboard_page",
+      "label": "📊 仪表盘",
+      "routePath": "/showcase/dashboard",
+      "layout": {
+        "features": {
+          "zoom": {
+            "enabled": true,
+            "min": 0.5,
+            "max": 2.0
+          },
+          "search": {
+            "enabled": true,
+            "placeholder": "搜索数据..."
+          },
+          "drawers": [
+            "left"
+          ]
+        },
+        "slots": {
+          "bottom-left": {
+            "component": {
+              "config": {
+                "display": "table",
+                "filter": true,
+                "sortable": true,
+                "title": "📋 系统组件状态",
+                "columns": [
+                  {
+                    "key": "id",
+                    "label": "ID"
+                  },
+                  {
+                    "key": "name",
+                    "label": "名称"
+                  },
+                  {
+                    "key": "status",
+                    "label": "状态"
+                  }
+                ]
+              },
+              "type": "data-table"
+            }
+          },
+          "top": {
+            "component": {
+              "config": {
+                "chart": {
+                  "type": "line",
+                  "xKey": "date",
+                  "yKeys": [
+                    "visits",
+                    "actions"
+                  ],
+                  "title": "📈 访问趋势 (近30天)",
+                  "legend": true,
+                  "tooltip": true,
+                  "animation": true
+                }
+              },
+              "type": "chart"
+            }
+          },
+          "bottom-right": {
+            "component": {
+              "config": {
+                "display": "card",
+                "filter": false,
+                "title": "📊 关键指标",
+                "columns": [
+                  {
+                    "key": "title",
+                    "label": "标题"
+                  },
+                  {
+                    "key": "value",
+                    "label": "数值"
+                  },
+                  {
+                    "key": "trend",
+                    "label": "趋势"
+                  }
+                ]
+              },
+              "type": "data-table"
+            }
+          },
+          "middle": {
+            "component": {
+              "config": {
+                "chart": {
+                  "type": "bar",
+                  "xKey": "hour",
+                  "yKeys": [
+                    "active_users"
+                  ],
+                  "title": "🕐 24小时活跃度",
+                  "colorBy": "is_peak",
+                  "legend": false,
+                  "tooltip": true,
+                  "animation": true
+                }
+              },
+              "dataSource": {
+                "endpoint": "/api/data/chart-data",
+                "dataPath": "bar",
+                "refreshInterval": 60
+              },
+              "type": "chart"
+            }
+          }
+        },
+        "type": "grid",
+        "preset": {
+          "columns": 2,
+          "gap": 12
+        }
+      },
+      "dataSource": {
+        "endpoint": "/api/dashboard-data",
+        "refreshInterval": 30
+      }
+    },
+    {
+      "id": "lottery_page",
+      "label": "🎰 Data 抽奖机",
+      "routePath": "/showcase/lottery",
+      "layout": {
+        "slots": {
+          "left": {
+            "component": {
+              "config": {
+                "chart": {
+                  "type": "pie",
+                  "xKey": "name",
+                  "yKeys": [
+                    "value"
+                  ],
+                  "title": "🎨 稀有度分布",
+                  "legend": true,
+                  "tooltip": true,
+                  "animation": true,
+                  "donut": true
+                }
+              },
+              "dataSource": {
+                "endpoint": "/api/lottery/stats",
+                "dataPath": "by_rarity",
+                "transform": "rarityToPie",
+                "refreshInterval": 60
+              },
+              "type": "chart"
+            }
+          },
+          "right": {
+            "component": {
+              "config": {
+                "display": "table",
+                "filter": true,
+                "sortable": true,
+                "title": "📜 抽奖历史",
+                "columns": [
+                  {
+                    "key": "time",
+                    "label": "时间",
+                    "format": "datetime"
+                  },
+                  {
+                    "key": "item",
+                    "label": "奖品"
+                  },
+                  {
+                    "key": "rarity",
+                    "label": "稀有度",
+                    "colorBy": "rarity"
+                  }
+                ]
+              },
+              "dataSource": {
+                "endpoint": "/api/lottery/history",
+                "dataPath": "history",
+                "refreshInterval": 15
+              },
+              "type": "data-table"
+            }
+          },
+          "center": {
+            "component": {
+              "config": {
+                "lottery": {
+                  "title": "🎰 插件幸运大转盘",
+                  "subtitle": "点击抽奖，试试你的运气！",
+                  "buttonText": "🎯 立即抽奖！",
+                  "buttonStyle": "gradient",
+                  "animation": "spin",
+                  "soundEffect": true,
+                  "celebrationEffect": true,
+                  "showRarityColor": true,
+                  "historyCount": 10
+                }
+              },
+              "dataSource": {
+                "endpoint": "/api/lottery/draw",
+                "method": "GET",
+                "refreshInterval": 0
+              },
+              "type": "lottery-wheel"
+            }
+          }
+        },
+        "type": "grid",
+        "preset": {
+          "columns": 3,
+          "gap": 12
+        }
+      },
+      "dataSource": {
+        "endpoint": "/api/lottery/pool",
+        "refreshInterval": 300
+      },
+      "bottom": {
+        "component": "chart",
+        "config": {
+          "chart": {
+            "type": "line",
+            "xKey": "hour",
+            "yKeys": [
+              "draws"
+            ],
+            "title": "📈 抽奖趋势 (近24小时)",
+            "legend": true,
+            "tooltip": true,
+            "animation": true,
+            "area": true
+          }
+        },
+        "dataSource": {
+          "endpoint": "/api/lottery/stats",
+          "dataPath": "trend",
+          "refreshInterval": 30
+        }
+      }
+    },
+    {
+      "id": "data_view_page",
+      "label": "🗄️ 数据视图",
+      "routePath": "/showcase/data-view",
+      "layout": {
+        "features": {
+          "zoom": {
+            "enabled": true,
+            "min": 0.8,
+            "max": 1.5
+          },
+          "search": {
+            "enabled": true,
+            "placeholder": "搜索数据..."
+          },
+          "drawers": [
+            "left"
+          ]
+        },
+        "slots": {
+          "top-right": {
+            "component": {
+              "config": {
+                "chart": {
+                  "type": "radar",
+                  "xKey": "name",
+                  "yKeys": [
+                    "score"
+                  ],
+                  "title": "🎯 插件能力评分",
+                  "legend": false,
+                  "tooltip": true,
+                  "animation": true,
+                  "maxValue": 100
+                }
+              },
+              "dataSource": {
+                "endpoint": "/api/data/chart-data",
+                "dataPath": "radar",
+                "refreshInterval": 120
+              },
+              "type": "chart"
+            }
+          },
+          "bottom-left": {
+            "component": {
+              "config": {
+                "display": "table",
+                "filter": true,
+                "sortable": true,
+                "title": "📊 插件使用统计",
+                "columns": [
+                  {
+                    "key": "name",
+                    "label": "插件名"
+                  },
+                  {
+                    "key": "type",
+                    "label": "类型"
+                  },
+                  {
+                    "key": "calls_today",
+                    "label": "今日调用"
+                  },
+                  {
+                    "key": "avg_latency_ms",
+                    "label": "平均延迟",
+                    "suffix": "ms"
+                  },
+                  {
+                    "key": "success_rate",
+                    "label": "成功率",
+                    "suffix": "%"
+                  }
+                ]
+              },
+              "dataSource": {
+                "endpoint": "/api/data/plugin-usage",
+                "dataPath": "usage",
+                "refreshInterval": 60
+              },
+              "type": "data-table"
+            }
+          },
+          "bottom-right": {
+            "component": {
+              "config": {
+                "display": "card",
+                "filter": false,
+                "title": "📚 趣味冷知识",
+                "columns": [
+                  {
+                    "key": "fact",
+                    "label": "知识"
+                  },
+                  {
+                    "key": "category",
+                    "label": "分类",
+                    "colorBy": "category"
+                  }
+                ]
+              },
+              "dataSource": {
+                "endpoint": "/api/data/fun-facts",
+                "dataPath": "facts",
+                "refreshInterval": 120
+              },
+              "type": "data-table"
+            }
+          },
+          "top-left": {
+            "component": {
+              "config": {
+                "chart": {
+                  "type": "line",
+                  "xKey": "time",
+                  "yKeys": [
+                    "cpu",
+                    "memory"
+                  ],
+                  "title": "💻 实时性能监控",
+                  "legend": true,
+                  "tooltip": true,
+                  "animation": true,
+                  "live": true,
+                  "maxPoints": 20
+                }
+              },
+              "dataSource": {
+                "endpoint": "/api/data/metrics",
+                "dataPath": "history",
+                "refreshInterval": 5
+              },
+              "type": "chart"
+            }
+          },
+          "middle-right": {
+            "component": {
+              "config": {
+                "chart": {
+                  "type": "bar",
+                  "xKey": "hour",
+                  "yKeys": [
+                    "active_users"
+                  ],
+                  "title": "🕐 活跃时段热力图",
+                  "legend": false,
+                  "tooltip": true,
+                  "animation": true,
+                  "colorBy": "is_peak",
+                  "horizontal": false
+                }
+              },
+              "dataSource": {
+                "endpoint": "/api/data/chart-data",
+                "dataPath": "bar",
+                "refreshInterval": 60
+              },
+              "type": "chart"
+            }
+          },
+          "middle-left": {
+            "component": {
+              "config": {
+                "chart": {
+                  "type": "pie",
+                  "xKey": "name",
+                  "yKeys": [
+                    "value"
+                  ],
+                  "title": "📦 插件类型分布",
+                  "legend": true,
+                  "tooltip": true,
+                  "animation": true
+                }
+              },
+              "dataSource": {
+                "endpoint": "/api/data/chart-data",
+                "dataPath": "pie",
+                "refreshInterval": 120
+              },
+              "type": "chart"
+            }
+          }
+        },
+        "type": "grid",
+        "preset": {
+          "columns": 2,
+          "gap": 12
+        }
+      },
+      "dataSource": {
+        "endpoint": "/api/data/all",
+        "refreshInterval": 60
+      }
+    },
+    {
+      "id": "docs_page",
+      "label": "📝 文档+表格",
+      "routePath": "/showcase/docs",
+      "layout": {
+        "slots": {
+          "left": {
+            "component": {
+              "config": {
+                "document": {
+                  "trackChanges": true,
+                  "comments": true,
+                  "tableOfContents": true,
+                  "footnotes": true,
+                  "headersFooters": true,
+                  "pageSetup": {
+                    "pageSize": "A4",
+                    "orientation": "portrait",
+                    "margins": {
+                      "top": 25,
+                      "bottom": 25,
+                      "left": 30,
+                      "right": 30
+                    }
+                  },
+                  "exportFormats": [
+                    "pdf",
+                    "docx",
+                    "md",
+                    "html",
+                    "txt"
+                  ]
+                }
+              },
+              "type": "document"
+            }
+          },
+          "right": {
+            "component": {
+              "config": {
+                "spreadsheet": {
+                  "formulas": true,
+                  "charts": true,
+                  "sheets": true,
+                  "conditionalFormatting": true,
+                  "resizableColumns": true,
+                  "columns": 10,
+                  "rows": 50
+                }
+              },
+              "type": "spreadsheet"
+            }
+          }
+        },
+        "type": "grid",
+        "preset": {
+          "columns": 2,
+          "gap": 8
+        }
+      }
+    },
+    {
+      "id": "media_page",
+      "label": "🎬 媒体中心",
+      "routePath": "/showcase/media",
+      "layout": {
+        "slots": {
+          "left": {
+            "component": {
+              "config": {
+                "media": {
+                  "accept": [
+                    "video/*",
+                    "audio/*",
+                    ".mp4",
+                    ".webm",
+                    ".ogg"
+                  ],
+                  "mode": "player",
+                  "direction": "horizontal",
+                  "controls": true,
+                  "video": {
+                    "speeds": [
+                      0.5,
+                      0.75,
+                      1.0,
+                      1.25,
+                      1.5,
+                      2.0
+                    ],
+                    "cache": true,
+                    "quality": "auto",
+                    "captions": true
+                  },
+                  "audio": {
+                    "speeds": [
+                      0.5,
+                      0.75,
+                      1.0,
+                      1.25,
+                      1.5,
+                      2.0
+                    ],
+                    "waveform": true
+                  }
+                }
+              },
+              "type": "video"
+            }
+          },
+          "right": {
+            "component": {
+              "config": {
+                "presentation": {
+                  "transitions": true,
+                  "animations": true,
+                  "speakerNotes": true,
+                  "presenterView": true,
+                  "slideMaster": true,
+                  "layouts": [
+                    "title",
+                    "content",
+                    "two-column",
+                    "blank",
+                    "image"
+                  ],
+                  "exportFormats": [
+                    "pdf",
+                    "pptx",
+                    "png",
+                    "html"
+                  ]
+                }
+              },
+              "type": "presentation"
+            }
+          }
+        },
+        "type": "grid",
+        "preset": {
+          "columns": 2,
+          "gap": 8
+        }
+      }
+    },
+    {
+      "id": "learn_page",
+      "label": "📚 学习工具",
+      "routePath": "/showcase/learn",
+      "layout": {
+        "slots": {
+          "left": {
+            "component": {
+              "config": {
+                "input": {
+                  "mode": "type-check",
+                  "caseSensitive": false,
+                  "feedback": {
+                    "correct": {
+                      "sound": true,
+                      "animation": "bounce",
+                      "color": "#4CAF50"
+                    },
+                    "incorrect": {
+                      "sound": true,
+                      "animation": "shake",
+                      "color": "#F44336",
+                      "showAnswer": true
+                    }
+                  }
+                }
+              },
+              "type": "type-check"
+            }
+          },
+          "right": {
+            "component": {
+              "config": {
+                "form": {
+                  "fields": [
+                    {
+                      "type": "text",
+                      "key": "name",
+                      "label": "姓名",
+                      "required": true,
+                      "placeholder": "输入你的名字"
+                    },
+                    {
+                      "type": "email",
+                      "key": "email",
+                      "label": "邮箱",
+                      "required": true
+                    },
+                    {
+                      "type": "number",
+                      "key": "age",
+                      "label": "年龄",
+                      "min": 1,
+                      "max": 150
+                    },
+                    {
+                      "type": "select",
+                      "key": "level",
+                      "label": "等级",
+                      "options": [
+                        {
+                          "value": "beginner",
+                          "label": "初学者"
+                        },
+                        {
+                          "value": "intermediate",
+                          "label": "中级"
+                        },
+                        {
+                          "value": "advanced",
+                          "label": "高级"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "textarea",
+                      "key": "bio",
+                      "label": "自我介绍",
+                      "rows": 3
+                    },
+                    {
+                      "type": "checkbox",
+                      "key": "agree",
+                      "label": "同意条款",
+                      "required": true
+                    },
+                    {
+                      "type": "date",
+                      "key": "birthday",
+                      "label": "生日"
+                    }
+                  ]
+                }
+              },
+              "type": "form"
+            }
+          }
+        },
+        "features": {
+          "zoom": {
+            "enabled": true,
+            "min": 0.8,
+            "max": 1.5
+          }
+        },
+        "type": "grid",
+        "preset": {
+          "columns": 2,
+          "gap": 8
+        }
+      }
+    },
+    {
+      "id": "planner_page",
+      "label": "🗺️ 地图+日历",
+      "routePath": "/showcase/planner",
+      "layout": {
+        "slots": {
+          "left": {
+            "component": {
+              "config": {
+                "timeline": {
+                  "mode": "calendar",
+                  "view": "month"
+                }
+              },
+              "type": "calendar"
+            }
+          },
+          "right": {
+            "component": {
+              "config": {
+                "map": {
+                  "center": {
+                    "lat": 39.9042,
+                    "lng": 116.4074
+                  },
+                  "zoom": 12,
+                  "markers": true,
+                  "cluster": true,
+                  "geolocation": true
+                }
+              },
+              "type": "map"
+            }
+          }
+        },
+        "type": "grid",
+        "preset": {
+          "columns": 2,
+          "gap": 8
+        }
+      }
+    }
+  ],
+  "workspace": {
+    "enabled": true,
+    "maxFiles": 100,
+    "maxSizeMb": 100,
+    "aiCreatable": [
+      "md",
+      "json",
+      "py",
+      "txt",
+      "csv",
+      "html",
+      "css",
+      "js",
+      "pptx",
+      "pdf",
+      "xlsx"
+    ],
+    "persistAcrossSessions": true
+  }
+}

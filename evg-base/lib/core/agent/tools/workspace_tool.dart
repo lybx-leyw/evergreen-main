@@ -64,8 +64,7 @@ class WorkspaceTool extends Tool {
     try {
       final dir = Directory(_workspaceDir);
       if (!dir.existsSync()) {
-        return '工作区目录不存在：$_workspaceDir。'
-            '如需使用工作区，模块需在 manifest.json 中声明 `"workspace": {"enabled": true}`。';
+        return '工作区目录不存在。模块需在 manifest.json 中声明 `"workspace": {"enabled": true}`。';
       }
 
       switch (action) {
@@ -83,7 +82,7 @@ class WorkspaceTool extends Tool {
 
   String _list(Directory dir) {
     final files = dir.listSync(recursive: true).whereType<File>().toList();
-    if (files.isEmpty) return '工作区为空（$_workspaceDir）。';
+    if (files.isEmpty) return '工作区为空。';
 
     final buf = StringBuffer();
     buf.writeln('## 文件工作区\n');
@@ -108,11 +107,11 @@ class WorkspaceTool extends Tool {
     // 沙箱校验——防止 ../../../etc/passwd 等路径遍历
     final safePath = _sandbox.confine(rawPath);
     if (safePath == null) {
-      return '[越界拒绝] 路径 "$rawPath" 不在工作区内。只能读取 $_workspaceDir 下的文件。';
+      return '[越界拒绝] 路径 "$rawPath" 不在工作区内。文件操作仅限工作区内。';
     }
 
     final file = File(safePath);
-    if (!file.existsSync()) return '文件不存在：$rawPath （工作区: $_workspaceDir）';
+    if (!file.existsSync()) return '文件不存在：$rawPath';
 
     // 限制读取大小（最大 100KB）
     final size = file.lengthSync();

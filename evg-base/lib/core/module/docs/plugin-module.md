@@ -1,6 +1,7 @@
-# UI 模块 manifest 开发规范
+# Module 插件撰写指南
 
 > 面向插件开发者——第三方如何编写 `manifest.json` 来声明一个 UI 模块。
+> 本文档是 Module 插件开发的**唯一权威参考**，合并了原 `plugin-authoring-guide-module.md` 和 `plugin-module.md`。
 
 ---
 
@@ -70,7 +71,9 @@ plugins/<name>/module/manifest.json
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `ui` | `string` | `"default"` | `default` / `chat` / `spreadsheet` / `document` / `presentation` / `dashboard` / `editor` |
+| `ui` | `string` | `"default"` | `default` / `chat` / `spreadsheet` / `document` / `presentation` / `dashboard` / `editor` / `composite` |
+
+**范式选择建议**：纯展示→`default`+data | 对话AI→`chat` | 表格→`spreadsheet` | 文档→`document` | 复杂布局→`composite`
 
 #### chat 模式专属
 
@@ -287,7 +290,7 @@ plugins/<name>/module/manifest.json
 | `process.protocol` | `string` | `"http"` | `http` / `stdio` |
 | `process.preferredPort` | `int` | `0` | 首选端口（0=自动） |
 
-### 3.11 AI 助手胶水（新增）
+### 3.11 AI 助手胶水
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
@@ -295,7 +298,144 @@ plugins/<name>/module/manifest.json
 
 ---
 
-## 四、示例
+## 四、四级 .exe 层级
+
+| 层级 | manifest 位置 | 生命周期 | 适用场景 |
+|------|--------------|---------|---------|
+| ① 模块级 | `process`（顶层） | 加载 → 卸载 | 数据库连接、认证 |
+| ② 页面级 | `pages[].globalProcess` | 激活 → 切走 | 页面级数据拉取 |
+| ③ 栏位级 | `pages[].slots.<k>.process` | 可见 → 隐藏 | 栏专属后端 |
+| ④ 动作级 | `actions[].process` | 触发 → 完成退出 | 翻译、导出、计算 |
+
+### 进程协议
+
+1. 启动后 stdout 第一行输出 `PORT:<N>`（HTTP）或直接就绪（stdio）
+2. 提供 `GET /health` → 200 `{"status":"ok"}`
+3. 日志走 stderr，不污染 stdout
+4. 所有响应带 `Access-Control-Allow-Origin: *`
+
+### Python 最小后端
+
+```python
+import json
+from http.server import HTTPServer, BaseHTTPRequestHandler
+
+PORT = 8080
+
+class H(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == "/health":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status":"ok"}).encode())
+
+if __name__ == "__main__":
+    print(f"PORT:{PORT}", flush=True)
+    HTTPServer(("127.0.0.1", PORT), H).serve_forever()
+```
+
+---
+
+## 五、Composite 模式（PLAN_NOW 终局方向）
+
+页面结构完全由 JSON 声明，无需 Dart 代码。
+
+```
+ModuleDescriptor
+  └── pages[]                    ← 多页面
+        ├── id / label           ← 页面标识和 Tab 标签
+        ├── layout               ← 页面级布局
+        ├── globalProcess        ← 页面级 .exe
+        └── slots                ← 栏目映射 {left, right, center, top, bottom, main}
+              └── ComponentConfig {component, config, process, events, expose_state}
+```
+
+### Slot 字段
+
+| 字段 | 说明 |
+|------|------|
+| `component` | 组件类型名（如 `"type-check"`、`"data-table"`） |
+| `config` | 组件专属配置（透传给 Widget） |
+| `process` | 栏级后端进程（可选） |
+| `events` | `{emit: [...], subscribe: [...]}` |
+| `expose_state` | `{events: [...], format: "json", subdir: "..."}` → `.greenix/workspaces/<id>/<subdir>/state.json` |
+
+### 栏间事件（PageEventBus）
+
+页面激活创建 → 切走 dispose。不跨页面、不跨模块、不持久化。
+
+### 完整 Composite 示例
+
+```jsonc
+{
+  "type": "module",
+  "id": "vocab-tutor",
+  "name": "单词教练",
+  "ui": "composite",
+  "route": "/vocab-tutor",
+  "sidebar": { "section": "教育", "order": 20 },
+
+  "pages": [
+    {
+      "id": "learn", "label": "学习",
+      "slots": {
+        "left": {
+          "component": "type-check",
+          "config": { "wordList": ["apple", "banana", "cherry"] },
+          "process": { "exe": "checker.exe" },
+          "events": { "emit": ["word_completed"] },
+          "expose_state": { "events": ["word_completed"], "subdir": "type-check" }
+        },
+        "right": {
+          "component": "data-table",
+          "config": { "dataType": "progress" },
+          "events": { "subscribe": ["word_completed"] }
+        }
+      }
+    },
+    {
+      "id": "review", "label": "复习",
+      "slots": {
+        "main": { "component": "flashcard", "config": { "mode": "spaced-repetition" } }
+      }
+    }
+  ],
+
+  "actions": [
+    { "trigger": "button:export-progress", "label": "导出进度",
+      "process": { "exe": "export.exe", "protocol": "stdio" } }
+  ]
+}
+```
+
+---
+
+## 六、多页多栏能力矩阵
+
+以下字段在所有 UI 范式下均可用（`pages[]` + `slots` 仅 composite）：
+
+| 能力 | 字段 | 层级 | 非 composite | composite |
+|------|------|------|:-----------:|:---------:|
+| 侧边栏子导航 | `secondaryNavs` | 模块级（路由跳转） | ✅ | ✅ |
+| 页面内 Tab 面板 | `layout.panels` | 模块级/页面级 | ✅ | ✅ |
+| 多列分框布局 | `layout.grid` | 页面级（数据自动分配） | ✅ | ✅ |
+| 可滑出抽屉 | `layout.drawers` | 页面级（top/left/right/bottom） | ✅ | ✅ |
+| 多页面 | `pages[]` | 模块级（Tab 切换） | ❌ | ✅ |
+| 栏目映射 | `pages[].slots` | 页面级（栏间事件总线） | ❌ | ✅ |
+| 动作按钮 | `actionButtons[]` | 模块级 | ❌ | ✅ |
+| 栏间事件 | `PageEventBus` | 页面级 | ❌ | ✅ |
+
+> **层级关系**：`pages[]` > `panels`（父子）。`pages[]` 是一级页面 Tab，`panels` 是页面内的二级 Tab。
+>
+> **`secondaryNavs`** 不是页面内 Tab，而是**侧边栏的二级导航条目**——切换即路由跳转，和点击侧边栏主条目行为一致。
+>
+> **`layout.drawers`** 是页面级布局面板（常驻区域），与 `media.mode: "drawer"`（媒体文件临时滑入）是不同概念。slot 与 drawer 之间无源码级映射，由渲染层约定。
+
+---
+
+## 七、示例
 
 ### 纯服务模块（无 UI）
 
@@ -342,9 +482,60 @@ plugins/<name>/module/manifest.json
 }
 ```
 
+### 带子导航 + 多 Tab + 抽屉的设置页（非 composite）
+
+```jsonc
+{
+  "type": "module",
+  "id": "settings",
+  "name": "设置",
+  "ui": "default",
+  "route": "/settings",
+  "sidebar": { "section": "系统", "order": 90 },
+  // 侧边栏子导航：切换即路由跳转
+  "secondaryNavs": [
+    { "label": "通用", "routePath": "/settings/general", "section": "系统", "icon": "tune" },
+    { "label": "账户", "routePath": "/settings/account", "section": "系统", "icon": "account_circle" },
+    { "label": "关于", "routePath": "/settings/about", "section": "系统", "icon": "info" }
+  ],
+  "layout": {
+    "drawers": ["right"],              // 右侧可滑出抽屉
+    "panels": [                        // 页面内 Tab 面板
+      { "id": "prefs", "label": "偏好", "path": "/settings/general", "default": true },
+      { "id": "advanced", "label": "高级", "path": "/settings/general/advanced" }
+    ]
+  }
+}
+```
+
+**说明**：`secondaryNavs` 在侧边栏生成 3 个二级条目（通用/账户/关于），点击触发路由跳转。"通用"页内通过 `panels` 展示 2 个 Tab（偏好/高级），右侧 `drawers` 提供属性面板。
+
+### 分框数据看板（非 composite）
+
+```jsonc
+{
+  "type": "module",
+  "id": "analytics",
+  "name": "数据分析",
+  "ui": "dashboard",
+  "route": "/analytics",
+  "layout": {
+    "grid": { "columns": 3, "gap": 12 },  // 3 列分框，数据按声明顺序自动分配
+    "drawers": ["left"]                    // 左侧筛选面板
+  },
+  "data": [
+    { "type": "revenue", "display": "chart" },
+    { "type": "users", "display": "card" },
+    { "type": "orders", "display": "table" }
+  ]
+}
+```
+
+**说明**：`grid.columns: 3` 将 3 个数据源自动分 3 列展示（revenue→第1列图表，users→第2列卡片，orders→第3列表格），`drawers: ["left"]` 提供左侧筛选面板。
+
 ---
 
-## 五、验证规则
+## 八、验证规则
 
 | 规则 | 说明 |
 |------|------|
@@ -354,11 +545,37 @@ plugins/<name>/module/manifest.json
 | 未知字段静默忽略 | 向前兼容，不抛异常 |
 | JSON 语法错误 | `fromJsonString` 抛出 `FormatException` |
 
+### 常见错误
+
+| 错误 | 原因 | 解决 |
+|------|------|------|
+| `FormatException: 缺少必填字段 "id"` | 缺 `id`/`name` | 补全必填字段 |
+| `StateError: 模块依赖校验失败` | 依赖未注册 | 检查 `dependencies` id 是否正确 |
+| `ModuleRegistry 已锁定` | seal() 后 register() | 在 seal() 前注册 |
+| exe 不存在 | 进程路径错误 | 检查 `process.exe` 路径 |
+| health check 超时 | 未输出 PORT: | 确认 `print(f"PORT:{PORT}", flush=True)` |
+
 ---
 
-## 六、版本兼容
+## 九、版本兼容
 
 | manifest 版本 | 最低平台版本 | 说明 |
 |--------------|-------------|------|
 | 1.0 | — | 初始版本，所有字段 |
 | 1.1+ | — | `activateSkills` 新增 |
+
+---
+
+## 十、测试与验证
+
+将 `manifest.json` 放入 `plugins/<name>/module/` 目录，启动平台后自动加载。验证方法：
+
+1. 侧边栏应出现你的模块
+2. 点击模块应正确显示对应 UI 范式
+3. 如果有后端进程，检查 `GET /health` 是否正常响应
+
+可通过 HTTP API 验证模块注册状态：
+
+```bash
+curl http://127.0.0.1:PORT/module/modules
+```

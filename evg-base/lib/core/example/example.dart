@@ -103,8 +103,11 @@ void _browse() {
     if (m.hasSidebar) tags.add('sidebar');
     if (m.isServiceOnly) tags.add('service');
     if (m.dataBindings.isNotEmpty) tags.add('data:${m.dataBindings.length}');
-    if (m.process != null) tags.add('exe');
-    print('  ${m.id.padRight(18)} ${m.name.padRight(10)} ui=${m.ui.padRight(12)} ${tags.join(" ")}');
+    if (m.process.isNotEmpty) tags.add('exe:${m.process.length}');
+    // V2: 不再有 ui 字段，用页面中的组件类型替代
+    final compTypes = m.pages.expand((p) => p.componentTypes).toSet();
+    final uiLabel = compTypes.isEmpty ? '(no pages)' : compTypes.join(',');
+    print('  ${m.id.padRight(18)} ${m.name.padRight(10)} pages=${m.pages.length} ${tags.join(" ")}  [$uiLabel]');
   }
   print('\n═══ 已加载主题 ═══');
   for (final t in _themes.all) {
@@ -118,9 +121,12 @@ void _inspect() {
   final m = _reg.findById(stdin.readLineSync()?.trim() ?? '');
   if (m == null) { print('未找到\n'); return; }
   print('\n═══ ${m.name} (${m.id}) ═══');
-  print('  ui=${m.ui}  route=${m.route ?? "-"}  sidebar=${m.sidebar?.section ?? "-"}');
-  final l = m.layout;
-  print('  layout: mode=${l.mode} grid=${l.grid?.columns ?? "-"}col drawers=${l.drawers} panels=${l.panels.length} search=${l.search?.enabled == true}');
+  // V2: 不再有 ui 字段，从 pages 中提取组件类型
+  final compTypes = m.pages.expand((p) => p.componentTypes).toSet();
+  print('  pages: ${m.pages.length}  route=${m.route ?? "-"}  sidebar=${m.nav.sidebar?.section ?? "-"}  components: [${compTypes.join(", ")}]');
+  if (m.process.isNotEmpty) {
+    for (final p in m.process) print('  process: ${p.id ?? "?"} → ${p.exe} (${p.protocol}, ${p.scope})');
+  }
   if (m.actions != null) {
     final a = m.actions!;
     print('  actions: tap=${a.itemTap} select=${a.selection} sort=${a.sortable} create=${a.creatable} edit=${a.editable} export=${a.exportable}');
@@ -128,10 +134,12 @@ void _inspect() {
   if (m.dataBindings.isNotEmpty) {
     for (final d in m.dataBindings) print('  data → ${d.dataType} (${d.display}${d.filter ? ", filter" : ""})');
   }
-  if (m.chat != null) print('  chat: thinking=${m.chat!.thinking.visible} stream=${m.chat!.stream.enabled}');
-  if (m.spreadsheet != null) print('  spreadsheet: formulas=${m.spreadsheet!.formulas} charts=${m.spreadsheet!.charts}');
+  // V2: chat/spreadsheet/document/presentation 不再作为顶层 getter，改为从 pages 的 component config 中提取
+  for (final p in m.pages) {
+    final types = p.componentTypes;
+    if (types.isNotEmpty) print('  page[${p.id}]: ${types.join(", ")}');
+  }
   if (m.workspace?.enabled == true) print('  workspace: ${m.workspace!.maxFiles}f/${m.workspace!.maxSizeMb}MB ai=${m.workspace!.aiCreatable}');
-  if (m.process != null) print('  process: ${m.process!.exe} (${m.process!.protocol})');
   print('');
 }
 

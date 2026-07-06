@@ -1,6 +1,6 @@
-/// 模块描述符——所有模块通过 manifest.json 声明，[ModuleDescriptor.fromJson] 解析。
+/// Manifest V2 模块描述符——树形架构：模块→页面→布局→插槽→组件。
 ///
-/// # [ModuleDescriptor] —— 模块声明
+/// # [ModuleDescriptor] —— 模块声明（V2）
 ///
 /// | 工厂 / 方法 | 输入 | 输出 | 说明 |
 /// |---|---|---|---|
@@ -13,48 +13,54 @@
 ///
 /// | 类 | 说明 |
 /// |---|---|
-/// | `SidebarDescriptor` | 侧边栏配置 |
-/// | `NavDescriptor` | 子导航条目声明 |
-/// | `LayoutDescriptor` | UI 布局偏好 |
-/// | `GridOptions` | 分框布局 |
-/// | `PanelDescriptor` | 多 tab 面板声明 |
-/// | `ZoomDescriptor` | 缩放配置 |
-/// | `SearchDescriptor` | 搜索栏配置 |
+/// | `StyleDescriptor` | 样式超参数（width/height/padding/margin/color/flex...） |
+/// | `EventDescriptor` | 事件声明（emit + listen + delegates） |
 /// | `DataBindingDescriptor` | 数据绑定声明 |
+/// | `DataSourceDescriptor` | 数据源声明（页面/组件级） |
+/// | `ProcessDescriptor` | 后端进程配置（V2: id/scope/autoStart/autoRestart） |
+/// | `NavDescriptor` | 子导航条目声明 |
+/// | `SidebarDescriptor` | 侧边栏配置 |
+/// | `NavObjectDescriptor` | 导航聚合（sidebar + secondary） |
+/// | `LayoutDescriptor` | 布局（type/preset/features/style/slots） |
+/// | `LayoutPreset` | 布局预设超参数 |
+/// | `LayoutFeatures` | 布局特性（zoom/search/drawers） |
+/// | `SlotDescriptor` | 插槽（style/process/events/component） |
+/// | `ComponentDescriptor` | 组件声明（type/config/input/events/process/dataSource） |
+/// | `PageDescriptor` | 页面描述符 |
 /// | `ActionDescriptor` | 交互规则声明 |
-/// | `ActionButtonDescriptor` | 动作按钮声明（composite 模式） |
+/// | `ActionButtonDescriptor` | 动作按钮声明 |
 /// | `RefreshDescriptor` | 刷新配置 |
 /// | `DeletableDescriptor` | 删除行为配置 |
-/// | `SpreadsheetOptions` | 电子表格模式选项 |
-/// | `DocEditorOptions` | 文档编辑器选项 |
-/// | `PresentationOptions` | 幻灯片模式选项 |
+/// | `ZoomDescriptor` | 缩放配置 |
+/// | `SearchDescriptor` | 搜索栏配置 |
+/// | `PanelDescriptor` | 多 tab 面板声明 |
+/// | `WorkspaceDescriptor` | 文件工作区声明 |
+/// | `MediaDescriptor` | 内嵌文件展示声明 |
+/// | `TimelineDescriptor` | 时间线/日历声明 |
+/// | `MapDescriptor` | 地图/位置声明 |
+/// | `FormDescriptor` | 结构化表单声明 |
+/// | `FormFieldDescriptor` | 表单字段 |
 /// | `ChatOptions` | Chat 模式选项 |
 /// | `ThinkingOptions` | 思考栏展示选项 |
 /// | `ToolCallOptions` | 工具调用提示选项 |
 /// | `BubbleOptions` | 气泡样式选项 |
 /// | `StreamOptions` | 流式输出选项 |
-/// | `InputOptions` | 键盘交互声明（与 actions 并列） |
+/// | `InputOptions` | 键盘交互声明 |
 /// | `AttachmentOptions` | 附件上传选项 |
-/// | `FeedbackOptions` | 输入反馈配置（type-check 模式） |
-/// | `FeedbackStateOptions` | 单次反馈状态（正确/错误） |
-/// | `WorkspaceDescriptor` | 文件工作区声明 |
-/// | `MediaDescriptor` | 内嵌文件展示声明 |
-/// | `VideoOptions` | 视频选项（倍速/缓存/画质） |
-/// | `AudioOptions` | 音频选项（倍速/波形） |
-/// | `DocumentOptions` | 文档选项（缩放/搜索/分页） |
-/// | `ImageOptions` | 图片选项（缩放/画廊） |
-/// | `TimelineDescriptor` | 时间线/日历声明 |
-/// | `MapDescriptor` | 地图/位置声明 |
-/// | `FormDescriptor` | 结构化表单声明 |
-/// | `FormFieldDescriptor` | 表单字段 |
+/// | `FeedbackOptions` | 输入反馈配置 |
+/// | `FeedbackStateOptions` | 单次反馈状态 |
+/// | `SpreadsheetOptions` | 电子表格模式选项 |
+/// | `DocEditorOptions` | 文档编辑器选项 |
+/// | `PresentationOptions` | 幻灯片模式选项 |
+/// | `VideoOptions` | 视频选项 |
+/// | `AudioOptions` | 音频选项 |
+/// | `DocumentOptions` | 文档选项 |
+/// | `ImageOptions` | 图片选项 |
 /// | `FixedSizeOptions` | fixed 模式尺寸 |
-/// | `ProcessDescriptor` | 后端进程配置 |
-/// | `ComponentConfig` | 内容组件配置（composite 模式） |
-/// | `PageDescriptor` | 页面描述符（composite 模式） |
+/// | `ExposeStateConfig` | 栏状态暴露声明 |
 library;
 
 import 'dart:convert';
-import 'package:flutter/material.dart';
 
 // ═══════ JSON helpers ═══════
 
@@ -82,179 +88,639 @@ List<T> _requireList<T>(
 
 // ═══════ Icon 解析 ═══════
 
-IconData? _parseIcon(dynamic raw) {
+/// 从 JSON 解析图标：int（codePoint）或 String（名称映射或 hex）。
+/// 安全解析布尔标记：支持 `true`/`false` 或对象（有内容=enabled）。
+bool _parseFlag(dynamic raw) {
+  if (raw == null) return false;
+  if (raw is bool) return raw;
+  if (raw is Map) return raw.isNotEmpty;
+  if (raw is List) return raw.isNotEmpty;
+  return false;
+}
+
+int? _parseIcon(dynamic raw) {
   if (raw == null) return null;
-  if (raw is int) return IconData(raw);
+  if (raw is int) return raw;
   if (raw is String) {
-    // 先查内置映射，再尝试 hex 解析
     final mapped = _iconMap[raw];
     if (mapped != null) return mapped;
     final i = int.tryParse(raw);
-    if (i != null) return IconData(i);
+    if (i != null) return i;
     return null;
   }
   return null;
 }
 
-int? _iconToJson(IconData? icon) => icon?.codePoint;
+int? _iconToJson(int? codePoint) => codePoint;
 
-const _iconMap = <String, IconData>{
-  'extension': Icons.extension,
-  'home': Icons.home,
-  'settings': Icons.settings,
-  'person': Icons.person,
-  'school': Icons.school,
-  'auto_awesome': Icons.auto_awesome,
-  'code': Icons.code,
-  'star': Icons.star,
-  'bookmark': Icons.bookmark,
-  'build': Icons.build,
-  'dashboard': Icons.dashboard,
-  'analytics': Icons.analytics,
-  'chat': Icons.chat,
-  'email': Icons.email,
-  'notifications': Icons.notifications,
-  'language': Icons.language,
-  'search': Icons.search,
-  'favorite': Icons.favorite,
-  'timeline': Icons.timeline,
-  'date_range': Icons.date_range,
-  'folder': Icons.folder,
-  'insert_drive_file': Icons.insert_drive_file,
-  'cloud': Icons.cloud,
-  'lock': Icons.lock,
-  'account_circle': Icons.account_circle,
-  'admin_panel_settings': Icons.admin_panel_settings,
-  'apps': Icons.apps,
-  'article': Icons.article,
-  'assessment': Icons.assessment,
-  'attach_money': Icons.attach_money,
-  'bar_chart': Icons.bar_chart,
-  'business': Icons.business,
-  'calendar_month': Icons.calendar_month,
-  'checklist': Icons.checklist,
-  'contact_support': Icons.contact_support,
-  'credit_card': Icons.credit_card,
-  'dark_mode': Icons.dark_mode,
-  'delete': Icons.delete,
-  'description': Icons.description,
-  'done': Icons.done,
-  'download': Icons.download,
-  'edit': Icons.edit,
-  'engineering': Icons.engineering,
-  'event': Icons.event,
-  'explore': Icons.explore,
-  'face': Icons.face,
-  'filter_alt': Icons.filter_alt,
-  'gavel': Icons.gavel,
-  'group': Icons.group,
-  'handshake': Icons.handshake,
-  'help': Icons.help,
-  'history': Icons.history,
-  'info': Icons.info,
-  'inventory': Icons.inventory,
-  'lightbulb': Icons.lightbulb,
-  'list_alt': Icons.list_alt,
-  'local_library': Icons.local_library,
-  'map': Icons.map,
-  'mediation': Icons.mediation,
-  'menu_book': Icons.menu_book,
-  'model_training': Icons.model_training,
-  'more_horiz': Icons.more_horiz,
-  'music_note': Icons.music_note,
-  'new_releases': Icons.new_releases,
-  'open_in_new': Icons.open_in_new,
-  'paid': Icons.paid,
-  'palette': Icons.palette,
-  'people': Icons.people,
-  'percent': Icons.percent,
-  'pie_chart': Icons.pie_chart,
-  'playlist_add': Icons.playlist_add,
-  'precision_manufacturing': Icons.precision_manufacturing,
-  'preview': Icons.preview,
-  'psychology': Icons.psychology,
-  'public': Icons.public,
-  'publish': Icons.publish,
-  'push_pin': Icons.push_pin,
-  'quiz': Icons.quiz,
-  'receipt': Icons.receipt,
-  'rocket': Icons.rocket,
-  'rule': Icons.rule,
-  'schedule': Icons.schedule,
-  'science': Icons.science,
-  'score': Icons.score,
-  'security': Icons.security,
-  'self_improvement': Icons.self_improvement,
-  'shopping_cart': Icons.shopping_cart,
-  'smart_toy': Icons.smart_toy,
-  'spa': Icons.spa,
-  'speed': Icons.speed,
-  'storage': Icons.storage,
-  'store': Icons.store,
-  'stream': Icons.stream,
-  'support': Icons.support,
-  'switch_account': Icons.switch_account,
-  'task': Icons.task,
-  'thermostat': Icons.thermostat,
-  'thumb_up': Icons.thumb_up,
-  'tour': Icons.tour,
-  'toys': Icons.toys,
-  'translate': Icons.translate,
-  'trending_up': Icons.trending_up,
-  'tune': Icons.tune,
-  'update': Icons.update,
-  'upgrade': Icons.upgrade,
-  'verified': Icons.verified,
-  'videocam': Icons.videocam,
-  'view_kanban': Icons.view_kanban,
-  'visibility': Icons.visibility,
-  'volume_up': Icons.volume_up,
-  'wallet': Icons.wallet,
-  'warning': Icons.warning,
-  'workspace_premium': Icons.workspace_premium,
+const _iconMap = <String, int>{
+  'extension': 0xe24b, // Icons.extension
+  'home': 0xe88a,
+  'settings': 0xe8b8,
+  'person': 0xe7fd,
+  'school': 0xe80c,
+  'auto_awesome': 0xe65f,
+  'code': 0xe86f,
+  'star': 0xe838,
+  'bookmark': 0xe8e7,
+  'build': 0xe869,
+  'dashboard': 0xe871,
+  'analytics': 0xef3e,
+  'chat': 0xe0b7,
+  'email': 0xe0be,
+  'notifications': 0xe7f4,
+  'language': 0xe894,
+  'search': 0xe8b6,
+  'favorite': 0xe87d,
+  'timeline': 0xe922,
+  'date_range': 0xe916,
+  'folder': 0xe2c7,
+  'insert_drive_file': 0xe24d,
+  'cloud': 0xe2bd,
+  'lock': 0xe897,
+  'account_circle': 0xe853,
+  'admin_panel_settings': 0xef3d,
+  'apps': 0xe40b,
+  'article': 0xef42,
+  'assessment': 0xf0a5,
+  'attach_money': 0xe227,
+  'bar_chart': 0xe26b,
+  'business': 0xe0af,
+  'calendar_month': 0xebcc,
+  'checklist': 0xe6b1,
+  'contact_support': 0xe94c,
+  'credit_card': 0xe870,
+  'dark_mode': 0xe51c,
+  'delete': 0xe872,
+  'description': 0xe873,
+  'done': 0xe876,
+  'download': 0xf090,
+  'edit': 0xe3c9,
+  'engineering': 0xea4d,
+  'event': 0xe878,
+  'explore': 0xe87a,
+  'face': 0xe87c,
+  'filter_alt': 0xef4f,
+  'gavel': 0xe90e,
+  'group': 0xe7ef,
+  'handshake': 0xebcb,
+  'help': 0xe887,
+  'history': 0xe889,
+  'info': 0xe88e,
+  'inventory': 0xe179,
+  'lightbulb': 0xe0f0,
+  'list_alt': 0xe0ee,
+  'local_library': 0xe54b,
+  'map': 0xe55b,
+  'mediation': 0xefa7,
+  'menu_book': 0xea19,
+  'model_training': 0xf0cf,
+  'more_horiz': 0xe5d3,
+  'music_note': 0xe405,
+  'new_releases': 0xe031,
+  'open_in_new': 0xe89e,
+  'paid': 0xf0a7,
+  'palette': 0xe40a,
+  'people': 0xe7fb,
+  'percent': 0xeb58,
+  'pie_chart': 0xec2a,
+  'playlist_add': 0xe03b,
+  'precision_manufacturing': 0xf049,
+  'preview': 0xf1c5,
+  'psychology': 0xea4a,
+  'public': 0xe80b,
+  'publish': 0xe255,
+  'push_pin': 0xf10d,
+  'quiz': 0xf04e,
+  'receipt': 0xe8b0,
+  'rocket': 0xeba5,
+  'rule': 0xf1c2,
+  'schedule': 0xe8b5,
+  'science': 0xea4e,
+  'score': 0xe269,
+  'security': 0xe32a,
+  'self_improvement': 0xea78,
+  'shopping_cart': 0xe8cc,
+  'smart_toy': 0xf06c,
+  'spa': 0xe4b4,
+  'speed': 0xe9e4,
+  'storage': 0xe1db,
+  'store': 0xe8d1,
+  'stream': 0xe9e6,
+  'support': 0xef73,
+  'switch_account': 0xe9ed,
+  'task': 0xf075,
+  'thermostat': 0xf076,
+  'thumb_up': 0xe8dc,
+  'tour': 0xef75,
+  'toys': 0xf332,
+  'translate': 0xe8e2,
+  'trending_up': 0xe8e5,
+  'tune': 0xe429,
+  'update': 0xe923,
+  'upgrade': 0xf0fb,
+  'verified': 0xef76,
+  'videocam': 0xe04b,
+  'view_kanban': 0xeb7f,
+  'visibility': 0xe8f4,
+  'volume_up': 0xe050,
+  'wallet': 0xe8ff,
+  'warning': 0xe002,
+  'workspace_premium': 0xe7af,
 };
+
+// ═══════ StyleDescriptor ═══════
+
+/// 样式超参数——每层均可声明，用 JSON 预设超参数（非 CSS 字符串）。
+///
+/// 支持的预设超参数：
+/// - 尺寸: width, height, minWidth, maxWidth, minHeight, maxHeight
+/// - 间距: padding, paddingTop/Bottom/Left/Right, margin, marginTop/Bottom/Left/Right
+/// - 外观: background, borderRadius, border, shadow, opacity
+/// - 弹性: flex, flexDirection, justifyContent, alignItems, alignSelf, gap, wrap
+/// - 网格定位: gridColumn, gridRow
+/// - 定位: position, top, right, bottom, left, zIndex
+/// - 文字: color, fontSize, fontWeight, textAlign
+/// - 溢出: overflow
+class StyleDescriptor {
+  final dynamic width;
+  final dynamic height;
+  final dynamic minWidth;
+  final dynamic maxWidth;
+  final dynamic minHeight;
+  final dynamic maxHeight;
+
+  final double? padding;
+  final double? paddingTop;
+  final double? paddingRight;
+  final double? paddingBottom;
+  final double? paddingLeft;
+  final double? margin;
+  final double? marginTop;
+  final double? marginRight;
+  final double? marginBottom;
+  final double? marginLeft;
+
+  final String? background;
+  final double? borderRadius;
+  final String? border;
+  final String? shadow;
+  final double? opacity;
+
+  final int? flex;
+  final String? flexDirection;
+  final String? justifyContent;
+  final String? alignItems;
+  final String? alignSelf;
+  final double? gap;
+  final bool? wrap;
+
+  final String? gridColumn;
+  final String? gridRow;
+
+  final String? position;
+  final double? top;
+  final double? right;
+  final double? bottom;
+  final double? left;
+  final int? zIndex;
+
+  final String? color;
+  final double? fontSize;
+  final String? fontWeight;
+  final String? textAlign;
+
+  final String? overflow;
+
+  const StyleDescriptor({
+    this.width,
+    this.height,
+    this.minWidth,
+    this.maxWidth,
+    this.minHeight,
+    this.maxHeight,
+    this.padding,
+    this.paddingTop,
+    this.paddingRight,
+    this.paddingBottom,
+    this.paddingLeft,
+    this.margin,
+    this.marginTop,
+    this.marginRight,
+    this.marginBottom,
+    this.marginLeft,
+    this.background,
+    this.borderRadius,
+    this.border,
+    this.shadow,
+    this.opacity,
+    this.flex,
+    this.flexDirection,
+    this.justifyContent,
+    this.alignItems,
+    this.alignSelf,
+    this.gap,
+    this.wrap,
+    this.gridColumn,
+    this.gridRow,
+    this.position,
+    this.top,
+    this.right,
+    this.bottom,
+    this.left,
+    this.zIndex,
+    this.color,
+    this.fontSize,
+    this.fontWeight,
+    this.textAlign,
+    this.overflow,
+  });
+
+  factory StyleDescriptor.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const StyleDescriptor();
+    return StyleDescriptor(
+      width: json['width'],
+      height: json['height'],
+      minWidth: json['minWidth'],
+      maxWidth: json['maxWidth'],
+      minHeight: json['minHeight'],
+      maxHeight: json['maxHeight'],
+      padding: (json['padding'] as num?)?.toDouble(),
+      paddingTop: (json['paddingTop'] as num?)?.toDouble(),
+      paddingRight: (json['paddingRight'] as num?)?.toDouble(),
+      paddingBottom: (json['paddingBottom'] as num?)?.toDouble(),
+      paddingLeft: (json['paddingLeft'] as num?)?.toDouble(),
+      margin: (json['margin'] as num?)?.toDouble(),
+      marginTop: (json['marginTop'] as num?)?.toDouble(),
+      marginRight: (json['marginRight'] as num?)?.toDouble(),
+      marginBottom: (json['marginBottom'] as num?)?.toDouble(),
+      marginLeft: (json['marginLeft'] as num?)?.toDouble(),
+      background: json['background'] as String?,
+      borderRadius: (json['borderRadius'] as num?)?.toDouble(),
+      border: json['border'] as String?,
+      shadow: json['shadow'] as String?,
+      opacity: (json['opacity'] as num?)?.toDouble(),
+      flex: json['flex'] as int?,
+      flexDirection: json['flexDirection'] as String?,
+      justifyContent: json['justifyContent'] as String?,
+      alignItems: json['alignItems'] as String?,
+      alignSelf: json['alignSelf'] as String?,
+      gap: (json['gap'] as num?)?.toDouble(),
+      wrap: json['wrap'] as bool?,
+      gridColumn: json['gridColumn'] as String?,
+      gridRow: json['gridRow'] as String?,
+      position: json['position'] as String?,
+      top: (json['top'] as num?)?.toDouble(),
+      right: (json['right'] as num?)?.toDouble(),
+      bottom: (json['bottom'] as num?)?.toDouble(),
+      left: (json['left'] as num?)?.toDouble(),
+      zIndex: json['zIndex'] as int?,
+      color: json['color'] as String?,
+      fontSize: (json['fontSize'] as num?)?.toDouble(),
+      fontWeight: json['fontWeight'] as String?,
+      textAlign: json['textAlign'] as String?,
+      overflow: json['overflow'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    final m = <String, dynamic>{};
+    _putIf(m, 'width', width);
+    _putIf(m, 'height', height);
+    _putIf(m, 'minWidth', minWidth);
+    _putIf(m, 'maxWidth', maxWidth);
+    _putIf(m, 'minHeight', minHeight);
+    _putIf(m, 'maxHeight', maxHeight);
+    _putIf(m, 'padding', padding);
+    _putIf(m, 'paddingTop', paddingTop);
+    _putIf(m, 'paddingRight', paddingRight);
+    _putIf(m, 'paddingBottom', paddingBottom);
+    _putIf(m, 'paddingLeft', paddingLeft);
+    _putIf(m, 'margin', margin);
+    _putIf(m, 'marginTop', marginTop);
+    _putIf(m, 'marginRight', marginRight);
+    _putIf(m, 'marginBottom', marginBottom);
+    _putIf(m, 'marginLeft', marginLeft);
+    _putIf(m, 'background', background);
+    _putIf(m, 'borderRadius', borderRadius);
+    _putIf(m, 'border', border);
+    _putIf(m, 'shadow', shadow);
+    _putIf(m, 'opacity', opacity);
+    _putIf(m, 'flex', flex);
+    _putIf(m, 'flexDirection', flexDirection);
+    _putIf(m, 'justifyContent', justifyContent);
+    _putIf(m, 'alignItems', alignItems);
+    _putIf(m, 'alignSelf', alignSelf);
+    _putIf(m, 'gap', gap);
+    _putIf(m, 'wrap', wrap);
+    _putIf(m, 'gridColumn', gridColumn);
+    _putIf(m, 'gridRow', gridRow);
+    _putIf(m, 'position', position);
+    _putIf(m, 'top', top);
+    _putIf(m, 'right', right);
+    _putIf(m, 'bottom', bottom);
+    _putIf(m, 'left', left);
+    _putIf(m, 'zIndex', zIndex);
+    _putIf(m, 'color', color);
+    _putIf(m, 'fontSize', fontSize);
+    _putIf(m, 'fontWeight', fontWeight);
+    _putIf(m, 'textAlign', textAlign);
+    _putIf(m, 'overflow', overflow);
+    return m;
+  }
+
+  /// 是否有任何非空字段。
+  bool get isEmpty {
+    return width == null && height == null && minWidth == null &&
+        maxWidth == null && minHeight == null && maxHeight == null &&
+        padding == null && paddingTop == null && paddingRight == null &&
+        paddingBottom == null && paddingLeft == null &&
+        margin == null && marginTop == null && marginRight == null &&
+        marginBottom == null && marginLeft == null &&
+        background == null && borderRadius == null && border == null &&
+        shadow == null && opacity == null &&
+        flex == null && flexDirection == null && justifyContent == null &&
+        alignItems == null && alignSelf == null && gap == null &&
+        wrap == null && gridColumn == null && gridRow == null &&
+        position == null && top == null && right == null &&
+        bottom == null && left == null && zIndex == null &&
+        color == null && fontSize == null && fontWeight == null &&
+        textAlign == null && overflow == null;
+  }
+}
+
+void _putIf(Map<String, dynamic> m, String key, Object? value) {
+  if (value != null) m[key] = value;
+}
+
+// ═══════ EventDescriptor ═══════
+
+/// 事件声明——每层均可声明 emit + listen + delegates。
+///
+/// - emit: 组件发出的事件
+/// - listen: 监听的事件（支持 source/filter/handler）
+/// - delegates: 委托事件（slot/page/module 层有效）
+class EventDescriptor {
+  /// 发出的事件列表。
+  final List<EventEmitDescriptor> emit;
+
+  /// 监听的事件列表。
+  final List<EventListenDescriptor> listen;
+
+  /// 委托事件（仅 slot/page/module 层有效）。
+  final EventDelegatesDescriptor? delegates;
+
+  const EventDescriptor({
+    this.emit = const [],
+    this.listen = const [],
+    this.delegates,
+  });
+
+  factory EventDescriptor.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const EventDescriptor();
+    return EventDescriptor(
+      emit: _parseEmit(json['emit']),
+      listen: _parseListen(json['listen']),
+      delegates: EventDelegatesDescriptor.fromJson(
+          json['delegates'] as Map<String, dynamic>?),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    final m = <String, dynamic>{};
+    if (emit.isNotEmpty) m['emit'] = emit.map((e) => e.toJson()).toList();
+    if (listen.isNotEmpty) m['listen'] = listen.map((e) => e.toJson()).toList();
+    if (delegates != null) m['delegates'] = delegates!.toJson();
+    return m;
+  }
+}
+
+List<EventEmitDescriptor> _parseEmit(dynamic raw) {
+  if (raw == null || raw is! List) return [];
+  return raw
+      .map((e) => EventEmitDescriptor.fromJson(e as Map<String, dynamic>?))
+      .toList();
+}
+
+List<EventListenDescriptor> _parseListen(dynamic raw) {
+  if (raw == null || raw is! List) return [];
+  return raw
+      .map((e) => EventListenDescriptor.fromJson(e as Map<String, dynamic>?))
+      .toList();
+}
+
+/// 单个 emit 事件声明。
+class EventEmitDescriptor {
+  final String name;
+  final Map<String, String>? payload;
+
+  const EventEmitDescriptor({required this.name, this.payload});
+
+  factory EventEmitDescriptor.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const EventEmitDescriptor(name: '');
+    final rawPayload = json['payload'];
+    Map<String, String>? payload;
+    if (rawPayload is Map) {
+      payload = rawPayload.map((k, v) => MapEntry(k.toString(), v.toString()));
+    }
+    return EventEmitDescriptor(
+      name: json['name'] as String? ?? '',
+      payload: payload,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    final m = <String, dynamic>{'name': name};
+    if (payload != null) m['payload'] = payload;
+    return m;
+  }
+}
+
+/// 单个 listen 事件声明。
+class EventListenDescriptor {
+  final String event;
+  final String? source;
+  final Map<String, dynamic>? filter;
+  final String? handler;
+
+  const EventListenDescriptor({
+    required this.event,
+    this.source,
+    this.filter,
+    this.handler,
+  });
+
+  factory EventListenDescriptor.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const EventListenDescriptor(event: '');
+    return EventListenDescriptor(
+      event: json['event'] as String? ?? '',
+      source: json['source'] as String?,
+      filter: json['filter'] as Map<String, dynamic>?,
+      handler: json['handler'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    final m = <String, dynamic>{'event': event};
+    if (source != null) m['source'] = source;
+    if (filter != null) m['filter'] = filter;
+    if (handler != null) m['handler'] = handler;
+    return m;
+  }
+}
+
+/// 委托事件（slot/page/module 层）。
+class EventDelegatesDescriptor {
+  final String? onClick;
+  final String? onKeyPress;
+  final String? onHover;
+  final bool propagate;
+
+  const EventDelegatesDescriptor({
+    this.onClick,
+    this.onKeyPress,
+    this.onHover,
+    this.propagate = true,
+  });
+
+  factory EventDelegatesDescriptor.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const EventDelegatesDescriptor();
+    return EventDelegatesDescriptor(
+      onClick: json['onClick'] as String?,
+      onKeyPress: json['onKeyPress'] as String?,
+      onHover: json['onHover'] as String?,
+      propagate: json['propagate'] as bool? ?? true,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    final m = <String, dynamic>{};
+    if (onClick != null) m['onClick'] = onClick;
+    if (onKeyPress != null) m['onKeyPress'] = onKeyPress;
+    if (onHover != null) m['onHover'] = onHover;
+    m['propagate'] = propagate;
+    return m;
+  }
+}
+
+// ═══════ DataSourceDescriptor ═══════
+
+/// 数据源声明——页面级或组件级均可声明。
+class DataSourceDescriptor {
+  /// 数据端点 URL。
+  final String? endpoint;
+
+  /// HTTP 方法。
+  final String method;
+
+  /// 数据路径（JSONPath）。
+  final String? dataPath;
+
+  /// 数据转换函数名。
+  final String? transform;
+
+  /// 自动刷新间隔（秒），0 = 不自动刷新。
+  final int refreshInterval;
+
+  const DataSourceDescriptor({
+    this.endpoint,
+    this.method = 'GET',
+    this.dataPath,
+    this.transform,
+    this.refreshInterval = 0,
+  });
+
+  factory DataSourceDescriptor.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const DataSourceDescriptor();
+    return DataSourceDescriptor(
+      endpoint: json['endpoint'] as String?,
+      method: json['method'] as String? ?? 'GET',
+      dataPath: json['dataPath'] as String?,
+      transform: json['transform'] as String?,
+      refreshInterval: json['refreshInterval'] as int? ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    final m = <String, dynamic>{};
+    if (endpoint != null) m['endpoint'] = endpoint;
+    if (method != 'GET') m['method'] = method;
+    if (dataPath != null) m['dataPath'] = dataPath;
+    if (transform != null) m['transform'] = transform;
+    if (refreshInterval != 0) m['refreshInterval'] = refreshInterval;
+    return m;
+  }
+}
 
 // ═══════ ProcessDescriptor ═══════
 
-/// 后端进程配置（.exe 插件）。
+/// 后端进程配置（.exe 插件）——V2 升级。
 class ProcessDescriptor {
+  /// 进程唯一标识（V2 新增）。
+  final String? id;
+
+  /// .exe 路径。
   final String exe;
 
-  /// 通信协议："http"（localhost HTTP）| "stdio"（stdin/stdout JSON）。
+  /// 通信协议："http" | "stdio"。
   final String protocol;
 
+  /// 进程作用域："long"（长期运行）| "short"（一次性任务）。
+  final String scope;
+
+  /// 是否自动启动。
+  final bool autoStart;
+
+  /// 崩溃后是否自动重启（仅 long 作用域）。
+  final bool autoRestart;
+
+  /// 优先端口（http 协议），0 = 自动分配。
   final int preferredPort;
 
   const ProcessDescriptor({
+    this.id,
     required this.exe,
     this.protocol = 'http',
+    this.scope = 'long',
+    this.autoStart = true,
+    this.autoRestart = false,
     this.preferredPort = 0,
   });
 
-  factory ProcessDescriptor.fromJson(Map<String, dynamic> json) => ProcessDescriptor(
-    exe: _require(json, 'exe'),
-    protocol: json['protocol'] as String? ?? 'http',
-    preferredPort: json['preferredPort'] as int? ?? 0,
-  );
+  factory ProcessDescriptor.fromJson(Map<String, dynamic>? json) {
+    if (json == null) {
+      return const ProcessDescriptor(exe: '');
+    }
+    return ProcessDescriptor(
+      id: json['id'] as String?,
+      exe: json['exe'] as String? ?? '',
+      protocol: json['protocol'] as String? ?? 'http',
+      scope: json['scope'] as String? ?? 'long',
+      autoStart: json['autoStart'] as bool? ?? true,
+      autoRestart: json['autoRestart'] as bool? ?? false,
+      preferredPort: json['preferredPort'] as int? ?? 0,
+    );
+  }
 
-  Map<String, dynamic> toJson() => {
-    'exe': exe,
-    'protocol': protocol,
-    'preferredPort': preferredPort,
-  };
+  Map<String, dynamic> toJson() {
+    final m = <String, dynamic>{
+      'exe': exe,
+      'protocol': protocol,
+    };
+    if (id != null) m['id'] = id;
+    if (scope != 'long') m['scope'] = scope;
+    if (!autoStart) m['autoStart'] = autoStart;
+    if (autoRestart) m['autoRestart'] = autoRestart;
+    if (preferredPort != 0) m['preferredPort'] = preferredPort;
+    return m;
+  }
 }
 
 // ═══════ DataBindingDescriptor ═══════
 
-/// 数据绑定声明——引用 [DataType.name] 并指定展示方式。
 class DataBindingDescriptor {
-  /// 指向 data/ 模块的 DataType.name。
   final String dataType;
-
-  /// 展示方式：table | list | card | raw。
   final String display;
-
-  /// 是否支持前端筛选。
   final bool filter;
 
   const DataBindingDescriptor({
@@ -279,11 +745,10 @@ class DataBindingDescriptor {
 
 // ═══════ RefreshDescriptor ═══════
 
-/// 刷新配置。
 class RefreshDescriptor {
   final bool enabled;
   final bool pullToRefresh;
-  final int autoInterval; // 自动刷新间隔（秒），0 = 不自动刷新
+  final int autoInterval;
 
   const RefreshDescriptor({
     this.enabled = false,
@@ -309,13 +774,22 @@ class RefreshDescriptor {
 
 // ═══════ DeletableDescriptor ═══════
 
-/// 删除行为配置。
 class DeletableDescriptor {
-  /// 是否允许删除。
   final bool enabled;
+  final Object confirm;
 
-  /// 删除前是否需要确认弹窗。
-  final bool confirm;
+  bool get confirmEnabled {
+    final c = confirm;
+    if (c is bool) return c;
+    if (c is String) return c.isNotEmpty;
+    return true;
+  }
+
+  String? get confirmMessage {
+    final c = confirm;
+    if (c is String && c.isNotEmpty) return c;
+    return null;
+  }
 
   const DeletableDescriptor({
     this.enabled = false,
@@ -324,9 +798,18 @@ class DeletableDescriptor {
 
   factory DeletableDescriptor.fromJson(Map<String, dynamic>? json) {
     if (json == null) return const DeletableDescriptor();
+    final rawConfirm = json['confirm'];
+    final Object confirm;
+    if (rawConfirm is bool) {
+      confirm = rawConfirm;
+    } else if (rawConfirm is String) {
+      confirm = rawConfirm;
+    } else {
+      confirm = true;
+    }
     return DeletableDescriptor(
       enabled: json['enabled'] as bool? ?? false,
-      confirm: json['confirm'] as bool? ?? true,
+      confirm: confirm,
     );
   }
 
@@ -338,36 +821,20 @@ class DeletableDescriptor {
 
 // ═══════ ActionDescriptor ═══════
 
-/// 交互规则声明——告诉下游渲染层模块支持哪些用户操作。
 class ActionDescriptor {
-  /// 点击列表项行为：null | "detail" | "select" | "none"
   final String? itemTap;
-
-  /// 长按列表项行为：null | "context_menu" | "none"
   final String? itemLongPress;
-
-  /// 侧滑列表项行为：null | "delete" | "archive" | "none"
   final String? itemSwipe;
-
-  /// 选择模式："none" | "single" | "multi"
   final String selection;
-
   final RefreshDescriptor? refresh;
-
-  /// 可排序字段列表。
   final List<String> sortable;
-
-  /// 是否允许新增。
   final bool creatable;
-
-  /// 是否允许编辑。
   final bool editable;
-
-  /// 删除行为配置。
   final DeletableDescriptor? deletable;
-
-  /// 可导出格式：csv / pdf / json。
   final List<String> exportable;
+
+  /// V2: 动作按钮列表。
+  final List<ActionButtonDescriptor> actionButtons;
 
   const ActionDescriptor({
     this.itemTap,
@@ -380,6 +847,7 @@ class ActionDescriptor {
     this.editable = false,
     this.deletable,
     this.exportable = const [],
+    this.actionButtons = const [],
   });
 
   factory ActionDescriptor.fromJson(Map<String, dynamic>? json) {
@@ -403,6 +871,7 @@ class ActionDescriptor {
               ?.map((s) => s.toString())
               .toList() ??
           [],
+      actionButtons: _parseActionButtons(json['actionButtons']),
     );
   }
 
@@ -419,13 +888,69 @@ class ActionDescriptor {
     if (sortable.isNotEmpty) m['sortable'] = sortable;
     if (deletable != null) m['deletable'] = deletable!.toJson();
     if (exportable.isNotEmpty) m['exportable'] = exportable;
+    if (actionButtons.isNotEmpty) {
+      m['actionButtons'] = actionButtons.map((a) => a.toJson()).toList();
+    }
+    return m;
+  }
+}
+
+List<ActionButtonDescriptor> _parseActionButtons(dynamic raw) {
+  if (raw == null || raw is! List) return [];
+  return raw
+      .map((a) => ActionButtonDescriptor.fromJson(a as Map<String, dynamic>))
+      .toList();
+}
+
+// ═══════ ActionButtonDescriptor ═══════
+
+class ActionButtonDescriptor {
+  /// V2: 按钮唯一标识。
+  final String? id;
+
+  /// 触发器标识（如 "button:quick-translate"）。
+  final String trigger;
+
+  /// 按钮标签。
+  final String label;
+
+  /// 按钮图标（codePoint）。
+  final int? icon;
+
+  /// 动作级后端进程。
+  final ProcessDescriptor? process;
+
+  const ActionButtonDescriptor({
+    this.id,
+    required this.trigger,
+    required this.label,
+    this.icon,
+    this.process,
+  });
+
+  factory ActionButtonDescriptor.fromJson(Map<String, dynamic> json) =>
+      ActionButtonDescriptor(
+        id: json['id'] as String?,
+        trigger: _require(json, 'trigger'),
+        label: _require(json, 'label'),
+        icon: _parseIcon(json['icon']),
+        process: json['process'] != null
+            ? ProcessDescriptor.fromJson(
+                json['process'] as Map<String, dynamic>)
+            : null,
+      );
+
+  Map<String, dynamic> toJson() {
+    final m = <String, dynamic>{'trigger': trigger, 'label': label};
+    if (id != null) m['id'] = id;
+    if (icon != null) m['icon'] = _iconToJson(icon);
+    if (process != null) m['process'] = process!.toJson();
     return m;
   }
 }
 
 // ═══════ ZoomDescriptor ═══════
 
-/// 缩放配置。
 class ZoomDescriptor {
   final bool enabled;
   final double min;
@@ -437,11 +962,14 @@ class ZoomDescriptor {
     this.max = 2.0,
   });
 
-  factory ZoomDescriptor.fromJson(Map<String, dynamic> json) => ZoomDescriptor(
-    enabled: json['enabled'] as bool? ?? false,
-    min: (json['min'] as num?)?.toDouble() ?? 0.5,
-    max: (json['max'] as num?)?.toDouble() ?? 2.0,
-  );
+  factory ZoomDescriptor.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const ZoomDescriptor();
+    return ZoomDescriptor(
+      enabled: json['enabled'] as bool? ?? false,
+      min: (json['min'] as num?)?.toDouble() ?? 0.5,
+      max: (json['max'] as num?)?.toDouble() ?? 2.0,
+    );
+  }
 
   Map<String, dynamic> toJson() => {
     'enabled': enabled,
@@ -452,7 +980,6 @@ class ZoomDescriptor {
 
 // ═══════ SearchDescriptor ═══════
 
-/// 搜索栏配置。
 class SearchDescriptor {
   final bool enabled;
   final String placeholder;
@@ -478,7 +1005,6 @@ class SearchDescriptor {
 
 // ═══════ PanelDescriptor ═══════
 
-/// 多 tab 面板声明。
 class PanelDescriptor {
   final String id;
   final String label;
@@ -508,139 +1034,425 @@ class PanelDescriptor {
   };
 }
 
-// ═══════ GridOptions ═══════
+// ═══════ LayoutPreset ═══════
 
-/// 分框布局——一页内多框并排展示。
-///
-/// 不填 = 不分框（默认单列流式布局）。
-class GridOptions {
-  /// 列数。
-  final int columns;
+/// 布局预设超参数——由 layout.type 决定结构。
+class LayoutPreset {
+  /// grid 布局：列数。
+  final int? columns;
 
-  /// 框间距（像素）。
-  final int gap;
+  /// grid 布局：行数。
+  final String? rows;
 
-  const GridOptions({
-    this.columns = 2,
-    this.gap = 16,
+  /// flex 布局：方向。
+  final String? direction;
+
+  /// flex 布局：是否换行。
+  final bool? wrap;
+
+  /// 通用：间距。
+  final double? gap;
+
+  /// flex 布局：主轴对齐。
+  final String? justify;
+
+  /// flex 布局：交叉轴对齐。
+  final String? align;
+
+  /// dock 布局：各区域配置。
+  final Map<String, dynamic>? regions;
+
+  const LayoutPreset({
+    this.columns,
+    this.rows,
+    this.direction,
+    this.wrap,
+    this.gap,
+    this.justify,
+    this.align,
+    this.regions,
   });
 
-  factory GridOptions.fromJson(Map<String, dynamic>? json) {
-    if (json == null) return const GridOptions();
-    return GridOptions(
-      columns: json['columns'] as int? ?? 2,
-      gap: json['gap'] as int? ?? 16,
+  factory LayoutPreset.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const LayoutPreset();
+    return LayoutPreset(
+      columns: json['columns'] as int?,
+      rows: json['rows'] as String?,
+      direction: json['direction'] as String?,
+      wrap: json['wrap'] as bool?,
+      gap: (json['gap'] as num?)?.toDouble(),
+      justify: json['justify'] as String?,
+      align: json['align'] as String?,
+      regions: json['top'] != null || json['bottom'] != null ||
+              json['left'] != null || json['right'] != null || json['fill'] != null
+          ? json
+          : null,
     );
   }
 
-  Map<String, dynamic> toJson() => {
-    'columns': columns,
-    'gap': gap,
-  };
+  Map<String, dynamic> toJson() {
+    final m = <String, dynamic>{};
+    if (columns != null) m['columns'] = columns;
+    if (rows != null) m['rows'] = rows;
+    if (direction != null) m['direction'] = direction;
+    if (wrap != null) m['wrap'] = wrap;
+    if (gap != null) m['gap'] = gap;
+    if (justify != null) m['justify'] = justify;
+    if (align != null) m['align'] = align;
+    if (regions != null) m.addAll(regions!);
+    return m;
+  }
 }
 
-// ═══════ LayoutDescriptor ═══════
+// ═══════ LayoutFeatures ═══════
 
-/// UI 布局偏好。
-class LayoutDescriptor {
-  /// 滚动模式：scroll（滑动窗口）| fit（自适应缩放）。
-  final String mode;
-
-  /// 分框布局（不填 = 单列）。
-  final GridOptions? grid;
-
-  final ZoomDescriptor zoom;
-  final List<String> drawers; // 子集: top, left, right, bottom
+/// 布局特性——zoom / search / drawers。
+class LayoutFeatures {
+  final ZoomDescriptor? zoom;
   final SearchDescriptor? search;
-  final List<PanelDescriptor> panels;
+  final List<String> drawers;
+
+  const LayoutFeatures({
+    this.zoom,
+    this.search,
+    this.drawers = const [],
+  });
+
+  factory LayoutFeatures.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const LayoutFeatures();
+    return LayoutFeatures(
+      zoom: ZoomDescriptor.fromJson(
+          json['zoom'] as Map<String, dynamic>?),
+      search: SearchDescriptor.fromJson(
+          json['search'] as Map<String, dynamic>?),
+      drawers: (json['drawers'] as List?)
+              ?.map((d) => d.toString())
+              .toList() ??
+          [],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    final m = <String, dynamic>{};
+    if (zoom != null) m['zoom'] = zoom!.toJson();
+    if (search != null) m['search'] = search!.toJson();
+    if (drawers.isNotEmpty) m['drawers'] = drawers;
+    return m;
+  }
+}
+
+// ═══════ LayoutDescriptor (V2) ═══════
+
+/// 布局描述符（V2）——type / preset / features / style / slots。
+class LayoutDescriptor {
+  /// 布局范式："grid" | "flex" | "fullscreen" | "absolute" | "dock"。
+  final String type;
+
+  /// 布局预设超参数。
+  final LayoutPreset preset;
+
+  /// 布局特性（zoom/search/drawers）。
+  final LayoutFeatures features;
+
+  /// 布局级样式。
+  final StyleDescriptor style;
+
+  /// 布局级事件。
+  final EventDescriptor events;
+
+  /// 插槽映射：slotName → SlotDescriptor。
+  final Map<String, SlotDescriptor> slots;
 
   const LayoutDescriptor({
-    this.mode = 'scroll',
-    this.grid,
-    this.zoom = const ZoomDescriptor(),
-    this.drawers = const [],
-    this.search,
-    this.panels = const [],
+    this.type = 'grid',
+    this.preset = const LayoutPreset(),
+    this.features = const LayoutFeatures(),
+    this.style = const StyleDescriptor(),
+    this.events = const EventDescriptor(),
+    this.slots = const {},
   });
 
   factory LayoutDescriptor.fromJson(Map<String, dynamic>? json) {
     if (json == null) return const LayoutDescriptor();
     return LayoutDescriptor(
-      mode: json['mode'] as String? ?? 'scroll',
-      grid: GridOptions.fromJson(
-          json['grid'] as Map<String, dynamic>?),
-      zoom: json['zoom'] != null
-          ? ZoomDescriptor.fromJson(json['zoom'] as Map<String, dynamic>)
-          : const ZoomDescriptor(),
-      drawers: (json['drawers'] as List?)
-              ?.map((d) => d.toString())
-              .toList() ??
-          [],
-      search: SearchDescriptor.fromJson(
-          json['search'] as Map<String, dynamic>?),
-      panels: _requireList(json, 'panels',
-          (d) => PanelDescriptor.fromJson(d as Map<String, dynamic>)),
+      type: json['type'] as String? ?? 'grid',
+      preset: LayoutPreset.fromJson(
+          json['preset'] as Map<String, dynamic>?),
+      features: LayoutFeatures.fromJson(
+          json['features'] as Map<String, dynamic>?),
+      style: StyleDescriptor.fromJson(
+          json['style'] as Map<String, dynamic>?),
+      events: EventDescriptor.fromJson(
+          json['events'] as Map<String, dynamic>?),
+      slots: _parseSlots(json['slots']),
     );
   }
 
   Map<String, dynamic> toJson() {
     final m = <String, dynamic>{
-      'mode': mode,
-      'zoom': zoom.toJson(),
-      'drawers': drawers,
-      'search': search?.toJson(),
-      'panels': panels.map((p) => p.toJson()).toList(),
+      'type': type,
     };
-    if (grid != null) m['grid'] = grid!.toJson();
+    m['preset'] = preset.toJson();
+    final f = features.toJson();
+    if (f.isNotEmpty) m['features'] = f;
+    final s = style.toJson();
+    if (s.isNotEmpty) m['style'] = s;
+    final e = events.toJson();
+    if (e.isNotEmpty) m['events'] = e;
+    if (slots.isNotEmpty) {
+      m['slots'] = slots.map((k, v) => MapEntry(k, v.toJson()));
+    }
     return m;
   }
 }
 
+// ═══════ SlotDescriptor ═══════
+
+/// 插槽描述符（V2）——style / process / events / component。
+///
+/// Slot 不能嵌套 Slot，只能包含 Component。
+class SlotDescriptor {
+  /// 插槽级样式。
+  final StyleDescriptor style;
+
+  /// 插槽级进程列表。
+  final List<ProcessDescriptor> process;
+
+  /// 插槽级事件（delegates）。
+  final EventDescriptor events;
+
+  /// 组件声明。
+  final ComponentDescriptor? component;
+
+  const SlotDescriptor({
+    this.style = const StyleDescriptor(),
+    this.process = const [],
+    this.events = const EventDescriptor(),
+    this.component,
+  });
+
+  factory SlotDescriptor.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const SlotDescriptor();
+    return SlotDescriptor(
+      style: StyleDescriptor.fromJson(
+          json['style'] as Map<String, dynamic>?),
+      process: _parseProcessList(json['process']),
+      events: EventDescriptor.fromJson(
+          json['events'] as Map<String, dynamic>?),
+      component: json['component'] != null
+          ? ComponentDescriptor.fromJson(
+              json['component'] as Map<String, dynamic>)
+          : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    final m = <String, dynamic>{};
+    final s = style.toJson();
+    if (s.isNotEmpty) m['style'] = s;
+    if (process.isNotEmpty) {
+      m['process'] = process.map((p) => p.toJson()).toList();
+    }
+    final e = events.toJson();
+    if (e.isNotEmpty) m['events'] = e;
+    if (component != null) m['component'] = component!.toJson();
+    return m;
+  }
+}
+
+// ═══════ ComponentDescriptor ═══════
+
+/// 组件描述符（V2）——type / config / input / events / process / dataSource。
+class ComponentDescriptor {
+  /// 组件类型名："chat" | "code-editor" | "data-table" | "chart" | ...
+  final String type;
+
+  /// 组件配置（透传给组件 Widget）。
+  final Map<String, dynamic> config;
+
+  /// 输入配置。
+  final InputOptions? input;
+
+  /// 组件事件（emit + listen）。
+  final EventDescriptor events;
+
+  /// 组件进程列表。
+  final List<ProcessDescriptor> process;
+
+  /// 组件数据源。
+  final DataSourceDescriptor? dataSource;
+
+  const ComponentDescriptor({
+    required this.type,
+    this.config = const {},
+    this.input,
+    this.events = const EventDescriptor(),
+    this.process = const [],
+    this.dataSource,
+  });
+
+  factory ComponentDescriptor.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const ComponentDescriptor(type: 'unknown');
+    return ComponentDescriptor(
+      type: json['type'] as String? ?? 'unknown',
+      config: (json['config'] as Map<String, dynamic>?) ?? const {},
+      input: InputOptions.fromJson(
+          json['input'] as Map<String, dynamic>?),
+      events: EventDescriptor.fromJson(
+          json['events'] as Map<String, dynamic>?),
+      process: _parseProcessList(json['process']),
+      dataSource: DataSourceDescriptor.fromJson(
+          json['dataSource'] as Map<String, dynamic>?),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    final m = <String, dynamic>{'type': type};
+    if (config.isNotEmpty) m['config'] = config;
+    if (input != null) m['input'] = input!.toJson();
+    final e = events.toJson();
+    if (e.isNotEmpty) m['events'] = e;
+    if (process.isNotEmpty) {
+      m['process'] = process.map((p) => p.toJson()).toList();
+    }
+    if (dataSource != null) {
+      final ds = dataSource!.toJson();
+      if (ds.isNotEmpty) m['dataSource'] = ds;
+    }
+    return m;
+  }
+}
+
+List<ProcessDescriptor> _parseProcessList(dynamic raw, {dynamic fallback}) {
+  if (raw is List) {
+    return raw
+        .map((p) => ProcessDescriptor.fromJson(p as Map<String, dynamic>?))
+        .toList();
+  }
+  // V1 兼容：单对象 process / globalProcess
+  if (raw is Map<String, dynamic>) {
+    return [ProcessDescriptor.fromJson(raw)];
+  }
+  if (fallback is Map<String, dynamic>) {
+    return [ProcessDescriptor.fromJson(fallback)];
+  }
+  return [];
+}
+
+Map<String, SlotDescriptor> _parseSlots(dynamic raw) {
+  if (raw == null || raw is! Map<String, dynamic>) return {};
+  final result = <String, SlotDescriptor>{};
+  for (final entry in raw.entries) {
+    result[entry.key] = SlotDescriptor.fromJson(entry.value);
+  }
+  return result;
+}
+
 // ═══════ NavDescriptor ═══════
 
-/// 子导航条目声明（多页面模块用）。
 class NavDescriptor {
-  final IconData? icon;
+  final int? icon;
   final String label;
   final String routePath;
-  final String section; // SidebarSection.label
+  final String section;
+  final bool badge;
 
   const NavDescriptor({
     this.icon,
     required this.label,
     required this.routePath,
     required this.section,
+    this.badge = false,
   });
 
   factory NavDescriptor.fromJson(Map<String, dynamic> json) => NavDescriptor(
     icon: _parseIcon(json['icon']),
     label: _require(json, 'label'),
-    routePath: _require(json, 'routePath'),
+    routePath: _require(json, 'route'),
     section: _require(json, 'section'),
+    badge: json['badge'] as bool? ?? false,
   );
 
   Map<String, dynamic> toJson() => {
     'label': label,
-    'routePath': routePath,
+    'route': routePath,
     'section': section,
     if (icon != null) 'icon': _iconToJson(icon),
+    if (badge) 'badge': badge,
   };
 }
 
-// ═══════ ThinkingOptions ═══════
+// ═══════ SidebarDescriptor ═══════
 
-/// 思考栏展示选项（chat 模式）。
+class SidebarDescriptor {
+  final String section;
+  final int sectionOrder;
+  final int order;
+  final bool badge;
+
+  const SidebarDescriptor({
+    required this.section,
+    this.sectionOrder = 50,
+    this.order = 50,
+    this.badge = false,
+  });
+
+  factory SidebarDescriptor.fromJson(Map<String, dynamic> json) =>
+      SidebarDescriptor(
+        section: _require(json, 'section'),
+        sectionOrder: json['sectionOrder'] as int? ?? 50,
+        order: json['order'] as int? ?? 50,
+        badge: json['badge'] as bool? ?? false,
+      );
+
+  Map<String, dynamic> toJson() => {
+    'section': section,
+    'sectionOrder': sectionOrder,
+    'order': order,
+    'badge': badge,
+  };
+}
+
+// ═══════ NavObjectDescriptor ═══════
+
+/// V2 导航聚合——sidebar + secondary。
+class NavObjectDescriptor {
+  final SidebarDescriptor? sidebar;
+  final List<NavDescriptor> secondary;
+
+  const NavObjectDescriptor({
+    this.sidebar,
+    this.secondary = const [],
+  });
+
+  factory NavObjectDescriptor.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const NavObjectDescriptor();
+    return NavObjectDescriptor(
+      sidebar: json['sidebar'] != null
+          ? SidebarDescriptor.fromJson(
+              json['sidebar'] as Map<String, dynamic>)
+          : null,
+      secondary: _requireList(json, 'secondary',
+          (d) => NavDescriptor.fromJson(d as Map<String, dynamic>)),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    final m = <String, dynamic>{};
+    if (sidebar != null) m['sidebar'] = sidebar!.toJson();
+    if (secondary.isNotEmpty) {
+      m['secondary'] = secondary.map((n) => n.toJson()).toList();
+    }
+    return m;
+  }
+}
+
+// ═══════ Chat 相关选项 ═══════
+
 class ThinkingOptions {
-  /// 是否展示思考栏。
   final bool visible;
-
-  /// 思考栏背景是否透明（类似 DeepSeek 网页版）。
   final bool transparent;
-
-  /// 展开模式："expand"（直接展开）| "scroll"（滑动窗口）。
   final String mode;
-
-  /// 是否展示思考耗时。
   final bool showDuration;
 
   const ThinkingOptions({
@@ -668,20 +1480,10 @@ class ThinkingOptions {
   };
 }
 
-// ═══════ ToolCallOptions ═══════
-
-/// 工具调用提示选项（chat 模式）。
 class ToolCallOptions {
-  /// 是否展示工具调用。
   final bool visible;
-
-  /// 是否展示调用参数。
   final bool showArgs;
-
-  /// 是否展示调用结果。
   final bool showResult;
-
-  /// 完成后是否自动折叠。
   final bool autoCollapse;
 
   const ToolCallOptions({
@@ -709,17 +1511,9 @@ class ToolCallOptions {
   };
 }
 
-// ═══════ BubbleOptions ═══════
-
-/// 气泡样式选项（chat 模式）。
 class BubbleOptions {
-  /// 气泡风格："rounded" | "flat" | "minimal"。
   final String style;
-
-  /// 头像位置："left" | "none"。
   final String avatarPosition;
-
-  /// 是否显示时间戳。
   final bool showTimestamp;
 
   const BubbleOptions({
@@ -744,17 +1538,9 @@ class BubbleOptions {
   };
 }
 
-// ═══════ StreamOptions ═══════
-
-/// 流式输出选项（chat 模式）。
 class StreamOptions {
-  /// 是否启用流式输出。
   final bool enabled;
-
-  /// 动画类型："typewriter" | "fade" | "none"。
   final String animation;
-
-  /// 光标样式："blinking" | "static" | "none"。
   final String cursorStyle;
 
   const StreamOptions({
@@ -779,17 +1565,9 @@ class StreamOptions {
   };
 }
 
-// ═══════ AttachmentOptions ═══════
-
-/// 附件/上传选项（chat 输入区）。
 class AttachmentOptions {
-  /// 是否支持附件。
   final bool enabled;
-
-  /// 允许的附件类型：image / file / audio。
   final List<String> types;
-
-  /// 单文件最大体积（MB），0 = 不限制。
   final int maxSizeMb;
 
   const AttachmentOptions({
@@ -817,14 +1595,8 @@ class AttachmentOptions {
   };
 }
 
-// ═══════ FeedbackStateOptions ═══════
-
-/// 输入反馈——单次状态（正确/错误）的 UI 配置。
 class FeedbackStateOptions {
-  /// 反馈颜色（hex，如 "#4caf50"）。
   final String color;
-
-  /// 反馈动画："bounce" | "shake" | "pulse" | "none"。
   final String animation;
 
   const FeedbackStateOptions({
@@ -846,9 +1618,6 @@ class FeedbackStateOptions {
   };
 }
 
-// ═══════ FeedbackOptions ═══════
-
-/// 输入反馈配置——type-check 模式用。
 class FeedbackOptions {
   final FeedbackStateOptions correct;
   final FeedbackStateOptions incorrect;
@@ -876,68 +1645,29 @@ class FeedbackOptions {
 
 // ═══════ InputOptions ═══════
 
-/// 键盘交互声明——与 [ActionDescriptor]（鼠标/触摸）并列的输入原语。
-///
-/// 顶层字段，不限于 chat 模式。不同 [mode] 适用不同子选项。
-///
-/// | mode | 适用场景 | 生效子字段 |
-/// |---|---|---|
-/// | `free-text` | 聊天输入、评论框 | multiline, sendOnEnter, attachments, voice, slashCommands, quickReplies |
-/// | `type-check` | 打字背词、听写 | caseSensitive, feedback |
-/// | `code` | 代码编辑器 | language, autoIndent, tabSize |
-/// | `select` | 单选题 | options |
 class InputOptions {
-  /// 输入模式："free-text" | "type-check" | "code" | "select"。
   final String mode;
-
-  /// 自动聚焦。
   final bool autoFocus;
-
-  /// 最大输入长度，0 = 不限制。
   final int maxLength;
 
-  // ── free-text 模式 ──
-
-  /// 多行输入。
+  // free-text
   final bool multiline;
-
-  /// Enter 发送（false = Shift+Enter 发送）。
   final bool sendOnEnter;
-
-  /// 附件上传。
   final AttachmentOptions attachments;
-
-  /// 语音输入。
   final bool voice;
-
-  /// 斜杠命令（/help、/clear）。
   final bool slashCommands;
-
-  /// 快捷回复建议。
   final List<String> quickReplies;
 
-  // ── type-check 模式 ──
-
-  /// 是否区分大小写。
+  // type-check
   final bool caseSensitive;
-
-  /// 正确/错误 UI 反馈。
   final FeedbackOptions feedback;
 
-  // ── code 模式 ──
-
-  /// 编程语言（语法高亮用）。
+  // code
   final String language;
-
-  /// 自动缩进。
   final bool autoIndent;
-
-  /// Tab 空格数。
   final int tabSize;
 
-  // ── select 模式 ──
-
-  /// 选项列表。
+  // select
   final List<String> options;
 
   const InputOptions({
@@ -967,23 +1697,21 @@ class InputOptions {
       multiline: json['multiline'] as bool? ?? true,
       sendOnEnter: json['sendOnEnter'] as bool? ?? true,
       attachments: AttachmentOptions.fromJson(
-          json['attachments'] as Map<String, dynamic>?),
-      voice: json['voice'] as bool? ?? false,
-      slashCommands: json['slashCommands'] as bool? ?? false,
-      quickReplies: (json['quickReplies'] as List?)
-              ?.map((r) => r.toString())
-              .toList() ??
-          [],
+          json['attachments'] is Map ? (json['attachments'] as Map).cast<String, dynamic>() : null),
+      voice: _parseFlag(json['voice']),
+      slashCommands: _parseFlag(json['slashCommands']),
+      quickReplies: (json['quickReplies'] is List)
+              ? (json['quickReplies'] as List).map((r) => r.toString()).toList()
+              : [],
       caseSensitive: json['caseSensitive'] as bool? ?? false,
       feedback: FeedbackOptions.fromJson(
-          json['feedback'] as Map<String, dynamic>?),
+          json['feedback'] is Map ? (json['feedback'] as Map).cast<String, dynamic>() : null),
       language: json['language'] as String? ?? '',
       autoIndent: json['autoIndent'] as bool? ?? true,
       tabSize: json['tabSize'] as int? ?? 2,
-      options: (json['options'] as List?)
-              ?.map((o) => o.toString())
-              .toList() ??
-          [],
+      options: (json['options'] is List)
+              ? (json['options'] as List).map((o) => o.toString()).toList()
+              : [],
     );
   }
 
@@ -1019,12 +1747,8 @@ class InputOptions {
 
 // ═══════ FixedSizeOptions ═══════
 
-/// fixed 模式尺寸（"adaptive" 或硬编码像素）。
 class FixedSizeOptions {
-  /// 宽度：null = 自适应，"auto" = 内容撑开，数字 = 像素。
   final dynamic width;
-
-  /// 高度：null = 自适应，"auto" = 内容撑开，数字 = 像素。
   final dynamic height;
 
   const FixedSizeOptions({this.width, this.height});
@@ -1047,27 +1771,12 @@ class FixedSizeOptions {
 
 // ═══════ WorkspaceDescriptor ═══════
 
-/// 文件工作区声明——用户与 AI 共享的持久文件池。
-///
-/// 与 [MediaDescriptor]（展示）、[InputOptions.attachments]（上传到消息）正交。
-/// .exe 后端负责存储、索引、生成。
 class WorkspaceDescriptor {
-  /// 是否启用文件工作区。
   final bool enabled;
-
-  /// 接受的文件后缀。
   final String accept;
-
-  /// 最大文件数，0 = 不限制。
   final int maxFiles;
-
-  /// 单文件最大体积（MB），0 = 不限制。
   final int maxSizeMb;
-
-  /// AI 可创建的文件格式：pptx / docx / pdf / xlsx / csv / tex / png。
   final List<String> aiCreatable;
-
-  /// 文件是否跨会话持久。
   final bool persistAcrossSessions;
 
   const WorkspaceDescriptor({
@@ -1105,20 +1814,12 @@ class WorkspaceDescriptor {
   };
 }
 
-// ═══════ VideoOptions ═══════
+// ═══════ 媒体相关 ═══════
 
-/// 视频专属选项。
 class VideoOptions {
-  /// 倍速选项：[0.5, 1.0, 1.5, 2.0]。
   final List<double> speeds;
-
-  /// 是否缓存。
   final bool cache;
-
-  /// 默认画质："auto" | "360p" | "720p" | "1080p"。
   final String quality;
-
-  /// 是否显示字幕。
   final bool captions;
 
   const VideoOptions({
@@ -1149,14 +1850,8 @@ class VideoOptions {
   };
 }
 
-// ═══════ AudioOptions ═══════
-
-/// 音频专属选项。
 class AudioOptions {
-  /// 倍速选项。
   final List<double> speeds;
-
-  /// 是否显示波形。
   final bool waveform;
 
   const AudioOptions({
@@ -1181,20 +1876,10 @@ class AudioOptions {
   };
 }
 
-// ═══════ DocumentOptions ═══════
-
-/// 文档专属选项（pdf / docx / pptx / xlsx 等）。
 class DocumentOptions {
-  /// 捏合缩放。
   final bool zoomable;
-
-  /// 文档内搜索。
   final bool searchable;
-
-  /// 是否显示页码。
   final bool pageIndicator;
-
-  /// 分页展示（dropdown 模式）。
   final bool paginated;
 
   const DocumentOptions({
@@ -1222,14 +1907,8 @@ class DocumentOptions {
   };
 }
 
-// ═══════ ImageOptions ═══════
-
-/// 图片专属选项。
 class ImageOptions {
-  /// 捏合缩放。
   final bool zoomable;
-
-  /// 是否以画廊模式展示（多图左右翻页）。
   final bool gallery;
 
   const ImageOptions({
@@ -1251,45 +1930,15 @@ class ImageOptions {
   };
 }
 
-// ═══════ MediaDescriptor ═══════
-
-/// 内嵌文件展示声明——本质是文件，由后缀决定解析方式。
-///
-/// 与 [ActionDescriptor]、[InputOptions] 并列的展示原语。
-///
-/// | mode | 行为 |
-/// |---|---|
-/// | `inline` | 内嵌在内容流中，随页面滚动 |
-/// | `fullscreen` | 撑满模块视口（保留导航栏） |
-/// | `drawer` | 从边缘滑入面板，推挤现有内容 |
-/// | `dropdown` | 从顶部下拉面板，下方内容重排到面板之下 |
-/// | `fixed` | 固定尺寸区域；不填 fixedSize 则自适应 |
 class MediaDescriptor {
-  /// 接受的文件后缀，逗号分隔：如 "*.mp4,*.webm" / "*.pdf" / "*.docx,*.doc" / "*.jpg,*.png"。
   final String accept;
-
-  /// 展示模式："inline" | "fullscreen" | "drawer" | "dropdown" | "fixed"。
   final String mode;
-
-  /// drawer/dropdown 滑入方向："top" | "bottom" | "left" | "right"。
   final String direction;
-
-  /// fixed 模式尺寸（不填 = 自适应）。
   final FixedSizeOptions? fixedSize;
-
-  /// 是否显示控件（播放器按钮 / 文档工具栏）。
   final bool controls;
-
-  /// 视频选项（accept 含 *.mp4 等时生效）。
   final VideoOptions? video;
-
-  /// 音频选项（accept 含 *.mp3 等时生效）。
   final AudioOptions? audio;
-
-  /// 文档选项（accept 含 *.pdf/*.docx 等时生效）。
   final DocumentOptions? document;
-
-  /// 图片选项（accept 含 *.jpg/*.png 等时生效）。
   final ImageOptions? image;
 
   const MediaDescriptor({
@@ -1340,31 +1989,15 @@ class MediaDescriptor {
   }
 }
 
-// ═══════ SpreadsheetOptions ═══════
+// ═══════ 文档编辑选项 ═══════
 
-/// 电子表格模式专用选项。
-///
-/// 仅当 [ModuleDescriptor.ui] == `"spreadsheet"` 时生效。
 class SpreadsheetOptions {
-  /// 是否支持公式（=SUM、=VLOOKUP 等）。
   final bool formulas;
-
-  /// 是否支持图表。
   final bool charts;
-
-  /// 是否支持多 sheet。
   final bool sheets;
-
-  /// 是否支持条件格式。
   final bool conditionalFormatting;
-
-  /// 是否列可拖拽调整宽度。
   final bool resizableColumns;
-
-  /// 默认列数。
   final int columns;
-
-  /// 默认行数。
   final int rows;
 
   const SpreadsheetOptions({
@@ -1401,31 +2034,13 @@ class SpreadsheetOptions {
   };
 }
 
-// ═══════ DocEditorOptions ═══════
-
-/// 文档编辑器模式专用选项。
-///
-/// 仅当 [ModuleDescriptor.ui] == `"document"` 时生效。
 class DocEditorOptions {
-  /// 修订模式。
   final bool trackChanges;
-
-  /// 批注。
   final bool comments;
-
-  /// 目录。
   final bool tableOfContents;
-
-  /// 脚注/尾注。
   final bool footnotes;
-
-  /// 页眉页脚。
   final bool headersFooters;
-
-  /// 页面设置（边距、方向、分栏）。
   final bool pageSetup;
-
-  /// 可导出格式。
   final List<String> exportFormats;
 
   const DocEditorOptions({
@@ -1465,31 +2080,13 @@ class DocEditorOptions {
   };
 }
 
-// ═══════ PresentationOptions ═══════
-
-/// 幻灯片模式专用选项。
-///
-/// 仅当 [ModuleDescriptor.ui] == `"presentation"` 时生效。
 class PresentationOptions {
-  /// 切换动画。
   final bool transitions;
-
-  /// 元素动画。
   final bool animations;
-
-  /// 演讲者备注。
   final bool speakerNotes;
-
-  /// 演讲者视图（双屏）。
   final bool presenterView;
-
-  /// 母版编辑。
   final bool slideMaster;
-
-  /// 可用版式。
   final List<String> layouts;
-
-  /// 可导出格式。
   final List<String> exportFormats;
 
   const PresentationOptions({
@@ -1532,20 +2129,12 @@ class PresentationOptions {
   };
 }
 
-// ═══════ ChatOptions ═══════
-
-/// Chat 模式专用选项——声明对话界面的展示风格。
-///
-/// 仅当 [ModuleDescriptor.ui] == `"chat"` 时生效。
 class ChatOptions {
   final ThinkingOptions thinking;
   final ToolCallOptions toolCalls;
   final BubbleOptions bubble;
   final StreamOptions stream;
   final String placeholder;
-
-  /// 是否启用多会话（PLAN_NOW §5 参数16）。
-  /// 为 true 时，ChatView 顶部显示会话选择器。
   final bool multiSession;
 
   const ChatOptions({
@@ -1583,26 +2172,14 @@ class ChatOptions {
   };
 }
 
-// ═══════ FormFieldDescriptor ═══════
+// ═══════ 表单 ═══════
 
-/// 表单字段声明。
 class FormFieldDescriptor {
-  /// 字段标识。
   final String key;
-
-  /// 展示标签。
   final String label;
-
-  /// 字段类型："text" | "textarea" | "select" | "datetime" | "number" | "file" | "checkbox"。
   final String type;
-
-  /// 是否必填。
   final bool required;
-
-  /// select 选项列表。
   final List<String> options;
-
-  /// 占位文本。
   final String placeholder;
 
   const FormFieldDescriptor({
@@ -1640,17 +2217,9 @@ class FormFieldDescriptor {
   }
 }
 
-// ═══════ FormDescriptor ═══════
-
-/// 结构化表单声明。
 class FormDescriptor {
-  /// 字段列表。
   final List<FormFieldDescriptor> fields;
-
-  /// 提交按钮文字。
   final String submitLabel;
-
-  /// 失焦时校验。
   final bool validateOnBlur;
 
   const FormDescriptor({
@@ -1678,21 +2247,11 @@ class FormDescriptor {
 
 // ═══════ TimelineDescriptor ═══════
 
-/// 时间线/日历声明。
 class TimelineDescriptor {
-  /// 模式："calendar" | "timeline" | "agenda"。
   final String mode;
-
-  /// 可用视图：["day", "week", "month"]。
   final List<String> view;
-
-  /// 默认视图。
   final String defaultView;
-
-  /// 点击事件行为："detail" | "edit" | null。
   final String? itemTap;
-
-  /// 是否允许创建事件。
   final bool creatable;
 
   const TimelineDescriptor({
@@ -1731,24 +2290,12 @@ class TimelineDescriptor {
 
 // ═══════ MapDescriptor ═══════
 
-/// 地图/位置声明。
 class MapDescriptor {
-  /// 中心纬度。
   final double? centerLat;
-
-  /// 中心经度。
   final double? centerLng;
-
-  /// 默认缩放级别。
   final int zoom;
-
-  /// 是否显示标记点。
   final bool markers;
-
-  /// 是否启用搜索。
   final bool search;
-
-  /// 是否支持路线规划。
   final bool route;
 
   const MapDescriptor({
@@ -1786,322 +2333,209 @@ class MapDescriptor {
   }
 }
 
-// ═══════ SidebarDescriptor ═══════
+// ═══════ ExposeStateConfig ═══════
 
-/// 侧边栏配置。
-class SidebarDescriptor {
-  /// 分类标签，匹配 [SidebarSection.label]。
-  final String section;
+class ExposeStateConfig {
+  final List<String> events;
+  final String format;
+  final String subdir;
 
-  /// 分类间排序权重。
-  final int sectionOrder;
-
-  /// 分类内排序权重。
-  final int order;
-
-  /// 是否显示角标。
-  final bool badge;
-
-  const SidebarDescriptor({
-    required this.section,
-    this.sectionOrder = 50,
-    this.order = 50,
-    this.badge = false,
+  const ExposeStateConfig({
+    required this.events,
+    this.format = 'json',
+    required this.subdir,
   });
 
-  factory SidebarDescriptor.fromJson(Map<String, dynamic> json) =>
-      SidebarDescriptor(
-        section: _require(json, 'section'),
-        sectionOrder: json['sectionOrder'] as int? ?? 50,
-        order: json['order'] as int? ?? 50,
-        badge: json['badge'] as bool? ?? false,
-      );
-
-  Map<String, dynamic> toJson() => {
-    'section': section,
-    'sectionOrder': sectionOrder,
-    'order': order,
-    'badge': badge,
-  };
-}
-
-// ═══════ ComponentConfig ═══════
-
-/// 内容组件配置——在 slot 中声明哪个组件、什么配置、可选后端进程。
-///
-/// 对应 manifest.json 中 `pages[].slots.<key>` 的值。
-class ComponentConfig {
-  /// 组件类型名：`"ai-assistant"` | `"form"` | `"code-editor"` | `"data-table"` | ...
-  final String component;
-
-  /// 组件专属配置（透传给组件 Widget）。
-  final Map<String, dynamic> config;
-
-  /// 栏级后端进程（栏可见时运行，隐藏时停止）。
-  final ProcessDescriptor? process;
-
-  const ComponentConfig({
-    required this.component,
-    this.config = const {},
-    this.process,
-  });
-
-  factory ComponentConfig.fromJson(Map<String, dynamic> json) =>
-      ComponentConfig(
-        component: _require(json, 'component'),
-        config: (json['config'] as Map<String, dynamic>?) ?? const {},
-        process: json['process'] != null
-            ? ProcessDescriptor.fromJson(
-                json['process'] as Map<String, dynamic>)
-            : null,
-      );
-
-  Map<String, dynamic> toJson() {
-    final m = <String, dynamic>{'component': component};
-    if (config.isNotEmpty) m['config'] = config;
-    if (process != null) m['process'] = process!.toJson();
-    return m;
+  factory ExposeStateConfig.fromJson(Map<String, dynamic> json) {
+    return ExposeStateConfig(
+      events: (json['events'] as List?)?.map((e) => e.toString()).toList() ?? [],
+      format: json['format'] as String? ?? 'json',
+      subdir: json['subdir'] as String? ?? 'state',
+    );
   }
 }
 
-// ═══════ PageDescriptor ═══════
+// ═══════ PageDescriptor (V2) ═══════
 
-/// 页面描述符——模块内多页面声明。
-///
-/// 对应 manifest.json 中 `pages[]` 的一个元素。
-/// 每个页面有自己的 layout、一组 slot、及可选页面级后端进程。
+/// 页面描述符（V2）——独立 route、events、process[]、dataSource、layout。
 class PageDescriptor {
   /// 页面唯一标识（模块内）。
   final String id;
 
-  /// 页面标题（Tab 标签）。
+  /// 页面标签。
   final String label;
 
-  /// 页面级布局设置（复用 [LayoutDescriptor]）。
+  /// 页面路由（V2: 独立 route，不再由模块 route + page.id 拼接）。
+  final String? route;
+
+  /// 是否为默认页面。
+  final bool isDefault;
+
+  /// 是否为单页面模式（不显示子导航）。
+  final bool singlePage;
+
+  /// 页面级事件。
+  final EventDescriptor events;
+
+  /// 页面级进程列表（V2: 数组，替代 V1 的 globalProcess）。
+  final List<ProcessDescriptor> process;
+
+  /// 页面级数据源。
+  final DataSourceDescriptor? dataSource;
+
+  /// 布局。
   final LayoutDescriptor layout;
-
-  /// 栏目内容映射。key 为栏位名（`"left"`、`"right"`、`"main"` 等）。
-  final Map<String, ComponentConfig> slots;
-
-  /// 页面级后端进程（页面激活时运行，切走时停止）。
-  final ProcessDescriptor? globalProcess;
 
   const PageDescriptor({
     required this.id,
     required this.label,
+    this.route,
+    this.isDefault = false,
+    this.singlePage = false,
+    this.events = const EventDescriptor(),
+    this.process = const [],
+    this.dataSource,
     this.layout = const LayoutDescriptor(),
-    this.slots = const {},
-    this.globalProcess,
   });
 
-  factory PageDescriptor.fromJson(Map<String, dynamic> json) =>
-      PageDescriptor(
-        id: _require(json, 'id'),
-        label: _require(json, 'label'),
-        layout: LayoutDescriptor.fromJson(
-            json['layout'] as Map<String, dynamic>?),
-        slots: _parseSlots(json['slots']),
-        globalProcess: json['globalProcess'] != null
-            ? ProcessDescriptor.fromJson(
-                json['globalProcess'] as Map<String, dynamic>)
-            : null,
-      );
+  factory PageDescriptor.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return const PageDescriptor(id: '', label: '');
+    return PageDescriptor(
+      id: _require(json, 'id'),
+      label: _require(json, 'label'),
+      route: json['route'] as String?,
+      isDefault: json['default'] as bool? ?? false,
+      singlePage: json['singlePage'] as bool? ?? false,
+      events: EventDescriptor.fromJson(
+          json['events'] as Map<String, dynamic>?),
+      process: _parseProcessList(json['process'], fallback: json['globalProcess']),
+      dataSource: DataSourceDescriptor.fromJson(
+          json['dataSource'] as Map<String, dynamic>?),
+      layout: LayoutDescriptor.fromJson(
+          json['layout'] as Map<String, dynamic>?),
+    );
+  }
 
   Map<String, dynamic> toJson() {
     final m = <String, dynamic>{'id': id, 'label': label};
+    if (route != null) m['route'] = route;
+    if (isDefault) m['default'] = true;
+    if (singlePage) m['singlePage'] = true;
+    final e = events.toJson();
+    if (e.isNotEmpty) m['events'] = e;
+    if (process.isNotEmpty) {
+      m['process'] = process.map((p) => p.toJson()).toList();
+    }
+    if (dataSource != null) {
+      final ds = dataSource!.toJson();
+      if (ds.isNotEmpty) m['dataSource'] = ds;
+    }
     m['layout'] = layout.toJson();
-    if (slots.isNotEmpty) {
-      m['slots'] = slots.map((k, v) => MapEntry(k, v.toJson()));
-    }
-    if (globalProcess != null) {
-      m['globalProcess'] = globalProcess!.toJson();
-    }
     return m;
   }
 
-  /// 本页所有 slot 的 component 类型名列表。
-  List<String> get componentTypes =>
-      slots.values.map((c) => c.component).toList();
-}
-
-/// 解析 `slots` JSON 对象 → `Map<String, ComponentConfig>`。
-Map<String, ComponentConfig> _parseSlots(dynamic raw) {
-  if (raw == null || raw is! Map<String, dynamic>) return {};
-  final result = <String, ComponentConfig>{};
-  for (final entry in raw.entries) {
-    result[entry.key] = ComponentConfig.fromJson(entry.value);
-  }
-  return result;
-}
-
-// ═══════ ActionButtonDescriptor ═══════
-
-/// 动作按钮描述符——声明带有后端进程的动作按钮。
-///
-/// 对应 manifest.json 中 `actions[]`（注意：此为新的数组格式，
-/// 与旧版单对象 [ActionDescriptor] 在 JSON 层共存，Dart 层分两个字段）。
-class ActionButtonDescriptor {
-  /// 触发器标识（如 `"button:quick-translate"`）。
-  final String trigger;
-
-  /// 按钮标签。
-  final String label;
-
-  /// 动作级后端进程（触发时启动，完成即退出）。
-  final ProcessDescriptor? process;
-
-  const ActionButtonDescriptor({
-    required this.trigger,
-    required this.label,
-    this.process,
-  });
-
-  factory ActionButtonDescriptor.fromJson(Map<String, dynamic> json) =>
-      ActionButtonDescriptor(
-        trigger: _require(json, 'trigger'),
-        label: _require(json, 'label'),
-        process: json['process'] != null
-            ? ProcessDescriptor.fromJson(
-                json['process'] as Map<String, dynamic>)
-            : null,
-      );
-
-  Map<String, dynamic> toJson() {
-    final m = <String, dynamic>{'trigger': trigger, 'label': label};
-    if (process != null) m['process'] = process!.toJson();
-    return m;
+  /// 本页所有 slot 的 component type 列表。
+  List<String> get componentTypes {
+    return layout.slots.values
+        .where((s) => s.component != null)
+        .map((s) => s.component!.type)
+        .toList();
   }
 }
 
-// ═══════ ModuleDescriptor ═══════
+// ═══════ ModuleDescriptor (V2) ═══════
 
-/// 模块描述符——模块声明的唯一数据结构。
-///
-/// 内置模块用 const 构造；外部插件从 manifest.json 解析。
+/// 模块描述符（V2）——树形架构的根节点。
 class ModuleDescriptor {
+  /// Schema 版本："2.0"。
+  final String schemaVersion;
+
+  /// 模块唯一标识。
   final String id;
+
+  /// 模块名称。
   final String name;
+
+  /// 模块描述。
   final String description;
-  final IconData? icon;
-  final String? route;
-  final SidebarDescriptor? sidebar;
-  final List<NavDescriptor> secondaryNavs;
-  final LayoutDescriptor layout;
-  final List<DataBindingDescriptor> dataBindings;
-  /// UI 范式："default" | "chat" | "dashboard" | "editor"。
-  final String ui;
 
-  /// Chat 模式专用选项（仅 ui == "chat" 时生效）。
-  final ChatOptions? chat;
+  /// 图标（codePoint）。
+  final int? icon;
 
-  /// 电子表格模式专用选项（仅 ui == "spreadsheet" 时生效）。
-  final SpreadsheetOptions? spreadsheet;
-
-  /// 文档编辑器模式专用选项（仅 ui == "document" 时生效）。
-  final DocEditorOptions? document;
-
-  /// 幻灯片模式专用选项（仅 ui == "presentation" 时生效）。
-  final PresentationOptions? presentation;
-
-  /// 键盘交互声明（与 actions 并列）。
-  final InputOptions? input;
-
-  /// 文件工作区声明。
-  final WorkspaceDescriptor? workspace;
-
-  /// 内嵌文件展示声明。
-  final MediaDescriptor? media;
-
-  /// 时间线/日历声明。
-  final TimelineDescriptor? timeline;
-
-  /// 地图/位置声明。
-  final MapDescriptor? map;
-
-  /// 结构化表单声明。
-  final FormDescriptor? form;
-
-  final ActionDescriptor? actions;
-  final ProcessDescriptor? process;
-  final List<String> dependencies;
-
-  /// 打开模块时自动激活的 Skill 名列表。
-  ///
-  /// 供 AgentController.activateSkill 消费。每个元素为 Skill 的 `name` 字段。
-  /// 例如 `["web_search", "memory"]` 表示进入模块时自动激活这两个 Skill。
-  final List<String> activateSkills;
-
-  /// 语义版本号（如 `"1.2.3"`）。
+  /// 模块版本号。
   final String version;
 
-  // ── PLAN_NOW: composite 模式字段 ──
+  /// 模块路由（V2: 可选，不再决定页面路由）。
+  final String? route;
 
-  /// 多页面声明（`ui: "composite"` 时生效）。
-  ///
-  /// 每个元素为一个 [PageDescriptor]，包含 layout、slots、可选 globalProcess。
+  /// 依赖模块 ID 列表。
+  final List<String> dependencies;
+
+  /// 激活的 Skill 名列表。
+  final List<String> activateSkills;
+
+  /// 模块级默认样式。
+  final StyleDescriptor style;
+
+  /// 导航配置（sidebar + secondary）。
+  final NavObjectDescriptor nav;
+
+  /// 模块级进程列表（V2: 数组）。
+  final List<ProcessDescriptor> process;
+
+  /// 模块级事件。
+  final EventDescriptor events;
+
+  /// 交互动作。
+  final ActionDescriptor? actions;
+
+  /// 数据绑定列表。
+  final List<DataBindingDescriptor> dataBindings;
+
+  /// 文件工作区。
+  final WorkspaceDescriptor? workspace;
+
+  /// 页面列表。
   final List<PageDescriptor> pages;
 
-  /// 动作按钮列表（`ui: "composite"` 时生效）。
-  ///
-  /// 与旧版单对象 [ActionDescriptor] 不同，这是新数组格式，
-  /// 每项声明一个动作按钮及其可选后端进程。
-  final List<ActionButtonDescriptor> actionButtons;
-
   const ModuleDescriptor({
+    this.schemaVersion = '2.0',
     required this.id,
     required this.name,
     this.description = '',
     this.icon,
+    this.version = '0.0.0',
     this.route,
-    this.sidebar,
-    this.secondaryNavs = const [],
-    this.layout = const LayoutDescriptor(),
-    this.dataBindings = const [],
-    this.ui = 'default',
-    this.chat,
-    this.spreadsheet,
-    this.document,
-    this.presentation,
-    this.input,
-    this.workspace,
-    this.media,
-    this.timeline,
-    this.map,
-    this.form,
-    this.actions,
-    this.process,
     this.dependencies = const [],
     this.activateSkills = const [],
-    this.version = '0.0.0',
+    this.style = const StyleDescriptor(),
+    this.nav = const NavObjectDescriptor(),
+    this.process = const [],
+    this.events = const EventDescriptor(),
+    this.actions,
+    this.dataBindings = const [],
+    this.workspace,
     this.pages = const [],
-    this.actionButtons = const [],
   });
 
   // ═══ 便捷查询 ═══
 
   /// 是否为纯服务模块（无 UI 页面）。
-  bool get isServiceOnly => route == null || route!.isEmpty;
+  bool get isServiceOnly => pages.isEmpty && (route == null || route!.isEmpty);
 
   /// 是否出现在侧边栏。
-  bool get hasSidebar => sidebar != null && icon != null && !isServiceOnly;
+  bool get hasSidebar => nav.sidebar != null && icon != null && !isServiceOnly;
 
-  /// 所有路由路径（主路由 + 子面板路由 + pages 子路由）。
+  /// 所有路由路径。
   List<String> get allRoutePaths {
     final paths = <String>[];
-    if (route != null && route!.isNotEmpty) {
-      paths.add(route!);
-      // composite 模式：每个 page 生成主子路由
-      if (ui == 'composite') {
-        for (final page in pages) {
-          paths.add('${route!}/${page.id}');
-        }
+    for (final page in pages) {
+      if (page.route != null && page.route!.isNotEmpty) {
+        paths.add(page.route!);
       }
     }
-    for (final p in layout.panels) {
-      paths.add(p.path);
-    }
-    for (final s in secondaryNavs) {
-      paths.add(s.routePath);
+    if (route != null && route!.isNotEmpty) {
+      paths.add(route!);
     }
     return paths;
   }
@@ -2111,66 +2545,21 @@ class ModuleDescriptor {
   factory ModuleDescriptor.fromJson(Map<String, dynamic> json) {
     _requireField(json, 'type', 'module');
 
-    // actions 智能检测：数组 → actionButtons；对象 → 旧 ActionDescriptor
-    ActionDescriptor? oldActions;
-    List<ActionButtonDescriptor> newActionButtons = [];
+    // 兼容 V1 单对象 actions 和 V2 对象 actions
+    ActionDescriptor? actions;
     final rawActions = json['actions'];
-    if (rawActions is List) {
-      newActionButtons = rawActions
-          .map((a) =>
-              ActionButtonDescriptor.fromJson(a as Map<String, dynamic>))
-          .toList();
-    } else if (rawActions is Map) {
-      oldActions = ActionDescriptor.fromJson(
-          rawActions.cast<String, dynamic>());
+    if (rawActions is Map) {
+      actions = ActionDescriptor.fromJson(rawActions.cast<String, dynamic>());
     }
 
     return ModuleDescriptor(
+      schemaVersion: json['schemaVersion'] as String? ?? '2.0',
       id: _require(json, 'id'),
       name: _require(json, 'name'),
       description: json['description'] as String? ?? '',
       icon: _parseIcon(json['icon']),
+      version: json['version'] as String? ?? '0.0.0',
       route: json['route'] as String?,
-      sidebar: json['sidebar'] != null
-          ? SidebarDescriptor.fromJson(json['sidebar'] as Map<String, dynamic>)
-          : null,
-      secondaryNavs: _requireList(
-        json,
-        'secondaryNavs',
-        (d) => NavDescriptor.fromJson(d as Map<String, dynamic>),
-      ),
-      layout: LayoutDescriptor.fromJson(json['layout'] as Map<String, dynamic>?),
-      dataBindings: _requireList(
-        json,
-        'data',
-        (d) => DataBindingDescriptor.fromJson(d as Map<String, dynamic>),
-      ),
-      ui: json['ui'] as String? ?? 'default',
-      chat: ChatOptions.fromJson(
-          json['chat'] as Map<String, dynamic>?),
-      spreadsheet: SpreadsheetOptions.fromJson(
-          json['spreadsheet'] as Map<String, dynamic>?),
-      document: DocEditorOptions.fromJson(
-          json['document'] as Map<String, dynamic>?),
-      presentation: PresentationOptions.fromJson(
-          json['presentation'] as Map<String, dynamic>?),
-      input: InputOptions.fromJson(
-          json['input'] as Map<String, dynamic>?),
-      workspace: WorkspaceDescriptor.fromJson(
-          json['workspace'] as Map<String, dynamic>?),
-      media: MediaDescriptor.fromJson(
-          json['media'] as Map<String, dynamic>?),
-      timeline: TimelineDescriptor.fromJson(
-          json['timeline'] as Map<String, dynamic>?),
-      map: MapDescriptor.fromJson(
-          json['map'] as Map<String, dynamic>?),
-      form: FormDescriptor.fromJson(
-          json['form'] as Map<String, dynamic>?),
-      actions: oldActions,
-      actionButtons: newActionButtons,
-      process: json['process'] != null
-          ? ProcessDescriptor.fromJson(json['process'] as Map<String, dynamic>)
-          : null,
       dependencies: (json['dependencies'] as List?)
               ?.map((d) => d.toString())
               .toList() ??
@@ -2179,7 +2568,21 @@ class ModuleDescriptor {
               ?.map((s) => s.toString())
               .toList() ??
           [],
-      version: json['version'] as String? ?? '0.0.0',
+      style: StyleDescriptor.fromJson(
+          json['style'] as Map<String, dynamic>?),
+      nav: NavObjectDescriptor.fromJson(
+          json['nav'] as Map<String, dynamic>?),
+      process: _parseProcessList(json['process']),
+      events: EventDescriptor.fromJson(
+          json['events'] as Map<String, dynamic>?),
+      actions: actions,
+      dataBindings: _requireList(
+        json,
+        'data',
+        (d) => DataBindingDescriptor.fromJson(d as Map<String, dynamic>),
+      ),
+      workspace: WorkspaceDescriptor.fromJson(
+          json['workspace'] as Map<String, dynamic>?),
       pages: _requireList(
         json,
         'pages',
@@ -2193,43 +2596,43 @@ class ModuleDescriptor {
 
   Map<String, dynamic> toJson() {
     final m = <String, dynamic>{
+      'schemaVersion': schemaVersion,
       'type': 'module',
       'id': id,
       'name': name,
     };
     if (description.isNotEmpty) m['description'] = description;
     if (icon != null) m['icon'] = _iconToJson(icon);
+    if (version != '0.0.0') m['version'] = version;
     if (route != null) m['route'] = route;
-    if (sidebar != null) m['sidebar'] = sidebar!.toJson();
-    if (secondaryNavs.isNotEmpty) {
-      m['secondaryNavs'] = secondaryNavs.map((n) => n.toJson()).toList();
+    if (dependencies.isNotEmpty) m['dependencies'] = dependencies;
+    if (activateSkills.isNotEmpty) m['activateSkills'] = activateSkills;
+
+    final s = style.toJson();
+    if (s.isNotEmpty) m['style'] = s;
+
+    final n = nav.toJson();
+    if (n.isNotEmpty) m['nav'] = n;
+
+    if (process.isNotEmpty) {
+      m['process'] = process.map((p) => p.toJson()).toList();
     }
-    m['ui'] = ui;
-    if (chat != null) m['chat'] = chat!.toJson();
-    if (spreadsheet != null) m['spreadsheet'] = spreadsheet!.toJson();
-    if (document != null) m['document'] = document!.toJson();
-    if (presentation != null) m['presentation'] = presentation!.toJson();
-    if (input != null) m['input'] = input!.toJson();
-    if (workspace != null) m['workspace'] = workspace!.toJson();
-    if (media != null) m['media'] = media!.toJson();
-    if (timeline != null) m['timeline'] = timeline!.toJson();
-    if (map != null) m['map'] = map!.toJson();
-    if (form != null) m['form'] = form!.toJson();
-    m['layout'] = layout.toJson();
+
+    final e = events.toJson();
+    if (e.isNotEmpty) m['events'] = e;
+
+    if (actions != null) m['actions'] = actions!.toJson();
+
     if (dataBindings.isNotEmpty) {
       m['data'] = dataBindings.map((d) => d.toJson()).toList();
     }
-    if (actions != null) m['actions'] = actions!.toJson();
-    if (process != null) m['process'] = process!.toJson();
-    if (dependencies.isNotEmpty) m['dependencies'] = dependencies;
-    if (activateSkills.isNotEmpty) m['activateSkills'] = activateSkills;
-    if (version != '0.0.0') m['version'] = version;
+
+    if (workspace != null) m['workspace'] = workspace!.toJson();
+
     if (pages.isNotEmpty) {
       m['pages'] = pages.map((p) => p.toJson()).toList();
     }
-    if (actionButtons.isNotEmpty) {
-      m['actions'] = actionButtons.map((a) => a.toJson()).toList();
-    }
+
     return m;
   }
 
@@ -2241,5 +2644,5 @@ class ModuleDescriptor {
   int get hashCode => id.hashCode;
 
   @override
-  String toString() => 'ModuleDescriptor($id, $name)';
+  String toString() => 'ModuleDescriptor($id, $name, v$schemaVersion)';
 }

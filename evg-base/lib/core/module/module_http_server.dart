@@ -140,10 +140,10 @@ class ModuleHttpServer {
       'id': m.id,
       'name': m.name,
       'description': m.description,
-      'icon': m.icon?.codePoint,
+      'icon': m.icon,
       'route': m.route,
-      'ui': m.ui,
-      'category': m.sidebar?.section ?? '',
+      'ui': _inferUi(m),
+      'category': m.nav.sidebar?.section ?? '',
     }).toList();
     _json(req, 200, {'modules': modules, 'count': modules.length});
   }
@@ -188,7 +188,7 @@ class ModuleHttpServer {
         'entries': entries.map((e) => {
           'label': e.label,
           'routePath': e.routePath,
-          'icon': e.icon.codePoint,
+          'icon': e.icon,
         }).toList(),
       };
     }).toList();
@@ -199,6 +199,21 @@ class ModuleHttpServer {
   void _routes(HttpRequest req) {
     final routes = _registry.buildRoutePaths();
     _json(req, 200, {'routes': routes, 'count': routes.length});
+  }
+
+  // ═══════ 辅助 ═══════
+
+  /// 从模块的页面组件类型推断 UI 范式（V2 无顶层 ui 字段）。
+  String _inferUi(ModuleDescriptor m) {
+    if (m.pages.isEmpty) return '';
+    final types = m.pages.expand((p) => p.componentTypes).toSet();
+    if (types.contains('chat')) return 'chat';
+    if (types.contains('spreadsheet')) return 'spreadsheet';
+    if (types.contains('document')) return 'document';
+    if (types.contains('presentation')) return 'presentation';
+    if (types.contains('dashboard')) return 'dashboard';
+    if (types.contains('editor')) return 'editor';
+    return types.first;
   }
 
   // ═══════ 工具 ═══════

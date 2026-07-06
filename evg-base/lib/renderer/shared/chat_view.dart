@@ -13,6 +13,7 @@ import 'package:evergreen_base/core/agent/event.dart' as agent;
 import 'package:evergreen_base/core/agent/controller/controller.dart' show ControllerState;
 import 'package:evergreen_base/providers.dart';
 import 'package:evergreen_base/core/agent/agent_runtime.dart' show webSearchEnabledProvider, deepThinkingEnabledProvider;
+import 'package:evergreen_base/core/agent/session_manager.dart' show activeSessionIdProvider, createSessionProvider;
 import 'package:evergreen_base/renderer/widgets/models.dart';
 import 'package:evergreen_base/renderer/widgets/markdown_renderer.dart';
 import 'package:evergreen_base/renderer/shared/theme_provider.dart';
@@ -169,10 +170,15 @@ class _ChatViewState extends ConsumerState<ChatView> {
     return buf.toString().trim();
   }
 
-  void _send() {
+  Future<void> _send() async {
     final text = _inputCtrl.text.trim();
     if (text.isEmpty) return;
     if (ref.read(controllerStateProvider) == ControllerState.running) return;
+
+    // ✅ 自动创建会话：当 activeSessionId 为 null 时，先 await 创建再发送
+    if (ref.read(activeSessionIdProvider) == null) {
+      await ref.read(createSessionProvider)(null);
+    }
 
     final notifier = ref.read(_embeddedChatProvider.notifier);
     notifier.addUser(text);

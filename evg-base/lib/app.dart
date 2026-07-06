@@ -105,59 +105,54 @@ Page<void> _fadePage(Widget child, GoRouterState state) {
 /// 为 [ModuleRegistry] 中的所有模块生成 GoRoute 列表。
 ///
 /// [pluginsDir] 为插件根目录，所有模块的工作目录均从该目录解析。
-List<GoRoute> _buildModuleRoutes(ModuleRegistry registry, String pluginsDir) {
+/// [v2Manifests] 为 V2 原始 JSON 映射（schemaVersion: "2.0"），
+/// 用于 HTML 渲染模式。
+List<GoRoute> _buildModuleRoutes(
+  ModuleRegistry registry,
+  String pluginsDir,
+  Map<String, Map<String, dynamic>> v2Manifests,
+) {
   final seen = <String>{};
   final routes = <GoRoute>[];
   final modules = registry.modules;
   debugPrint('[Router] registry has ${modules.length} modules');
   for (final m in modules) {
-    debugPrint('[Router] module: id=${m.id} route=${m.route} ui=${m.ui}');
+    debugPrint('[Router] module: id=${m.id} route=${m.route} pages=${m.pages.length}');
+    final v2Json = v2Manifests[m.id];
+    final renderMode = v2Json?['renderMode'] as String? ?? 'dart';
+
     final workingDir = p.join(pluginsDir, m.id) + p.separator;
+
+    Widget modulePage() => EvergreenModulePage(
+      descriptor: m,
+      workingDirectory: workingDir,
+      renderMode: renderMode,
+    );
+
     // 主路由
     if (m.route != null && m.route!.isNotEmpty && seen.add(m.route!)) {
       routes.add(GoRoute(
         path: m.route!,
-        pageBuilder: (context, state) => _fadePage(
-          EvergreenModulePage(descriptor: m, workingDirectory: workingDir),
-          state,
-        ),
+        pageBuilder: (context, state) => _fadePage(modulePage(), state),
       ));
     }
-    // 子面板路由
-    for (final p in m.layout.panels) {
-      if (seen.add(p.path)) {
-        routes.add(GoRoute(
-          path: p.path,
-          pageBuilder: (context, state) => _fadePage(
-            EvergreenModulePage(descriptor: m, workingDirectory: workingDir),
-            state,
-          ),
-        ));
-      }
-    }
-    // 二级导航路由
-    for (final s in m.secondaryNavs) {
+    // V2: secondary nav 路由（扁平，子路径）
+    for (final s in m.nav.secondary) {
       if (seen.add(s.routePath)) {
         routes.add(GoRoute(
           path: s.routePath,
-          pageBuilder: (context, state) => _fadePage(
-            EvergreenModulePage(descriptor: m, workingDirectory: workingDir),
-            state,
-          ),
+          pageBuilder: (context, state) => _fadePage(modulePage(), state),
         ));
       }
     }
-    // composite 模式：为每个 page 生成子路由
-    if (m.ui == 'composite' && m.route != null && m.route!.isNotEmpty) {
+    // V2: page 子路由（扁平，CompositeView 解析 pageId 切 Tab）
+    if (m.pages.isNotEmpty && m.route != null && m.route!.isNotEmpty) {
       for (final page in m.pages) {
         final pagePath = '${m.route!}/${page.id}';
         if (seen.add(pagePath)) {
           routes.add(GoRoute(
             path: pagePath,
-            pageBuilder: (context, state) => _fadePage(
-              EvergreenModulePage(descriptor: m, workingDirectory: workingDir),
-              state,
-            ),
+            pageBuilder: (context, state) => _fadePage(modulePage(), state),
           ));
         }
       }
@@ -170,6 +165,7 @@ List<GoRoute> _buildModuleRoutes(ModuleRegistry registry, String pluginsDir) {
 final routerProvider = Provider<GoRouter>((ref) {
   final registry = ref.watch(moduleRegistryProvider);
   final pluginsDir = ref.watch(pluginsDirProvider);
+  final v2Manifests = ref.watch(v2ManifestProvider);
 
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
@@ -188,7 +184,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             ),
           ),
           // Registry 驱动：所有模块路由
-          ..._buildModuleRoutes(registry, pluginsDir),
+          ..._buildModuleRoutes(registry, pluginsDir, v2Manifests),
         ],
       ),
     ],

@@ -250,6 +250,7 @@ class AgentAssembly {
       memoryAgent: memoryAgent,
       skillIndexText: skillIndex.indexText(),
       skillIndex: skillIndex,
+      moduleId: moduleId,
     );
 
     // 设置 system_prompt

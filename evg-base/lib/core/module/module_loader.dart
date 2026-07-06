@@ -50,9 +50,17 @@ class ModuleLoader {
   int? get port => _port;
 
   /// 启动后端 exe 进程，等待端口就绪并通过 health check。
+  ///
+  /// V2: manifest.process 是 List<ProcessDescriptor>，启动第一个 scope 为 module 的进程。
   Future<void> start() async {
-    final proc = manifest.process;
-    if (proc == null) return;
+    final processes = manifest.process;
+    if (processes.isEmpty) return;
+
+    // 优先启动 scope 为 module 的进程，否则取第一个
+    final proc = processes.firstWhere(
+      (p) => p.scope == 'module',
+      orElse: () => processes.first,
+    );
 
     try {
       final exePath = p.join(workingDirectory, proc.exe);
@@ -195,6 +203,22 @@ List<ModuleDescriptor> scanModules(String pluginsDir) {
   return descriptors;
 }
 
+/// 加载内置模块——扫描 [builtinsDir] 目录下的 manifest.json 并注册到 [registry]。
+///
+/// 内置模块与外部插件使用同一种 manifest.json 格式。
+/// 与 [scanAndLoadModules] 不同，此函数不启动 .exe 后端进程（内置模块的
+/// 进程由框架层统一管理）。
+///
+/// [builtinsDir] 是内置模块根目录（如 `lib/core/module/builtins/`）。
+void loadBuiltinModules(String builtinsDir, ModuleRegistry registry) {
+  final descriptors = scanModules(builtinsDir);
+  for (final d in descriptors) {
+    registry.register(d);
+  }
+  Log().info('ModuleLoader: 加载了 ${descriptors.length} 个内置模块',
+      data: {'modules': descriptors.map((d) => d.id).toList()});
+}
+
 /// 扫描 + 注册 + 并行启动进程。等待全部进程就绪后返回。
 Future<List<ModuleLoader>> scanAndLoadModules(
   String pluginsDir,
@@ -211,7 +235,7 @@ Future<List<ModuleLoader>> scanAndLoadModules(
     if (dims.isNotEmpty) {
       registry.setCapabilities(d.id, dims);
     }
-    if (d.process != null) {
+    if (d.process.isNotEmpty) {
       final loader = ModuleLoader(d, dirPath, projectRoot: root);
       loaders.add(loader);
       pending.add(loader.start());

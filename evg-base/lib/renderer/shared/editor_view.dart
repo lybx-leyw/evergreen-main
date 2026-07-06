@@ -1,31 +1,109 @@
 /// Editor 视图——代码/文本编辑器 + 文件标签页。
 ///
-/// 公开类：[EditorView]
+/// 支持：多标签页管理、文件内容读取/保存、语法高亮切换。
+library;
+
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
 import 'package:evergreen_base/core/module/module_descriptor.dart';
 import '../widgets/code_editor.dart';
 import '../widgets/empty_state.dart';
+import '../widgets/models.dart';
 
 /// 代码编辑器范式完整视图。
-///
-/// 读取 [ModuleDescriptor.input]、[workspace] 配置。
 class EditorView extends StatefulWidget {
   final ModuleDescriptor descriptor;
 
-  const EditorView({super.key, required this.descriptor});
+  /// V2: 组件级配置（language 等）。
+  final ComponentDescriptor? component;
+
+  /// 文件关闭回调。
+  final VoidCallback? onFileClosed;
+
+  const EditorView({
+    super.key,
+    required this.descriptor,
+    this.component,
+    this.onFileClosed,
+  });
 
   @override
-  State<EditorView> createState() => _EditorViewState();
+  State<EditorView> createState() => EditorViewState();
 }
 
-class _EditorViewState extends State<EditorView> {
+class EditorViewState extends State<EditorView> {
   final List<_FileTab> _tabs = [];
-  int _activeTab = 0;
+  int _activeTab = -1;
+
+  /// 打开文件（外部调用）。
+  void openFile(WorkspaceFile file, String absPath) {
+    // 检查是否已打开
+    final existing = _tabs.indexWhere((t) => t.absPath == absPath);
+    if (existing >= 0) {
+      setState(() => _activeTab = existing);
+      return;
+    }
+
+    try {
+      final f = File(absPath);
+      if (!f.existsSync()) return;
+      final content = f.readAsStringSync();
+      final ext = p.extension(file.name).replaceFirst('.', '');
+
+      setState(() {
+        _tabs.add(_FileTab(
+          name: file.name,
+          absPath: absPath,
+          content: content,
+          ext: ext.isNotEmpty ? ext : 'text',
+        ));
+        _activeTab = _tabs.length - 1;
+      });
+    } catch (_) {
+      // 读取失败——静默
+    }
+  }
+
+  /// 保存当前文件。
+  void saveCurrentFile() {
+    if (_activeTab < 0 || _activeTab >= _tabs.length) return;
+    final tab = _tabs[_activeTab];
+    try {
+      File(tab.absPath).writeAsStringSync(tab.content);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('已保存: ${tab.name}'), duration: const Duration(seconds: 1)),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('保存失败: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  /// 刷新当前文件内容（AI 写入后调用）。
+  void refreshCurrentFile() {
+    if (_activeTab < 0 || _activeTab >= _tabs.length) return;
+    final tab = _tabs[_activeTab];
+    try {
+      final f = File(tab.absPath);
+      if (!f.existsSync()) return;
+      setState(() {
+        tab.content = f.readAsStringSync();
+      });
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
     final workspace = widget.descriptor.workspace;
-    final input = widget.descriptor.input;
+    // V2: language from ComponentDescriptor.config
+    final language = widget.component?.config['language'] as String? ?? 'text';
 
     return Column(
       children: [
@@ -34,23 +112,30 @@ class _EditorViewState extends State<EditorView> {
 
         // 编辑区域
         Expanded(
-          child: _tabs.isNotEmpty
-              ? CodeEditor(
-                  language: input?.language ?? 'text',
-                  // TODO: 绑定文件内容
-                )
+          child: _tabs.isNotEmpty && _activeTab >= 0
+              ? _buildEditor()
               : EmptyState(
                   icon: Icons.code,
                   title: '打开文件以开始编辑',
                   subtitle: workspace != null
-                      ? '拖入文件或从工作区选择'
+                      ? '从左侧文件树选择文件'
                       : '通过菜单打开文件',
                 ),
         ),
 
         // 状态栏
-        _buildStatusBar(context),
+        _buildStatusBar(context, language),
       ],
+    );
+  }
+
+  Widget _buildEditor() {
+    final tab = _tabs[_activeTab];
+    return CodeEditor(
+      key: ValueKey(tab.absPath),
+      language: tab.ext,
+      initialContent: tab.content,
+      onChanged: (value) => tab.content = value,
     );
   }
 
@@ -92,8 +177,7 @@ class _EditorViewState extends State<EditorView> {
                     tab.name,
                     style: TextStyle(
                       fontSize: 12,
-                      fontWeight:
-                          isActive ? FontWeight.w600 : FontWeight.normal,
+                      fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
                     ),
                   ),
                   const SizedBox(width: 4),
@@ -110,7 +194,7 @@ class _EditorViewState extends State<EditorView> {
     );
   }
 
-  Widget _buildStatusBar(BuildContext context) {
+  Widget _buildStatusBar(BuildContext context, String language) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       decoration: BoxDecoration(
@@ -121,15 +205,28 @@ class _EditorViewState extends State<EditorView> {
       ),
       child: Row(
         children: [
-          Text(
-            'UTF-8',
-            style: Theme.of(context).textTheme.labelSmall,
-          ),
+          Text(language, style: Theme.of(context).textTheme.labelSmall),
           const SizedBox(width: 16),
-          Text(
-            '第 1 行，第 1 列',
-            style: Theme.of(context).textTheme.labelSmall,
-          ),
+          Text('UTF-8', style: Theme.of(context).textTheme.labelSmall),
+          const Spacer(),
+          if (_activeTab >= 0 && _tabs.isNotEmpty)
+            InkWell(
+              onTap: saveCurrentFile,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.save, size: 14,
+                        color: Theme.of(context).colorScheme.primary),
+                    const SizedBox(width: 4),
+                    Text('保存',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: Theme.of(context).colorScheme.primary)),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -138,7 +235,10 @@ class _EditorViewState extends State<EditorView> {
   void _closeTab(int index) {
     setState(() {
       _tabs.removeAt(index);
-      if (_activeTab >= _tabs.length) {
+      if (_tabs.isEmpty) {
+        _activeTab = -1;
+        widget.onFileClosed?.call();
+      } else if (_activeTab >= _tabs.length) {
         _activeTab = (_tabs.length - 1).clamp(0, _tabs.length);
       }
     });
@@ -147,6 +247,14 @@ class _EditorViewState extends State<EditorView> {
 
 class _FileTab {
   final String name;
-  final String path;
-  const _FileTab({required this.name, required this.path});
+  final String absPath;
+  String content;
+  final String ext;
+
+  _FileTab({
+    required this.name,
+    required this.absPath,
+    required this.content,
+    required this.ext,
+  });
 }

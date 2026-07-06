@@ -2,3 +2,4 @@
 library compositions;
 
 export 'workspace_hub.dart';
+export 'workspace_page.dart';

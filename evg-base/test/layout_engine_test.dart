@@ -1,6 +1,6 @@
-/// LayoutEngine 单元测试——mode/grid/zoom/panels 组合。
+/// LayoutEngine 单元测试 — V2 API (type/preset/features)。
 ///
-/// Sprint 3 最低覆盖要求：LayoutEngine mode/grid/zoom/panels 组合。
+/// Sprint 3 最低覆盖要求：LayoutEngine grid/zoom/search/drawers 组合。
 library;
 
 import 'package:flutter/material.dart';
@@ -8,29 +8,26 @@ import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'package:evergreen_base/renderer/shared/layout_engine.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// 构造最小 LayoutDescriptor。
+/// 构造 V2 LayoutDescriptor。
 LayoutDescriptor _layout({
-  String mode = 'scroll',
-  GridOptions? grid,
+  String type = 'flex',
+  int? columns,
   bool zoomEnabled = false,
   List<String> drawers = const [],
   SearchDescriptor? search,
-  List<PanelDescriptor> panels = const [],
 }) {
   return LayoutDescriptor(
-    mode: mode,
-    grid: grid,
-    zoom: ZoomDescriptor(enabled: zoomEnabled),
-    drawers: drawers,
-    search: search,
-    panels: panels,
+    type: columns != null ? 'grid' : type,
+    preset: LayoutPreset(columns: columns),
+    features: LayoutFeatures(
+      zoom: zoomEnabled ? const ZoomDescriptor(enabled: true) : null,
+      search: search,
+      drawers: drawers,
+    ),
   );
 }
 
 /// 包裹 [LayoutEngine] 的标准测试脚手架。
-///
-/// [Scaffold] 提供 [Material] 祖先节点，从而满足 [TabBar] 等
-/// Material 组件的要求（[PanelLayout] 内部使用了 [TabBar]）。
 Widget _wrap(LayoutDescriptor layout, Widget child) {
   return MaterialApp(
     home: Scaffold(
@@ -50,45 +47,23 @@ class _TestChild extends StatelessWidget {
 }
 
 void main() {
-  group('LayoutEngine — mode（scroll/fit/unknown）', () {
-    testWidgets('mode="scroll" → SingleChildScrollView', (tester) async {
-      await tester.pumpWidget(_wrap(_layout(mode: 'scroll'), const _TestChild()));
-      expect(find.byType(LayoutEngine), findsOneWidget);
-    });
-
-    testWidgets('mode="fit" → FittedBox', (tester) async {
-      await tester.pumpWidget(_wrap(_layout(mode: 'fit'), const _TestChild()));
-      expect(find.byType(LayoutEngine), findsOneWidget);
-    });
-
-    testWidgets('mode="" → 静默忽略', (tester) async {
-      await tester.pumpWidget(_wrap(_layout(mode: ''), const _TestChild()));
-      expect(find.byType(LayoutEngine), findsOneWidget);
-    });
-
-    testWidgets('mode="unknown" → 静默忽略', (tester) async {
-      await tester.pumpWidget(_wrap(_layout(mode: 'unknown'), const _TestChild()));
-      expect(find.byType(LayoutEngine), findsOneWidget);
-    });
-  });
-
   group('LayoutEngine — grid（网格布局）', () {
-    testWidgets('grid.columns=2', (tester) async {
+    testWidgets('grid type + columns=2', (tester) async {
       await tester.pumpWidget(
-        _wrap(_layout(grid: const GridOptions(columns: 2)), const _TestChild()),
+        _wrap(_layout(columns: 2), const _TestChild()),
       );
       expect(find.byType(LayoutEngine), findsOneWidget);
     });
 
-    testWidgets('grid.columns=4', (tester) async {
+    testWidgets('grid type + columns=4', (tester) async {
       await tester.pumpWidget(
-        _wrap(_layout(grid: const GridOptions(columns: 4)), const _TestChild()),
+        _wrap(_layout(columns: 4), const _TestChild()),
       );
       expect(find.byType(LayoutEngine), findsOneWidget);
     });
 
-    testWidgets('grid=null → 无 GridLayout', (tester) async {
-      await tester.pumpWidget(_wrap(_layout(grid: null), const _TestChild()));
+    testWidgets('flex type → 无 GridLayout', (tester) async {
+      await tester.pumpWidget(_wrap(_layout(), const _TestChild()));
       expect(find.byType(LayoutEngine), findsOneWidget);
     });
   });
@@ -109,47 +84,53 @@ void main() {
     });
   });
 
-  group('LayoutEngine — panels（多面板）', () {
-    testWidgets('panels 非空 → PanelLayout', (tester) async {
+  group('LayoutEngine — search（搜索栏）', () {
+    testWidgets('search enabled', (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          _layout(search: const SearchDescriptor(enabled: true, placeholder: '搜索...')),
+          const _TestChild(),
+        ),
+      );
+      expect(find.byType(LayoutEngine), findsOneWidget);
+    });
+  });
+
+  group('LayoutEngine — drawers（抽屉）', () {
+    testWidgets('drawers 非空', (tester) async {
       await tester.pumpWidget(_wrap(
-        _layout(panels: const [
-          PanelDescriptor(id: 'tab1', label: 'Tab 1', path: '/tab1'),
-          PanelDescriptor(id: 'tab2', label: 'Tab 2', path: '/tab2'),
-        ]),
+        _layout(drawers: const ['left', 'right']),
         const _TestChild(),
       ));
       expect(find.byType(LayoutEngine), findsOneWidget);
     });
 
-    testWidgets('panels 为空 → 无 PanelLayout', (tester) async {
+    testWidgets('drawers 为空', (tester) async {
       await tester.pumpWidget(
-        _wrap(_layout(panels: const []), const _TestChild()),
+        _wrap(_layout(drawers: const []), const _TestChild()),
       );
       expect(find.byType(LayoutEngine), findsOneWidget);
     });
   });
 
   group('LayoutEngine — 组合', () {
-    testWidgets('全组合：scroll+grid+zoom+panels', (tester) async {
+    testWidgets('grid+zoom+search+drawers 全组合', (tester) async {
       await tester.pumpWidget(_wrap(
         _layout(
-          mode: 'scroll',
-          grid: const GridOptions(columns: 3),
+          columns: 3,
           zoomEnabled: true,
-          panels: const [
-            PanelDescriptor(id: 'main', label: 'Main', path: '/main'),
-          ],
+          search: const SearchDescriptor(enabled: true),
+          drawers: const ['left'],
         ),
         const _TestChild(),
       ));
       expect(find.byType(LayoutEngine), findsOneWidget);
     });
 
-    testWidgets('fit+grid+search 组合', (tester) async {
+    testWidgets('flex+search 组合', (tester) async {
       await tester.pumpWidget(_wrap(
         _layout(
-          mode: 'fit',
-          grid: const GridOptions(columns: 2),
+          type: 'flex',
           search: const SearchDescriptor(enabled: true, placeholder: '搜索...'),
         ),
         const _TestChild(),

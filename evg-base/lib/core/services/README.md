@@ -24,7 +24,7 @@ import 'package:dio/dio.dart';
 // 两级降级 OCR（推荐）
 final pipeline = OcrPipeline(Dio());
 final text = await pipeline.recognizeFile(path);  // → String?，失败返回 null
-final text2 = await pipeline.recognizeUrl(url);   // → String，失败抛异常
+final text2 = await pipeline.recognizeUrl(url);   // → String，失败返回空字符串
 
 // 仅云端 OCR
 final svc = DeepSeekOcrService(Dio(), apiKey);

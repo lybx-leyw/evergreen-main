@@ -1,0 +1,35 @@
+{
+  "name": "showcase_flag",
+  "description": "🎭 展示工具(flag模式) — CLI flag 风格参数传递，支持短flag覆盖。模拟一个趣味天气预言机。支持 --data-port 从数据源获取彩蛋。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "city": {
+        "type": "string",
+        "description": "城市名"
+      },
+      "days": {
+        "type": "integer",
+        "description": "预报天数，默认 3"
+      },
+      "style": {
+        "type": "string",
+        "description": "输出风格",
+        "enum": ["normal", "poem", "funny"]
+      }
+    },
+    "required": ["city"]
+  },
+  "readOnly": true,
+  "argMode": "args",
+  "argSpec": {
+    "style": "flag",
+    "prefix": "--",
+    "flags": {
+      "city": "-c",
+      "days": "-d",
+      "style": "-s"
+    }
+  },
+  "extraArgs": ["--data-port"]
+}

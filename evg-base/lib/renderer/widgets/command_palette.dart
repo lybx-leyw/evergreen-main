@@ -7,7 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:evergreen_base/core/module/modules.dart';
 import 'package:evergreen_base/generated/plugin_imports.g.dart';
 
-typedef PaletteItem = ({String title, String subtitle, IconData icon, String route, String category});
+/// V2: icon 使用 int (codePoint)，显示时转为 IconData。
+typedef PaletteItem = ({String title, String subtitle, int icon, String route, String category});
 
 const _recentKey = 'command_palette_recent';
 
@@ -207,7 +208,7 @@ class _CommandPaletteState extends State<CommandPalette> {
 
                             return ListTile(
                               leading: Icon(
-                                item.icon,
+                                IconData(item.icon, fontFamily: 'MaterialIcons'),
                                 color: selected
                                     ? theme.colorScheme.primary
                                     : theme.colorScheme.onSurfaceVariant,

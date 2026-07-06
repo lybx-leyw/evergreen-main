@@ -1,33 +1,33 @@
-import 'package:flutter/material.dart';
 import 'package:test/test.dart';
 import '../capability.dart';
 import '../module_descriptor.dart';
 import '../module_registry.dart';
 
-/// ModuleRegistry 测试——覆盖注册/seal/查询/搜索/路由/导航/依赖校验/
+/// ModuleRegistry V2 测试——覆盖注册/seal/查询/搜索/路由/导航/依赖校验/
 /// 边界条件和异常路径。
 void main() {
-  // ═══════ 固定数据 ═══════
+  // ═══════ 固定数据（V2 schema）══════
 
   final agentModule = ModuleDescriptor(
     id: 'agent',
     name: 'AI 助手',
     description: '流式对话',
-    icon: Icons.smart_toy,
+    icon: 0xf06c, // smart_toy codePoint
     route: '/agent',
-    ui: 'chat',
-    sidebar: const SidebarDescriptor(section: 'AI 工具', order: 10),
-    chat: const ChatOptions(),
+    nav: const NavObjectDescriptor(
+      sidebar: SidebarDescriptor(section: 'AI 工具', order: 10),
+    ),
   );
 
   final scoreModule = ModuleDescriptor(
     id: 'scores',
     name: '成绩单',
     description: '学生成绩管理',
-    icon: Icons.score,
+    icon: 0xe269, // score codePoint
     route: '/scores',
-    ui: 'default',
-    sidebar: const SidebarDescriptor(section: '教育', order: 20),
+    nav: const NavObjectDescriptor(
+      sidebar: SidebarDescriptor(section: '教育', order: 20),
+    ),
     dataBindings: const [
       DataBindingDescriptor(dataType: 'scores', display: 'table'),
     ],
@@ -43,7 +43,9 @@ void main() {
     id: 'background',
     name: '后台服务',
     description: '无 UI',
-    process: const ProcessDescriptor(exe: 'bg.exe'),
+    process: const [
+      ProcessDescriptor(exe: 'bg.exe'),
+    ],
   );
 
   ModuleRegistry _freshRegistry() {
@@ -137,19 +139,20 @@ void main() {
       expect(m!.id, 'agent');
     });
 
-    test('findByRoute 匹配面板路由', () {
+    test('findByRoute 匹配页面路由', () {
       final r = ModuleRegistry();
       r.register(ModuleDescriptor(
-        id: 'panels',
-        name: '多面板',
-        route: '/panels',
-        layout: const LayoutDescriptor(panels: [
-          PanelDescriptor(
-              id: 'tab1', label: 'Tab 1', path: '/panels/tab1'),
-        ]),
+        id: 'multi_page',
+        name: '多页面',
+        route: '/multi',
+        pages: [
+          PageDescriptor(id: 'p1', label: 'P1', route: '/multi/p1'),
+          PageDescriptor(id: 'p2', label: 'P2', route: '/multi/p2'),
+        ],
       ));
       r.seal();
-      expect(r.findByRoute('/panels/tab1'), isNotNull);
+      expect(r.findByRoute('/multi/p1'), isNotNull);
+      expect(r.findByRoute('/multi/p2'), isNotNull);
     });
 
     test('findByRoute 匹配子导航路由', () {
@@ -158,10 +161,12 @@ void main() {
         id: 'navs',
         name: '子导航',
         route: '/navs',
-        secondaryNavs: const [
-          NavDescriptor(
-              label: 'Sub', routePath: '/sub-page', section: '工具'),
-        ],
+        nav: const NavObjectDescriptor(
+          secondary: [
+            NavDescriptor(
+                label: 'Sub', routePath: '/sub-page', section: '工具'),
+          ],
+        ),
       ));
       r.seal();
       expect(r.findByRoute('/sub-page'), isNotNull);
@@ -300,7 +305,7 @@ void main() {
     test('纯服务模块不出现在路由中', () {
       final r = _freshRegistry();
       final paths = r.buildRoutePaths();
-      // background 无 route，不应出现
+      // background 无 route + 无 pages，不应出现
       expect(paths.length, 2);
     });
   });

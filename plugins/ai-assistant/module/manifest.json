@@ -1,4 +1,5 @@
 {
+  "schemaVersion": "2.0",
   "type": "module",
   "id": "ai-assistant",
   "name": "AI 助手",

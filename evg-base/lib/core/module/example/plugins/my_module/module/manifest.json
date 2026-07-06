@@ -8,21 +8,22 @@
   "route": "/my-module",
   "ui": "default",
 
-  "sidebar": {
-    "section": "AI 工具",
-    "sectionOrder": 20,
-    "order": 50,
-    "badge": false
+  "nav": {
+    "sidebar": {
+      "section": "AI 工具",
+      "sectionOrder": 20,
+      "order": 50,
+      "badge": false
+    },
+    "secondary": [
+      {
+        "icon": "notifications",
+        "label": "通知",
+        "route": "/my-module/notifications",
+        "section": "AI 工具"
+      }
+    ]
   },
-
-  "secondaryNavs": [
-    {
-      "icon": "notifications",
-      "label": "通知",
-      "routePath": "/my-module/notifications",
-      "section": "AI 工具"
-    }
-  ],
 
   "layout": {
     "mode": "scroll",
@@ -81,5 +82,5 @@
     "preferredPort": 8080
   },
 
-  "dependencies": ["agent"]
+  "dependencies": ["agent_from"]
 }

@@ -1,3 +1,0 @@
-port=52461
-root=D:\study_and_try\try_add\evg-base
-cwd=D:\study_and_try\try_add\plugins\pomodoro

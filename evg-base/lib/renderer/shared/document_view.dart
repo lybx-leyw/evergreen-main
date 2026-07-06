@@ -10,11 +10,12 @@ import '../widgets/empty_state.dart';
 
 /// 文档编辑器范式完整视图。
 ///
-/// 读取 [ModuleDescriptor.document] 中的 [DocEditorOptions]。
+/// V2: 选项从 [ComponentDescriptor.config] 中解析。
 class DocumentView extends StatefulWidget {
   final ModuleDescriptor descriptor;
+  final ComponentDescriptor? component;
 
-  const DocumentView({super.key, required this.descriptor});
+  const DocumentView({super.key, required this.descriptor, this.component});
 
   @override
   State<DocumentView> createState() => _DocumentViewState();
@@ -24,8 +25,11 @@ class _DocumentViewState extends State<DocumentView> {
   bool _showToc = false;
   bool _showComments = false;
 
-  DocEditorOptions get _opts =>
-      widget.descriptor.document ?? const DocEditorOptions();
+  DocEditorOptions get _opts {
+    final raw = widget.component?.config['document'];
+    if (raw is Map<String, dynamic>) return DocEditorOptions.fromJson(raw);
+    return const DocEditorOptions();
+  }
 
   @override
   Widget build(BuildContext context) {

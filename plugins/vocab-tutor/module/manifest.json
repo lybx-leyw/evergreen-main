@@ -1,0 +1,151 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "vocab-tutor",
+  "name": "词汇导师",
+  "description": "智能背词软件——打字模式、闪卡复习、AI测验，栏间实时联动",
+  "icon": "school",
+  "route": "/vocab-tutor",
+  "version": "2.0.0",
+  "ui": "composite",
+  "sidebar": { "section": "主功能", "order": 6 },
+  "layout": {
+    "grid": { "columns": 1, "gap": 16 }
+  },
+  "workspace": {
+    "enabled": true,
+    "maxFiles": 200,
+    "maxSizeMb": 50,
+    "aiCreatable": ["md", "json", "txt", "csv"],
+    "persistAcrossSessions": true
+  },
+  "pages": [
+    {
+      "id": "learn",
+      "label": "📝 打字学习",
+      "layout": {
+        "grid": { "columns": 2, "gap": 16 }
+      },
+      "slots": {
+        "left": {
+          "component": "type-check",
+          "config": {
+            "wordList": "words.json",
+            "mode": "chinese-to-english",
+            "shuffle": true,
+            "maxRounds": 10
+          },
+          "events": {
+            "emit": ["word_completed", "answer_correct", "answer_wrong"],
+            "subscribe": ["new_words", "reset_round"]
+          },
+          "expose_state": {
+            "events": ["word_completed", "answer_correct", "answer_wrong"],
+            "subdir": "type-check",
+            "format": "json"
+          }
+        },
+        "right": {
+          "component": "ai-assistant",
+          "config": {
+            "preset": "vocab-tutor",
+            "system_prompt": "你是词汇学习助手。用户在左侧练习打字背词，你可以看到其实时学习状态。\n\n当用户答错时，提供该单词的词根词缀分析、联想记忆法、例句。\n当用户连续答对时，给出鼓励和进阶建议。\n用中文回复，保持简洁友好。",
+            "max_steps": 15,
+            "temperature": 0.3,
+            "tools": { "mode": "specific", "allowed": ["web_search", "write_file", "read_global_memory", "write_global_memory"] },
+            "global_memory": true,
+            "multi_session": false,
+            "skills": { "mode": "all" }
+          },
+          "events": {
+            "emit": ["new_words", "reset_round"],
+            "subscribe": ["word_completed", "answer_correct", "answer_wrong"]
+          }
+        }
+      }
+    },
+    {
+      "id": "review",
+      "label": "🃏 闪卡复习",
+      "layout": {
+        "grid": { "columns": 2, "gap": 16 }
+      },
+      "slots": {
+        "left": {
+          "component": "flashcards",
+          "config": {
+            "wordList": "words.json",
+            "algorithm": "spaced-repetition",
+            "showHint": true,
+            "autoFlip": false
+          },
+          "events": {
+            "emit": ["card_flipped", "card_known", "card_forgotten"],
+            "subscribe": ["add_to_review", "clear_review"]
+          },
+          "expose_state": {
+            "events": ["card_flipped", "card_known", "card_forgotten"],
+            "subdir": "flashcards",
+            "format": "json"
+          }
+        },
+        "right": {
+          "component": "ai-assistant",
+          "config": {
+            "preset": "vocab-tutor",
+            "system_prompt": "你是闪卡复习助手。用户在左侧使用闪卡记忆单词，你可以看到其实时学习状态。\n\n当用户标记忘记时，提供生动的记忆技巧和场景联想。\n当用户连续记住多个单词时，建议进行综合测验。\n用中文回复，保持鼓励和风趣。",
+            "max_steps": 15,
+            "temperature": 0.4,
+            "tools": { "mode": "specific", "allowed": ["web_search", "write_file"] },
+            "global_memory": true,
+            "multi_session": false,
+            "skills": { "mode": "all" }
+          },
+          "events": {
+            "emit": ["add_to_review", "clear_review"],
+            "subscribe": ["card_flipped", "card_known", "card_forgotten"]
+          }
+        }
+      }
+    },
+    {
+      "id": "test",
+      "label": "✅ 综合测验",
+      "layout": {
+        "grid": { "columns": 1, "gap": 16 }
+      },
+      "slots": {
+        "main": {
+          "component": "quiz",
+          "config": {
+            "wordList": "words.json",
+            "questionTypes": ["multiple-choice", "fill-blank", "match-pairs"],
+            "timeLimit": 300,
+            "passScore": 80
+          },
+          "events": {
+            "emit": ["test_started", "question_answered", "test_completed"],
+            "subscribe": []
+          },
+          "expose_state": {
+            "events": ["test_started", "question_answered", "test_completed"],
+            "subdir": "quiz",
+            "format": "json"
+          }
+        }
+      }
+    }
+  ],
+  "actionButtons": [
+    {
+      "trigger": "button:start-learning",
+      "label": "🚀 开始学习"
+    },
+    {
+      "trigger": "button:shuffle-words",
+      "label": "🔀 换一批单词"
+    }
+  ],
+  "activateSkills": ["web_search", "memory"],
+  "dependencies": []
+}

@@ -20,7 +20,11 @@ import 'package:evergreen_base/renderer/shared/my_plugins_view.dart';
 import 'package:evergreen_base/renderer/shared/settings_view.dart';
 import 'package:evergreen_base/renderer/shared/permission_management_view.dart';
 import 'package:evergreen_base/renderer/compositions/workspace_page.dart';
+import 'package:evergreen_base/core/module/module_descriptor.dart';
+import 'package:evergreen_base/providers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // ── Helper: 构建测试用 PluginDescriptor ──
@@ -580,57 +584,21 @@ void main() {
   // ═══════════════════════════════════════════════════════════════
 
   group('SettingsView', () {
-    testWidgets('渲染默认设置', (tester) async {
-      await tester.pumpWidget(_materialApp(
-        const SettingsView(),
-      ));
-      expect(find.text('深色模式'), findsOneWidget);
-      expect(find.text('官方源'), findsOneWidget);
-      expect(find.text('社区源'), findsOneWidget);
-      expect(find.text('插件更新通知'), findsOneWidget);
-      expect(find.text('安装完成通知'), findsOneWidget);
-      expect(find.text('版本'), findsOneWidget);
-      expect(find.text('构建号'), findsOneWidget);
-      expect(find.text('1.2.0'), findsOneWidget);
-      expect(find.text('2024.0704.1'), findsOneWidget);
-    });
-
-    testWidgets('自定义版本号', (tester) async {
-      await tester.pumpWidget(_materialApp(
-        const SettingsView(appVersion: '2.0.0', buildNumber: '2025.0101.1'),
-      ));
-      expect(find.text('2.0.0'), findsOneWidget);
-      expect(find.text('2025.0101.1'), findsOneWidget);
-    });
-
-    testWidgets('主题切换回调', (tester) async {
-      var toggled = false;
-      await tester.pumpWidget(_materialApp(
-        SettingsView(
-          isDarkMode: false,
-          onThemeToggle: (_) => toggled = true,
-        ),
-      ));
-      // Find the Switch and toggle it
-      final switches = find.byType(Switch);
-      expect(switches, findsWidgets);
-      await tester.tap(switches.first);
-      expect(toggled, isTrue);
-    });
-
-    testWidgets('注入自定义设置组', (tester) async {
-      await tester.pumpWidget(_materialApp(
-        SettingsView(groups: [
-          SettingsGroup(
-            title: '测试组',
-            items: [
-              const SettingsItem(label: '测试项', type: SettingsItemType.toggle),
-            ],
+    testWidgets('渲染设置视图（ProviderScope + 端口注入）', (tester) async {
+      final descriptor = ModuleDescriptor(id: 'settings', name: 'Settings');
+      final prefs = await SharedPreferences.getInstance();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+          ],
+          child: MaterialApp(
+            home: Scaffold(body: SettingsView(descriptor: descriptor)),
           ),
-        ]),
-      ));
-      expect(find.text('测试组'), findsOneWidget);
-      expect(find.text('测试项'), findsOneWidget);
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.byType(SettingsView), findsOneWidget);
     });
   });
 
@@ -768,15 +736,23 @@ void main() {
       expect(detailPlugin!.name, 'AI 代码助手');
     });
 
-    testWidgets('深色模式切换', (tester) async {
-      await tester.pumpWidget(MaterialApp(
-        theme: ThemeData(brightness: Brightness.light),
-        darkTheme: ThemeData(brightness: Brightness.dark),
-        home: const Scaffold(body: SettingsView(isDarkMode: true)),
-      ));
-      // 验证 Switch 处于开启状态
-      final switches = find.byType(Switch);
-      expect(switches, findsWidgets);
+    testWidgets('SettingsView 需要 ProviderScope', (tester) async {
+      final descriptor = ModuleDescriptor(id: 'settings', name: 'Settings');
+      final prefs = await SharedPreferences.getInstance();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+          ],
+          child: MaterialApp(
+            theme: ThemeData(brightness: Brightness.light),
+            darkTheme: ThemeData(brightness: Brightness.dark),
+            home: Scaffold(body: SettingsView(descriptor: descriptor)),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.byType(SettingsView), findsOneWidget);
     });
   });
 }

@@ -11,11 +11,12 @@ import '../widgets/empty_state.dart';
 
 /// 演示文稿范式完整视图。
 ///
-/// 读取 [ModuleDescriptor.presentation] 中的 [PresentationOptions]。
+/// V2: 选项从 [ComponentDescriptor.config] 中解析。
 class PresentationView extends StatefulWidget {
   final ModuleDescriptor descriptor;
+  final ComponentDescriptor? component;
 
-  const PresentationView({super.key, required this.descriptor});
+  const PresentationView({super.key, required this.descriptor, this.component});
 
   @override
   State<PresentationView> createState() => _PresentationViewState();
@@ -26,8 +27,11 @@ class _PresentationViewState extends State<PresentationView> {
   bool _showSorter = false;
   bool _showNotes = false;
 
-  PresentationOptions get _opts =>
-      widget.descriptor.presentation ?? const PresentationOptions();
+  PresentationOptions get _opts {
+    final raw = widget.component?.config['presentation'];
+    if (raw is Map<String, dynamic>) return PresentationOptions.fromJson(raw);
+    return const PresentationOptions();
+  }
 
   // 示例幻灯片数据
   static const _slides = <SlideData>[

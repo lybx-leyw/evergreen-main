@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:evergreen_base/core/module/modules.dart';
 import 'package:evergreen_base/core/data/data.dart';
 import 'package:evergreen_base/core/theme/theme_descriptor.dart';
+import 'render_tokens.dart';
 
 // ═══════ 当前模块 ═══════
 
@@ -35,7 +36,27 @@ final dataOrchestratorProvider = Provider<DataOrchestrator>((ref) {
   throw UnimplementedError('由应用层注入 DataOrchestrator 实例');
 });
 
-// ═══════ 主题提供者（委托） ═══════
+// ═══════ 主题提供者 ═══════
 
 /// 已解析的主题描述符。
 final themeDescriptorProvider = StateProvider<ThemeDescriptor?>((ref) => null);
+
+/// 从 [themeDescriptorProvider] 派生的渲染令牌。
+///
+/// 主题切换时自动更新。未设置主题时使用内置 dark 默认值。
+/// 同时更新 [RenderTokens.applyTheme] 以保持静态访问兼容。
+final renderTokensProvider = Provider<RenderTokensColors>((ref) {
+  final theme = ref.watch(themeDescriptorProvider);
+  final tokens = RenderTokensColors.fromTheme(theme);
+  RenderTokens.applyTheme(theme);
+  return tokens;
+});
+
+// ═══════ V2 Manifest ═══════
+
+/// V2 原始 manifest JSON 映射：moduleId → raw JSON Map。
+///
+/// V2 清单含 `schemaVersion: "2.0"` 和 `renderMode: "html"`，
+/// HTML 渲染器 (HtmlRenderView) 通过此 provider 获取完整 JSON。
+final v2ManifestProvider =
+    StateProvider<Map<String, Map<String, dynamic>>>((ref) => {});

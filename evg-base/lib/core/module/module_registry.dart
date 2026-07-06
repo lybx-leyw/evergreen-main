@@ -14,7 +14,6 @@
 /// | `navGroups` | — | `List<(SidebarSection, List<NavEntry>)>` | 分组导航 |
 /// | `navFlat` | — | `List<NavEntry>` | 扁平导航 |
 /// | `paletteItems` | — | `List<({...})>` | 命令面板条目 |
-import 'package:flutter/material.dart';
 import 'package:evergreen_base/core/log.dart';
 import 'capability.dart';
 import 'module_descriptor.dart';
@@ -90,24 +89,19 @@ class ModuleRegistry {
 
   /// 按路由路径查找模块（I9 接口）。
   ///
-  /// 匹配 [ModuleDescriptor.route]、[LayoutDescriptor.panels] 路径、
-  /// [NavDescriptor.routePath]、以及 composite 模式下 [PageDescriptor] 子路由。
+  /// V2: 匹配 [ModuleDescriptor.route] 和各 [PageDescriptor.route]。
   /// 返回 `null` 表示无匹配模块。
   ModuleDescriptor? findByRoute(String path) {
     _requireSealed();
     for (final m in _modules) {
       if (m.route == path) return m;
-      for (final panel in m.layout.panels) {
-        if (panel.path == path) return m;
+      // V2: 页面路由
+      for (final page in m.pages) {
+        if (page.route == path) return m;
       }
-      for (final nav in m.secondaryNavs) {
+      // V2: 子导航路由
+      for (final nav in m.nav.secondary) {
         if (nav.routePath == path) return m;
-      }
-      // composite 模式：page 子路由
-      if (m.ui == 'composite' && m.route != null) {
-        for (final page in m.pages) {
-          if ('${m.route}/${page.id}' == path) return m;
-        }
       }
     }
     return null;
@@ -141,7 +135,7 @@ class ModuleRegistry {
 
     if (cat != null && cat.isNotEmpty) {
       results = results.where((m) {
-        return m.sidebar?.section == cat;
+        return m.nav.sidebar?.section == cat;
       });
     }
 
@@ -152,7 +146,7 @@ class ModuleRegistry {
         description: m.description,
         icon: m.icon,
         dimensions: _capabilities[m.id] ?? [],
-        category: m.sidebar?.section ?? '',
+        category: m.nav.sidebar?.section ?? '',
         version: m.version,
       );
     }).toList();
@@ -197,9 +191,10 @@ class ModuleRegistry {
     for (final m in _modules) {
       if (!m.hasSidebar) continue;
 
+      final sidebar = m.nav.sidebar!;
       final sec = SidebarSection(
-        m.sidebar!.section,
-        order: m.sidebar!.sectionOrder,
+        sidebar.section,
+        order: sidebar.sectionOrder,
       );
       final route = m.route!;
 
@@ -208,20 +203,12 @@ class ModuleRegistry {
         icon: m.icon!,
         label: m.name,
         routePath: route,
-        order: m.sidebar!.order,
+        order: sidebar.order,
+        moduleId: m.id,
       ));
 
-      // 子导航条目
-      for (final s in m.secondaryNavs) {
-        final subSec = SidebarSection(s.section);
-        grouped.putIfAbsent(subSec, () => []);
-        grouped[subSec]!.add(NavEntry(
-          icon: s.icon ?? Icons.article,
-          label: s.label,
-          routePath: s.routePath,
-          order: 50,
-        ));
-      }
+      // V2: secondary nav 是模块内部页面导航，不作为顶级侧边栏条目。
+      // 侧边栏每模块只显示 1 个图标；页面切换由 CompositeView 内部 Tab 处理。
     }
 
     // 每个 section 内按 order 排序
@@ -244,10 +231,11 @@ class ModuleRegistry {
   // ═══════ 命令面板 ═══════
 
   /// 命令面板条目——从模块声明自动生成。
+  /// V2: icon 使用 int (codePoint)。
   List<({
     String title,
     String subtitle,
-    IconData icon,
+    int icon,
     String route,
     String category
   })> get paletteItems {
@@ -255,7 +243,7 @@ class ModuleRegistry {
     final items = <({
       String title,
       String subtitle,
-      IconData icon,
+      int icon,
       String route,
       String category
     })>[];
@@ -266,13 +254,13 @@ class ModuleRegistry {
         subtitle: m.route!,
         icon: m.icon!,
         route: m.route!,
-        category: m.sidebar!.section,
+        category: m.nav.sidebar!.section,
       ));
-      for (final s in m.secondaryNavs) {
+      for (final s in m.nav.secondary) {
         items.add((
           title: s.label,
           subtitle: s.routePath,
-          icon: s.icon ?? Icons.article,
+          icon: s.icon ?? 0xe873, // description
           route: s.routePath,
           category: s.section,
         ));
@@ -309,16 +297,21 @@ class ModuleRegistry {
 // ═══════ NavEntry ═══════
 
 /// 侧边栏导航条目（框架层从 [ModuleDescriptor] 生成）。
+/// V2: icon 使用 int (codePoint)。
 class NavEntry {
-  final IconData icon;
+  final int icon;
   final String label;
   final String routePath;
   final int order;
+
+  /// 所属模块 ID，用于反查模块的 renderMode 等元信息。
+  final String moduleId;
 
   const NavEntry({
     required this.icon,
     required this.label,
     required this.routePath,
     this.order = 50,
+    this.moduleId = '',
   });
 }

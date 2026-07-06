@@ -1,5 +1,4 @@
 /// 应用更新检查——下载远端安装包并校验哈希。
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';

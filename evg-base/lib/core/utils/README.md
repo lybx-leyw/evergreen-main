@@ -1,8 +1,8 @@
 # 工具
 
-> 源码 `safe_parse.dart` `token_estimator.dart` `python_env.dart` `greenix_path.dart` `file_utils.dart`、测试（待添加）
+> 源码 `safe_parse.dart` `token_estimator.dart` `python_env.dart` `greenix_path.dart` `path_sandbox.dart` `file_utils.dart`、测试（待添加）
 
-通用工具——安全解析、Token 估算、Python 环境、运行路径、文件工作区、文件管理。仅面向平台开发者。
+通用工具——安全解析、Token 估算、Python 环境、运行路径、路径沙箱、文件管理。仅面向平台开发者。
 
 ---
 
@@ -82,6 +82,8 @@ initGreenixPaths();                              // main() 启动时调用一次
 
 greenixMemoriesDir;                              // → .greenix/memories/
 greenixSkillsDir;                                // → .greenix/skills/
+greenixSessionsDir;                              // → .greenix/sessions/
+greenixPythonDir;                                // → .greenix/python/
 greenixWorkspacesDir;                            // → .greenix/workspaces/
 greenixWorkspaceDir('agent');                    // → .greenix/workspaces/agent/
 ensureWorkspaceDir('agent');                     // 确保目录存在
@@ -93,6 +95,8 @@ listWorkspaceFiles('agent');                     // 列出工作区文件
 | `initGreenixPaths()` | `void` | 初始化基础目录（main 中调用一次） |
 | `greenixMemoriesDir` | `String` | `.greenix/memories/` |
 | `greenixSkillsDir` | `String` | `.greenix/skills/` |
+| `greenixSessionsDir` | `String` | `.greenix/sessions/` 会话持久化目录 |
+| `greenixPythonDir` | `String` | `.greenix/python/` 嵌入式 Python 运行时 |
 | `greenixWorkspacesDir` | `String` | `.greenix/workspaces/` |
 | `greenixWorkspaceDir(id)` | `String` | `.greenix/workspaces/<id>/`，按模块隔离 |
 | `ensureWorkspaceDir(id)` | `void` | 确保工作区目录存在 |
@@ -100,7 +104,28 @@ listWorkspaceFiles('agent');                     // 列出工作区文件
 
 ---
 
-## 五、文件管理
+## 五、路径沙箱
+
+`path_sandbox.dart` — 防止 Agent 工具越界读写文件。
+
+```dart
+import 'package:evergreen_base/core/utils/path_sandbox.dart';
+
+final sandbox = PathSandbox('/workspace/ai-assistant');
+final safe = sandbox.confine('output/report.md');       // → /workspace/ai-assistant/output/report.md
+final blocked = sandbox.confine('../../../etc/passwd'); // → null (被拒绝)
+```
+
+| 函数 | 输入 | 输出 | 说明 |
+|------|------|------|------|
+| `PathSandbox(root)` | `root: String` 沙箱根目录 | `PathSandbox` | 创建沙箱实例 |
+| `.confine(path)` | `path: String` 用户提供的路径 | `String?` | 约束在沙箱内返回绝对路径，越界返回 null |
+| `.root` | — | `String` | 沙箱根目录（绝对路径） |
+| `PathSandboxException` | — | — | 路径越界异常 |
+
+---
+
+## 六、文件管理
 
 `file_utils.dart` — 跨平台文件管理器。
 
@@ -121,4 +146,5 @@ openInFileManager('/path/to/file');  // 打开文件管理器并定位
 - `SafeParse` — 所有 JSON 解析统一入口。
 - `PythonEnv` — 子进程执行，不依赖平台 API。
 - `greenix_path.dart` — 纯路径计算，无外部依赖。工作区路径按 module id 隔离。
-- `file_utils.dart` — 仅调用系统命令（explorer / open / xdg-open）。
+- `path_sandbox.dart` — 规范化路径 + 越界拒绝，所有 Agent 文件操作工具统一入口。
+- `file_utils.dart` — 仅调用系统命令（explorer / open / xdg-open），使用 Log() 替代 Flutter debugPrint。

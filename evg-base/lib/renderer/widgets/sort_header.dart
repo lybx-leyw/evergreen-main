@@ -55,11 +55,14 @@ class SortHeader extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    col,
-                    style: TextStyle(
-                      fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-                      fontSize: 13,
+                  Flexible(
+                    child: Text(
+                      col,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+                        fontSize: 13,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 4),

@@ -1,12 +1,51 @@
-/// 代码编辑器——语法高亮 + 行号。
+/// 代码编辑器——基于 re_editor (Reqable)，VSCode 级别的编辑体验。
 ///
-/// 公开类：[CodeEditor]
+/// 替换了旧的 flutter_highlight + TextField 方案。
+/// re_editor 自研布局/绘制/事件引擎，非 TextField 二次封装，
+/// 提供语法高亮、代码折叠、VSCode 风格快捷键。
+library;
+
+import 'dart:math' show min, max;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
+import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:re_editor/re_editor.dart' as re;
+import 'package:re_highlight/re_highlight.dart' as rh;
+import 'package:re_highlight/languages/bash.dart';
+import 'package:re_highlight/languages/c.dart';
+import 'package:re_highlight/languages/cpp.dart';
+import 'package:re_highlight/languages/csharp.dart';
+import 'package:re_highlight/languages/css.dart';
+import 'package:re_highlight/languages/dart.dart';
+import 'package:re_highlight/languages/go.dart';
+import 'package:re_highlight/languages/java.dart';
+import 'package:re_highlight/languages/javascript.dart';
+import 'package:re_highlight/languages/json.dart';
+import 'package:re_highlight/languages/kotlin.dart';
+import 'package:re_highlight/languages/markdown.dart';
+import 'package:re_highlight/languages/php.dart';
+import 'package:re_highlight/languages/powershell.dart';
+import 'package:re_highlight/languages/python.dart';
+import 'package:re_highlight/languages/ruby.dart';
+import 'package:re_highlight/languages/rust.dart';
+import 'package:re_highlight/languages/scss.dart';
+import 'package:re_highlight/languages/shell.dart';
+import 'package:re_highlight/languages/sql.dart';
+import 'package:re_highlight/languages/swift.dart';
+import 'package:re_highlight/languages/typescript.dart';
+import 'package:re_highlight/languages/xml.dart';
+import 'package:re_highlight/languages/yaml.dart';
+import 'package:re_highlight/styles/atom-one-dark.dart' as dark;
+import 'package:re_highlight/styles/atom-one-light.dart' as light;
 
 /// 代码/文本编辑器。
 ///
-/// 基础实现——使用 TextField + monospace 字体。
-/// 后续可接入 code_editor / flutter_code_editor 等专业编辑库。
+/// 使用 [re_editor](https://pub.dev/packages/re_editor) (Reqable 项目) 提供：
+/// - 语法高亮（20+ 语言）
+/// - 代码折叠
+/// - VSCode 风格快捷键
+/// - 自研高性能渲染引擎
 class CodeEditor extends StatefulWidget {
   final String language;
   final String? initialContent;
@@ -26,114 +65,216 @@ class CodeEditor extends StatefulWidget {
 }
 
 class _CodeEditorState extends State<CodeEditor> {
-  late TextEditingController _controller;
-  final _lineScrollController = ScrollController();
-  int _lineCount = 0;
+  late re.CodeLineEditingController _controller;
+  final _scrollController = re.CodeScrollController();
+
+  /// 翻页行数——re_editor v0.10.0 的 moveCursorToPageUp/Down 是空 TODO，
+  /// 所以我们在 Actions 层拦截 PageUp/PageDown 并自行移动光标。
+  static const int _kPageSize = 24;
+
+  /// 语言名 → re_highlight Mode 映射。
+  static final Map<String, rh.Mode> _modeForLang = {
+    'dart': langDart,
+    'python': langPython, 'py': langPython,
+    'javascript': langJavascript, 'js': langJavascript,
+    'typescript': langTypescript, 'ts': langTypescript,
+    'json': langJson,
+    'yaml': langYaml, 'yml': langYaml,
+    'xml': langXml, 'html': langXml,
+    'css': langCss, 'scss': langScss,
+    'sql': langSql,
+    'java': langJava,
+    'kotlin': langKotlin,
+    'swift': langSwift,
+    'c': langC, 'cpp': langCpp, 'csharp': langCsharp,
+    'go': langGo, 'rust': langRust,
+    'ruby': langRuby,
+    'php': langPhp,
+    'bash': langBash, 'shell': langShell,
+    'powershell': langPowershell,
+    'markdown': langMarkdown, 'md': langMarkdown,
+  };
 
   @override
   void initState() {
     super.initState();
-    _controller =
-        TextEditingController(text: widget.initialContent ?? '');
-    _lineCount = _controller.text.split('\n').length;
-    _controller.addListener(_updateLineCount);
+    _controller = re.CodeLineEditingController.fromText(
+      widget.initialContent ?? '',
+    );
+    _controller.addListener(_onChanged);
   }
 
-  void _updateLineCount() {
-    final count = _controller.text.split('\n').length;
-    if (count != _lineCount) {
-      setState(() => _lineCount = count);
+  void _onChanged() {
+    widget.onChanged?.call(_controller.text);
+  }
+
+  @override
+  void didUpdateWidget(CodeEditor oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialContent != null &&
+        widget.initialContent != oldWidget.initialContent &&
+        widget.initialContent != _controller.text) {
+      _controller.text = widget.initialContent!;
     }
   }
 
   @override
   void dispose() {
-    _controller.removeListener(_updateLineCount);
+    _controller.removeListener(_onChanged);
     _controller.dispose();
-    _lineScrollController.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  /// 翻页光标移动——替代 re_editor 的空 TODO 实现。
+  void _moveCursorPage(bool forward) {
+    final codeLines = _controller.codeLines;
+    final current = _controller.selection.extent;
+    final int lineCount = codeLines.length;
+
+    int targetIndex;
+    if (forward) {
+      targetIndex = min(lineCount - 1, current.index + _kPageSize);
+    } else {
+      targetIndex = max(0, current.index - _kPageSize);
+    }
+
+    if (targetIndex == current.index) return; // 已在头/尾
+
+    _controller.selection = re.CodeLineSelection.collapsed(
+      index: targetIndex,
+      offset: min(codeLines[targetIndex].length, current.offset),
+    );
+
+    debugPrint('[CodeEditor:PAGE] forward=$forward'
+        ' from=${current.index} to=$targetIndex pageSize=$_kPageSize');
   }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // 行号栏——跟随编辑器滚动
-        _LineNumberGutter(
-          lineCount: _lineCount,
-          scrollController: _lineScrollController,
-        ),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final lang = widget.language.toLowerCase();
+    final mode = _modeForLang[lang];
+    debugPrint('[CodeEditor:BUILD] lang=$lang readOnly=${widget.readOnly}'
+        ' hasMode=${mode != null} contentLen=${widget.initialContent?.length ?? 0}');
 
-        // 编辑区域——TextField 自带内置滚动，无需外层 SingleChildScrollView
-        Expanded(
-          child: TextField(
-            controller: _controller,
-            readOnly: widget.readOnly,
-            maxLines: null,
-            expands: true,
-            textAlignVertical: TextAlignVertical.top,
-            onChanged: widget.onChanged,
-            style: const TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 13,
-              height: 1.5,
-            ),
-            decoration: const InputDecoration(
-              border: InputBorder.none,
-              contentPadding: EdgeInsets.all(12),
-            ),
-          ),
+    // 构建语法高亮主题（如果该语言被支持）
+    final codeTheme = mode != null
+        ? re.CodeHighlightTheme(
+            languages: {
+              lang: re.CodeHighlightThemeMode(mode: mode),
+            },
+            theme: isDark ? dark.atomOneDarkTheme : light.atomOneLightTheme,
+          )
+        : null;
+
+    debugPrint('[CodeEditor:BUILD] creating re.CodeEditor with shortcutsActivatorsBuilder=_AppShortcuts');
+    final editor = re.CodeEditor(
+      controller: _controller,
+      scrollController: _scrollController,
+      readOnly: widget.readOnly,
+      style: re.CodeEditorStyle(
+        fontFamily: 'monospace',
+        fontSize: 13,
+        fontHeight: 1.5,
+        codeTheme: codeTheme,
+      ),
+      indicatorBuilder: _buildIndicator,
+      chunkAnalyzer: const re.DefaultCodeChunkAnalyzer(),
+      // 补上 re_editor 默认遗漏的 Page Up / Page Down 快捷键
+      shortcutsActivatorsBuilder: _AppShortcuts(),
+    );
+
+    // Actions 拦截 PageUp/PageDown：re_editor v0.10.0
+    // moveCursorToPageUp/Down 是空 TODO，在此层替代实现。
+    return Actions(
+      actions: {
+        re.CodeShortcutCursorMovePageIntent: _PageMoveAction(
+          controller: _controller,
+          onInvoke: (intent) {
+            _moveCursorPage(intent.forward);
+            return null;
+          },
+        ),
+      },
+      child: editor,
+    );
+  }
+
+  Widget _buildIndicator(
+    BuildContext context,
+    re.CodeLineEditingController editingController,
+    re.CodeChunkController chunkController,
+    ValueNotifier<re.CodeIndicatorValue?> notifier,
+  ) {
+    return Row(
+      children: [
+        re.DefaultCodeLineNumber(
+          controller: editingController,
+          notifier: notifier,
+        ),
+        re.DefaultCodeChunkIndicator(
+          width: 20,
+          controller: chunkController,
+          notifier: notifier,
         ),
       ],
     );
   }
 }
 
-/// 行号栏。
-class _LineNumberGutter extends StatelessWidget {
-  final int lineCount;
-  final ScrollController scrollController;
+/// 自定义快捷键构建器——补上 re_editor 默认遗漏的 Page Up/Down。
+class _AppShortcuts extends re.CodeShortcutsActivatorsBuilder {
+  _AppShortcuts() {
+    debugPrint('[AppShortcuts:INIT] _AppShortcuts instance created'
+        ' pageUp=$LogicalKeyboardKey.pageUp pageDown=$LogicalKeyboardKey.pageDown');
+  }
 
-  const _LineNumberGutter({
-    required this.lineCount,
-    required this.scrollController,
+  static final _defaultShortcuts = {
+    re.CodeShortcutType.cursorMovePageUp: <ShortcutActivator>[
+      const SingleActivator(LogicalKeyboardKey.pageUp),
+    ],
+    re.CodeShortcutType.cursorMovePageDown: <ShortcutActivator>[
+      const SingleActivator(LogicalKeyboardKey.pageDown),
+    ],
+    re.CodeShortcutType.selectionExtendPageStart: <ShortcutActivator>[
+      const SingleActivator(LogicalKeyboardKey.pageUp, shift: true),
+    ],
+    re.CodeShortcutType.selectionExtendPageEnd: <ShortcutActivator>[
+      const SingleActivator(LogicalKeyboardKey.pageDown, shift: true),
+    ],
+  };
+
+  @override
+  List<ShortcutActivator>? build(re.CodeShortcutType type) {
+    final result = _defaultShortcuts[type];
+    if (result != null) {
+      debugPrint('[AppShortcuts:BUILD] type=$type → CUSTOM (${result.length} activators)');
+    } else {
+      final fallback = re.DefaultCodeShortcutsActivatorsBuilder().build(type);
+      debugPrint('[AppShortcuts:BUILD] type=$type → DEFAULT (${fallback?.length ?? 0} activators)');
+      return fallback;
+    }
+    return result;
+  }
+}
+
+/// 拦截 re_editor 的 PageUp/PageDown Intent，在 Actions 层替代空 TODO 实现。
+///
+/// re_editor v0.10.0 的 [CodeLineEditingValue.moveCursorToPageUp] /
+/// [CodeLineEditingValue.moveCursorToPageDown] 是空 // TODO 实现。
+/// 通过祖先 Actions widget 拦截，在空的 controller 方法被调用前自行移动光标。
+class _PageMoveAction extends CallbackAction<re.CodeShortcutCursorMovePageIntent> {
+  final re.CodeLineEditingController controller;
+
+  _PageMoveAction({
+    required this.controller,
+    required super.onInvoke,
   });
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 48,
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        border: Border(
-          right: BorderSide(color: Theme.of(context).dividerColor),
-        ),
-      ),
-      child: SingleChildScrollView(
-        controller: scrollController,
-        child: Padding(
-          padding: const EdgeInsets.only(top: 12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: List.generate(lineCount, (i) {
-              return Container(
-                height: 19.5,
-                padding: const EdgeInsets.only(right: 8),
-                alignment: Alignment.centerRight,
-                child: Text(
-                  '${i + 1}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontFamily: 'monospace',
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              );
-            }),
-          ),
-        ),
-      ),
-    );
+  bool consumesKey(re.CodeShortcutCursorMovePageIntent intent) {
+    // IME 组合态时不消费，让按键传递给 IME
+    return !controller.isComposing;
   }
 }

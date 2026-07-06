@@ -1,20 +1,15 @@
 /// 工作区中枢——编辑器 + 文件面板 + Chat 侧栏 三合一组合。
-///
-/// 公开类：[WorkspaceHub]
-///
-/// | 构造函数 | 参数 | 说明 |
-/// |---------|------|------|
-/// | `WorkspaceHub({descriptor})` | ModuleDescriptor | 构建三栏工作区 |
+library;
+
 import 'package:flutter/material.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
-import '../widgets/workspace_panel.dart';
+import 'package:evergreen_base/core/utils/greenix_path.dart';
+import '../widgets/file_tree.dart';
+import '../widgets/models.dart';
 import '../shared/editor_view.dart';
-import '../shared/chat_view.dart';
+import '../shared/chat_controller_view.dart';
 
-/// 工作区中枢——将编辑器、文件面板、Chat 侧栏组合为统一工作区。
-///
-/// 对标 IDE 式三栏布局：文件面板 | 编辑器 | Chat。
-/// 这是 `compositions/` 层的范例组件——组合多个 `shared/` 视图。
+/// 工作区中枢——文件树 + 编辑器 + Chat 侧栏。
 class WorkspaceHub extends StatefulWidget {
   final ModuleDescriptor descriptor;
 
@@ -27,36 +22,65 @@ class WorkspaceHub extends StatefulWidget {
 class _WorkspaceHubState extends State<WorkspaceHub> {
   bool _showFiles = true;
   bool _showChat = false;
+  final GlobalKey<FileTreeState> _fileTreeKey = GlobalKey<FileTreeState>();
+  final GlobalKey<EditorViewState> _editorKey = GlobalKey<EditorViewState>();
+
+  // 当前打开的 WorkspaceFile（含绝对路径用于读取）
+  WorkspaceFile? _currentFile;
+  String? _currentAbsPath;
+
+  String get _workspaceDir {
+    final ws = widget.descriptor.workspace;
+    if (ws == null || !ws.enabled) return '';
+    return greenixWorkspaceDir(widget.descriptor.id);
+  }
+
+  void _openFile(WorkspaceFile file) {
+    if (_workspaceDir.isEmpty) return;
+    final absPath = '${_workspaceDir.replaceAll('\\', '/')}/${file.path}';
+    setState(() {
+      _currentFile = file;
+      _currentAbsPath = absPath;
+    });
+    _editorKey.currentState?.openFile(file, absPath);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Row(
         children: [
-          // 左侧：文件面板
+          // 左侧：文件树
           if (_showFiles)
             SizedBox(
               width: 240,
-              child: WorkspacePanel(
-                workspace: widget.descriptor.workspace,
-                files: _sampleFiles,
-              ),
+              child: _buildFilePanel(),
             ),
 
           // 中间：编辑器
           Expanded(
-            child: EditorView(descriptor: widget.descriptor),
+            child: EditorView(
+              key: _editorKey,
+              descriptor: widget.descriptor,
+              onFileClosed: () => setState(() {
+                _currentFile = null;
+                _currentAbsPath = null;
+              }),
+            ),
           ),
 
           // 右侧：Chat 侧栏
           if (_showChat)
             SizedBox(
               width: 320,
-              child: ChatView(descriptor: widget.descriptor),
+              child: ChatControllerView(
+                descriptor: widget.descriptor,
+                embedded: true,
+                compact: true,
+              ),
             ),
         ],
       ),
-      // 底部切换栏
       bottomNavigationBar: BottomAppBar(
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -69,8 +93,7 @@ class _WorkspaceHubState extends State<WorkspaceHub> {
                     : null,
               ),
               tooltip: '文件面板',
-              onPressed: () =>
-                  setState(() => _showFiles = !_showFiles),
+              onPressed: () => setState(() => _showFiles = !_showFiles),
             ),
             const SizedBox(width: 16),
             IconButton(
@@ -81,18 +104,22 @@ class _WorkspaceHubState extends State<WorkspaceHub> {
                     : null,
               ),
               tooltip: 'AI 助手',
-              onPressed: () =>
-                  setState(() => _showChat = !_showChat),
+              onPressed: () => setState(() => _showChat = !_showChat),
             ),
           ],
         ),
       ),
     );
   }
-}
 
-final _sampleFiles = [
-  const WorkspaceFile(name: 'main.dart', path: '/src/main.dart'),
-  const WorkspaceFile(name: 'README.md', path: '/README.md'),
-  const WorkspaceFile(name: 'manifest.json', path: '/module/manifest.json'),
-];
+  Widget _buildFilePanel() {
+    if (_workspaceDir.isEmpty) {
+      return const Center(child: Text('工作区未配置'));
+    }
+    return FileTree(
+      key: _fileTreeKey,
+      rootDir: _workspaceDir,
+      onFileTap: _openFile,
+    );
+  }
+}

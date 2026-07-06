@@ -1,0 +1,35 @@
+{
+  "name": "showcase_stdin",
+  "description": "🎭 展示工具(stdin模式) — 接收 JSON 通过标准输入，支持嵌套结构参数。演示用途：生成有趣的团队角色卡片。支持 --data-port 从数据源获取格言点缀。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "role": {
+        "type": "string",
+        "description": "角色类型",
+        "enum": ["frontend", "backend", "designer", "devops", "pm"]
+      },
+      "name": {
+        "type": "string",
+        "description": "角色名字"
+      },
+      "level": {
+        "type": "string",
+        "description": "经验等级",
+        "enum": ["junior", "mid", "senior", "principal"]
+      },
+      "options": {
+        "type": "object",
+        "description": "嵌套配置",
+        "properties": {
+          "emoji": { "type": "boolean", "description": "是否显示 emoji" },
+          "language": { "type": "string", "description": "输出语言", "enum": ["zh", "en"] }
+        }
+      }
+    },
+    "required": ["role", "name"]
+  },
+  "readOnly": true,
+  "argMode": "stdin",
+  "extraArgs": ["--data-port"]
+}

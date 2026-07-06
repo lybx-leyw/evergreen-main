@@ -7,7 +7,7 @@
   "route": "/mesh-demo",
   "ui": "dashboard",
 
-  "sidebar": { "section": "系统", "sectionOrder": 90, "order": 10 },
+  "nav": { "sidebar": { "section": "系统", "sectionOrder": 90, "order": 10 } },
 
   "layout": {
     "mode": "scroll",

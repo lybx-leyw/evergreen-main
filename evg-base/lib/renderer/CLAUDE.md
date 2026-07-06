@@ -1,6 +1,6 @@
 # Renderer — AI 协作规范
 
-> 渲染层模块 CLAUDE.md，供 AI 助手理解本模块约定。
+> 供 AI 助手理解本模块约定。最后更新：2026-07-06。
 
 ---
 
@@ -8,103 +8,115 @@
 
 ```
 lib/renderer/
-├── widgets/          ← 第 1 层：原子渲染组件（不放业务逻辑）
-├── shared/           ← 第 2 层：范式视图 + 页面 + 布局/调度基础设施
-├── compositions/     ← 第 3 层：高级组合视图（多个 shared 视图叠加）
-├── lib/              ← Stub 包（用于独立分析，不用于编译）
-├── docs/             ← 设计规范 + 交互原型
-└── pubspec.yaml      ← Stub 环境配置
+├── widgets/       ← 61 个原子组件（纯渲染，不放业务逻辑）
+├── shared/        ← 35 个范式视图 + 布局/调度/Token
+├── compositions/  ← 高级组合视图
+├── multi_agent/   ← 多 Agent 并行视图
+├── html/          ← HTML5 渲染引擎（Dart→HTML 离线导出）
+├── lib/           ← 11 个 Stub 包（独立 dart analyze）
+├── docs/          ← 设计规范 + 渲染常量 + 事件契约
+├── example/       ← 可运行示例
+├── test/          ← 组件级 widgetTest
+└── pubspec.yaml
 ```
 
 ---
 
 ## 核心规则
 
-1. **widgets/ 不放业务逻辑** — 所有组件只接收描述符 + 数据，不调用 API、不管理状态
-2. **shared/ 不放原子 UI** — shared 层负责布局、调度、数据编排，渲染委托给 widgets/
-3. **未知字段静默忽略** — 收到未识别的描述符字段时不做任何事，不抛异常
-4. **描述符驱动** — 所有配置通过 `*Options` / `*Descriptor` 不可变类传入
+1. **widgets/ 不放业务逻辑** — 只接收描述符 + 数据，不调 API、不管理状态
+2. **shared/ 不放原子 UI** — 负责布局/调度/编排，渲染委托给 widgets/
+3. **未知静默忽略** — 未识别字段/UI 值不抛异常（容错）
+4. **描述符驱动** — 配置通过 `*Options` / `*Descriptor` 不可变类传入
 5. **数据注入分离** — 视图接收 `descriptor`（配置）和 `data`（运行时数据）两个独立参数
-6. **Stub 隔离** — `lib/` 下 11 个 stub 包使 renderer 可脱离 Flutter SDK 独立 `dart analyze`
+6. **Stub 隔离** — `lib/` 下 11 个 stub 包使 renderer 可脱离 Flutter SDK 独立分析
+
+### 范式调度（V2：按 pages/workspace 自动选择）
+
+| 条件 | → 视图 | 说明 |
+|------|--------|------|
+| `descriptor.pages` 非空 | `CompositeView` | 多页 Tab + SlotDispatch（53 种组件） |
+| `descriptor.workspace.enabled` | `EditorView` | 代码/文本编辑器 |
+| 其他 | `DefaultView` | 数据绑定兜底（不崩溃） |
+
+> V1 的 `descriptor.ui` 字段已删除。V2 按模块内容自动选择视图。
 
 ---
 
 ## 代码模式
 
-### 组件模式
+### 原子组件（widgets/）
 ```dart
+// 纯展示：Options + 数据模型
 class MyWidget extends StatelessWidget {
   final MyOptions options;
-  final List<DataModel> data;
-  const MyWidget({required this.options, required this.data});
-  // ...
+  final ChatMessage message;
+  const MyWidget({required this.options, required this.message});
 }
 ```
 
-### 页面模式
+### 交互组件（widgets/ — UI 交互状态 OK，不调 API）
 ```dart
-class MyPage extends StatelessWidget {
-  // 接收必要参数，组合 widgets/ 原子组件
-  // 通过 ThemeProvider 获取主题 token
-  // 通过 ModuleDispatch 范式调度（如适用）
+class MessageBubble extends StatefulWidget {
+  final ChatMessage message;
+  final BubbleOptions bubble;
+  final StreamOptions stream;
 }
 ```
 
-### Token 访问
+### 范式视图（shared/）
+```dart
+// 组合 widgets/ 原子，处理布局和调度
+class DashboardView extends StatelessWidget {
+  final ModuleDescriptor descriptor;
+  const DashboardView({super.key, required this.descriptor});
+  // 内部：GridView + DashboardCard（widgets/ 原子）
+}
+```
+
+### Slot 调度（shared/）
+```dart
+// 已知组件 → 对应视图，未知 → _UnknownSlot（不崩溃）
+class SlotDispatch extends StatelessWidget {
+  final String slotKey;
+  final ComponentConfig config;
+  final ModuleDescriptor moduleDescriptor;
+}
+```
+
+### Token / 常量
 ```dart
 final bg = context.componentColor('bubble', 'user') ?? primaryContainer;
-```
-
-### 像素常量
-```dart
-import 'docs/render_rules.dart';
-// SpacingRules.sm, RadiusRules.md, DurationRules.fast, ...
+import 'shared/render_tokens.dart'; // RenderTokens.colors / spacing / radius / size / font
+// 或使用 CSS 变量（HTML 引擎）: RenderTokensCss.cssVariables()
 ```
 
 ---
 
-## 环境
+## 环境 & 测试
 
-| 工具 | 命令 |
+| 命令 | 目录 |
 |------|------|
-| 静态分析 | `dart analyze lib/` (在 renderer/ 目录) |
-| 测试 | `flutter test` (在项目根目录) |
-| Stub 依赖 | `dart pub get` (在 renderer/ 目录) |
+| `dart analyze lib/` | `renderer/` |
+| `dart pub get` | `renderer/` |
+| `flutter test` | 项目根 |
+
+测试模式：`testWidgets` + `MaterialApp` + `Scaffold`，验证 `findsOneWidget` + 数据正确性。
 
 ---
 
-## 测试约定
+## 当前状态 (2026-07-06)
 
-- 模型测试 → 纯 Dart `test()`
-- 组件测试 → `testWidgets` + `MaterialApp` + `Scaffold`
-- 验证重点：存在性 (`findsOneWidget`) + 数据正确性（字段断言）
-- 测试文件位置：项目根 `test/` 目录
-
----
-
-## 当前状态 (2026-07-04)
-
-- ✅ Sprint 1 完成：AppShell, ChatView, ModuleDispatch, LayoutEngine, ThemeProvider
-- ✅ Sprint 2 完成：市场页、工作台页、详情页、我的插件页、设置页、通知、权限弹窗 (103 tests passing)
-- ✅ Sprint 3 完成：性能测量文档、帧率监控工具、主题切换 benchmark
-- ✅ docs/ 设计交付物：色板 ✅签字, 视觉 spec ✅签字, 原型 HTML ✅签字, render_rules ✅签字
-- ✅ docs/ 设计验收：Sprint 2 验收报告, Sprint 3 全量验收报告, ΔE 色差报告, 低端设备审核
-- ✅ 11 个 stub 包
-
----
-
-## Stub 包列表
-
-| # | 包名 | 用途 |
-|---|------|------|
-| 1 | flutter_stub | Flutter SDK |
-| 2 | flutter_riverpod_stub | 状态管理 |
-| 3 | go_router_stub | 路由 |
-| 4 | markdown_stub | Markdown 渲染 |
-| 5 | flutter_highlight_stub | 代码高亮 |
-| 6 | flutter_math_fork_stub | 数学公式 |
-| 7 | flutter_mermaid_stub | 图表渲染 |
-| 8 | flutter_widget_from_html_core_stub | HTML→Widget |
-| 9 | google_fonts_stub | 字体 |
-| 10 | html_stub | HTML 解析 |
-| 11 | shared_preferences_stub | 本地存储 |
+- ✅ Sprint 1-3 完成（AppShell, ChatView, ModuleDispatch, LayoutEngine, ThemeProvider + 市场/工作台/设置/通知/权限 + 性能）
+- ✅ 11 stub / 61 widgets + 35 shared + 2 compositions + 2 multi_agent
+- ✅ 设计交付物全部签字验收
+- ✅ Phase 5 集成前置交付：README.md / example/ / test/ / 集成指南
+- ✅ 基础设施补全：RenderTokens 常量层 / PluginRenderer 一键渲染 / HTML P2 组件 / 事件系统契约
+- ✅ **V2 对齐完成 (2026-07-06)**：
+  - LayoutEngine: grid/zoom/panels/search/mode → type/preset/features
+  - GridLayout: GridOptions → LayoutPreset
+  - SlotDispatch: ComponentConfig → ComponentDescriptor；config.component → config.type
+  - ModuleDispatch: 删除 switch(descriptor.ui)，改为按 pages/workspace 自动选择
+  - 范式视图：Spreadsheet/Document/Presentation/Editor 从 ComponentDescriptor.config 解析选项
+  - **主题色统一**：RenderTokens 从 ThemeDescriptor 动态派生，HTML 引擎 30+ 处硬编码 → CSS 变量
+  - `flutter test` 102 pass ✅ / `dart test` core/theme 99 pass ✅

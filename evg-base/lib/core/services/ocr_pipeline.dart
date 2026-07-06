@@ -44,7 +44,7 @@ class OcrPipeline {
 
     // Level 1: DeepSeek-OCR
     final apiKey = _ocrApiKey;
-    if (apiKey != null && apiKey.isNotEmpty) {
+    if (apiKey.isNotEmpty) {
       try {
         final result = await _deepseekOcr(filePath, apiKey);
         if (result != null && result.isNotEmpty) {
@@ -70,7 +70,7 @@ class OcrPipeline {
   Future<String> recognizeUrl(String imageUrl) async {
     // Level 1: download → DeepSeek-OCR
     final apiKey = _ocrApiKey;
-    if (apiKey != null && apiKey.isNotEmpty) {
+    if (apiKey.isNotEmpty) {
       try {
         final result = await _deepseekOcrUrl(imageUrl, apiKey);
         if (result != null && result.isNotEmpty) {

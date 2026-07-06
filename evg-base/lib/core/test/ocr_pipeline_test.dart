@@ -1,9 +1,9 @@
 /// OcrPipeline 测试——覆盖两级降级、文件不存在、parsePageOutput。
 library;
 
-import 'dart:io';
-
 import 'package:test/test.dart';
+
+import 'package:dio/dio.dart';
 
 import '../services/ocr_pipeline.dart';
 
@@ -12,7 +12,7 @@ void main() {
     late OcrPipeline pipeline;
 
     setUp(() {
-      pipeline = OcrPipeline();
+      pipeline = OcrPipeline(Dio());
     });
 
     test('recognizeFile 文件不存在返回 null', () async {
@@ -32,30 +32,45 @@ void main() {
   });
 
   group('parsePageOutput', () {
-    test('解析有效的 JSON 输出', () {
-      const stdout = '''
-{"page": 1, "text": "高等数学 期末成绩 95分"}
-{"page": 2, "text": "大学英语 期末成绩 88分"}
-''';
+    test('解析有效的 JSON 输出（单页）', () {
+      const stdout = '{"pages": [{"page": 1, "text": "高等数学 期末成绩 95分"}]}';
+      final result = OcrPipeline.parsePageOutput(stdout);
+      expect(result, contains('高等数学'));
+    });
+
+    test('解析有效的 JSON 输出（多页）', () {
+      const stdout = '{"pages": ['
+          '{"page": 1, "text": "高等数学 期末成绩 95分"},'
+          '{"page": 2, "text": "大学英语 期末成绩 88分"}'
+          ']}';
       final result = OcrPipeline.parsePageOutput(stdout);
       expect(result, contains('高等数学'));
       expect(result, contains('大学英语'));
+      expect(result, contains('--- 第 1 页 ---'));
+      expect(result, contains('--- 第 2 页 ---'));
     });
 
-    test('无效 JSON 行返回 null', () {
+    test('无效 JSON 返回 null', () {
       final result = OcrPipeline.parsePageOutput('this is not json');
       expect(result, isNull);
     });
 
-    test('混合输出跳过无效行', () {
-      const stdout = '''
-some log output
-{"page": 1, "text": "有效内容"}
-more noise
-''';
+    test('缺少 pages 字段返回 null', () {
+      const stdout = '{"status": "ok"}';
       final result = OcrPipeline.parsePageOutput(stdout);
-      expect(result, contains('有效内容'));
-      expect(result, isNot(contains('noise')));
+      expect(result, isNull);
+    });
+
+    test('空 pages 数组返回 null', () {
+      const stdout = '{"pages": []}';
+      final result = OcrPipeline.parsePageOutput(stdout);
+      expect(result, isNull);
+    });
+
+    test('pages 中空 text 被跳过', () {
+      const stdout = '{"pages": [{"page": 1, "text": ""}]}';
+      final result = OcrPipeline.parsePageOutput(stdout);
+      expect(result, isNull);
     });
 
     test('空字符串返回 null', () {

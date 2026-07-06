@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'markdown_renderer.dart';
-import 'package:evergreen_base/shared/evergreen_progress.dart';
+import 'evergreen_progress.dart';
 
 /// 单张闪卡数据模型。
 class Flashcard {

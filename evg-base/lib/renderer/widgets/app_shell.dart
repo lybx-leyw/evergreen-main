@@ -7,12 +7,24 @@ import 'package:evergreen_base/theme/breakpoints.dart';
 import 'package:evergreen_base/core/module/modules.dart';
 import 'package:evergreen_base/generated/plugin_imports.g.dart';
 import '../shared/theme_provider.dart';
+import '../shared/renderer_providers.dart';
+import '../../providers.dart';
 
 /// 应用侧边栏——模块导航。
 ///
 /// Navigation items are generated from [ModuleRegistry], not hardcoded.
 /// To add a new top-level page, create a [FeatureModule] subclass and
 /// register it in `lib/modules.dart`.
+
+/// 处理侧边栏导航点击 — 统一走 GoRouter（HTML 模块内嵌 WebView 渲染）。
+void _handleNavTap(WidgetRef ref, BuildContext context, NavEntry entry) {
+  debugPrint('[AppShell] 导航: ${entry.label} → ${entry.routePath}');
+  context.go(entry.routePath);
+}
+
+/// V2: 将 codePoint (int) 转为 Material [IconData]。
+IconData _icon(int codePoint) => IconData(codePoint, fontFamily: 'MaterialIcons');
+
 class AppShell extends StatelessWidget {
   final Widget child;
 
@@ -167,12 +179,12 @@ class _CollapsedSidebar extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(8),
                       child: InkWell(
                         borderRadius: BorderRadius.circular(8),
-                        onTap: () => context.go(entry.routePath),
+                        onTap: () => _handleNavTap(ref, context, entry),
                         child: Padding(
                           padding:
                               const EdgeInsets.symmetric(vertical: 10),
                           child: Icon(
-                            entry.icon,
+                            _icon(entry.icon),
                             size: 20,
                             color: isActive
                                 ? Theme.of(context).colorScheme.onPrimaryContainer
@@ -279,7 +291,7 @@ class _MobileDrawer extends ConsumerWidget {
               _SectionHeader(title: section.label),
               for (final entry in entries)
                 _DrawerItem(
-                  icon: entry.icon,
+                  icon: _icon(entry.icon),
                   label: entry.label,
                   path: entry.routePath,
                   current: current,
@@ -437,10 +449,11 @@ class _ExpandedSidebar extends ConsumerWidget {
   Widget _buildNavItem(
       BuildContext context, WidgetRef ref, NavEntry entry, String location) {
     return _NavItem(
-      icon: entry.icon,
+      icon: _icon(entry.icon),
       label: entry.label,
       path: entry.routePath,
       current: location,
+      entry: entry,
     );
   }
 }
@@ -464,7 +477,7 @@ class _MobileNavBar extends ConsumerWidget {
       },
       destinations: topItems
           .map((e) => NavigationDestination(
-                icon: Icon(e.icon),
+                icon: Icon(_icon(e.icon)),
                 label: e.label,
               ))
           .toList(),
@@ -585,21 +598,23 @@ class _NavItemWithBadge extends StatelessWidget {
 
 // ═══════ _NavItem ═══════
 
-class _NavItem extends StatelessWidget {
+class _NavItem extends ConsumerWidget {
   final IconData icon;
   final String label;
   final String path;
   final String current;
+  final NavEntry entry;
 
   const _NavItem({
     required this.icon,
     required this.label,
     required this.path,
     required this.current,
+    required this.entry,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isActive = current == path;
     return Semantics(
       label: label,
@@ -615,7 +630,7 @@ class _NavItem extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           child: InkWell(
             borderRadius: BorderRadius.circular(8),
-            onTap: () => context.go(path),
+            onTap: () => _handleNavTap(ref, context, entry),
             child: Padding(
               padding:
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 10),

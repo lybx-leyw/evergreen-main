@@ -1,0 +1,55 @@
+{
+  "id": "showcase",
+  "name": "展示大厅配置",
+  "settings": [
+    {
+      "key": "SHOWCASE_API_KEY",
+      "label": "API 密钥",
+      "type": "string",
+      "isSecure": true,
+      "default": "",
+      "hint": "用于访问展示数据源的 API 密钥（演示用）"
+    },
+    {
+      "key": "SHOWCASE_ANIMATIONS",
+      "label": "启用动画",
+      "type": "bool",
+      "default": "true",
+      "hint": "控制展示大厅的动画效果开关"
+    },
+    {
+      "key": "SHOWCASE_DATA_DIR",
+      "label": "数据目录",
+      "type": "path",
+      "default": "",
+      "hint": "展示数据的本地存储路径"
+    },
+    {
+      "key": "SHOWCASE_THEME",
+      "label": "展示主题",
+      "type": "option",
+      "default": "vivid",
+      "options": [
+        { "value": "vivid", "label": "活力橙" },
+        { "value": "ocean", "label": "海洋蓝" },
+        { "value": "forest", "label": "森林绿" },
+        { "value": "sunset", "label": "日落紫" }
+      ],
+      "hint": "选择展示大厅的配色方案"
+    }
+  ],
+  "permissions": [
+    {
+      "key": "SHOWCASE_NETWORK",
+      "label": "网络访问",
+      "description": "允许展示大厅访问网络以拉取示例数据",
+      "default": true
+    },
+    {
+      "key": "SHOWCASE_FILE_WRITE",
+      "label": "文件写入",
+      "description": "允许展示大厅写入演示文件到工作区",
+      "default": false
+    }
+  ]
+}

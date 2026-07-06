@@ -10,7 +10,8 @@
 
 | 组件 | 文件 | 说明 |
 |------|------|------|
-| WorkspaceHub | `workspace_hub.dart` | 编辑器 + 文件面板 + Chat 侧栏三合一工作区 |
+| WorkspaceHub | `workspace_hub.dart` | 文件树 + 编辑器 + Chat 侧栏三合一工作区 |
+| WorkspacePage | `workspace_page.dart` | 工作区页面容器 |
 
 ## 使用
 
@@ -18,4 +19,5 @@
 import 'package:evergreen_base/renderer/compositions/compositions.dart';
 
 WorkspaceHub(descriptor: myModuleDescriptor);
+WorkspacePage(descriptor: myModuleDescriptor);
 ```

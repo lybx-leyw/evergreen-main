@@ -6,7 +6,7 @@
   "icon": "smart_toy",
   "route": "/agent-from",
   "ui": "chat",
-  "sidebar": { "section": "AI 工具", "sectionOrder": 10, "order": 10 },
+  "nav": { "sidebar": { "section": "AI 工具", "sectionOrder": 10, "order": 10 } },
   "chat": {
     "stream": { "enabled": true, "animation": "typewriter" }
   },

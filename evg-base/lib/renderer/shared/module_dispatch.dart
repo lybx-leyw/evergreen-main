@@ -1,64 +1,58 @@
-/// UI 范式调度器——根据 [ModuleDescriptor.ui] 返回对应视图。
+/// UI 范式调度器（V2）——根据 renderMode + ModuleDescriptor 内容返回对应视图。
+///
+/// V2: 不再使用 `descriptor.ui` 字段。改为：
+/// - `renderMode == "html"` → [HtmlRenderView]（WebView 内嵌 HTML）
+/// - 有 pages → [CompositeView]（多页面 + Slot 调度）
+/// - 有 workspace → [EditorView]
+/// - 其他 → [DefaultView]（兜底，不崩溃）
 ///
 /// 公开类：[ModuleDispatch]
-///
-/// | switch 值 | 视图 |
-/// |----------|------|
-/// | `default` | [DefaultView] |
-/// | `chat` | [ChatControllerView] |
-/// | `settings` | [SettingsView] |
-/// | `spreadsheet` | [SpreadsheetView] |
-/// | `document` | [DocumentView] |
-/// | `presentation` | [PresentationView] |
-/// | `dashboard` | [DashboardView] |
-/// | `editor` | [EditorView] |
-/// | `composite` | [CompositeView] |
-/// | `multichat` | [MultiAgentView] |
-/// | _unknown_ | 静默回退到 [DefaultView] |
 import 'package:flutter/material.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'default_view.dart';
-import 'chat_controller_view.dart';
-import 'settings_view.dart';
-import 'spreadsheet_view.dart';
-import 'document_view.dart';
-import 'presentation_view.dart';
-import 'dashboard_view.dart';
 import 'editor_view.dart';
 import 'composite_view.dart';
-import '../multi_agent/multi_agent_view.dart';
+import 'html_render_view.dart';
 
-/// UI 范式调度器——纯 switch，不自行判断条件。
-/// 未知 ui 值静默回退到 [DefaultView]。
-///
-/// [workingDirectory] 仅当 ui 为 `composite` 时透传给 [CompositeView]，
-/// 用于进程生命周期管理。其余范式忽略此参数。
+/// UI 范式调度器——按模块内容自动选择视图。
+/// 未知配置静默回退到 [DefaultView]。
 class ModuleDispatch extends StatelessWidget {
   final ModuleDescriptor descriptor;
   final String? workingDirectory;
+  final String renderMode;
 
   const ModuleDispatch({
     super.key,
     required this.descriptor,
     this.workingDirectory,
+    this.renderMode = 'dart',
   });
 
   @override
   Widget build(BuildContext context) {
-    return switch (descriptor.ui) {
-      'chat' => ChatControllerView(descriptor: descriptor),
-      'settings' => SettingsView(descriptor: descriptor),
-      'spreadsheet' => SpreadsheetView(descriptor: descriptor),
-      'document' => DocumentView(descriptor: descriptor),
-      'presentation' => PresentationView(descriptor: descriptor),
-      'dashboard' => DashboardView(descriptor: descriptor),
-      'editor' => EditorView(descriptor: descriptor),
-      'composite' => CompositeView(
-          descriptor: descriptor,
-          workingDirectory: workingDirectory,
-        ),
-      'multichat' => const MultiAgentView(),
-      _ => DefaultView(descriptor: descriptor), // 'default' + 未知值
-    };
+    // V2: HTML 模式 → WebView 内嵌渲染
+    if (renderMode == 'html') {
+      debugPrint('[ModuleDispatch] ${descriptor.id}: HTML → HtmlRenderView');
+      return HtmlRenderView(moduleId: descriptor.id);
+    }
+
+    // V2: 有 pages → CompositeView（每页独立 layout + slots）
+    if (descriptor.pages.isNotEmpty) {
+      debugPrint('[ModuleDispatch] ${descriptor.id}: ${descriptor.pages.length} pages → CompositeView');
+      return CompositeView(
+        descriptor: descriptor,
+        workingDirectory: workingDirectory,
+      );
+    }
+
+    // V2: 有 workspace 配置 → EditorView
+    if (descriptor.workspace != null && descriptor.workspace!.enabled) {
+      debugPrint('[ModuleDispatch] ${descriptor.id}: workspace → EditorView');
+      return EditorView(descriptor: descriptor);
+    }
+
+    // 兜底：通用数据绑定视图
+    debugPrint('[ModuleDispatch] ${descriptor.id}: fallback → DefaultView');
+    return DefaultView(descriptor: descriptor);
   }
 }

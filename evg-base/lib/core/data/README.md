@@ -1,18 +1,18 @@
 # Data Orchestrator
 
-> **示例 & 测试路径**
-> - 平台开发者 → `example/example.dart`（API 规则 + 示例）、`test/orchestrator_test.dart`（编排器测试）、`test/cache_test.dart`（缓存测试）
-> - 插件开发者 → `example/plugins/douban/`（真实爬虫示例：抓取豆瓣电影 Top250，含 data/manifest.json + plugin.py + README）、`docs/plugin-data-source.md`（插件开发规范 v2）
-> - 源码 → `type.dart` `exceptions.dart` `cache.dart` `orchestrator.dart` `data_http_server.dart` `provider.dart` `plugin/`
+> **快速导航**
+> - 平台开发者 → `example/example.dart` | 测试：`test/orchestrator_test.dart` + `test/cache_test.dart`
+> - 插件开发者 → `docs/plugin-authoring-guide-data.md` | 示例：`example/plugins/douban/`
+> - 核心源码 → `type.dart` `cache.dart` `orchestrator.dart` `data_http_server.dart` `plugin/`
 
-## data 接口使用说明（平台开发者）
+## 平台开发 API
 
 ### DataType
 
 | 属性 | 必填 | 说明 |
 |------|------|------|
 | `name` | ✓ | 唯一标识 |
-| `category` | ✓ | 分类标签 |
+| `category` | | 分类标签，默认 `"未分类"` |
 | `displayName` | | UI 展示名，默认同 name |
 | `ttl` | | 缓存有效期，默认 5 分钟 |
 | `persistentKey` | | 持久化键，不设则不缓存 |
@@ -81,25 +81,22 @@
 - `GET /data/status/:name` — 单个数据源状态
 - `POST /data/connectivity/test` — 测试全量连通性
 
-### 其他
+### 其他公共符号
 
 | 符号 | 说明 |
 |------|------|
-| `dataOrchestratorProvider` | `FutureProvider<DataOrchestrator>` |
-| `Cache` | 持久化缓存单例 |
-| `scanAndLoadDataSources({pluginsDir, orchestrator})` | 扫描 `plugins/*/data/manifest.json`，批量启动外部数据源 |
-| `fetchRemoteManifestList(url)` | 从远程 URL 拉取 manifest 数组 |
-| `fetchRemoteManifest(url)` | 从远程 URL 拉取单个 manifest |
-| `DataSourceLoader` | 单个插件 .exe 生命周期管理器 |
+| `Cache` | 持久化缓存单例，文件存储于 `web_cache/{key}.json` |
+| `scanAndLoadDataSources({pluginsDir, orchestrator})` | 扫描 `plugins/*/data/manifest.json`，批量启动外部 `.exe` |
+| `fetchRemoteManifestList(url)` / `fetchRemoteManifest(url)` | 从远程拉取 manifest |
+| `DataSourceLoader` | 单个 `.exe` 生命周期（启动→健康检查→注册） |
 | `DataSourceManifest` / `DataSourceTypeDecl` | 插件清单模型 |
-| `DataTypeNotRegisteredException` | 未注册异常 |
-| `DataFetchException` | 拉取失败异常 |
+| `DataTypeNotRegisteredException` / `DataFetchException` | 异常类型 |
 
 ---
 
-## 插件开发说明（插件开发者）
+## 插件开发说明
 
-> **完整示例模板**：`example/plugins/douban/`，真实爬取豆瓣电影 Top250，仅用 Python 标准库，含注释源码和构建说明，复制改改就能用。
+> 完整示例：`example/plugins/douban/`（豆瓣 Top250 爬虫，Python 标准库）。详细指南见 `docs/plugin-authoring-guide-data.md`。
 
 ### 第一步：写一个 HTTP 服务
 
@@ -213,44 +210,9 @@ await scanAndLoadDataSources(pluginsDir: 'plugins/', orchestrator: orch);
 
 ---
 
-## 模块负责人代码质量自评
+## 已知限制
 
-### 核心模块
-
-| 文件 | 职责 | 行数 | 质量 | 说明 |
-|------|------|------|------|------|
-| `type.dart` | `DataType<T>` 类型描述符 | ~30 | ★★★★ | 简洁，零依赖，不可变设计 |
-| `exceptions.dart` | 异常类型 | ~18 | ★★★★ | 两个异常覆盖所有错误场景 |
-| `cache.dart` | `Cache` 持久化缓存 | ~110 | ★★★ | 纯存取，TTL 由上层判断。单例模式，顺序并发安全 |
-| `orchestrator.dart` | `DataSourceStatus` + `DataOrchestrator` | ~300 | ★★★★ | 核心中枢：注册、获取、刷新、状态、连通性。invalidate 已改为 async |
-| `data_http_server.dart` | REST 端点（7 个） | ~150 | ★★★★ | `dart:io` 原生实现，路由清晰，JSON 响应 |
-| `provider.dart` | Riverpod Provider | ~8 | ★★★ | 单行 Provider，暂未使用（被 barrel 注释） |
-| `data.dart` | barrel 导出 | ~12 | ★★★★ | export 列表与公开 API 一一对应 |
-
-### 插件系统
-
-| 文件 | 职责 | 行数 | 质量 | 说明 |
-|------|------|------|------|------|
-| `plugin/data_source_manifest.dart` | 清单模型 + JSON 解析 | ~160 | ★★★★ | 支持 `fromJson`/`toJson`，Duration 互转健壮 |
-| `plugin/data_source_loader.dart` | .exe 生命周期管理 | ~260 | ★★★★ | 进程管理、端口探测、健康检查完整。扫描路径已迁移至 `data/manifest.json` |
-| `plugin/data_source_fetcher.dart` | 远程清单拉取 | ~60 | ★★★★ | 超时保护、错误静默返回空列表 |
-
-### 示例 & 测试
-
-| 文件 | 职责 | 质量 | 说明 |
-|------|------|------|------|
-| `example/example.dart` | API 规则 + 示例代码 | ★★★★ | 覆盖所有公开 API（含 DataHttpServer + 远程拉取），每条规则紧跟示例 |
-| `example/plugins/douban/` | 豆瓣 Top250 爬虫插件 | ★★★★ | v2 路径（data/manifest.json），真实可运行的 .exe 插件示例 |
-| `test/cache_test.dart` | 11 个缓存测试 | ★★★★ | 覆盖基本读写/删除/清空/编码/批量写入 |
-| `test/orchestrator_test.dart` | 36 个编排器测试 | ★★★★ | 覆盖注册/获取/刷新/状态/连通性/异常/自动刷新/持久化恢复 |
-| `docs/plugin-data-source.md` | 插件开发规范 v2 | ★★★★ | 完整契约：目录结构、schema、HTTP 端点、构建命令 |
-| `dart_test.yaml` | 测试并发配置 | — | `concurrency: 1`（缓存单例需要顺序执行） |
-
-### 已知问题
-
-| 问题 | 严重 | 状态 |
-|------|------|------|
-| `provider.dart` 因 `flutter_riverpod` 依赖未导出 | 低 | data/pubspec.yaml 独立后可恢复 |
-| `scanAndLoadDataSources` 插件退出后 Dart event loop 不退出 | 中 | `stop()` 已加 `force:true` + `exit(0)` 兜底 |
-| 上级 `evergreen_base/pubspec.yaml` 依赖了已删除的 `evergreen_plugin_settings` | 高 | 已通过 data/pubspec.yaml 隔离，不影响本模块 |
-| `Cache` 单例缺少并发安全 | 低 | 当前为单线程访问，后续可加锁 |
+| 问题 | 状态 |
+|------|------|
+| `scanAndLoadDataSources` 插件退出后 Dart event loop 不退出 | `stop()` 已加 `force:true` + `exit(0)` 兜底 |
+| `Cache` 单例缺少并发安全 | 当前单线程访问，后续可加锁 |

@@ -53,7 +53,7 @@ class CrudToolbar extends StatelessWidget {
           icon: const Icon(Icons.delete_outline),
           tooltip: '删除',
           onPressed: () {
-            if (actions.deletable!.confirm) {
+            if (actions.deletable!.confirm == true) {
               ConfirmDialog.show(
                 context,
                 title: '确认删除',

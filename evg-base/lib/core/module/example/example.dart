@@ -49,21 +49,42 @@ void main() async {
   // ── A3. registerFromJson — 从 JSON 字符串注册 ──
   // 内部调用 ModuleDescriptor.fromJsonString → ModuleDescriptor.fromJson →
   //   register。适用于无需 manifest 文件的快速注册。
+  // V2: UI 范式通过 pages[].layout.slots 声明组件类型。
   registry.registerFromJson(
-      '{"type":"module","id":"json_demo","name":"JSON 模块","ui":"document",'
-      '"document":{"trackChanges":true,"comments":true}}');
+      '{"type":"module","id":"json_demo","name":"JSON 模块",'
+      '"pages":[{"id":"doc","label":"文档","layout":{"type":"flex","slots":{'
+      '"main":{"component":{"type":"document","config":{"trackChanges":true,"comments":true}}}}}}]}');
 
   // ── A4. ModuleDescriptor const 构造 — Dart 代码中直接构造 ──
   // 展示 const 构造所有子描述符的嵌套用法。
+  // V2: UI 范式通过 pages[].layout.slots 的 ComponentDescriptor 声明。
   registry.register(const ModuleDescriptor(
     id: 'dart_demo',
     name: 'Dart 模块',
-    ui: 'chat',
-    chat: ChatOptions(
-      thinking: ThinkingOptions(transparent: true, mode: 'scroll'),
-      stream: StreamOptions(cursorStyle: 'static'),
-    ),
-    input: InputOptions(mode: 'code', language: 'dart'),
+    pages: [
+      PageDescriptor(
+        id: 'chat',
+        label: '对话',
+        layout: LayoutDescriptor(
+          type: 'flex',
+          slots: {
+            'main': SlotDescriptor(
+              component: ComponentDescriptor(
+                type: 'chat',
+                config: {
+                  'thinking': {'transparent': true, 'mode': 'scroll'},
+                  'stream': {'cursorStyle': 'static'},
+                },
+                input: const InputOptions(
+                  mode: 'code',
+                  language: 'dart',
+                ),
+              ),
+            ),
+          },
+        ),
+      ),
+    ],
     actions: ActionDescriptor(sortable: ['name'], exportable: ['csv']),
   ));
 
@@ -79,18 +100,20 @@ void main() async {
   for (final m in registry.modules) {
     // isServiceOnly: route 为空时 = true（纯服务模块，无 UI）。
     // hasSidebar: 需同时有 icon + sidebar + route。
-    print('  ${m.id.padRight(16)} ui=${m.ui.padRight(12)} service=${m.isServiceOnly} sidebar=${m.hasSidebar}');
+    final ui = _inferUiEx(m);
+    print('  ${m.id.padRight(16)} ui=${ui.padRight(12)} service=${m.isServiceOnly} sidebar=${m.hasSidebar}');
   }
   print('═══ toJson (agent 前 150 字符) ═══');
   // 验证序列化：agent 模块 → JSON 字符串
+  final agentModule = registry.findById('agent_from');
   print(const JsonEncoder.withIndent(' ')
-      .convert(registry.findById('agent')!.toJson())
+      .convert(agentModule!.toJson())
       .substring(0, 150));
 
   // ── A7. findById — 按 id 查找模块 ──
   // 返回 ModuleDescriptor?，不存在时返回 null。
   print('\n═══ findById ═══');
-  for (final id in ['agent', 'dart_demo', 'nonexistent']) {
+  for (final id in ['agent_from', 'dart_demo', 'nonexistent']) {
     print('  $id → ${registry.findById(id)?.name ?? "(not found)"}');
   }
 
@@ -134,6 +157,7 @@ void main() async {
   final tmpLoader = ModuleLoader(
     ModuleDescriptor(id: '_tmp', name: 'Temp'),
     '.',
+    projectRoot: rootDir,
   );
   print(
       '═══ ModuleLoader ═══  isRunning=${tmpLoader.isRunning}  port=${tmpLoader.port ?? "—"}');
@@ -146,7 +170,8 @@ void main() async {
   print(renderSidebar(registry));
 
   for (final m in registry.modules) {
-    print('\n═══ renderModule(${m.id}) [ui=${m.ui}] ═══');
+    final ui = _inferUiEx(m);
+    print('\n═══ renderModule(${m.id}) [ui=$ui] ═══');
     print(renderModule(m));
   }
 
@@ -163,14 +188,14 @@ void main() async {
   // ═══════════════════════════════════════════════════════════════
 
   final plugin = registry.findById('my_module');
-  if (plugin == null || plugin.process == null) {
+  if (plugin == null || plugin.process.isEmpty) {
     print('\n═══ 跳过 .exe 演示 (无 process 字段) ═══');
     exit(0);
   }
 
   // 检查 .exe 是否存在。PyInstaller 构建：pyinstaller plugin.py --onefile --distpath .
   final pluginDir = '$pluginsDir${Platform.pathSeparator}my_module';
-  final exePath = '$pluginDir${Platform.pathSeparator}${plugin.process!.exe}';
+  final exePath = '$pluginDir${Platform.pathSeparator}${plugin.process.first.exe}';
   if (!File(exePath).existsSync()) {
     print(
         '\n$exePath 不存在。构建: cd $pluginDir && pyinstaller plugin.py --onefile --distpath .');
@@ -179,7 +204,7 @@ void main() async {
 
   // ModuleLoader.start() — 启动 exe → PORT 检测 → health check
   // 成功后 isRunning=true, port=监听端口
-  final loader = ModuleLoader(plugin, pluginDir);
+  final loader = ModuleLoader(plugin, pluginDir, projectRoot: rootDir);
   await loader.start();
 
   if (!loader.isRunning || loader.port == null) {
@@ -264,4 +289,17 @@ Future<void> _send(
     req.add(bytes);
   }
   await req.close();
+}
+
+/// V2: 从模块的页面组件类型推断 UI 范式（替代 V1 的 m.ui）。
+String _inferUiEx(ModuleDescriptor m) {
+  if (m.pages.isEmpty) return '';
+  final types = m.pages.expand((p) => p.componentTypes).toSet();
+  if (types.contains('chat')) return 'chat';
+  if (types.contains('spreadsheet')) return 'spreadsheet';
+  if (types.contains('document')) return 'document';
+  if (types.contains('presentation')) return 'presentation';
+  if (types.contains('dashboard')) return 'dashboard';
+  if (types.contains('editor')) return 'editor';
+  return types.first;
 }

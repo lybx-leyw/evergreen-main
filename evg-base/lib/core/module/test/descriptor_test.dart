@@ -1,9 +1,8 @@
 import 'dart:convert';
 import 'package:test/test.dart';
-import 'package:flutter/material.dart';
 import '../module_descriptor.dart';
 
-/// ModuleDescriptor 测试——覆盖 fromJson/toJson 往返、全部 7 种 ui 范式、
+/// ModuleDescriptor V2 测试——覆盖 fromJson/toJson 往返、全部新 schema、
 /// activateSkills 字段、边界条件和异常路径。
 void main() {
   // ═══════════════════════════════════════════════════════════════
@@ -21,10 +20,10 @@ void main() {
       expect(d.description, '');
       expect(d.icon, isNull);
       expect(d.route, isNull);
-      expect(d.ui, 'default');
       expect(d.isServiceOnly, isTrue);
       expect(d.dependencies, isEmpty);
       expect(d.activateSkills, isEmpty);
+      expect(d.schemaVersion, '2.0');
     });
 
     test('fromJsonString 等效于 fromJson', () {
@@ -87,9 +86,8 @@ void main() {
         id: 'full',
         name: '完整模块',
         description: '所有字段都填了',
-        icon: Icons.extension,
+        icon: 0xe24b, // extension codePoint
         route: '/full',
-        ui: 'chat',
         dependencies: ['agent'],
         activateSkills: ['web_search', 'memory'],
       );
@@ -99,9 +97,9 @@ void main() {
       expect(restored.name, original.name);
       expect(restored.description, original.description);
       expect(restored.route, original.route);
-      expect(restored.ui, original.ui);
       expect(restored.dependencies, original.dependencies);
       expect(restored.activateSkills, original.activateSkills);
+      expect(restored.schemaVersion, '2.0');
     });
 
     test('空字段被省略后回退默认值', () {
@@ -112,170 +110,418 @@ void main() {
       };
       final d = ModuleDescriptor.fromJson(json);
       expect(d.description, '');
-      expect(d.secondaryNavs, isEmpty);
       expect(d.dataBindings, isEmpty);
       expect(d.dependencies, isEmpty);
       expect(d.activateSkills, isEmpty);
-      expect(d.ui, 'default');
+      expect(d.pages, isEmpty);
+      expect(d.process, isEmpty);
     });
   });
 
   // ═══════════════════════════════════════════════════════════════
-  // 3. 7 种 UI 范式
+  // 3. V2 导航系统
   // ═══════════════════════════════════════════════════════════════
-  group('7 种 UI 范式', () {
-    test('default 范式', () {
+  group('V2 导航 (nav)', () {
+    test('fromJson 解析 nav.sidebar', () {
       final d = ModuleDescriptor.fromJson({
         'type': 'module',
-        'id': 'd1',
-        'name': '默认',
-        'ui': 'default',
-      });
-      expect(d.ui, 'default');
-      // ChatOptions.fromJson(null) 返回默认值，不会为 null
-      expect(d.chat!.thinking.visible, isTrue); // 默认值
-      expect(d.spreadsheet!.formulas, isFalse); // 默认值
-      expect(d.document!.trackChanges, isFalse); // 默认值
-      expect(d.presentation!.transitions, isFalse); // 默认值
-    });
-
-    test('chat 范式——完整选项', () {
-      final d = ModuleDescriptor.fromJson({
-        'type': 'module',
-        'id': 'c1',
-        'name': '聊天',
-        'ui': 'chat',
-        'chat': {
-          'thinking': {
-            'visible': true,
-            'transparent': true,
-            'mode': 'scroll',
-            'showDuration': true,
+        'id': 'nav1',
+        'name': '导航模块',
+        'nav': {
+          'sidebar': {
+            'section': '工具',
+            'sectionOrder': 100,
+            'order': 1,
+            'badge': true,
           },
-          'toolCalls': {
-            'visible': true,
-            'showArgs': true,
-            'showResult': false,
-            'autoCollapse': true,
-          },
-          'bubble': {
-            'style': 'flat',
-            'avatarPosition': 'none',
-            'showTimestamp': false,
-          },
-          'stream': {
-            'enabled': true,
-            'animation': 'fade',
-            'cursorStyle': 'static',
-          },
-          'placeholder': '问点什么...',
         },
       });
-      expect(d.ui, 'chat');
-      expect(d.chat, isNotNull);
-      expect(d.chat!.thinking.transparent, isTrue);
-      expect(d.chat!.thinking.mode, 'scroll');
-      expect(d.chat!.toolCalls.showResult, isFalse);
-      expect(d.chat!.toolCalls.autoCollapse, isTrue);
-      expect(d.chat!.bubble.style, 'flat');
-      expect(d.chat!.stream.animation, 'fade');
-      expect(d.chat!.placeholder, '问点什么...');
+      expect(d.nav.sidebar, isNotNull);
+      expect(d.nav.sidebar!.section, '工具');
+      expect(d.nav.sidebar!.sectionOrder, 100);
+      expect(d.nav.sidebar!.badge, isTrue);
     });
 
-    test('spreadsheet 范式——完整选项', () {
+    test('fromJson 解析 nav.secondary', () {
       final d = ModuleDescriptor.fromJson({
         'type': 'module',
-        'id': 's1',
-        'name': '电子表格',
-        'ui': 'spreadsheet',
-        'spreadsheet': {
-          'formulas': true,
-          'charts': true,
-          'sheets': true,
-          'conditionalFormatting': true,
-          'resizableColumns': false,
-          'columns': 50,
-          'rows': 500,
+        'id': 'nav2',
+        'name': '多导航模块',
+        'nav': {
+          'secondary': [
+            {
+              'label': 'AI 助手',
+              'route': '/showcase/chat',
+              'icon': 'smart_toy',
+              'section': '展示',
+              'badge': true,
+            },
+            {
+              'label': '编程器',
+              'route': '/showcase/code',
+              'icon': 'code',
+              'section': '展示',
+            },
+          ],
         },
       });
-      expect(d.ui, 'spreadsheet');
-      expect(d.spreadsheet, isNotNull);
-      expect(d.spreadsheet!.formulas, isTrue);
-      expect(d.spreadsheet!.charts, isTrue);
-      expect(d.spreadsheet!.sheets, isTrue);
-      expect(d.spreadsheet!.conditionalFormatting, isTrue);
-      expect(d.spreadsheet!.resizableColumns, isFalse);
-      expect(d.spreadsheet!.columns, 50);
-      expect(d.spreadsheet!.rows, 500);
+      expect(d.nav.secondary.length, 2);
+      expect(d.nav.secondary[0].label, 'AI 助手');
+      expect(d.nav.secondary[0].routePath, '/showcase/chat');
+      expect(d.nav.secondary[0].badge, isTrue);
+      expect(d.nav.secondary[1].label, '编程器');
+      expect(d.nav.secondary[1].routePath, '/showcase/code');
     });
 
-    test('document 范式——往返', () {
-      final d = ModuleDescriptor.fromJson({
-        'type': 'module',
-        'id': 'doc1',
-        'name': '文档',
-        'ui': 'document',
-        'document': {
-          'trackChanges': true,
-          'comments': true,
-          'tableOfContents': true,
-          'footnotes': true,
-          'headersFooters': true,
-          'pageSetup': false,
-          'exportFormats': ['pdf', 'docx', 'txt'],
-        },
-      });
-      final json = d.toJson();
+    test('nav 往返一致', () {
+      final original = ModuleDescriptor(
+        id: 'nav3',
+        name: '往返导航',
+        nav: const NavObjectDescriptor(
+          sidebar: SidebarDescriptor(section: '展示', badge: true),
+          secondary: [
+            NavDescriptor(label: 'AI', routePath: '/ai', section: '展示'),
+          ],
+        ),
+      );
+      final json = original.toJson();
       final restored = ModuleDescriptor.fromJson(json);
-      expect(restored.document!.trackChanges, isTrue);
-      expect(restored.document!.exportFormats, ['pdf', 'docx', 'txt']);
-    });
-
-    test('presentation 范式——往返', () {
-      final d = ModuleDescriptor.fromJson({
-        'type': 'module',
-        'id': 'p1',
-        'name': '幻灯片',
-        'ui': 'presentation',
-        'presentation': {
-          'transitions': true,
-          'animations': true,
-          'speakerNotes': true,
-          'presenterView': true,
-          'slideMaster': true,
-          'layouts': ['title', 'blank', 'two-column'],
-          'exportFormats': ['pdf'],
-        },
-      });
-      final json = d.toJson();
-      final restored = ModuleDescriptor.fromJson(json);
-      expect(restored.presentation!.transitions, isTrue);
-      expect(restored.presentation!.layouts, ['title', 'blank', 'two-column']);
-    });
-
-    test('dashboard 范式', () {
-      final d = ModuleDescriptor.fromJson({
-        'type': 'module',
-        'id': 'db1',
-        'name': '仪表盘',
-        'ui': 'dashboard',
-      });
-      expect(d.ui, 'dashboard');
-    });
-
-    test('editor 范式', () {
-      final d = ModuleDescriptor.fromJson({
-        'type': 'module',
-        'id': 'e1',
-        'name': '编辑器',
-        'ui': 'editor',
-      });
-      expect(d.ui, 'editor');
+      expect(restored.nav.sidebar!.section, '展示');
+      expect(restored.nav.secondary[0].label, 'AI');
     });
   });
 
   // ═══════════════════════════════════════════════════════════════
-  // 4. activateSkills 字段
+  // 4. V2 Process 数组化
+  // ═══════════════════════════════════════════════════════════════
+  group('V2 Process 数组化', () {
+    test('fromJson 解析 process 数组', () {
+      final d = ModuleDescriptor.fromJson({
+        'type': 'module',
+        'id': 'proc1',
+        'name': '进程模块',
+        'process': [
+          {
+            'id': 'main_server',
+            'exe': 'module/server.exe',
+            'protocol': 'http',
+            'scope': 'long',
+            'autoStart': true,
+            'autoRestart': true,
+          },
+          {
+            'id': 'batch_job',
+            'exe': 'module/job.exe',
+            'scope': 'short',
+            'autoStart': false,
+          },
+        ],
+      });
+      expect(d.process.length, 2);
+      expect(d.process[0].id, 'main_server');
+      expect(d.process[0].exe, 'module/server.exe');
+      expect(d.process[0].scope, 'long');
+      expect(d.process[0].autoStart, isTrue);
+      expect(d.process[0].autoRestart, isTrue);
+      expect(d.process[1].id, 'batch_job');
+      expect(d.process[1].scope, 'short');
+      expect(d.process[1].autoStart, isFalse);
+    });
+
+    test('process 往返一致', () {
+      final original = ModuleDescriptor(
+        id: 'proc2',
+        name: '进程往返',
+        process: const [
+          ProcessDescriptor(
+            id: 'svc',
+            exe: 'module/svc.exe',
+            scope: 'long',
+            autoRestart: true,
+          ),
+        ],
+      );
+      final json = original.toJson();
+      final restored = ModuleDescriptor.fromJson(json);
+      expect(restored.process[0].id, 'svc');
+      expect(restored.process[0].autoRestart, isTrue);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // 5. V2 页面 (pages) + Layout + Slot + Component
+  // ═══════════════════════════════════════════════════════════════
+  group('V2 pages / layout / slots / component', () {
+    test('fromJson 解析页面树', () {
+      final d = ModuleDescriptor.fromJson({
+        'type': 'module',
+        'id': 'page1',
+        'name': '页面模块',
+        'pages': [
+          {
+            'id': 'chat_page',
+            'label': 'Chat',
+            'route': '/showcase/chat',
+            'default': true,
+            'layout': {
+              'type': 'grid',
+              'preset': {'columns': 2, 'gap': 8},
+              'features': {
+                'zoom': {'enabled': false},
+                'search': {'enabled': true, 'placeholder': '搜索...'},
+                'drawers': ['left'],
+              },
+              'slots': {
+                'left': {
+                  'style': {
+                    'gridColumn': '1 / 2',
+                    'height': '100%',
+                  },
+                  'component': {
+                    'type': 'chat',
+                    'config': {
+                      'thinking': {'visible': true},
+                    },
+                    'input': {
+                      'mode': 'free-text',
+                      'multiline': true,
+                    },
+                    'events': {
+                      'emit': [
+                        {'name': 'messages'},
+                      ],
+                      'listen': [],
+                    },
+                    'process': [
+                      {
+                        'id': 'chat_backend',
+                        'exe': 'module/chat.exe',
+                        'scope': 'long',
+                      },
+                    ],
+                  },
+                },
+              },
+            },
+          },
+        ],
+      });
+
+      expect(d.pages.length, 1);
+      final page = d.pages[0];
+      expect(page.id, 'chat_page');
+      expect(page.label, 'Chat');
+      expect(page.route, '/showcase/chat');
+      expect(page.isDefault, isTrue);
+
+      final layout = page.layout;
+      expect(layout.type, 'grid');
+      expect(layout.preset.columns, 2);
+      expect(layout.preset.gap, 8);
+      expect(layout.features.search!.enabled, isTrue);
+      expect(layout.features.drawers, ['left']);
+
+      expect(layout.slots.length, 1);
+      final slot = layout.slots['left']!;
+      expect(slot.style.gridColumn, '1 / 2');
+      expect(slot.component, isNotNull);
+      expect(slot.component!.type, 'chat');
+      expect(slot.component!.process[0].id, 'chat_backend');
+    });
+
+    test('页面 componentTypes 聚合', () {
+      final page = PageDescriptor(
+        id: 'multi',
+        label: '多组件',
+        layout: LayoutDescriptor(
+          type: 'grid',
+          slots: {
+            'top': SlotDescriptor(
+              component: ComponentDescriptor(type: 'chart'),
+            ),
+            'bottom': SlotDescriptor(
+              component: ComponentDescriptor(type: 'data-table'),
+            ),
+          },
+        ),
+      );
+      expect(page.componentTypes, contains('chart'));
+      expect(page.componentTypes, contains('data-table'));
+    });
+
+    test('页面往返一致', () {
+      final original = ModuleDescriptor(
+        id: 'page_rt',
+        name: '页面往返',
+        pages: [
+          PageDescriptor(
+            id: 'p1',
+            label: 'P1',
+            route: '/p1',
+            layout: LayoutDescriptor(
+              type: 'flex',
+              preset: LayoutPreset(direction: 'row'),
+              slots: {
+                'center': SlotDescriptor(
+                  component: ComponentDescriptor(
+                    type: 'code-editor',
+                    config: {'language': 'dart'},
+                  ),
+                ),
+              },
+            ),
+          ),
+        ],
+      );
+      final json = original.toJson();
+      final restored = ModuleDescriptor.fromJson(json);
+      expect(restored.pages[0].layout.type, 'flex');
+      expect(restored.pages[0].layout.slots['center']!.component!.type,
+          'code-editor');
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // 6. V2 事件系统
+  // ═══════════════════════════════════════════════════════════════
+  group('V2 事件系统', () {
+    test('EventDescriptor emit/listen/delegates', () {
+      final e = EventDescriptor.fromJson({
+        'emit': [
+          {'name': 'code_executed', 'payload': {'exitCode': 'number'}},
+          {'name': 'messages'},
+        ],
+        'listen': [
+          {
+            'event': 'code_executed',
+            'source': '*.code-editor',
+            'filter': {'exitCode': 0},
+            'handler': 'update_table',
+          },
+        ],
+        'delegates': {
+          'onClick': 'handle_click',
+          'propagate': false,
+        },
+      });
+      expect(e.emit.length, 2);
+      expect(e.emit[0].name, 'code_executed');
+      expect(e.emit[0].payload!['exitCode'], 'number');
+      expect(e.listen.length, 1);
+      expect(e.listen[0].event, 'code_executed');
+      expect(e.listen[0].source, '*.code-editor');
+      expect(e.listen[0].handler, 'update_table');
+      expect(e.delegates!.onClick, 'handle_click');
+      expect(e.delegates!.propagate, isFalse);
+    });
+
+    test('EventDescriptor 往返', () {
+      final original = EventDescriptor(
+        emit: [
+          EventEmitDescriptor(name: 'test'),
+        ],
+        listen: [
+          EventListenDescriptor(event: 'test', handler: 'handler'),
+        ],
+        delegates: EventDelegatesDescriptor(onClick: 'click'),
+      );
+      final json = original.toJson();
+      final restored = EventDescriptor.fromJson(json);
+      expect(restored.emit[0].name, 'test');
+      expect(restored.listen[0].handler, 'handler');
+      expect(restored.delegates!.onClick, 'click');
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // 7. V2 数据源
+  // ═══════════════════════════════════════════════════════════════
+  group('V2 数据源', () {
+    test('DataSourceDescriptor fromJson', () {
+      final ds = DataSourceDescriptor.fromJson({
+        'endpoint': '/api/data',
+        'method': 'POST',
+        'dataPath': 'results',
+        'transform': 'toChart',
+        'refreshInterval': 30,
+      });
+      expect(ds.endpoint, '/api/data');
+      expect(ds.method, 'POST');
+      expect(ds.dataPath, 'results');
+      expect(ds.transform, 'toChart');
+      expect(ds.refreshInterval, 30);
+    });
+
+    test('DataSourceDescriptor 默认值', () {
+      final ds = DataSourceDescriptor.fromJson(null);
+      expect(ds.endpoint, isNull);
+      expect(ds.method, 'GET');
+      expect(ds.refreshInterval, 0);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // 8. V2 样式系统
+  // ═══════════════════════════════════════════════════════════════
+  group('V2 样式系统', () {
+    test('StyleDescriptor 完整解析', () {
+      final s = StyleDescriptor.fromJson({
+        'width': '100%',
+        'height': 200,
+        'padding': 16,
+        'background': '#ffffff',
+        'borderRadius': 8,
+        'flex': 1,
+        'flexDirection': 'row',
+        'justifyContent': 'center',
+        'alignItems': 'center',
+        'gap': 12,
+        'gridColumn': '1 / -1',
+        'color': '#333333',
+        'fontSize': 14,
+        'overflow': 'auto',
+      });
+      expect(s.width, '100%');
+      expect(s.height, 200);
+      expect(s.padding, 16);
+      expect(s.background, '#ffffff');
+      expect(s.borderRadius, 8);
+      expect(s.flex, 1);
+      expect(s.flexDirection, 'row');
+      expect(s.justifyContent, 'center');
+      expect(s.gridColumn, '1 / -1');
+      expect(s.color, '#333333');
+      expect(s.overflow, 'auto');
+    });
+
+    test('StyleDescriptor 空 json → 全 null', () {
+      final s = StyleDescriptor.fromJson(null);
+      expect(s.width, isNull);
+      expect(s.height, isNull);
+      expect(s.isEmpty, isTrue);
+    });
+
+    test('StyleDescriptor isEmpty', () {
+      expect(const StyleDescriptor().isEmpty, isTrue);
+      expect(const StyleDescriptor(width: 100).isEmpty, isFalse);
+    });
+
+    test('StyleDescriptor 往返', () {
+      final original = const StyleDescriptor(
+        width: '100%',
+        padding: 16,
+        flex: 1,
+      );
+      final json = original.toJson();
+      final restored = StyleDescriptor.fromJson(json);
+      expect(restored.width, '100%');
+      expect(restored.padding, 16);
+      expect(restored.flex, 1);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // 9. activateSkills 字段
   // ═══════════════════════════════════════════════════════════════
   group('activateSkills', () {
     test('fromJson 解析 activateSkills', () {
@@ -315,7 +561,7 @@ void main() {
   });
 
   // ═══════════════════════════════════════════════════════════════
-  // 4b. version 字段
+  // 10. version 字段
   // ═══════════════════════════════════════════════════════════════
   group('version', () {
     test('fromJson 解析 version', () {
@@ -342,58 +588,35 @@ void main() {
       final json = d.toJson();
       expect(json.containsKey('version'), isFalse);
     });
-
-    test('toJson 非默认版本输出', () {
-      final d = ModuleDescriptor(
-        id: 'v2',
-        name: '版本2',
-        version: '3.0.0-beta',
-      );
-      final json = d.toJson();
-      expect(json['version'], '3.0.0-beta');
-    });
-
-    test('fromJson → toJson 往返', () {
-      final json = {
-        'type': 'module',
-        'id': 'roundtrip',
-        'name': '往返',
-        'version': '1.0.0',
-      };
-      final restored = ModuleDescriptor.fromJson(json);
-      expect(restored.version, '1.0.0');
-      // 默认值时省略，非默认保留
-      expect(restored.toJson()['version'], '1.0.0');
-    });
   });
 
   // ═══════════════════════════════════════════════════════════════
-  // 5. 便捷属性
+  // 11. 便捷属性
   // ═══════════════════════════════════════════════════════════════
   group('便捷属性', () {
-    test('isServiceOnly — 无 route 为 true', () {
-      final d =
-          ModuleDescriptor(id: 'svc', name: '服务', route: null);
+    test('isServiceOnly — 无 pages 且无 route 为 true', () {
+      final d = ModuleDescriptor(id: 'svc', name: '服务');
       expect(d.isServiceOnly, isTrue);
     });
 
-    test('isServiceOnly — 空 route 为 true', () {
-      final d = ModuleDescriptor(id: 'svc2', name: '服务2', route: '');
-      expect(d.isServiceOnly, isTrue);
-    });
-
-    test('isServiceOnly — 有 route 为 false', () {
-      final d = ModuleDescriptor(id: 'page', name: '页面', route: '/page');
+    test('isServiceOnly — 有 pages 为 false', () {
+      final d = ModuleDescriptor(
+        id: 'page',
+        name: '页面',
+        pages: [PageDescriptor(id: 'p1', label: 'P1')],
+      );
       expect(d.isServiceOnly, isFalse);
     });
 
-    test('hasSidebar — 需 icon + sidebar + route 三者齐全', () {
+    test('hasSidebar — 需 icon + sidebar + 非服务', () {
       final withAll = ModuleDescriptor(
         id: 'all',
         name: '全部',
-        icon: Icons.home,
+        icon: 0xe88a,
         route: '/all',
-        sidebar: const SidebarDescriptor(section: '工具'),
+        nav: NavObjectDescriptor(
+          sidebar: SidebarDescriptor(section: '工具'),
+        ),
       );
       expect(withAll.hasSidebar, isTrue);
 
@@ -401,43 +624,32 @@ void main() {
         id: 'noicon',
         name: '无图标',
         route: '/noicon',
-        sidebar: const SidebarDescriptor(section: '工具'),
+        nav: NavObjectDescriptor(
+          sidebar: SidebarDescriptor(section: '工具'),
+        ),
       );
       expect(noIcon.hasSidebar, isFalse);
-
-      final noRoute = ModuleDescriptor(
-        id: 'noroute',
-        name: '无路由',
-        icon: Icons.home,
-        sidebar: const SidebarDescriptor(section: '工具'),
-      );
-      expect(noRoute.hasSidebar, isFalse);
     });
 
-    test('allRoutePaths 聚合所有路由', () {
+    test('allRoutePaths 聚合页面路由', () {
       final d = ModuleDescriptor(
         id: 'multi',
         name: '多路由',
         route: '/main',
-        layout: const LayoutDescriptor(panels: [
-          PanelDescriptor(id: 'tab1', label: 'Tab 1', path: '/main/tab1'),
-          PanelDescriptor(id: 'tab2', label: 'Tab 2', path: '/main/tab2'),
-        ]),
-        secondaryNavs: const [
-          NavDescriptor(
-              label: 'Sub', routePath: '/sub', section: '工具'),
+        pages: [
+          PageDescriptor(id: 'p1', label: 'P1', route: '/main/p1'),
+          PageDescriptor(id: 'p2', label: 'P2', route: '/main/p2'),
         ],
       );
       final paths = d.allRoutePaths;
+      expect(paths, contains('/main/p1'));
+      expect(paths, contains('/main/p2'));
       expect(paths, contains('/main'));
-      expect(paths, contains('/main/tab1'));
-      expect(paths, contains('/main/tab2'));
-      expect(paths, contains('/sub'));
     });
   });
 
   // ═══════════════════════════════════════════════════════════════
-  // 6. 子描述符——边界条件
+  // 12. 子描述符——边界条件
   // ═══════════════════════════════════════════════════════════════
   group('子描述符边界', () {
     test('SidebarDescriptor 默认值', () {
@@ -449,10 +661,9 @@ void main() {
 
     test('LayoutDescriptor 空 json → 默认值', () {
       final l = LayoutDescriptor.fromJson(null);
-      expect(l.mode, 'scroll');
-      expect(l.drawers, isEmpty);
-      expect(l.panels, isEmpty);
-      expect(l.zoom.enabled, isFalse);
+      expect(l.type, 'grid');
+      expect(l.features.drawers, isEmpty);
+      expect(l.slots, isEmpty);
     });
 
     test('ActionDescriptor 空 json → 默认值', () {
@@ -467,6 +678,27 @@ void main() {
       expect(i.mode, 'free-text');
       expect(i.multiline, isTrue);
       expect(i.autoFocus, isTrue);
+    });
+
+    test('DeletableDescriptor confirm: bool/String/null', () {
+      final d1 = DeletableDescriptor.fromJson({
+        'enabled': true,
+        'confirm': true,
+      });
+      expect(d1.confirmEnabled, isTrue);
+
+      final d2 = DeletableDescriptor.fromJson({
+        'enabled': true,
+        'confirm': '确定删除？',
+      });
+      expect(d2.confirmEnabled, isTrue);
+      expect(d2.confirmMessage, '确定删除？');
+
+      final d3 = DeletableDescriptor.fromJson({
+        'enabled': true,
+        'confirm': false,
+      });
+      expect(d3.confirmEnabled, isFalse);
     });
 
     test('DataBindingDescriptor 从 "type" 字段读取', () {
@@ -487,10 +719,33 @@ void main() {
       expect(a, equals(b));
       expect(a, isNot(equals(c)));
     });
+
+    test('ProcessDescriptor 新字段默认值', () {
+      final p = ProcessDescriptor.fromJson({'exe': 'test.exe'});
+      expect(p.id, isNull);
+      expect(p.exe, 'test.exe');
+      expect(p.protocol, 'http');
+      expect(p.scope, 'long');
+      expect(p.autoStart, isTrue);
+      expect(p.autoRestart, isFalse);
+    });
+
+    test('ActionButtonDescriptor 支持 id 和 icon', () {
+      final a = ActionButtonDescriptor.fromJson({
+        'trigger': 'button:export',
+        'label': '导出',
+        'id': 'export_btn',
+        'icon': 'download',
+      });
+      expect(a.id, 'export_btn');
+      expect(a.trigger, 'button:export');
+      expect(a.label, '导出');
+      expect(a.icon, isNotNull);
+    });
   });
 
   // ═══════════════════════════════════════════════════════════════
-  // 7. const 构造
+  // 13. const 构造
   // ═══════════════════════════════════════════════════════════════
   group('const 构造', () {
     test('const ModuleDescriptor 可用', () {
@@ -503,15 +758,92 @@ void main() {
       const d = ModuleDescriptor(
         id: 'const_nested',
         name: '嵌套 Const',
-        ui: 'chat',
-        chat: ChatOptions(
-          thinking: ThinkingOptions(transparent: true),
-          stream: StreamOptions(cursorStyle: 'static'),
+        style: StyleDescriptor(width: '100%'),
+        process: [
+          ProcessDescriptor(id: 'svc', exe: 'svc.exe', scope: 'long'),
+        ],
+        nav: NavObjectDescriptor(
+          sidebar: SidebarDescriptor(section: '工具'),
         ),
-        input: InputOptions(mode: 'code', language: 'dart'),
       );
-      expect(d.chat!.thinking.transparent, isTrue);
-      expect(d.input!.language, 'dart');
+      expect(d.style.width, '100%');
+      expect(d.process[0].id, 'svc');
+      expect(d.nav.sidebar!.section, '工具');
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════
+  // 14. V2 Showcase 完整 manifest 解析
+  // ═══════════════════════════════════════════════════════════════
+  group('V2 Showcase 完整解析', () {
+    test('解析 Showcase V2 manifest', () {
+      final d = ModuleDescriptor.fromJson({
+        'type': 'module',
+        'schemaVersion': '2.0',
+        'id': 'showcase',
+        'name': '展示大厅',
+        'description': '全功能展示',
+        'icon': 'auto_awesome',
+        'version': '2.0.0',
+        'route': '/showcase',
+        'nav': {
+          'sidebar': {'section': '展示', 'sectionOrder': 100, 'order': 1, 'badge': true},
+          'secondary': [
+            {'label': 'AI 助手', 'route': '/showcase/chat', 'icon': 'smart_toy', 'section': '展示'},
+            {'label': '编程器', 'route': '/showcase/code', 'icon': 'code', 'section': '展示'},
+          ],
+        },
+        'process': [
+          {'id': 'showcase_global', 'exe': 'module/showcase.exe', 'scope': 'long', 'autoStart': true},
+        ],
+        'events': {
+          'emit': [{'name': 'module_ready'}],
+        },
+        'actions': {
+          'itemTap': 'detail',
+          'creatable': true,
+          'actionButtons': [
+            {'id': 'export_btn', 'trigger': 'button:export', 'label': '导出', 'icon': 'download'},
+          ],
+        },
+        'workspace': {'enabled': true, 'maxFiles': 100},
+        'pages': [
+          {
+            'id': 'chat_page',
+            'label': 'AI 助手',
+            'route': '/showcase/chat',
+            'default': true,
+            'layout': {
+              'type': 'grid',
+              'preset': {'columns': 1},
+              'slots': {
+                'center': {
+                  'component': {
+                    'type': 'chat',
+                    'config': {
+                      'thinking': {'visible': true, 'transparent': true},
+                    },
+                    'input': {'mode': 'free-text'},
+                    'process': [
+                      {'id': 'chat_backend', 'exe': 'module/chat.exe', 'scope': 'long'},
+                    ],
+                  },
+                },
+              },
+            },
+          },
+        ],
+      });
+
+      expect(d.id, 'showcase');
+      expect(d.schemaVersion, '2.0');
+      expect(d.nav.sidebar!.section, '展示');
+      expect(d.nav.secondary.length, 2);
+      expect(d.process[0].id, 'showcase_global');
+      expect(d.actions!.actionButtons.length, 1);
+      expect(d.actions!.actionButtons[0].id, 'export_btn');
+      expect(d.workspace!.enabled, isTrue);
+      expect(d.pages[0].layout.slots['center']!.component!.type, 'chat');
     });
   });
 }

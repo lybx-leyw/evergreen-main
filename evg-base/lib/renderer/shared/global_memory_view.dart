@@ -65,6 +65,78 @@ class _GlobalMemoryViewState extends ConsumerState<GlobalMemoryView> {
     }
   }
 
+  void _saveMemory(mem.Memory memory) async {
+    try {
+      final store = ref.read(memoryStoreProvider);
+      store.save(memory);
+      _loadMemories();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('记忆已保存'), duration: Duration(seconds: 1)),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('保存失败: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _showEditDialog({mem.Memory? memory}) async {
+    final isNew = memory == null;
+    final nameCtrl = TextEditingController(text: memory?.name ?? '');
+    final titleCtrl = TextEditingController(text: memory?.title ?? '');
+    final descCtrl = TextEditingController(text: memory?.description ?? '');
+    final bodyCtrl = TextEditingController(text: memory?.body ?? '');
+    var selectedType = memory?.type ?? mem.MemoryType.project;
+    var selectedPriority = memory?.priority ?? 'medium';
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => _MemoryEditDialog(
+        isNew: isNew,
+        nameCtrl: nameCtrl,
+        titleCtrl: titleCtrl,
+        descCtrl: descCtrl,
+        bodyCtrl: bodyCtrl,
+        selectedType: selectedType,
+        selectedPriority: selectedPriority,
+        onTypeChanged: (t) => selectedType = t,
+        onPriorityChanged: (p) => selectedPriority = p,
+      ),
+    );
+
+    if (result == true && mounted) {
+      final name = nameCtrl.text.trim();
+      final title = titleCtrl.text.trim();
+      if (name.isEmpty && title.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('名称或标题不能为空')),
+        );
+        return;
+      }
+      // 自动从标题生成 name
+      final effectiveName = name.isNotEmpty
+          ? name.replaceAll(RegExp(r'[\s]+'), '-').toLowerCase()
+          : title.replaceAll(RegExp(r'[\s]+'), '-').toLowerCase();
+      _saveMemory(mem.Memory(
+        name: effectiveName,
+        title: title.isNotEmpty ? title : effectiveName,
+        description: descCtrl.text.trim(),
+        type: selectedType,
+        body: bodyCtrl.text.trim(),
+        priority: selectedPriority,
+      ));
+    }
+
+    nameCtrl.dispose();
+    titleCtrl.dispose();
+    descCtrl.dispose();
+    bodyCtrl.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -73,6 +145,11 @@ class _GlobalMemoryViewState extends ConsumerState<GlobalMemoryView> {
       appBar: AppBar(
         title: const Text('全局记忆'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            tooltip: '新建记忆',
+            onPressed: () => _showEditDialog(),
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: '刷新',
@@ -155,7 +232,7 @@ class _GlobalMemoryViewState extends ConsumerState<GlobalMemoryView> {
               category: cat,
               memories: grouped[cat.type]!,
               onDelete: _deleteMemory,
-              onTap: (_) {},
+              onTap: (m) => _showEditDialog(memory: m),
             ),
           ],
       ],
@@ -403,6 +480,156 @@ class _MemoryCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ═══════ _MemoryEditDialog ═══════
+
+class _MemoryEditDialog extends StatefulWidget {
+  final bool isNew;
+  final TextEditingController nameCtrl;
+  final TextEditingController titleCtrl;
+  final TextEditingController descCtrl;
+  final TextEditingController bodyCtrl;
+  final mem.MemoryType selectedType;
+  final String selectedPriority;
+  final void Function(mem.MemoryType) onTypeChanged;
+  final void Function(String) onPriorityChanged;
+
+  const _MemoryEditDialog({
+    required this.isNew,
+    required this.nameCtrl,
+    required this.titleCtrl,
+    required this.descCtrl,
+    required this.bodyCtrl,
+    required this.selectedType,
+    required this.selectedPriority,
+    required this.onTypeChanged,
+    required this.onPriorityChanged,
+  });
+
+  @override
+  State<_MemoryEditDialog> createState() => _MemoryEditDialogState();
+}
+
+class _MemoryEditDialogState extends State<_MemoryEditDialog> {
+  late mem.MemoryType _type;
+  late String _priority;
+
+  @override
+  void initState() {
+    super.initState();
+    _type = widget.selectedType;
+    _priority = widget.selectedPriority;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.isNew ? '新建记忆' : '编辑记忆'),
+      content: SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (widget.isNew) ...[
+                TextField(
+                  controller: widget.nameCtrl,
+                  decoration: const InputDecoration(
+                    labelText: '标识名 (name)',
+                    hintText: '英文短横线标识，留空则自动生成',
+                    border: OutlineInputBorder(),
+                    helperText: '例: my-user-profile',
+                    helperMaxLines: 1,
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              TextField(
+                controller: widget.titleCtrl,
+                decoration: const InputDecoration(
+                  labelText: '标题 (title) *',
+                  hintText: '人类可读的标题',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<mem.MemoryType>(
+                value: _type,
+                decoration: const InputDecoration(
+                  labelText: '类型',
+                  border: OutlineInputBorder(),
+                ),
+                items: const [
+                  DropdownMenuItem(value: mem.MemoryType.user, child: Text('👤 用户身份')),
+                  DropdownMenuItem(value: mem.MemoryType.feedback, child: Text('💬 反馈指导')),
+                  DropdownMenuItem(value: mem.MemoryType.project, child: Text('📁 项目上下文')),
+                  DropdownMenuItem(value: mem.MemoryType.reference, child: Text('🔗 外部引用')),
+                ],
+                onChanged: (v) {
+                  if (v != null) {
+                    setState(() => _type = v);
+                    widget.onTypeChanged(v);
+                  }
+                },
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: _priority,
+                decoration: const InputDecoration(
+                  labelText: '优先级',
+                  border: OutlineInputBorder(),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'low', child: Text('🟢 低')),
+                  DropdownMenuItem(value: 'medium', child: Text('🟡 中')),
+                  DropdownMenuItem(value: 'high', child: Text('🔴 高')),
+                ],
+                onChanged: (v) {
+                  if (v != null) {
+                    setState(() => _priority = v);
+                    widget.onPriorityChanged(v);
+                  }
+                },
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: widget.descCtrl,
+                decoration: const InputDecoration(
+                  labelText: '描述 (description)',
+                  hintText: '一行摘要，用于索引和召回',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: widget.bodyCtrl,
+                decoration: const InputDecoration(
+                  labelText: '正文 (body)',
+                  hintText: 'Markdown 格式正文',
+                  border: OutlineInputBorder(),
+                  alignLabelWithHint: true,
+                ),
+                maxLines: 6,
+                minLines: 3,
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('保存'),
+        ),
+      ],
     );
   }
 }

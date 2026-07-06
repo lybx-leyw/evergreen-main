@@ -9,6 +9,7 @@
 /// 6. ProviderScope → runApp
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -86,6 +87,27 @@ String get _pluginsDir => p.join(_projectRoot, '..', 'plugins');
 
 /// 文本模式下各 HttpServer 实际端口（main 启动后填充，app.dart 读取）。
 final textModeServerPorts = <String, int>{};
+
+/// 扫描 plugins/ 下所有 module/manifest.json，提取 schemaVersion="2.0" 的原始 JSON。
+/// 结果存入 [out] map，key 为模块 id。
+void _scanV2Manifests(String pluginsDir, Map<String, Map<String, dynamic>> out) {
+  final dir = Directory(pluginsDir);
+  if (!dir.existsSync()) return;
+  for (final entity in dir.listSync()) {
+    if (entity is! Directory) continue;
+    final manifestFile = File(p.join(entity.path, 'module', 'manifest.json'));
+    if (!manifestFile.existsSync()) continue;
+    try {
+      final map = jsonDecode(manifestFile.readAsStringSync()) as Map<String, dynamic>;
+      if (map['type'] != 'module') continue;
+      if (map['schemaVersion'] == '2.0') {
+        out[map['id'] as String] = map;
+      }
+    } catch (e) {
+      stderr.writeln('[main] V2 清单解析失败 ${manifestFile.path}: $e');
+    }
+  }
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -177,6 +199,7 @@ void main() async {
     toolRegistry.register(PythonRunnerTool(
       pythonExePath: pythonExe,
       pythonWorkDir: greenixPythonDir,
+      workspaceDir: aiWorkspace,
     ));
     stderr.writeln('[main] PythonRunnerTool 已注册 ($pythonExe)');
   } else {
@@ -237,6 +260,11 @@ void main() async {
     }
   }
 
+  // ── 扫描 V2 原始清单（独立于 ModuleLoader，用于 HTML 渲染） ──
+  final v2Manifests = <String, Map<String, dynamic>>{};
+  _scanV2Manifests(_pluginsDir, v2Manifests);
+  stderr.writeln('[main] V2 清单: ${v2Manifests.keys.toList()}');
+
   // ── 模块注册中心（HttpServer 就绪后再启动 .exe，确保端口文件已存在） ──
   final registry = ModuleRegistry();
 
@@ -265,7 +293,48 @@ void main() async {
   final defaultTheme = themeStore.findById('default') ??
       (themeStore.all.isNotEmpty ? themeStore.all.first : null);
 
-  // ── 启动应用 ──
+  // ── 判断运行模式：全 HTML vs 混合 ──
+  final allHtml = registry.modules.isNotEmpty &&
+      registry.modules.every((m) {
+        final v2 = v2Manifests[m.id];
+        return v2 != null && v2['renderMode'] == 'html';
+      });
+
+  if (allHtml) {
+    // ═══════ 全 HTML 模式：不启动 Flutter 窗口，Dart 进程只做后端 ═══════
+    stderr.writeln('[main] === 全 HTML 模式：Dart 后端已就绪，Flutter 窗口不启动 ===');
+    stderr.writeln('[main] 模块端口: ${textModeServerPorts.entries.where((e) => !['Core','Config','Data','Theme','Agent','Module'].contains(e.key)).map((e) => '${e.key}:${e.value}').toList()}');
+
+    // 打印各模块 URL
+    for (final m in registry.modules) {
+      final port = textModeServerPorts[m.id];
+      if (port != null && port != 0) {
+        stderr.writeln('[main] ${m.name} → http://127.0.0.1:$port');
+      }
+    }
+
+    // 打开浏览器到 showase 展示大厅（优先），否则第一个可用模块
+    final firstModule = registry.modules.firstWhere(
+      (m) => m.id == 'showcase' && textModeServerPorts[m.id] != null && textModeServerPorts[m.id] != 0,
+      orElse: () => registry.modules.firstWhere(
+        (m) => textModeServerPorts[m.id] != null && textModeServerPorts[m.id] != 0,
+        orElse: () => registry.modules.first,
+      ),
+    );
+    final firstPort = textModeServerPorts[firstModule.id];
+    if (firstPort != null && firstPort != 0) {
+      final url = 'http://127.0.0.1:$firstPort';
+      stderr.writeln('[main] 打开浏览器 → $url');
+      Process.run('cmd', ['/c', 'start', url]);
+    }
+
+    // 保持进程存活，等待退出信号
+    stderr.writeln('[main] 后端运行中，按 Ctrl+C 退出...');
+    await Future.delayed(const Duration(days: 365));
+    return;
+  }
+
+  // ── 混合模式（有 Dart 模块）：启动 Flutter 窗口 ──
   runApp(
     ProviderScope(
       overrides: [
@@ -306,6 +375,9 @@ void main() async {
         // 主题描述符
         if (defaultTheme != null)
           themeDescriptorProvider.overrideWith((ref) => defaultTheme),
+
+        // V2 原始 manifest JSON（HTML 渲染引擎使用）
+        v2ManifestProvider.overrideWith((ref) => v2Manifests),
       ],
       child: const EvergreenApp(),
     ),

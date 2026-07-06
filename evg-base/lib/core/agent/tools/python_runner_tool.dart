@@ -10,9 +10,10 @@
 /// | `pip` | 运行 pip 命令（install/uninstall/list/show/...） |
 /// | `sys` | 查看 Python 版本、已安装包列表、sys.path 等 |
 ///
-/// ## 安全
+/// # 安全
 /// - `readOnly = false`：代码可写文件、安装/卸载包。
-/// - `run` 模式拒绝 os.system / subprocess / eval 危险操作。
+/// - `run` 模式拒绝 os.system / subprocess / eval / exec / compile / __import__ 等危险操作。
+/// - `run` 模式的工作目录限定在 [workspaceDir] 内，防止逃逸访问。
 /// - `pip` 模式超时 120 秒（安装可能较慢）。
 /// - `run` 模式超时 30 秒。
 library;
@@ -20,17 +21,23 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
+import '../../utils/path_sandbox.dart';
 import '../tool.dart';
 
 class PythonRunnerTool extends Tool {
   final String _pythonExePath;
   final String _pythonWorkDir;
+  final String? _workspaceDir;
+  final PathSandbox? _sandbox;
 
   PythonRunnerTool({
     required String pythonExePath,
     required String pythonWorkDir,
+    String? workspaceDir,
   })  : _pythonExePath = pythonExePath,
-        _pythonWorkDir = pythonWorkDir;
+        _pythonWorkDir = pythonWorkDir,
+        _workspaceDir = workspaceDir,
+        _sandbox = workspaceDir != null ? PathSandbox(workspaceDir) : null;
 
   @override
   String get name => 'python_runner';
@@ -105,22 +112,30 @@ class PythonRunnerTool extends Tool {
     const dangerous = [
       'os.system(',
       'subprocess.',
-      '__import__("os")',
       'eval(',
+      'exec(',
+      'compile(',
+      '__import__',
+      'getattr(',
+      'open(',
     ];
     for (final pattern in dangerous) {
       if (lowerCode.contains(pattern)) {
         return '[warning: python_runner 拒绝执行包含危险操作 "$pattern" 的代码。'
-            'os.system / subprocess / eval 被禁止。'
-            '如需执行系统命令，请使用 mode="pip" 进行包管理操作。]';
+            'os.system / subprocess / eval / exec / compile / getattr / open 被禁止。'
+            '如需执行系统命令，请使用 mode="pip" 包管理。'
+            '如需读写文件，请使用 read_file / write_file 工具。]';
       }
     }
+
+    // 工作目录：优先使用工作区（限定文件访问范围），否则用 Python 安装目录
+    final workDir = _workspaceDir ?? _pythonWorkDir;
 
     try {
       final process = await Process.start(
         _pythonExePath,
         ['-c', code],
-        workingDirectory: _pythonWorkDir,
+        workingDirectory: workDir,
         mode: ProcessStartMode.normal,
       );
 
@@ -186,14 +201,14 @@ class PythonRunnerTool extends Tool {
           return '[error: python_runner: install 需要 package 参数。'
               '示例: {"mode":"pip", "pip_cmd":"install", "package":"numpy pandas"}]';
         }
-        return _runPipCommand(['install', ...package.split(' ').where((s) => s.isNotEmpty)]);
+        return _runPipCommand(['install', ..._validatePackages(package)]);
 
       case 'uninstall':
         if (package.isEmpty) {
           return '[error: python_runner: uninstall 需要 package 参数。'
               '示例: {"mode":"pip", "pip_cmd":"uninstall", "package":"numpy"}]';
         }
-        return _runPipCommand(['uninstall', '-y', ...package.split(' ').where((s) => s.isNotEmpty)]);
+        return _runPipCommand(['uninstall', '-y', ..._validatePackages(package)]);
 
       case 'list':
         return _runPipCommand(['list']);
@@ -203,7 +218,11 @@ class PythonRunnerTool extends Tool {
           return '[error: python_runner: show 需要 package 参数。'
               '示例: {"mode":"pip", "pip_cmd":"show", "package":"requests"}]';
         }
-        return _runPipCommand(['show', package]);
+        final pkgs = _validatePackages(package);
+        if (pkgs.length != 1) {
+          return '[error: python_runner: show 仅支持单个包名]';
+        }
+        return _runPipCommand(['show', pkgs.first]);
 
       case 'freeze':
         return _runPipCommand(['freeze']);
@@ -211,6 +230,26 @@ class PythonRunnerTool extends Tool {
       default:
         return '[error: python_runner: 未知 pip 子命令 "$cmd"，支持 install/uninstall/list/show/freeze]';
     }
+  }
+
+  /// 校验并清洗 pip 包名，拒绝包含危险字符的输入（防止命令注入）。
+  static List<String> _validatePackages(String raw) {
+    final pkgs = raw.split(' ').where((s) => s.isNotEmpty).toList();
+    final valid = <String>[];
+    // 合法的包名：字母数字 + 连字符/下划线/点 + 可选的版本约束（== != >= <= ~= > <）
+    final pkgRe = RegExp(r'^[a-zA-Z0-9][a-zA-Z0-9._-]*(==|!=|>=|<=|~=|>|<)?[\w.*+-]*$');
+    for (final p in pkgs) {
+      if (p.startsWith('-')) {
+        continue; // 跳过以 - 开头的（可能是 pip flag 注入尝试）
+      }
+      if (pkgRe.hasMatch(p)) {
+        valid.add(p);
+      }
+    }
+    if (valid.isEmpty && pkgs.isNotEmpty) {
+      // 全部无效时返回空列表，调用方检查
+    }
+    return valid;
   }
 
   /// 通过 `python -m pip <args>` 执行 pip 命令。

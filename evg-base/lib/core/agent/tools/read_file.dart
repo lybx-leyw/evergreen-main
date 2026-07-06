@@ -73,12 +73,12 @@ class ReadFileTool extends Tool {
     // 沙箱校验
     final safePath = _sandbox.confine(rawPath);
     if (safePath == null) {
-      return '[越界拒绝] 路径 "$rawPath" 不在工作区内。只能访问 $_workspaceDir 下的文件。';
+      return '[越界拒绝] 路径 "$rawPath" 不在工作区内。文件操作仅限工作区内。';
     }
 
     try {
       final file = File(safePath);
-      if (!file.existsSync()) return '文件不存在：$rawPath （工作区: $_workspaceDir）';
+      if (!file.existsSync()) return '文件不存在：$rawPath';
       if (FileSystemEntity.typeSync(safePath) == FileSystemEntityType.directory) {
         return '$rawPath 是一个目录，请指定具体文件。';
       }

@@ -1,0 +1,89 @@
+{
+  "type": "data-source",
+  "id": "showcase-data",
+  "name": "展示数据源",
+  "process": "showcase_data.exe",
+  "preferredPort": 0,
+  "dataTypes": [
+    {
+      "name": "showcase_metrics",
+      "category": "展示",
+      "displayName": "性能指标",
+      "ttl": "30s",
+      "persistentKey": "showcase_metrics",
+      "endpoint": "/api/metrics"
+    },
+    {
+      "name": "showcase_plugins",
+      "category": "展示",
+      "displayName": "插件列表",
+      "ttl": "5m",
+      "persistentKey": "showcase_plugins",
+      "endpoint": "/api/plugins"
+    },
+    {
+      "name": "showcase_quotes",
+      "category": "展示",
+      "displayName": "每日格言",
+      "ttl": "1h",
+      "persistentKey": "showcase_quotes",
+      "endpoint": "/api/quotes"
+    },
+    {
+      "name": "showcase_chart_data",
+      "category": "展示",
+      "displayName": "图表数据",
+      "ttl": "30s",
+      "persistentKey": "showcase_chart_data",
+      "endpoint": "/api/chart-data"
+    },
+    {
+      "name": "showcase_plugin_usage",
+      "category": "展示",
+      "displayName": "插件使用统计",
+      "ttl": "5m",
+      "persistentKey": "showcase_plugin_usage",
+      "endpoint": "/api/plugin-usage"
+    },
+    {
+      "name": "showcase_weekly_report",
+      "category": "展示",
+      "displayName": "周报",
+      "ttl": "1h",
+      "persistentKey": "showcase_weekly_report",
+      "endpoint": "/api/weekly-report"
+    },
+    {
+      "name": "showcase_fun_facts",
+      "category": "展示",
+      "displayName": "趣味冷知识",
+      "ttl": "1h",
+      "persistentKey": "showcase_fun_facts",
+      "endpoint": "/api/fun-facts"
+    },
+    {
+      "name": "showcase_lottery_pool",
+      "category": "展示",
+      "displayName": "抽奖池",
+      "ttl": "1h",
+      "persistentKey": "showcase_lottery_pool",
+      "endpoint": "/api/lottery/pool"
+    },
+    {
+      "name": "showcase_lottery_stats",
+      "category": "展示",
+      "displayName": "抽奖统计",
+      "ttl": "5m",
+      "persistentKey": "showcase_lottery_stats",
+      "endpoint": "/api/lottery/stats"
+    },
+    {
+      "name": "showcase_lottery_history",
+      "category": "展示",
+      "displayName": "抽奖历史",
+      "ttl": "30s",
+      "persistentKey": "showcase_lottery_history",
+      "endpoint": "/api/lottery/history"
+    }
+  ]
+}

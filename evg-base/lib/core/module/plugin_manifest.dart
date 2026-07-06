@@ -8,12 +8,12 @@
 /// - I10: [ModuleRegistry.search] 返回 `List<PluginManifest>`
 library;
 
-import 'package:flutter/material.dart';
 import 'capability.dart';
 
 /// 插件清单——搜索/列表结果中的摘要信息。
 ///
 /// 由 [ModuleRegistry.search] 返回，供渲染层市场搜索使用。
+/// V2: icon 使用 int (codePoint)，不再依赖 Flutter IconData。
 class PluginManifest {
   /// 全局唯一标识。
   final String id;
@@ -25,7 +25,7 @@ class PluginManifest {
   final String description;
 
   /// 图标 codePoint。
-  final IconData? icon;
+  final int? icon;
 
   /// 具备的能力维度列表。
   final List<CapabilityDimension> dimensions;
@@ -52,7 +52,7 @@ class PluginManifest {
       id: json['id'] as String? ?? '',
       name: json['name'] as String? ?? '',
       description: json['description'] as String? ?? '',
-      icon: json['icon'] != null ? IconData(json['icon'] as int) : null,
+      icon: json['icon'] as int?,
       dimensions: (json['dimensions'] as List?)
               ?.map((d) => parseCapabilityDimension(d.toString()))
               .whereType<CapabilityDimension>()
@@ -70,7 +70,7 @@ class PluginManifest {
       'name': name,
     };
     if (description.isNotEmpty) m['description'] = description;
-    if (icon != null) m['icon'] = icon!.codePoint;
+    if (icon != null) m['icon'] = icon;
     if (dimensions.isNotEmpty) {
       m['dimensions'] = dimensions.map((d) => d.name).toList();
     }

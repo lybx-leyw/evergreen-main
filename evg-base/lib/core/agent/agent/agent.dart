@@ -63,9 +63,11 @@ class StormBreaker {
   String _lastSig = '';
   int _count = 0;
   final int threshold;
+  /// 成功调用的压制阈值，独立于错误阈值（默认 5，比错误 3 更宽松）。
+  final int successThreshold;
   final Map<String, int> _repeatSuccessCounts = {};
 
-  StormBreaker({this.threshold = 3});
+  StormBreaker({this.threshold = 3, this.successThreshold = 5});
 
   /// 记录一次调用结果，返回是否应被压制。
   bool record(String toolName, String? error) {
@@ -77,7 +79,7 @@ class StormBreaker {
     _repeatSuccessCounts[toolName] = (_repeatSuccessCounts[toolName] ?? 0) + 1;
     _lastSig = '';
     _count = 0;
-    return (_repeatSuccessCounts[toolName] ?? 0) >= 2;
+    return (_repeatSuccessCounts[toolName] ?? 0) >= successThreshold;
   }
 
   void reset() { _lastSig = ''; _count = 0; _repeatSuccessCounts.clear(); }

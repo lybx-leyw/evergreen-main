@@ -6,6 +6,7 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:path/path.dart' as p;
 
 import 'package:evergreen_base/core/agent/agent.dart' as agent;
@@ -25,8 +26,12 @@ class FileSessionStore implements SessionStoreInterface {
   Future<void> save(agent.Session session) async {
     try {
       final file = File(_path(session.id));
-      await file.writeAsString(jsonEncode(session.toJson()));
-    } catch (e) {
+      final json = jsonEncode(session.toJson());
+      debugPrint('[FileSessionStore] save id=${session.id} msgs=${session.messages.length} path=${file.path}');
+      await file.writeAsString(json);
+      debugPrint('[FileSessionStore] save OK for id=${session.id}');
+    } catch (e, st) {
+      debugPrint('[FileSessionStore] save FAILED for id=${session.id}: $e\n$st');
       stderr.writeln('[FileSessionStore] save failed: $e');
     }
   }

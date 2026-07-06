@@ -5,6 +5,7 @@ library;
 
 /// 聊天消息。
 class ChatMessage {
+  final String id;
   final String role;
   final String content;
   final String? thinkingContent;
@@ -12,12 +13,14 @@ class ChatMessage {
   final DateTime timestamp;
 
   ChatMessage({
+    String? id,
     required this.role,
     this.content = '',
     this.thinkingContent,
     this.toolCalls = const [],
     DateTime? timestamp,
-  }) : timestamp = timestamp ?? DateTime.now();
+  })  : id = id ?? DateTime.now().microsecondsSinceEpoch.toString(),
+        timestamp = timestamp ?? DateTime.now();
 
   bool get isUser => role == 'user';
   bool get isAssistant => role == 'assistant';

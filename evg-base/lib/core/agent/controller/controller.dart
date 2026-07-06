@@ -2,6 +2,10 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:path/path.dart' as p;
 
 import 'package:evergreen_base/core/agent/event.dart';
 import 'package:evergreen_base/core/agent/message.dart';
@@ -13,6 +17,7 @@ import 'package:evergreen_base/core/agent/agent/compose.dart';
 import 'package:evergreen_base/core/agent/memory/facade.dart';
 import 'package:evergreen_base/core/agent/memory/memory_agent.dart';
 import 'package:evergreen_base/core/agent/skill/skill.dart';
+import 'package:evergreen_base/core/utils/greenix_path.dart';
 
 enum ControllerState { idle, running, awaitingApproval }
 
@@ -50,6 +55,12 @@ class Controller {
   /// Skill 索引引用——用于 activateSkill/deactivateSkill 查找。
   final SkillIndex? _skillIndex;
 
+  /// 模块 ID——用于读取 workspace expose_state 文件。
+  final String? _moduleId;
+
+  /// 当前轮次的工作区状态上下文（每次 _runAgent 刷新）。
+  String _workspaceContext = '';
+
   bool _globalMemoryReadThisTurn = false;
 
   // 批准回调
@@ -64,6 +75,7 @@ class Controller {
     MemoryAgent? memoryAgent,
     String skillIndexText = '',
     SkillIndex? skillIndex,
+    String? moduleId,
   })  : _provider = provider,
         _registry = registry,
         _sink = sink,
@@ -71,7 +83,8 @@ class Controller {
         _memory = memory,
         _memoryAgent = memoryAgent,
         _skillIndexText = skillIndexText,
-        _skillIndex = skillIndex;
+        _skillIndex = skillIndex,
+        _moduleId = moduleId;
 
   // ── 属性 ──
 
@@ -128,13 +141,14 @@ class Controller {
     return _activeSkills.values.join('\n\n---\n\n');
   }
 
-  /// 构建完整 system prompt：基础提示词 + skill 索引 + 激活的 skill bodies。
+  /// 构建完整 system prompt：基础提示词 + skill 索引 + 激活的 skill bodies + 工作区状态。
   String _buildSystemPrompt() {
     final parts = <String>[_systemPrompt];
     if (_skillIndexText.isNotEmpty) parts.add(_skillIndexText);
     final bodies = _activeSkillBodies;
     if (bodies.isNotEmpty) parts.add('## 当前激活的技能\n$bodies');
     if (_attachmentContext.isNotEmpty) parts.add(_attachmentContext);
+    if (_workspaceContext.isNotEmpty) parts.add(_workspaceContext);
     return parts.join('\n');
   }
 
@@ -287,6 +301,68 @@ class Controller {
 
   // ── 内部 ──
 
+  /// 读取模块 workspace 下所有 expose_state 子目录中的 state.json。
+  ///
+  /// 对应 PLAN_NOW §9.3：AgentAssembly 每轮对话前自动读取所有栏暴露的状态快照，
+  /// 注入到 system prompt 中，使 AI 能感知页面其他 slot 的实时状态。
+  ///
+  /// 扫描路径：`.greenix/workspaces/<moduleId>/**`/state.json`
+  /// 返回格式化后的上下文文本（可直接注入 system prompt），无数据时返回空串。
+  String _readWorkspaceExposeStates() {
+    if (_moduleId == null) return '';
+    final wsRoot = greenixWorkspaceDir(_moduleId!);
+    final dir = Directory(wsRoot);
+    if (!dir.existsSync()) return '';
+
+    final buf = StringBuffer();
+    try {
+      final stateFiles = dir
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((f) => p.basename(f.path) == 'state.json')
+          .toList();
+
+      if (stateFiles.isEmpty) return '';
+
+      buf.writeln('## 当前工作区状态');
+      buf.writeln('以下为各功能栏暴露的最新状态快照：');
+      buf.writeln();
+
+      for (final file in stateFiles) {
+        // 提取子目录名作为 slot 标识
+        final slotName = p.basename(p.dirname(file.path));
+        try {
+          final content = file.readAsStringSync();
+          final json = jsonDecode(content) as Map<String, dynamic>;
+          buf.writeln('### $slotName');
+          // 去除内部元数据字段
+          final display = Map<String, dynamic>.from(json);
+          display.remove('_event');
+          display.remove('_timestamp');
+          display.remove('_sourceSlot');
+          if (display.isNotEmpty) {
+            buf.writeln('```json');
+            buf.writeln(const JsonEncoder.withIndent('  ').convert(display));
+            buf.writeln('```');
+          }
+          buf.writeln();
+        } catch (e) {
+          // 单个文件读取失败不影响其他
+          print('[Ctrl:$_moduleId] 读取 state.json 失败: $slotName → $e');
+        }
+      }
+
+      final result = buf.toString().trimRight();
+      if (result.isNotEmpty) {
+        print('[Ctrl:$_moduleId] 已读取 ${stateFiles.length} 个 expose_state');
+      }
+      return result;
+    } catch (e) {
+      print('[Ctrl:$_moduleId] 读取 workspace 失败: $e');
+      return '';
+    }
+  }
+
   Future<void> _runAgent(Agent agent, String input) async {
     print('[Ctrl:D] _runAgent() started input="$input"');
     try {
@@ -294,6 +370,9 @@ class Controller {
 
       // Auto-read global memory each round (ensures AI sees latest MemoryAgent writes)
       await _autoReadGlobalMemory();
+
+      // 刷新工作区状态上下文（PLAN_NOW §9.3：Agent 感知页面 slot 实时状态）
+      _workspaceContext = _readWorkspaceExposeStates();
 
       // 构建记忆上下文：MemoryFacade 自动合并三 scope + 兼容旧 setMemoryContext
       final autoContext = _memory != null ? await _memory!.buildContext() : '';

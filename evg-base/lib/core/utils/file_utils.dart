@@ -1,5 +1,6 @@
 import 'dart:io';
-import 'package:flutter/foundation.dart';
+
+import '../log.dart';
 
 /// 跨平台打开文件管理器并定位到文件/目录。
 ///
@@ -11,7 +12,7 @@ void openInFileManager(String path) {
   final dir = file.existsSync() ? file.parent : Directory(path);
 
   if (!dir.existsSync()) {
-    debugPrint('[FileUtils] directory not found: $dir');
+    Log().warn('[FileUtils] directory not found', data: {'path': dir.path});
     return;
   }
 
@@ -25,6 +26,6 @@ void openInFileManager(String path) {
       Process.run('xdg-open', [dir.path]);
     }
   } catch (e) {
-    debugPrint('[FileUtils] openInFileManager failed: $e');
+    Log().warn('[FileUtils] openInFileManager failed', error: e);
   }
 }

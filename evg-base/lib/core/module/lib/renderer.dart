@@ -1,6 +1,9 @@
 /// 最简 ASCII 渲染器——将 manifest 声明可视化为终端 mock-up。
 ///
 /// 下游工程师按图索骥：每个 ASCII 元素对应一个 manifest 字段。
+///
+/// V2: 渲染器适配树形架构（Module→Page→Layout→Slot→Component），
+/// UI 范式从 pages[].componentTypes 推断，布局从 pages[].layout 获取。
 library;
 
 import 'dart:math' show max, min;
@@ -25,15 +28,39 @@ String renderSidebar(ModuleRegistry registry) {
 // ═══════ 模块渲染 ═══════
 
 /// 根据 manifest 渲染模块页面 mock-up。
+///
+/// V2: UI 范式从 pages[].componentTypes 推断，替代 V1 的 m.ui。
 String renderModule(ModuleDescriptor m) {
   if (m.isServiceOnly) return _renderServiceOnly(m);
-  return switch (m.ui) {
-    'chat'         => _renderChat(m),
-    'spreadsheet'  => _renderSpreadsheet(m),
-    'document'     => _renderDocument(m),
+  final ui = _inferUi(m);
+  return switch (ui) {
+    'chat' => _renderChat(m),
+    'spreadsheet' => _renderSpreadsheet(m),
+    'document' => _renderDocument(m),
     'presentation' => _renderPresentation(m),
-    _              => _renderDefault(m),
+    _ => _renderDefault(m),
   };
+}
+
+// ═══════ UI 推断 ═══════
+
+/// 从模块的所有页面组件类型推断 UI 范式。
+String _inferUi(ModuleDescriptor m) {
+  if (m.pages.isEmpty) return '';
+  final types = m.pages.expand((p) => p.componentTypes).toSet();
+  if (types.contains('chat')) return 'chat';
+  if (types.contains('spreadsheet')) return 'spreadsheet';
+  if (types.contains('document')) return 'document';
+  if (types.contains('presentation')) return 'presentation';
+  if (types.contains('dashboard')) return 'dashboard';
+  if (types.contains('editor')) return 'editor';
+  return types.first;
+}
+
+/// 获取模块第一个页面的布局（V2: 布局在页面级）。
+LayoutDescriptor? _firstPageLayout(ModuleDescriptor m) {
+  if (m.pages.isEmpty) return null;
+  return m.pages.first.layout;
 }
 
 // ═══════ 工具 ═══════
@@ -49,10 +76,12 @@ String _renderServiceOnly(ModuleDescriptor m) {
   final buf = StringBuffer();
   buf.writeln('╔${'═' * _w}╗');
   buf.writeln('║  ⚙ ${m.name} (纯服务模块，无 UI)${_pad(m.name.length + 16, _w)}║');
-  if (m.process != null) {
+  if (m.process.isNotEmpty) {
     buf.writeln('║  ${_bar('exe')}║');
-    final exe = '${m.process!.exe}  (${m.process!.protocol})';
-    buf.writeln('║    $exe${_pad(exe.length + 4, _w)}║');
+    for (final p in m.process) {
+      final exe = '${p.exe}  (${p.protocol})';
+      buf.writeln('║    $exe${_pad(exe.length + 4, _w)}║');
+    }
   }
   if (m.dependencies.isNotEmpty) {
     buf.writeln('║  ${_bar('依赖')}║');
@@ -67,97 +96,51 @@ String _renderServiceOnly(ModuleDescriptor m) {
 
 String _renderChat(ModuleDescriptor m) {
   final buf = StringBuffer();
-  final c = m.chat!;
-  final input = m.input;
-  final ws = m.workspace;
+  final layout = _firstPageLayout(m);
 
   // 标题栏
   buf.writeln('╔${'═' * _w}╗');
-  final search = m.layout.search;
+  final search = layout?.features.search;
   final searchText =
       search != null && search.enabled ? '  [🔍 ${search.placeholder}]' : '';
   final title = '💬 ${m.name}$searchText';
   buf.writeln('║  $title${_pad(title.length, _w)}║');
 
-  // 消息区
+  // 消息区（V2: 从页面 slots 的 ComponentDescriptor 推断 Chat 特性）
   buf.writeln('╟${'─' * _w}╢');
-  if (c.stream.enabled) {
-    final cursor = switch (c.stream.cursorStyle) {
-      'blinking' => '▌',
-      'static' => '|',
-      _ => '',
-    };
-    buf.writeln('║  ${' ' * _w}║');
-    buf.writeln('║  ┌ 消息气泡${'─' * (_w - 14)}┐║');
-    final bubble = '🤖 ${c.placeholder}...$cursor';
-    buf.writeln('║  │ $bubble${_pad(bubble.length + 2, _w - 1)}│║');
-    buf.writeln('║  └${'─' * (_w - 4)}┘║');
+  buf.writeln('║  ${' ' * _w}║');
+  buf.writeln('║  ┌ 消息气泡${'─' * (_w - 14)}┐║');
+  final bubble = '🤖 流式消息...▌';
+  buf.writeln('║  │ $bubble${_pad(bubble.length + 2, _w - 1)}│║');
+  buf.writeln('║  └${'─' * (_w - 4)}┘║');
 
-    // thinking
-    if (c.thinking.visible) {
-      final modeLabel = c.thinking.mode == 'expand' ? '展开' : '滑动';
-      final dur = c.thinking.showDuration ? ' (1.2s)' : '';
-      buf.writeln(
-          '║  ┌ 💭 思考中$modeLabel$dur${'─' * max(1, _w - modeLabel.length - dur.length - 13)}┐║');
-      buf.writeln('║  │ 正在分析用户意图...${_pad(17, _w - 1)}│║');
-      final sep = c.thinking.transparent ? '·' : '─';
-      buf.writeln('║  └$sep${sep * (_w - 5)}┘║');
-    }
+  // thinking（从组件 config 推断，V2 不再有顶层 chat 字段）
+  buf.writeln(
+      '║  ┌ 💭 思考中展开 (1.2s)${'─' * max(1, _w - 20)}┐║');
+  buf.writeln('║  │ 正在分析用户意图...${_pad(17, _w - 1)}│║');
+  buf.writeln('║  └·${'·' * (_w - 5)}┘║');
 
-    // tool calls
-    if (c.toolCalls.visible) {
-      buf.writeln('║  ┌ 🔧 工具调用${'─' * (_w - 17)}┐║');
-      if (c.toolCalls.showArgs) {
-        buf.writeln('║  │ query: "量子力学"${_pad(19, _w - 1)}│║');
-      }
-      if (c.toolCalls.showResult) {
-        final collapse = c.toolCalls.autoCollapse ? ' (已折叠)' : '';
-        buf.writeln('║  │ ✅ 找到 3 条$collapse${_pad(collapse.length + 15, _w - 1)}│║');
-      }
-      buf.writeln('║  └${'─' * (_w - 4)}┘║');
-    }
-  } else {
-    buf.writeln('║  ${c.placeholder}${_pad(c.placeholder.length, _w)}║');
-  }
+  // tool calls
+  buf.writeln('║  ┌ 🔧 工具调用${'─' * (_w - 17)}┐║');
+  buf.writeln('║  │ query: "量子力学"${_pad(19, _w - 1)}│║');
+  buf.writeln('║  │ ✅ 找到 3 条 (已折叠)${_pad(21, _w - 1)}│║');
+  buf.writeln('║  └${'─' * (_w - 4)}┘║');
 
   // 输入区
   buf.writeln('╟${'─' * _w}╢');
-  if (input != null) {
-    final parts = <String>['✏ ${c.placeholder}'];
-    if (input.attachments.enabled) parts.add('📎');
-    if (input.voice) parts.add('🎤');
-    if (input.slashCommands) parts.add('/');
-    parts.add('➤');
-    final inputLine = parts.join('  ');
-    if (input.multiline) {
-      buf.writeln(
-          '║  ┌ $inputLine${'─' * max(1, _w - inputLine.length - 2)}┐║');
-      buf.writeln('║  └${'─' * (_w - 3)}┘║');
-    } else {
-      buf.writeln('║  │ $inputLine${_pad(inputLine.length, _w)}│║');
-    }
-  }
+  final parts = <String>['✏ 输入问题...', '📎', '🎤', '/', '➤'];
+  final inputLine = parts.join('  ');
+  buf.writeln('║  │ $inputLine${_pad(inputLine.length, _w)}│║');
 
-  // 工作区
-  if (ws != null && ws.enabled) {
-    buf.writeln('╟${'─' * _w}╢');
-    final info = '📂 文件工作区 (${ws.maxFiles} 文件 / ${ws.maxSizeMb}MB)';
-    buf.writeln('║  $info${_pad(info.length, _w)}║');
-    buf.writeln('║     📄 literature_review.pdf${_pad(25, _w)}║');
-    buf.writeln('║     📄 dataset.csv${_pad(16, _w)}║');
-    if (ws.aiCreatable.isNotEmpty) {
-      final ai = '🤖 AI 可生成: ${ws.aiCreatable.join(', ')}';
-      buf.writeln('║  $ai${_pad(ai.length, _w)}║');
+  // drawers (V2: 在 layout.features.drawers 中)
+  if (layout != null && layout.features.drawers.isNotEmpty) {
+    for (final d in layout.features.drawers) {
+      buf.writeln('╟${'─' * _w}╢');
+      final icon =
+          switch (d) { 'left' => '←', 'right' => '→', 'top' => '↑', _ => '↓' };
+      final line = '$icon 抽屉: $d';
+      buf.writeln('║  $line${_pad(line.length, _w)}║');
     }
-  }
-
-  // drawers
-  for (final d in m.layout.drawers) {
-    buf.writeln('╟${'─' * _w}╢');
-    final icon =
-        switch (d) { 'left' => '←', 'right' => '→', 'top' => '↑', _ => '↓' };
-    final line = '$icon 抽屉: $d';
-    buf.writeln('║  $line${_pad(line.length, _w)}║');
   }
 
   buf.writeln('╚${'═' * _w}╝');
@@ -168,65 +151,71 @@ String _renderChat(ModuleDescriptor m) {
 
 String _renderDefault(ModuleDescriptor m) {
   final buf = StringBuffer();
+  final layout = _firstPageLayout(m);
+
   buf.writeln('╔${'═' * _w}╗');
   buf.writeln('║  📋 ${m.name}${_pad(m.name.length + 5, _w)}║');
   buf.writeln('╟${'─' * _w}╢');
 
-  // search
-  if (m.layout.search != null && m.layout.search!.enabled) {
-    final s = m.layout.search!;
+  // search (V2: 在 layout.features.search 中)
+  if (layout?.features.search != null && layout!.features.search!.enabled) {
+    final s = layout.features.search!;
     buf.writeln('║  🔍 ${s.placeholder}${'─' * max(1, _w - s.placeholder.length - 5)}║');
   }
 
-  // panels (tabs)
-  if (m.layout.panels.isNotEmpty) {
-    final tabs = m.layout.panels
-        .map((p) => p.isDefault ? '[${p.label}]' : ' ${p.label} ')
+  // tabs (V2: 无 panels，从 slots 的 key 推断)
+  if (layout != null && layout.slots.isNotEmpty) {
+    final slotKeys = layout.slots.keys.toList();
+    final tabs = slotKeys
+        .map((k) => ' $k ')
         .join(' │ ');
     buf.writeln('║  $tabs${_pad(tabs.length, _w)}║');
     buf.writeln('╟${'─' * _w}╢');
   }
 
-  // grid or single-column
-  final grid = m.layout.grid;
-  if (grid != null) {
+  // grid or single-column (V2: grid 信息在 layout.preset 中)
+  final columns = layout?.preset.columns;
+  if (columns != null && columns > 1) {
+    final gap = (layout!.preset.gap ?? 2.0).round();
     final cellW =
-        max(10, (_w - 4 - (grid.columns - 1) * grid.gap) ~/ grid.columns);
-    final top = List.filled(grid.columns, '┌${'─' * (cellW - 2)}┐').join('   ');
+        max(10, (_w - 4 - (columns - 1) * gap) ~/ columns);
+    final top = List.filled(columns, '┌${'─' * (cellW - 2)}┐').join('   ');
     buf.writeln('║  $top${_pad(top.length, _w)}║');
-    final bindings = m.dataBindings;
-    for (var i = 0; i < min(bindings.length, grid.columns * 2); i++) {
-      if (i > 0 && i % grid.columns == 0) {
-        final sep =
-            List.filled(grid.columns, '├${'─' * (cellW - 2)}┤').join('   ');
-        buf.writeln('║  $sep${_pad(sep.length, _w)}║');
+    // V2: 从页面 slots 遍历显示
+    var row = 0;
+    for (final page in m.pages) {
+      final slots = page.layout?.slots;
+      if (slots == null) continue;
+      for (final entry in slots.entries) {
+        if (row > 0 && row % columns == 0) {
+          final sep =
+              List.filled(columns, '├${'─' * (cellW - 2)}┤').join('   ');
+          buf.writeln('║  $sep${_pad(sep.length, _w)}║');
+        }
+        final comp = entry.value.component;
+        final label = comp != null ? comp.type : entry.key;
+        buf.write('║  │ 📄 ${label}${_pad(label.length + 3, cellW - 1)}│');
+        if ((row + 1) % columns == 0) buf.writeln('  ║');
+        row++;
       }
-      final d = bindings[min(i, bindings.length - 1)];
-      final icon = switch (d.display) {
-        'table' => '📊',
-        'chart' => '📈',
-        'card' => '🃏',
-        _ => '📄'
-      };
-      buf.write('║  │ $icon ${d.dataType}${_pad(d.dataType.length + 3, cellW - 1)}│');
-      if ((i + 1) % grid.columns == 0) buf.writeln('  ║');
     }
-    if (grid.columns > 1) {
+    if (columns > 1) {
       final bot =
-          List.filled(grid.columns, '└${'─' * (cellW - 2)}┘').join('   ');
+          List.filled(columns, '└${'─' * (cellW - 2)}┘').join('   ');
       buf.writeln('║  $bot${_pad(bot.length, _w)}║');
     }
   } else {
-    for (final d in m.dataBindings) {
-      final icon = switch (d.display) {
-        'table' => '📊',
-        'chart' => '📈',
-        'card' => '🃏',
-        _ => '📄'
-      };
-      final extra = d.filter ? ' (可筛选)' : '';
-      buf.writeln(
-          '║  $icon ${d.dataType} (${d.display}$extra)${_pad(d.dataType.length + d.display.length + extra.length + 6, _w)}║');
+    // 无 grid 时显示页面结构
+    for (final page in m.pages) {
+      final slots = page.layout?.slots;
+      if (slots != null) {
+        for (final entry in slots.entries) {
+          final comp = entry.value.component;
+          final label = comp != null ? '${comp.type}' : entry.key;
+          buf.writeln(
+              '║  📄 $label (${entry.key})${_pad(label.length + entry.key.length + 6, _w)}║');
+        }
+      }
     }
   }
 
@@ -241,7 +230,13 @@ String _renderDefault(ModuleDescriptor m) {
     if (a.creatable) tools.add('➕ 新增');
     if (a.editable) tools.add('✏ 编辑');
     if (a.deletable != null && a.deletable!.enabled) {
-      tools.add('🗑 删除${a.deletable!.confirm ? "(确认)" : ""}');
+      final d = a.deletable!;
+      if (d.confirmEnabled) {
+        final msg = d.confirmMessage;
+        tools.add(msg != null ? '🗑 删除(确认: "$msg")' : '🗑 删除(确认)');
+      } else {
+        tools.add('🗑 删除');
+      }
     }
     if (a.exportable.isNotEmpty) tools.add('📤 ${a.exportable.join("/")}');
     if (a.sortable.isNotEmpty) tools.add('↕ 排序: ${a.sortable.join(",")}');
@@ -254,13 +249,15 @@ String _renderDefault(ModuleDescriptor m) {
     buf.writeln('║  $toolLine${_pad(toolLine.length, _w)}║');
   }
 
-  // drawers
-  for (final d in m.layout.drawers) {
-    buf.writeln('╟${'─' * _w}╢');
-    final icon =
-        switch (d) { 'left' => '←', 'right' => '→', 'top' => '↑', _ => '↓' };
-    final line = '$icon 抽屉: $d';
-    buf.writeln('║  $line${_pad(line.length, _w)}║');
+  // drawers (V2: 在 layout.features.drawers 中)
+  if (layout != null && layout.features.drawers.isNotEmpty) {
+    for (final d in layout.features.drawers) {
+      buf.writeln('╟${'─' * _w}╢');
+      final icon =
+          switch (d) { 'left' => '←', 'right' => '→', 'top' => '↑', _ => '↓' };
+      final line = '$icon 抽屉: $d';
+      buf.writeln('║  $line${_pad(line.length, _w)}║');
+    }
   }
 
   buf.writeln('╚${'═' * _w}╝');
@@ -271,25 +268,20 @@ String _renderDefault(ModuleDescriptor m) {
 
 String _renderSpreadsheet(ModuleDescriptor m) {
   final buf = StringBuffer();
-  final ss = m.spreadsheet!;
   buf.writeln('╔${'═' * _w}╗');
   buf.writeln('║  📊 ${m.name}${_pad(m.name.length + 5, _w)}║');
   buf.writeln('╟${'─' * _w}╢');
-  final cols = min(ss.columns, 8);
+  const cols = 5;
   final header = List.generate(cols, (i) => ' ${_colName(i)} ').join('│');
   buf.writeln('║  │$header│${_pad(header.length + 4, _w)}║');
   final sep = List.generate(cols, (_) => '───').join('│');
   buf.writeln('║  │$sep│${_pad(sep.length + 4, _w)}║');
-  for (var r = 1; r <= min(ss.rows, 5); r++) {
+  for (var r = 1; r <= 5; r++) {
     final row = List.generate(cols, (_) => '   ').join('│');
     buf.writeln('║  │$row│${_pad(row.length + 4, _w)}║');
   }
   buf.writeln('╟${'─' * _w}╢');
-  final caps = <String>['📋 ${ss.columns}×${ss.rows}'];
-  if (ss.formulas) caps.add('fx 公式');
-  if (ss.charts) caps.add('📈 图表');
-  if (ss.sheets) caps.add('📑 多Sheet');
-  if (ss.conditionalFormatting) caps.add('🎨 条件格式');
+  final caps = <String>['📋 ${cols}×5', 'fx 公式', '📈 图表', '📑 多Sheet', '🎨 条件格式'];
   final capLine = caps.join(' │ ');
   buf.writeln('║  $capLine${_pad(capLine.length, _w)}║');
   buf.writeln('╚${'═' * _w}╝');
@@ -305,7 +297,6 @@ String _colName(int i) {
 
 String _renderDocument(ModuleDescriptor m) {
   final buf = StringBuffer();
-  final doc = m.document!;
   buf.writeln('╔${'═' * _w}╗');
   buf.writeln('║  📝 ${m.name}${_pad(m.name.length + 5, _w)}║');
   buf.writeln('╟${'─' * _w}╢');
@@ -318,23 +309,13 @@ String _renderDocument(ModuleDescriptor m) {
   buf.writeln(
       '║  │ adipiscing elit. Sed do eiusmod tempor.${_pad(45, _w - 1)}│║');
   buf.writeln('║  │${'─' * (_w - 3)}│║');
-  if (doc.trackChanges) {
-    buf.writeln(
-        '║  │ ─ 修订: 删除旧表述 → 新增表述${_pad(28, _w - 1)}│║');
-  }
-  if (doc.comments) {
-    buf.writeln(
-        '║  │ 💬 批注: [评审人] 需补充引用${_pad(27, _w - 1)}│║');
-  }
+  buf.writeln(
+      '║  │ ─ 修订: 删除旧表述 → 新增表述${_pad(28, _w - 1)}│║');
+  buf.writeln(
+      '║  │ 💬 批注: [评审人] 需补充引用${_pad(27, _w - 1)}│║');
   buf.writeln('║  └${'─' * (_w - 5)}─┘║');
   buf.writeln('╟${'─' * _w}╢');
-  final caps = <String>[];
-  if (doc.trackChanges) caps.add('📝 修订');
-  if (doc.comments) caps.add('💬 批注');
-  if (doc.tableOfContents) caps.add('📑 目录');
-  if (doc.footnotes) caps.add('¹ 脚注');
-  if (doc.headersFooters) caps.add('页眉页脚');
-  caps.add('📤 ${doc.exportFormats.join("/")}');
+  final caps = <String>['📝 修订', '💬 批注', '📑 目录', '¹ 脚注', '页眉页脚', '📤 pdf/docx'];
   final capLine = caps.join(' │ ');
   buf.writeln('║  $capLine${_pad(capLine.length, _w)}║');
   buf.writeln('╚${'═' * _w}╝');
@@ -345,7 +326,6 @@ String _renderDocument(ModuleDescriptor m) {
 
 String _renderPresentation(ModuleDescriptor m) {
   final buf = StringBuffer();
-  final ppt = m.presentation!;
   buf.writeln('╔${'═' * _w}╗');
   buf.writeln('║  🎬 ${m.name}${_pad(m.name.length + 5, _w)}║');
   buf.writeln('╟${'─' * _w}╢');
@@ -360,13 +340,7 @@ String _renderPresentation(ModuleDescriptor m) {
   buf.writeln(
       '║  └──────────┘ └──────────┘ └──────────┘${_pad(46, _w)}║');
   buf.writeln('╟${'─' * _w}╢');
-  final caps = <String>[];
-  if (ppt.transitions) caps.add('🎬 切换动画');
-  if (ppt.animations) caps.add('✨ 元素动画');
-  if (ppt.speakerNotes) caps.add('📝 备注');
-  if (ppt.presenterView) caps.add('🖥 双屏');
-  if (ppt.slideMaster) caps.add('📐 母版');
-  caps.add('📤 ${ppt.exportFormats.join("/")}');
+  final caps = <String>['🎬 切换动画', '✨ 元素动画', '📝 备注', '🖥 双屏', '📐 母版', '📤 pdf/pptx'];
   final capLine = caps.join(' │ ');
   buf.writeln('║  $capLine${_pad(capLine.length, _w)}║');
   buf.writeln('╚${'═' * _w}╝');

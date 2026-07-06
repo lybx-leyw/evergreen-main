@@ -8,6 +8,8 @@
 |------|------|------|
 | RendererProviders | `renderer_providers.dart` | 全局 Riverpod 提供者（主题、模块、断点、数据） |
 | ThemeProvider | `theme_provider.dart` | ThemeDescriptor → Material ThemeData + 组件 Token |
+| RenderTokens | `render_tokens.dart` | 共享渲染常量（颜色/间距/尺寸/字体，Dart + CSS 双格式） |
+| PluginRenderer | `plugin_renderer.dart` | 一键渲染入口：manifest → Widget 或 HTML 字符串 |
 
 ## 布局工具
 
@@ -36,19 +38,33 @@
 | 组件 | 文件 | 说明 |
 |------|------|------|
 | ModuleDispatch | `module_dispatch.dart` | UI 范式调度器（switch on ui field） |
+| CompositeView | `composite_view.dart` | 多页 Tab + SlotDispatch 复合视图 |
 | EvergreenModulePage | `module_page.dart` | 完整模块页面入口 |
 
-## 7 个范式视图
+## 10 个范式视图
 
 | 组件 | 文件 | 说明 |
 |------|------|------|
-| DefaultView | `default_view.dart` | 通用列表/表格/卡片视图 |
+| DefaultView | `default_view.dart` | 通用列表/表格/卡片视图（兜底） |
 | ChatView | `chat_view.dart` | 对话界面 |
 | SpreadsheetView | `spreadsheet_view.dart` | 电子表格界面 |
 | DocumentView | `document_view.dart` | 文档编辑器 |
 | PresentationView | `presentation_view.dart` | 演示文稿 |
 | DashboardView | `dashboard_view.dart` | 仪表盘 |
 | EditorView | `editor_view.dart` | 代码/文本编辑器 |
+| SettingsView | `settings_view.dart` | 设置页 |
+
+## 页面视图
+
+| 组件 | 文件 | 说明 |
+|------|------|------|
+| MarketView | `market_view.dart` | 插件市场 |
+| MyPluginsView | `my_plugins_view.dart` | 我的插件 |
+| PluginDetailView | `plugin_detail_view.dart` | 插件详情 |
+| PermissionManagementView | `permission_management_view.dart` | 权限管理 |
+| SkillManagementView | `skill_management_view.dart` | 技能管理 |
+| GlobalMemoryView | `global_memory_view.dart` | 全局记忆 |
+| FileViewer | `file_viewer.dart` | 文件查看器 |
 
 ## 表单视图
 
