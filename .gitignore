@@ -146,6 +146,12 @@ evg-base/lib/core/example/plugins/*/*/__pycache__/
 
 # evg-base — 运行时 debug 文件（含绝对路径，严禁提交）
 **/._debug.txt
+evg-base/analyze_*.txt
+evg-base/*_output.txt
+evg-base/tool/
+
+# evg-base — 运行时端口文件（App 启动时自动写入，严禁提交）
+evg-base/.*_port
 
 # evg-base/lib/renderer/
 evg-base/lib/renderer/docs/output/
