@@ -25,6 +25,7 @@ import 'package:evergreen_base/core/module/module_registry.dart';
 import 'package:evergreen_base/core/module/module_loader.dart';
 import 'package:evergreen_base/core/module/module_http_server.dart';
 import 'package:evergreen_base/core/data/orchestrator.dart';
+import 'package:evergreen_base/core/data/type.dart';
 import 'package:evergreen_base/core/data/data_http_server.dart';
 import 'package:evergreen_base/core/theme/theme_loader.dart';
 import 'package:evergreen_base/core/theme/theme_store.dart';
@@ -91,6 +92,99 @@ final textModeServerPorts = <String, int>{};
 
 /// 扫描 plugins/ 下所有 module/manifest.json，提取 schemaVersion="2.0" 的原始 JSON。
 /// 结果存入 [out] map，key 为模块 id。
+/// 扫描 data 插件 manifest.json，注册 DataType（CLI fetcher）。
+/// 在模块加载前调用，避免组件渲染时数据源尚未注册的时序问题。
+void _scanAndRegisterDataSources(String pluginsDir, DataOrchestrator orch) {
+  final dir = Directory(pluginsDir);
+  if (!dir.existsSync()) return;
+
+  for (final entity in dir.listSync()) {
+    if (entity is! Directory) continue;
+    final manifestFile = File(p.join(entity.path, 'data', 'manifest.json'));
+    if (!manifestFile.existsSync()) continue;
+
+    try {
+      final json = jsonDecode(manifestFile.readAsStringSync()) as Map<String, dynamic>;
+      if (json['type'] != 'data-source') continue;
+
+      final script = json['script'] as String?;
+      final dataTypes = (json['dataTypes'] as List<dynamic>?) ?? [];
+      if (script == null || dataTypes.isEmpty) continue;
+
+      // script 路径相对于 manifest.json 所在目录（data/）
+      final dataDir = p.join(entity.path, 'data');
+      final exePath = p.join(dataDir, script);
+      final exeExists = File(exePath).existsSync();
+      if (!exeExists) {
+        stderr.writeln('[main] data script 不存在: $exePath (仍注册，运行时可能失败)');
+      }
+
+      for (final dt in dataTypes) {
+        if (dt is! Map<String, dynamic>) continue;
+        final name = dt['name'] as String? ?? '';
+        final typeArg = dt['typeArg'] as String? ?? name;
+        final ttlStr = dt['ttl'] as String? ?? '5m';
+        final persistentKey = dt['persistentKey'] as String?;
+        if (name.isEmpty) continue;
+
+        var ttl = const Duration(minutes: 5);
+        final ttlMatch = RegExp(r'^(\d+)(s|m|h)$').firstMatch(ttlStr);
+        if (ttlMatch != null) {
+          final v = int.tryParse(ttlMatch.group(1)!) ?? 5;
+          switch (ttlMatch.group(2)) {
+            case 's': ttl = Duration(seconds: v);
+            case 'h': ttl = Duration(hours: v);
+            default: ttl = Duration(minutes: v);
+          }
+        }
+
+        final type = DataType<Map<String, dynamic>>(
+          name: name,
+          category: dt['category'] as String? ?? '',
+          displayName: dt['displayName'] as String? ?? name,
+          ttl: ttl,
+          persistentKey: persistentKey,
+        );
+
+        // CLI fetcher: Process.run → stdout JSON
+        orch.register(type, () async {
+          ProcessResult result;
+          try {
+            result = await Process.run(
+              exePath,
+              ['--type', typeArg, '--project-root', _projectRoot],
+              workingDirectory: dataDir,
+            );
+          } on ProcessException catch (e) {
+            throw Exception('无法启动数据脚本 "$script": ${e.message}');
+          }
+          if (result.exitCode != 0) {
+            final err = (result.stderr as String).trim();
+            // 如果 stdout 有 JSON 错误消息，优先使用
+            try {
+              final stdoutJson = jsonDecode(result.stdout as String) as Map<String, dynamic>;
+              if (stdoutJson.containsKey('error')) {
+                throw Exception(stdoutJson['error'] as String? ?? err);
+              }
+            } catch (_) {}
+            throw Exception(err.isNotEmpty ? err : '$script 异常退出 (code ${result.exitCode})');
+          }
+          final parsed = jsonDecode(result.stdout as String) as Map<String, dynamic>;
+          // 防御：脚本 exit code 0 但返回了错误 JSON
+          if (parsed.containsKey('error')) {
+            throw Exception(parsed['error'] as String? ?? '$script 返回了错误');
+          }
+          return parsed;
+        });
+
+        stderr.writeln('[main] data source registered: $name → $script --type $typeArg');
+      }
+    } catch (e) {
+      stderr.writeln('[main] 数据源扫描失败 ${entity.path}: $e');
+    }
+  }
+}
+
 void _scanV2Manifests(String pluginsDir, Map<String, Map<String, dynamic>> out) {
   final dir = Directory(pluginsDir);
   if (!dir.existsSync()) return;
@@ -290,6 +384,9 @@ void main() async {
   final v2Manifests = <String, Map<String, dynamic>>{};
   _scanV2Manifests(_pluginsDir, v2Manifests);
   stderr.writeln('[main] V2 清单: ${v2Manifests.keys.toList()}');
+
+  // ── 扫描数据插件 → 注册 DataType（CLI fetcher，模块加载前完成）──
+  _scanAndRegisterDataSources(_pluginsDir, orchestrator);
 
   // ── 模块注册中心（HttpServer 就绪后再启动 .exe，确保端口文件已存在） ──
   final registry = ModuleRegistry();

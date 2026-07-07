@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "2.0",
+  "renderMode": "dart",
+  "type": "module",
+  "id": "data-dashboard",
+  "name": "数据中枢",
+  "description": "数据源状态总览——连通性、新鲜度、一键拉取",
+  "icon": "storage",
+  "route": "/data-dashboard",
+  "version": "2.0.0",
+  "dependencies": [],
+  "nav": {
+    "sidebar": {
+      "section": "系统",
+      "sectionOrder": 80,
+      "order": 80,
+      "badge": false
+    }
+  },
+  "pages": [
+    {
+      "id": "main",
+      "label": "📊 数据中枢",
+      "default": true,
+      "layout": {
+        "type": "grid",
+        "preset": { "columns": 1, "gap": 0 },
+        "slots": {
+          "dashboard": {
+            "component": {
+              "type": "data-dashboard"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

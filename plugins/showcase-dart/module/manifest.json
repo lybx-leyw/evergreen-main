@@ -121,12 +121,32 @@
   ],
   "pages": [
     {
+      "id": "home",
+      "label": "🏠 主页",
+      "default": true,
+      "layout": {
+        "type": "grid",
+        "preset": { "columns": 3, "gap": 16 },
+        "slots": {
+          "nav-chat": { "component": { "type": "nav-button", "config": { "label": "💬 AI 助手", "icon": "🤖", "target": "chat_page" } } },
+          "nav-code": { "component": { "type": "nav-button", "config": { "label": "💻 编程器", "icon": "⌨️", "target": "code_page" } } },
+          "nav-dashboard": { "component": { "type": "nav-button", "config": { "label": "📊 仪表盘", "icon": "📈", "target": "dashboard_page" } } },
+          "nav-lottery": { "component": { "type": "nav-button", "config": { "label": "🎰 抽奖机", "icon": "🎯", "target": "lottery_page" } } },
+          "nav-data": { "component": { "type": "nav-button", "config": { "label": "🗄️ 数据视图", "icon": "📋", "target": "data_view_page" } } },
+          "nav-docs": { "component": { "type": "nav-button", "config": { "label": "📝 文档+表格", "icon": "📄", "target": "docs_page" } } },
+          "nav-media": { "component": { "type": "nav-button", "config": { "label": "🎬 媒体中心", "icon": "🎥", "target": "media_page" } } },
+          "nav-learn": { "component": { "type": "nav-button", "config": { "label": "📚 学习工具", "icon": "🎓", "target": "learn_page" } } },
+          "nav-planner": { "component": { "type": "nav-button", "config": { "label": "🗺️ 地图+日历", "icon": "📍", "target": "planner_page" } } }
+        }
+      }
+    },
+    {
       "id": "chat_page",
       "label": "💬 AI 助手",
       "routePath": "/showcase-dart/chat",
-      "default": true,
       "layout": {
         "slots": {
+          "toolbar": { "component": { "type": "button", "config": { "align": "left", "direction": "row", "gap": 8, "buttons": [{ "label": "🏠 返回主页", "icon": "🏠", "event": "slot:switch_page:home", "style": "tonal" }] } } },
           "center": {
             "process": {
               "exe": "module/showcase_chat.exe",
@@ -228,6 +248,7 @@
       "routePath": "/showcase-dart/code",
       "layout": {
         "slots": {
+          "toolbar": { "component": { "type": "button", "config": { "align": "left", "direction": "row", "gap": 8, "buttons": [{ "label": "🏠 返回主页", "icon": "🏠", "event": "slot:switch_page:home", "style": "tonal" }] } } },
           "left": {
             "component": {
               "config": {
@@ -307,6 +328,7 @@
           ]
         },
         "slots": {
+          "toolbar": { "component": { "type": "button", "config": { "align": "left", "direction": "row", "gap": 8, "buttons": [{ "label": "🏠 返回主页", "icon": "🏠", "event": "slot:switch_page:home", "style": "tonal" }] } } },
           "bottom-left": {
             "component": {
               "config": {
@@ -417,6 +439,7 @@
       "routePath": "/showcase-dart/lottery",
       "layout": {
         "slots": {
+          "toolbar": { "component": { "type": "button", "config": { "align": "left", "direction": "row", "gap": 8, "buttons": [{ "label": "🏠 返回主页", "icon": "🏠", "event": "slot:switch_page:home", "style": "tonal" }] } } },
           "left": {
             "component": {
               "config": {
@@ -551,6 +574,7 @@
           ]
         },
         "slots": {
+          "toolbar": { "component": { "type": "button", "config": { "align": "left", "direction": "row", "gap": 8, "buttons": [{ "label": "🏠 返回主页", "icon": "🏠", "event": "slot:switch_page:home", "style": "tonal" }] } } },
           "top-right": {
             "component": {
               "config": {
@@ -733,6 +757,7 @@
       "routePath": "/showcase-dart/docs",
       "layout": {
         "slots": {
+          "toolbar": { "component": { "type": "button", "config": { "align": "left", "direction": "row", "gap": 8, "buttons": [{ "label": "🏠 返回主页", "icon": "🏠", "event": "slot:switch_page:home", "style": "tonal" }] } } },
           "left": {
             "component": {
               "config": {
@@ -794,6 +819,7 @@
       "routePath": "/showcase-dart/media",
       "layout": {
         "slots": {
+          "toolbar": { "component": { "type": "button", "config": { "align": "left", "direction": "row", "gap": 8, "buttons": [{ "label": "🏠 返回主页", "icon": "🏠", "event": "slot:switch_page:home", "style": "tonal" }] } } },
           "left": {
             "component": {
               "config": {
@@ -878,6 +904,7 @@
       "routePath": "/showcase-dart/learn",
       "layout": {
         "slots": {
+          "toolbar": { "component": { "type": "button", "config": { "align": "left", "direction": "row", "gap": 8, "buttons": [{ "label": "🏠 返回主页", "icon": "🏠", "event": "slot:switch_page:home", "style": "tonal" }] } } },
           "left": {
             "component": {
               "config": {
@@ -990,6 +1017,7 @@
       "routePath": "/showcase-dart/planner",
       "layout": {
         "slots": {
+          "toolbar": { "component": { "type": "button", "config": { "align": "left", "direction": "row", "gap": 8, "buttons": [{ "label": "🏠 返回主页", "icon": "🏠", "event": "slot:switch_page:home", "style": "tonal" }] } } },
           "left": {
             "component": {
               "config": {

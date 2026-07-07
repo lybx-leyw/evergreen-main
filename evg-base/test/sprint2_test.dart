@@ -18,6 +18,7 @@ import 'package:evergreen_base/renderer/shared/market_view.dart';
 import 'package:evergreen_base/renderer/shared/plugin_detail_view.dart';
 import 'package:evergreen_base/renderer/shared/my_plugins_view.dart';
 import 'package:evergreen_base/renderer/shared/settings_view.dart';
+import 'package:evergreen_base/renderer/shared/composite_view.dart';
 import 'package:evergreen_base/renderer/shared/permission_management_view.dart';
 import 'package:evergreen_base/renderer/compositions/workspace_page.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
@@ -755,6 +756,112 @@ void main() {
       );
       await tester.pump();
       expect(find.byType(SettingsView), findsOneWidget);
+    });
+  });
+
+  group('Chrome slot / 工具栏分离', () {
+    testWidgets('chrome 内容 slot 留在内容区，无 Card 壳', (tester) async {
+      final descriptor = ModuleDescriptor(
+        id: 'test-chrome',
+        name: 'Test Chrome',
+        pages: [
+          PageDescriptor(
+            id: 'main',
+            label: 'Main',
+            layout: LayoutDescriptor(
+              type: 'grid',
+              preset: const LayoutPreset(columns: 1),
+              slots: {
+                'content': SlotDescriptor(
+                  component: ComponentDescriptor(
+                    type: 'divider',
+                    config: {'chrome': true},
+                  ),
+                ),
+              },
+            ),
+          ),
+        ],
+      );
+      final prefs = await SharedPreferences.getInstance();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+          child: MaterialApp(home: CompositeView(descriptor: descriptor)),
+        ),
+      );
+      expect(find.byType(CompositeView), findsOneWidget);
+      expect(find.textContaining('📌'), findsNothing);
+    });
+
+    testWidgets('非 chrome slot 保留 Card 壳', (tester) async {
+      final descriptor = ModuleDescriptor(
+        id: 'test-card',
+        name: 'Test Card',
+        pages: [
+          PageDescriptor(
+            id: 'main',
+            label: 'Main',
+            layout: LayoutDescriptor(
+              type: 'grid',
+              preset: const LayoutPreset(columns: 1),
+              slots: {
+                'card': SlotDescriptor(
+                  component: ComponentDescriptor(type: 'divider'),
+                ),
+              },
+            ),
+          ),
+        ],
+      );
+      final prefs = await SharedPreferences.getInstance();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+          child: MaterialApp(home: CompositeView(descriptor: descriptor)),
+        ),
+      );
+      expect(find.byType(CompositeView), findsOneWidget);
+      expect(find.textContaining('📌'), findsOneWidget);
+    });
+
+    testWidgets('align 字段 → 工具栏分离，不崩', (tester) async {
+      final descriptor = ModuleDescriptor(
+        id: 'test-toolbar',
+        name: 'Test Toolbar',
+        pages: [
+          PageDescriptor(
+            id: 'main',
+            label: 'Main',
+            layout: LayoutDescriptor(
+              type: 'grid',
+              preset: const LayoutPreset(columns: 1, gap: 8),
+              slots: {
+                'tools': SlotDescriptor(
+                  component: ComponentDescriptor(
+                    type: 'button',
+                    config: {
+                      'chrome': true,
+                      'align': 'left',
+                      'buttons': [
+                        {'label': '返回', 'icon': '🏠', 'event': 'slot:switch_page:home', 'style': 'tonal'},
+                      ],
+                    },
+                  ),
+                ),
+              },
+            ),
+          ),
+        ],
+      );
+      final prefs = await SharedPreferences.getInstance();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+          child: MaterialApp(home: CompositeView(descriptor: descriptor)),
+        ),
+      );
+      expect(find.byType(CompositeView), findsOneWidget);
     });
   });
 }

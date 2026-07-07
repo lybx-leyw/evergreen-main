@@ -1,0 +1,24 @@
+{
+  "type": "data-source",
+  "id": "courses-data",
+  "name": "课程数据源",
+  "script": "zdbk_data.exe",
+  "dataTypes": [
+    {
+      "name": "courses_list",
+      "typeArg": "courses_list",
+      "category": "课程",
+      "displayName": "课程列表",
+      "ttl": "5m",
+      "persistentKey": "courses_list"
+    },
+    {
+      "name": "courses_timetable",
+      "typeArg": "courses_timetable",
+      "category": "课程",
+      "displayName": "课表",
+      "ttl": "10m",
+      "persistentKey": "courses_timetable"
+    }
+  ]
+}

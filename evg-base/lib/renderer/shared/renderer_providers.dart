@@ -4,7 +4,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:evergreen_base/core/module/modules.dart';
-import 'package:evergreen_base/core/data/data.dart';
 import 'package:evergreen_base/core/theme/theme_descriptor.dart';
 import 'render_tokens.dart';
 
@@ -31,10 +30,7 @@ final isMobileProvider = Provider<bool>((ref) {
 
 // ═══════ 数据谱仪器 ═══════
 
-/// 数据谱仪器提供者。
-final dataOrchestratorProvider = Provider<DataOrchestrator>((ref) {
-  throw UnimplementedError('由应用层注入 DataOrchestrator 实例');
-});
+  // dataOrchestratorProvider 已迁移至 lib/providers.dart
 
 // ═══════ 主题提供者 ═══════
 

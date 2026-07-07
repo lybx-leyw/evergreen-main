@@ -1,0 +1,105 @@
+{
+  "schemaVersion": "2.0",
+  "renderMode": "dart",
+  "type": "module",
+  "id": "courses",
+  "name": "课程",
+  "description": "课程列表与周课表双视图",
+  "icon": "school",
+  "route": "/courses",
+  "version": "2.0.0",
+  "dependencies": [],
+  "nav": {
+    "sidebar": {
+      "section": "学习",
+      "sectionOrder": 10,
+      "order": 10,
+      "badge": false
+    }
+  },
+  "pages": [
+    {
+      "id": "list_page",
+      "label": "📋 课程列表",
+      "default": true,
+      "layout": {
+        "type": "grid",
+        "preset": { "columns": 1, "gap": 0 },
+        "slots": {
+          "toolbar": {
+            "component": {
+              "type": "button",
+              "config": {
+                "chrome": true,
+                "align": "left",
+                "buttons": [
+                  { "label": "课表视图", "icon": "📅", "event": "slot:switch_page:timetable_page", "style": "tonal" }
+                ]
+              }
+            }
+          },
+          "list": {
+            "component": {
+              "type": "data-table",
+              "config": {
+                "chrome": true,
+                "display": "table",
+                "filter": true,
+                "sortable": true,
+                "title": "课程列表",
+                "dataSource": {
+                  "name": "courses_list",
+                  "endpoint": "/api/courses/list",
+                  "dataPath": "data/courses",
+                  "refreshInterval": 300
+                },
+                "columns": [
+                  { "key": "name", "label": "课程名" },
+                  { "key": "teacherName", "label": "教师" },
+                  { "key": "courseTypeName", "label": "类型" },
+                  { "key": "statusLabel", "label": "状态" }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "timetable_page",
+      "label": "📅 课表",
+      "layout": {
+        "type": "grid",
+        "preset": { "columns": 1, "gap": 0 },
+        "slots": {
+          "toolbar": {
+            "component": {
+              "type": "button",
+              "config": {
+                "chrome": true,
+                "align": "left",
+                "buttons": [
+                  { "label": "📋 列表视图", "icon": "📋", "event": "slot:switch_page:list_page", "style": "tonal" }
+                ]
+              }
+            }
+          },
+          "timetable": {
+            "component": {
+              "type": "timetable",
+              "config": {
+                "chrome": true,
+                "dataSource": {
+                  "name": "courses_timetable",
+                  "endpoint": "/api/courses/timetable",
+                  "dataPath": "data/sessions",
+                  "refreshInterval": 600
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

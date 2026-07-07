@@ -22,19 +22,25 @@
 /// - 离开模块 → [ProcessManager.dispose]
 /// - 动作按钮 → [ProcessManager.runAction]
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path/path.dart' as p;
 import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'package:evergreen_base/core/module/process_manager.dart';
 import 'package:evergreen_base/core/module/page_event_bus.dart';
 import 'package:evergreen_base/core/module/expose_state_writer.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
 import 'package:evergreen_base/core/log.dart';
+import 'package:evergreen_base/providers.dart';
 import '../widgets/data_table.dart';
 import '../widgets/map_panel.dart';
 import '../widgets/video_player.dart';
 import '../widgets/lottery_wheel.dart';
 import '../widgets/calendar_widget.dart';
+import '../widgets/timetable_grid.dart';
 import 'default_view.dart';
 import 'editor_view.dart';
 import 'dashboard_view.dart';
@@ -44,6 +50,7 @@ import 'document_view.dart';
 import 'presentation_view.dart';
 import 'chat_controller_view.dart';
 import 'settings_view.dart';
+import 'data_dashboard_view.dart';
 import 'slot_widgets.dart';
 
 /// 复合视图——根据 [ModuleDescriptor.pages] 渲染多页面 Tab 界面。
@@ -160,13 +167,22 @@ class _CompositeViewState extends State<CompositeView>
       final bus = PageEventBus(pageId: pageId);
       _pageBuses[pageId] = bus;
 
-      // 订阅抽屉事件：任何 slot 可 emit("slot:toggle:<key>") 来控制其他 slot
+      // 订阅事件总线
       _busSubscriptions.add(bus.all.listen((evt) {
+        // slot:toggle:<key> — 折叠/展开 slot
         if (evt.event.startsWith('slot:toggle:')) {
           final targetSlot = evt.event.substring('slot:toggle:'.length);
           if (targetSlot.isNotEmpty) {
             debugPrint('[CompositeView:$moduleId] 抽屉事件: ${evt.sourceSlot} → toggle $targetSlot');
             _toggleSlot(pageId, targetSlot);
+          }
+        }
+        // slot:switch_page:<pageId> — 切换到指定页面（与点击 Tab 效果相同）
+        if (evt.event.startsWith('slot:switch_page:')) {
+          final targetPage = evt.event.substring('slot:switch_page:'.length);
+          if (targetPage.isNotEmpty) {
+            debugPrint('[CompositeView:$moduleId] 页面切换: ${evt.sourceSlot} → $targetPage');
+            navigateToPage(targetPage);
           }
         }
       }));
@@ -376,7 +392,89 @@ class _CompositeViewState extends State<CompositeView>
   }
 
   Widget _buildPageContent(PageDescriptor page) {
-    return _buildLayout(page);
+    final allSlots = page.layout.slots;
+    final pageId = page.id;
+    final bus = _pageBuses[pageId];
+
+    // 分离工具栏 slot（有 align 字段）和内容 slot
+    final toolbarSlots = <MapEntry<String, SlotDescriptor>>[];
+    final contentSlots = <MapEntry<String, SlotDescriptor>>[];
+    for (final e in allSlots.entries) {
+      if (e.value.component != null &&
+          e.value.component!.config['align'] != null) {
+        toolbarSlots.add(e);
+      } else {
+        contentSlots.add(e);
+      }
+    }
+
+    // 工具栏
+    final toolbar = toolbarSlots.isNotEmpty
+        ? _buildToolbar(toolbarSlots, pageId, bus)
+        : null;
+
+    // 内容区（用过滤后的 contentSlots）
+    final content = _buildLayoutFromEntries(contentSlots, page.layout.type, page.layout.preset, pageId, bus);
+
+    if (toolbar == null) return content;
+    return Column(
+      children: [
+        toolbar,
+        const Divider(height: 1),
+        Expanded(child: content),
+      ],
+    );
+  }
+
+  /// 工具栏——直接渲染 chrome slot 组件，无 AnimatedSize / Card 包装。
+  Widget _buildToolbar(
+    List<MapEntry<String, SlotDescriptor>> chromeSlots,
+    String pageId,
+    PageEventBus? bus,
+  ) {
+    final lefts = <Widget>[];
+    final rights = <Widget>[];
+    for (final e in chromeSlots) {
+      final align = e.value.component?.config['align'] as String? ?? 'left';
+      final w = SlotDispatch(
+        slotKey: e.key,
+        config: e.value.component!,
+        moduleDescriptor: widget.descriptor,
+        pageEventBus: bus,
+        chrome: true,  // 工具栏 slot：跳过 Card 壳，直接渲染组件
+      );
+      if (align == 'right') { rights.add(w); } else { lefts.add(w); }
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          if (lefts.isNotEmpty) ...lefts,
+          if (lefts.isNotEmpty && rights.isNotEmpty) const Spacer(),
+          if (rights.isNotEmpty) ...rights,
+        ],
+      ),
+    );
+  }
+
+  /// 根据 [LayoutDescriptor.type] 选择布局范式（与 HTML 引擎对齐）。
+  Widget _buildLayoutFromEntries(
+    List<MapEntry<String, SlotDescriptor>> entries,
+    String type,
+    LayoutPreset preset,
+    String pageId,
+    PageEventBus? bus,
+  ) {
+    if (entries.isEmpty) return const Center(child: Text('无内容'));
+    return switch (type) {
+      'grid'       => _buildGridLayout(entries, preset, pageId, bus),
+      'flex'       => _buildFlexLayout(entries, preset, pageId, bus),
+      'fullscreen' => _buildFullscreenLayout(entries, pageId, bus),
+      'absolute'   => _buildAbsoluteLayout(entries, preset, pageId, bus),
+      'dock'       => _buildDockLayout(entries, preset, pageId, bus),
+      _            => _buildFlexLayout(entries, const LayoutPreset(direction: 'column'), pageId, bus),
+    };
   }
 
   // ═══════ Slot 可见性 ═══════
@@ -396,51 +494,31 @@ class _CompositeViewState extends State<CompositeView>
   }
 
   bool _isSlotVisible(String pageId, String slotKey, SlotDescriptor slot) {
-    // manifest 中 collapsed: true 的 slot 默认隐藏
     final hidden = _hiddenSlots[pageId]?.contains(slotKey) ?? false;
     return !hidden;
-  }
-
-  /// 根据 [LayoutDescriptor.type] 选择布局范式（与 HTML 引擎对齐）。
-  Widget _buildLayout(PageDescriptor page) {
-    final slots = page.layout.slots;
-    if (slots.isEmpty) return const Center(child: Text('无内容'));
-
-    final pageId = page.id;
-    final bus = _pageBuses[pageId];
-    final type = page.layout.type;
-    final preset = page.layout.preset;
-    final entries = slots.entries
-        .where((e) => e.value.component != null)
-        .toList();
-
-    if (entries.isEmpty) return const Center(child: Text('无组件'));
-
-    return switch (type) {
-      'grid'       => _buildGridLayout(entries, preset, pageId, bus),
-      'flex'       => _buildFlexLayout(entries, preset, pageId, bus),
-      'fullscreen' => _buildFullscreenLayout(entries, pageId, bus),
-      'absolute'   => _buildAbsoluteLayout(entries, preset, pageId, bus),
-      'dock'       => _buildDockLayout(entries, preset, pageId, bus),
-      _            => _buildFlexLayout(entries, const LayoutPreset(direction: 'column'), pageId, bus),
-    };
   }
 
   /// 渲染单个 slot 组件（支持折叠/展开 + 动画）。折叠时保留头栏。
   Widget _slotWidget(MapEntry<String, SlotDescriptor> entry, PageEventBus? bus, String pageId) {
     final visible = _isSlotVisible(pageId, entry.key, entry.value);
+    final comp = entry.value.component!;
+    // config.collapsible: true（默认）→ 允许折叠/展开，false → 无 tap
+    final collapsible = (comp.config['collapsible'] as bool?) ?? true;
+    final dispatch = SlotDispatch(
+      slotKey: entry.key,
+      config: comp,
+      moduleDescriptor: widget.descriptor,
+      pageEventBus: bus,
+      onToggle: collapsible ? () => _toggleSlot(pageId, entry.key) : null,
+      collapsed: !visible,
+    );
+    // 仅可折叠 slot 使用 AnimatedSize；不可折叠 slot 直接渲染以避免布局冲突
+    if (!collapsible) return dispatch;
     return AnimatedSize(
       duration: const Duration(milliseconds: 250),
       curve: Curves.easeInOut,
       alignment: Alignment.topCenter,
-      child: SlotDispatch(
-        slotKey: entry.key,
-        config: entry.value.component!,
-        moduleDescriptor: widget.descriptor,
-        pageEventBus: bus,
-        onToggle: () => _toggleSlot(pageId, entry.key),
-        collapsed: !visible,
-      ),
+      child: dispatch,
     );
   }
 
@@ -473,14 +551,24 @@ class _CompositeViewState extends State<CompositeView>
               child: Padding(
                 padding: EdgeInsets.only(bottom: gap),
                 child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: List.generate(columns, (i) {
                     if (i >= row.length) return SizedBox(width: colWidth);
+                    final entry = row[i];
+                    final isChrome = entry.value.component?.config['chrome'] == true;
+                    final child = isChrome
+                        ? SlotDispatch(
+                            slotKey: entry.key,
+                            config: entry.value.component!,
+                            moduleDescriptor: widget.descriptor,
+                            pageEventBus: bus,
+                          )
+                        : _slotWidget(entry, bus, pageId);
                     return SizedBox(
                       width: colWidth,
                       child: Padding(
                         padding: EdgeInsets.only(right: i < columns - 1 ? gap : 0),
-                        child: _slotWidget(row[i], bus, pageId),
+                        child: child,
                       ),
                     );
                   }),
@@ -526,10 +614,28 @@ class _CompositeViewState extends State<CompositeView>
     return Padding(
       padding: EdgeInsets.all(gap),
       child: direction == 'row'
-          ? Row(
-              crossAxisAlignment: align,
-              mainAxisAlignment: justify,
-              children: children,
+          ? LayoutBuilder(
+              builder: (context, constraints) {
+                final h = constraints.maxHeight.isFinite
+                    ? constraints.maxHeight
+                    : 400.0;
+                return Row(
+                  crossAxisAlignment: align,
+                  mainAxisAlignment: justify,
+                  children: entries.map((e) {
+                    final isChrome = e.value.component?.config['chrome'] == true;
+                    final child = isChrome
+                        ? SlotDispatch(
+                            slotKey: e.key,
+                            config: e.value.component!,
+                            moduleDescriptor: widget.descriptor,
+                            pageEventBus: bus,
+                          )
+                        : _slotWidget(e, bus, pageId);
+                    return SizedBox(height: h, child: child);
+                  }).toList(),
+                );
+              },
             )
           : Column(
               crossAxisAlignment: align,
@@ -742,6 +848,9 @@ class SlotDispatch extends StatelessWidget {
   /// 当前是否处于折叠状态（仅头栏可见）。
   final bool collapsed;
 
+  /// 是否为工具栏 chrome slot——跳过 Card 壳 + AnimatedSize，直接渲染内容。
+  final bool chrome;
+
   const SlotDispatch({
     super.key,
     required this.slotKey,
@@ -750,6 +859,7 @@ class SlotDispatch extends StatelessWidget {
     this.pageEventBus,
     this.onToggle,
     this.collapsed = false,
+    this.chrome = false,
   });
 
   @override
@@ -776,6 +886,7 @@ class SlotDispatch extends StatelessWidget {
                                        form: FormDescriptor.fromJson(config.config),
                                      ),
         'settings'                => SettingsView(descriptor: moduleDescriptor),
+        'data-dashboard'          => DataDashboardView(descriptor: moduleDescriptor),
         'code-editor'             => EditorView(descriptor: moduleDescriptor, component: config),
         'prompt-builder'          => _UnknownSlot(type: config.type, config: config.config, group: '智能交互'),
 
@@ -798,6 +909,17 @@ class SlotDispatch extends StatelessWidget {
         'audio-player'            => _UnknownSlot(type: config.type, config: config.config, group: '文档与媒体'),
         'image-gallery'           => _UnknownSlot(type: config.type, config: config.config, group: '文档与媒体'),
         'presentation'            => PresentationView(descriptor: moduleDescriptor, component: config),
+        'nav-button'              => _NavButton(
+                                       label: config.config['label'] as String? ?? '',
+                                       icon: config.config['icon'] as String? ?? '',
+                                       target: config.config['target'] as String? ?? '',
+                                       pageEventBus: pageEventBus,
+                                     ),
+        'button'                  => _ButtonBar(
+                                       config: config.config,
+                                       pageEventBus: pageEventBus,
+                                     ),
+        'timetable'               => _TimetableSlot(config: config),
         'markdown'                => _MarkdownSlot(markdown: _extractMarkdownContent(config.config)),
 
         // ═══ 创作与工具 (6) ═══
@@ -848,6 +970,8 @@ class SlotDispatch extends StatelessWidget {
                                            : '未知',
                                      ),
       };
+    // chrome slot：跳过 Card 壳，直接渲染内容（高度约束由布局层提供）
+    if (chrome || config.config['chrome'] == true) return content;
     return _buildSlotCard(context, slotKey, content);
   }
 
@@ -867,24 +991,19 @@ class SlotDispatch extends StatelessWidget {
     final isCompact = config.type == 'lottery-wheel' ||
         config.type == 'calendar';
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 2),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surface,
+    return Card(
+      elevation: 1,
+      shadowColor: Colors.black.withValues(alpha: isDark ? 0.12 : 0.04),
+      surfaceTintColor: theme.colorScheme.surface,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(
+        side: BorderSide(
           color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
           width: 1,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.12 : 0.04),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
       ),
       clipBehavior: Clip.antiAlias,
+      margin: const EdgeInsets.only(bottom: 2),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -936,7 +1055,8 @@ class SlotDispatch extends StatelessWidget {
           ),
           // 对齐 HTML .evg-slot-body — 折叠时隐藏
           if (!collapsed)
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: content,
             ),
         ],
@@ -1105,21 +1225,139 @@ class _DividerSlot extends StatelessWidget {
 }
 
 /// 数据表格 slot——委托 [DataTableWidget] 渲染。
-class _DataTableSlot extends StatelessWidget {
+class _DataTableSlot extends ConsumerStatefulWidget {
   final ComponentDescriptor config;
   const _DataTableSlot({required this.config});
 
   @override
+  ConsumerState<_DataTableSlot> createState() => _DataTableSlotState();
+}
+
+class _DataTableSlotState extends ConsumerState<_DataTableSlot> {
+  List<Map<String, dynamic>> _rows = [];
+  bool _loading = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final ds = widget.config.config['dataSource'] as Map<String, dynamic>?;
+    if (ds == null) {
+      _rows = (widget.config.config['rows'] as List<dynamic>?)
+              ?.map((e) => Map<String, dynamic>.from(e as Map))
+              .toList() ?? [];
+      return;
+    }
+    setState(() => _loading = true);
+    // 重试：数据源可能尚未注册，最多等 10 秒
+    for (var attempt = 0; attempt < 20; attempt++) {
+      try {
+        final ports = ref.read(modulePortsProvider);
+        final dataPort = ports['Data'];
+        final data = await _fetchFromData(ds, dataPort: dataPort);
+        final dp = ds['dataPath'] as String? ?? 'data';
+        final list = _extractList(data, dp);
+        if (list != null) {
+          _rows = list;
+          _error = null;
+          break;
+        }
+        _error = '数据格式不匹配: 期望 "$dp" 为数组';
+        break;
+      } catch (e) {
+        final msg = e.toString();
+        if (msg.contains('未注册') && attempt < 19) {
+          await Future.delayed(const Duration(milliseconds: 500));
+          continue;
+        }
+        _error = msg;
+        break;
+      }
+    }
+    if (mounted) setState(() => _loading = false);
+  }
+
+  List<Map<String, dynamic>>? _extractList(Map<String, dynamic> data, String dataPath) {
+    final parts = dataPath.split('/');
+    dynamic current = data;
+    for (final part in parts) {
+      if (current is Map<String, dynamic>) {
+        current = current[part];
+      } else {
+        return null;
+      }
+    }
+    if (current is List) {
+      return current.map((e) => Map<String, dynamic>.from(e is Map ? e : {})).toList();
+    }
+    return null;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final columns = (config.config['columns'] as List<dynamic>?)
-            ?.map((e) => e.toString())
+    final columns = (widget.config.config['columns'] as List<dynamic>?)
+            ?.map((e) {
+              if (e is Map) return (e['label'] ?? e['key']).toString();
+              return e.toString();
+            })
             .toList() ??
         ['A', 'B', 'C'];
-    final rows = (config.config['rows'] as List<dynamic>?)
-            ?.map((e) => Map<String, dynamic>.from(e as Map))
-            .toList() ??
-        [];
-    return DataTableWidget(columns: columns, sortable: columns, rows: rows);
+    final sortEnabled = widget.config.config['sortable'] == true;
+    final sortable = sortEnabled ? columns : <String>[];
+
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null) return _buildErrorView();
+
+    return DataTableWidget(columns: columns, sortable: sortable, rows: _rows);
+  }
+
+  Widget _buildErrorView() {
+    final theme = Theme.of(context);
+    final ds = widget.config.config['dataSource'] as Map<String, dynamic>?;
+    final typeName = ds?['name'] as String? ?? '未知';
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(Icons.error_outline, size: 40, color: theme.colorScheme.error.withValues(alpha: 0.7)),
+          const SizedBox(height: 12),
+          Text(
+            '数据加载失败',
+            style: theme.textTheme.titleSmall?.copyWith(color: theme.colorScheme.error),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '数据源: $typeName',
+            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _error!,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontFamily: 'monospace',
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: () {
+              setState(() { _loading = true; _error = null; });
+              _load();
+            },
+            icon: const Icon(Icons.refresh, size: 16),
+            label: const Text('重试'),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -1341,5 +1579,335 @@ class _CalendarSlotState extends State<_CalendarSlot> {
         ),
       ),
     );
+  }
+}
+
+/// 导航按钮——emit `slot:switch_page:<target>` 实现页面跳转。
+class _NavButton extends StatelessWidget {
+  final String label;
+  final String icon;
+  final String target;
+  final PageEventBus? pageEventBus;
+
+  const _NavButton({
+    required this.label,
+    required this.icon,
+    required this.target,
+    this.pageEventBus,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      elevation: 1,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () {
+          if (target.isNotEmpty && pageEventBus != null) {
+            pageEventBus!.emit('slot:switch_page:$target', sourceSlot: 'nav');
+          }
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(icon, style: const TextStyle(fontSize: 32)),
+              const SizedBox(height: 12),
+              Text(label,
+                  style: theme.textTheme.titleSmall
+                      ?.copyWith(fontWeight: FontWeight.w600),
+                  textAlign: TextAlign.center),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 按钮栏——从 config.buttons 数组渲染 Material 3 按钮，emit PageEventBus 事件。
+class _ButtonBar extends StatelessWidget {
+  final Map<String, dynamic> config;
+  final PageEventBus? pageEventBus;
+
+  const _ButtonBar({required this.config, this.pageEventBus});
+
+  @override
+  Widget build(BuildContext context) {
+    final buttons = (config['buttons'] as List<dynamic>?) ?? [];
+    if (buttons.isEmpty) return const SizedBox.shrink();
+
+    final direction = config['direction'] as String? ?? 'row';
+    final gap = (config['gap'] as num?)?.toDouble() ?? 8;
+
+    final children = <Widget>[];
+    for (final raw in buttons) {
+      if (raw is! Map) continue;
+      final btn = raw.cast<String, dynamic>();
+      final label = btn['label'] as String?;
+      final icon = btn['icon'] as String?;
+      final event = btn['event'] as String? ?? '';
+      final style = btn['style'] as String? ?? 'tonal';
+      final onPressed = (event.isNotEmpty && pageEventBus != null)
+          ? () => pageEventBus!.emit(event, sourceSlot: 'button')
+          : null;
+
+      final child = _buildButton(context, label, icon, style, onPressed);
+      if (child != null) children.add(child);
+    }
+
+    if (children.isEmpty) return const SizedBox.shrink();
+
+    if (direction == 'column') {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: _interleave(children, SizedBox(height: gap)),
+      );
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: _interleave(children, SizedBox(width: gap)),
+    );
+  }
+
+  Widget? _buildButton(BuildContext context, String? label, String? icon,
+      String style, VoidCallback? onPressed) {
+    final theme = Theme.of(context);
+
+    Widget? child;
+    switch (style) {
+      case 'filled':
+        if (icon != null && label != null) {
+          child = FilledButton.icon(onPressed: onPressed, icon: Text(icon), label: Text(label));
+        } else if (label != null) {
+          child = FilledButton(onPressed: onPressed, child: Text(label));
+        } else {
+          return null;
+        }
+      case 'outlined':
+        if (icon != null && label != null) {
+          child = OutlinedButton.icon(onPressed: onPressed, icon: Text(icon), label: Text(label));
+        } else if (label != null) {
+          child = OutlinedButton(onPressed: onPressed, child: Text(label));
+        } else {
+          return null;
+        }
+      case 'icon':
+        return IconButton(
+          onPressed: onPressed,
+          icon: Text(icon ?? ''),
+          tooltip: label,
+        );
+      case 'text':
+        child = TextButton.icon(
+          onPressed: onPressed,
+          icon: icon != null ? Text(icon) : const SizedBox.shrink(),
+          label: label != null ? Text(label) : const SizedBox.shrink(),
+        );
+      case 'tonal':
+      default:
+        if (icon != null && label != null) {
+          child = FilledButton.tonalIcon(onPressed: onPressed, icon: Text(icon), label: Text(label));
+        } else if (label != null) {
+          child = FilledButton.tonal(onPressed: onPressed, child: Text(label));
+        } else if (icon != null) {
+          child = FilledButton.tonalIcon(onPressed: onPressed, icon: Text(icon), label: const Text(''));
+        } else {
+          return null;
+        }
+    }
+    return child;
+  }
+
+  List<Widget> _interleave(List<Widget> items, Widget separator) {
+    if (items.length <= 1) return items;
+    final result = <Widget>[];
+    for (var i = 0; i < items.length; i++) {
+      if (i > 0) result.add(separator);
+      result.add(items[i]);
+    }
+    return result;
+  }
+}
+
+class _TimetableSlot extends ConsumerStatefulWidget {
+  final ComponentDescriptor config;
+  const _TimetableSlot({required this.config});
+
+  @override
+  ConsumerState<_TimetableSlot> createState() => _TimetableSlotState();
+}
+
+class _TimetableSlotState extends ConsumerState<_TimetableSlot> {
+  List<TimetableSession> _sessions = [];
+  bool _loading = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final ds = widget.config.config['dataSource'] as Map<String, dynamic>?;
+    if (ds == null) {
+      _sessions = (widget.config.config['sessions'] as List<dynamic>?)
+              ?.map((s) => TimetableSession.fromJson(s as Map<String, dynamic>))
+              .toList() ?? [];
+      return;
+    }
+    setState(() => _loading = true);
+    for (var attempt = 0; attempt < 20; attempt++) {
+      try {
+        final ports = ref.read(modulePortsProvider);
+        final dataPort = ports['Data'];
+        final data = await _fetchFromData(ds, dataPort: dataPort);
+        final dp = ds['dataPath'] as String? ?? 'data';
+        final parts = dp.split('/');
+        dynamic current = data;
+        for (final part in parts) {
+          if (current is Map<String, dynamic>) current = current[part];
+        }
+        if (current is List) {
+          _sessions = current
+              .whereType<Map<String, dynamic>>()
+              .map((e) => TimetableSession.fromJson(e))
+              .toList();
+          _error = null;
+        } else {
+          _error = '课表数据格式错误: 期望 "$dp" 为数组';
+        }
+        break;
+      } catch (e) {
+        final msg = e.toString();
+        if (msg.contains('未注册') && attempt < 19) {
+          await Future.delayed(const Duration(milliseconds: 500));
+          continue;
+        }
+        _error = msg;
+        break;
+      }
+    }
+    if (mounted) setState(() => _loading = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null) return _buildErrorView();
+    return TimetableGrid(sessions: _sessions);
+  }
+
+  Widget _buildErrorView() {
+    final theme = Theme.of(context);
+    final ds = widget.config.config['dataSource'] as Map<String, dynamic>?;
+    final typeName = ds?['name'] as String? ?? '未知';
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(Icons.error_outline, size: 40, color: theme.colorScheme.error.withValues(alpha: 0.7)),
+          const SizedBox(height: 12),
+          Text(
+            '课表数据加载失败',
+            style: theme.textTheme.titleSmall?.copyWith(color: theme.colorScheme.error),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '数据源: $typeName',
+            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _error!,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontFamily: 'monospace',
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: () {
+              setState(() { _loading = true; _error = null; });
+              _load();
+            },
+            icon: const Icon(Icons.refresh, size: 16),
+            label: const Text('重试'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 从 DataHttpServer 拉取已注册数据源。
+///
+/// [dataPort] 为 DataHttpServer 的监听端口。传入非空值时可跳过文件探测，
+/// 避免因 CWD 与项目根不一致导致的 ".data_port" 未命中问题。
+Future<Map<String, dynamic>> _fetchFromData(Map<String, dynamic> ds, {int? dataPort}) async {
+  // ds['name'] = data type name (registered in DataOrchestrator)
+  final typeName = (ds['name'] as String?) ?? (ds['endpoint'] as String?)?.split('/').last ?? 'unknown';
+
+  // 端口发现：优先使用传入的端口，其次尝试绝对路径，最后尝试相对路径
+  int? port = dataPort;
+  if (port == null || port == 0) {
+    // 尝试从项目根目录读取（与 main.dart 写入位置一致）
+    try {
+      // 从可执行文件路径向上查找 pubspec.yaml 定位项目根
+      String? projectRoot;
+      var dir = Directory(p.dirname(Platform.resolvedExecutable));
+      while (true) {
+        if (File(p.join(dir.path, 'pubspec.yaml')).existsSync()) {
+          projectRoot = dir.path;
+          break;
+        }
+        final parent = dir.parent;
+        if (parent.path == dir.path) break;
+        dir = parent;
+      }
+      if (projectRoot != null) {
+        final absPortFile = File(p.join(projectRoot, '.data_port'));
+        if (await absPortFile.exists()) {
+          port = int.tryParse((await absPortFile.readAsString()).trim());
+        }
+      }
+    } catch (_) {}
+  }
+  if (port == null || port == 0) {
+    // 最后回退：相对路径（CWD）
+    try {
+      final f = File('.data_port');
+      if (await f.exists()) {
+        port = int.tryParse((await f.readAsString()).trim());
+      }
+    } catch (_) {}
+  }
+  if (port == null || port == 0) throw Exception('数据服务未启动（找不到 .data_port）');
+
+  final url = 'http://127.0.0.1:$port/data/types/$typeName';
+  final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
+  try {
+    final req = await client.getUrl(Uri.parse(url));
+    final resp = await req.close().timeout(const Duration(seconds: 5));
+    final body = await resp.transform(utf8.decoder).join();
+    final decoded = (jsonDecode(body) as Map<String, dynamic>);
+    // 优先检查响应体中的 error 字段（DataHttpServer 现在在 502/404 时也返回 JSON 错误体）
+    if (decoded.containsKey('error')) {
+      throw Exception(decoded['error'] as String? ?? '未知数据错误');
+    }
+    if (resp.statusCode == 404) throw Exception('数据源 "$typeName" 未注册');
+    if (resp.statusCode != 200) throw Exception('HTTP ${resp.statusCode}');
+    return decoded;
+  } finally {
+    client.close();
   }
 }

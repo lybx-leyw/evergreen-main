@@ -14,6 +14,7 @@ import 'package:evergreen_base/core/agent/memory/file_memory_store.dart';
 import 'package:evergreen_base/core/agent/skill/skill.dart';
 import 'package:evergreen_base/core/agent/controller/controller.dart' show ControllerState;
 import 'package:evergreen_base/core/agent/tool.dart' show Registry;
+import 'package:evergreen_base/core/data/orchestrator.dart' show DataOrchestrator;
 
 /// 全局模块注册中心——在 main() 中创建、填充、密封后通过 ProviderScope.overrides 注入。
 final moduleRegistryProvider = Provider<ModuleRegistry>((ref) {
@@ -127,3 +128,12 @@ const essentialToolNames = <String>{
 
 /// 判断工具名是否为 Agent 基础功能所必需。
 bool isEssentialTool(String name) => essentialToolNames.contains(name);
+
+// ═══════ 数据中枢 ═══════
+
+/// 全局数据谱仪器——由 main() 注入，供渲染层查询数据源状态和拉取数据。
+final dataOrchestratorProvider = Provider<DataOrchestrator>((ref) {
+  throw UnimplementedError(
+    'dataOrchestratorProvider 未注入——请在 main() 的 ProviderScope.overrides 中提供 DataOrchestrator 实例。',
+  );
+});

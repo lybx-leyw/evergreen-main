@@ -36,17 +36,8 @@ class _HtmlRenderViewState extends ConsumerState<HtmlRenderView> {
     try {
       await _controller.initialize();
 
-      // 优先加载模块进程 HTTP 端口（如 settings.exe 独立服务）
-      final ports = ref.read(modulePortsProvider);
-      final port = ports[widget.moduleId];
-      if (port != null && port != 0) {
-        final url = 'http://127.0.0.1:$port';
-        debugPrint('[HtmlRenderView] ${widget.moduleId}: 加载进程端口 → $url');
-        await _controller.loadUrl(url);
-      } else {
-        // 无进程端口 → 从 manifest JSON 生成 HTML
-        await _controller.loadStringContent(_buildHtml());
-      }
+      // 始终从 manifest JSON 生成 HTML（与 Dart CompositeView 同源）
+      await _controller.loadStringContent(_buildHtml());
 
       if (mounted) setState(() => _loading = false);
     } catch (e) {

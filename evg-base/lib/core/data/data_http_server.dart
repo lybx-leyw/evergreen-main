@@ -179,9 +179,18 @@ class DataHttpServer {
       final dt = DataType<dynamic>(name: name, category: '');
       try {
         final data = await _orchestrator.get(dt);
-        _respond(req.response, 200, {'data': data});
+        if (data == null) {
+          // fetcher 失败（如网络错误、认证失败等）——返回错误详情
+          final status = _orchestrator.status(name);
+          final errMsg = status?.lastError ?? '数据源 "$name" 拉取失败';
+          _respond(req.response, 502, {'error': errMsg, 'name': name});
+        } else {
+          _respond(req.response, 200, {'data': data});
+        }
       } on DataTypeNotRegisteredException {
         _respond(req.response, 404, {'error': '数据类型未注册: $name'});
+      } catch (e) {
+        _respond(req.response, 500, {'error': '获取数据失败: $e', 'name': name});
       }
     },
     'POST /data/types/:name/refresh': (req, p) async {
@@ -189,9 +198,17 @@ class DataHttpServer {
       final dt = DataType<dynamic>(name: name, category: '');
       try {
         final data = await _orchestrator.refresh(dt);
-        _respond(req.response, 200, {'data': data});
+        if (data == null) {
+          final status = _orchestrator.status(name);
+          final errMsg = status?.lastError ?? '数据源 "$name" 刷新失败';
+          _respond(req.response, 502, {'error': errMsg, 'name': name});
+        } else {
+          _respond(req.response, 200, {'data': data});
+        }
       } on DataTypeNotRegisteredException {
         _respond(req.response, 404, {'error': '数据类型未注册: $name'});
+      } catch (e) {
+        _respond(req.response, 500, {'error': '刷新数据失败: $e', 'name': name});
       }
     },
     'GET /data/status/:name': (req, p) async {
