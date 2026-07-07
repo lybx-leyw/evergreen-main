@@ -55,7 +55,7 @@ lib/core/data/
 │   ├── example.dart             # 完整 API 使用示例
 │   └── plugins/douban/          # 豆瓣 Top250 爬虫插件（真实可运行示例）
 ├── test/
-│   ├── orchestrator_test.dart   # 36 用例：注册/获取/刷新/状态/连通性/自动刷新/持久化恢复
+│   ├── orchestrator_test.dart   # 27 用例：注册/获取/刷新/状态/连通性/自动刷新/持久化恢复
 │   └── cache_test.dart          # 12 用例：读写/删除/清空/编码/批量
 ├── pubspec.yaml
 ├── dart_test.yaml               # concurrency: 1（缓存单例需要顺序执行）
@@ -178,7 +178,7 @@ final data = await orch.get(myType);
 
 ## 测试策略
 
-### orchestrator_test.dart（36 用例）
+### orchestrator_test.dart（27 用例）
 
 | 分组 | 用例数 | 覆盖内容 |
 |------|--------|----------|

@@ -24,6 +24,7 @@ import 'package:evergreen_base/core/config/config_http_server.dart';
 import 'package:evergreen_base/core/module/module_registry.dart';
 import 'package:evergreen_base/core/module/module_loader.dart';
 import 'package:evergreen_base/core/module/module_http_server.dart';
+import 'package:evergreen_base/core/data/cache.dart';
 import 'package:evergreen_base/core/data/orchestrator.dart';
 import 'package:evergreen_base/core/data/type.dart';
 import 'package:evergreen_base/core/data/data_http_server.dart';
@@ -244,6 +245,7 @@ void main() async {
   );
 
   // ── 数据谱仪器 ──
+  await Cache.getInstance(); // 初始化缓存（磁盘持久化）
   final orchestrator = DataOrchestrator();
   orchestrator.refreshStatusFromDisk();
 
@@ -412,9 +414,12 @@ void main() async {
     textModeServerPorts['Module'] = 0;
   }
 
-  // 选取默认主题
+  // 选取默认主题 → 写入 ThemeStore（ChangeNotifierProvider 自动通知 UI）
   final defaultTheme = themeStore.findById('default') ??
       (themeStore.all.isNotEmpty ? themeStore.all.first : null);
+  if (defaultTheme != null) {
+    themeStore.activeTheme = defaultTheme;
+  }
 
   // ── 判断运行模式：全 HTML vs 混合 ──
   final allHtml = registry.modules.isNotEmpty &&
@@ -501,9 +506,8 @@ void main() async {
         // Skill 索引——供技能管理页面列举
         skillIndexProvider.overrideWith((ref) => skillIndex),
 
-        // 主题描述符
-        if (defaultTheme != null)
-          themeDescriptorProvider.overrideWith((ref) => defaultTheme),
+        // 主题存储——ChangeNotifierProvider，HTTP 切换主题后自动通知 UI 刷新
+        themeStoreProvider.overrideWith((ref) => themeStore),
 
         // V2 原始 manifest JSON（HTML 渲染引擎使用）
         v2ManifestProvider.overrideWith((ref) => v2Manifests),

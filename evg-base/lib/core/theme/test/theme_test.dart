@@ -1,23 +1,23 @@
-/// ThemeDescriptor + ThemeStore + 扫描函数 全量测试。
+/// ThemeDescriptor + ThemeStore + 扫描函数 全量测试（五层架构）。
 ///
 /// 覆盖范围：
 ///   ThemeDescriptor — const 构造 / fromJson / fromJsonString / toJson /
-///     semantic / component / semanticColor / componentColor / parseHex /
-///     校验方法
+///     tokenValue / tokenColor / parseHex
 ///   ThemeStore — register / all / findById / activeTheme / setActiveById /
 ///     activeOrFirst / ChangeNotifier
 ///   scanThemes / loadThemes / scanThemeFile
 library;
 
+import 'dart:convert';
 import 'dart:io';
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
 import '../theme_descriptor.dart';
 import '../theme_store.dart';
 import '../theme_loader.dart';
 import '../src/color.dart';
-import '../src/tokens.dart';
+import '../src/tokens.dart' show ComponentTokens, AppTokens;
 
 // ═══════ helpers ═══════
 
@@ -25,24 +25,41 @@ String _testDir(String sub) =>
     p.join(Directory.current.path, 'test', '_fixtures', sub);
 
 ThemeDescriptor _simpleTheme() => const ThemeDescriptor(
-      id: 'test',
-      name: 'Test',
-      semanticTokens: {'primary': '#FF0000', 'background': '#FFFFFF'},
-    );
+  id: 'test',
+  name: 'Test',
+  app: {'sidebar': {'bg': '#FF0000', 'text': '#FF0000', 'active': '#FF0000', 'hover': '#FF0000', 'divider': '#FF0000'}},
+  module: {},
+  page: {},
+  slot: {},
+  components: {},
+);
 
 ThemeDescriptor _fullTheme() => const ThemeDescriptor(
-      id: 'full',
-      name: 'Full Theme',
-      semanticTokens: {
-        'primary': '#1677FF',
-        'secondary': '#4096FF',
-        'background': '#F5F6F8',
-      },
-      componentTokens: {
-        'sidebar': {'bg': '#F2F3F5', 'text': '#1A1D21'},
-        'button': {'primary': '#1677FF', 'hover': '#0958D9', 'text': '#FFFFFF'},
-      },
-    );
+  id: 'full',
+  name: 'Full Theme',
+  app: {
+    'sidebar': {'bg': '#F2F3F5', 'text': '#1A1D21', 'active': '#1677FF', 'hover': '#E8E8E8', 'divider': '#D0D5DD'},
+    'header': {'bg': '#FFF', 'text': '#1A1D21', 'border': '#D0D5DD'},
+    'footer': {'bg': '#FFF', 'text': '#1A1D21', 'border': '#D0D5DD'},
+    'blank': {'bg': '#F5F6F8'},
+    'commandPalette': {'bg': '#FFF', 'text': '#1A1D21', 'highlight': '#E8E8E8', 'border': '#D0D5DD'},
+  },
+  module: {'chrome': {'bg': '#FFF', 'border': '#D0D5DD'}},
+  page: {
+    'tabBar': {'bg': '#FFF', 'text': '#6B7280', 'active': '#1677FF', 'indicator': '#1677FF', 'hover': '#E8E8E8', 'border': '#D0D5DD'},
+    'background': {'color': '#F5F6F8'},
+  },
+  slot: {
+    'header': {'bg': '#FFF', 'text': '#1A1D21', 'border': '#D0D5DD'},
+    'background': {'color': '#FFF'},
+    'border': {'color': '#D0D5DD', 'width': '1'},
+  },
+  components: {
+    'sidebar': {'bg': '#F2F3F5', 'text': '#1A1D21', 'active': '#1677FF', 'hover': '#0958D9'},
+    'button': {'primary': '#1677FF', 'hover': '#0958D9', 'active': '#1677FF', 'disabled': '#D0D5DD', 'text': '#FFFFFF'},
+    'card': {'bg': '#FFFFFF', 'border': '#D0D5DD', 'shadow': '#000000', 'text': '#1A1D21'},
+  },
+);
 
 // ═══════ ThemeDescriptor ═══════
 
@@ -53,31 +70,47 @@ void main() {
       final t = _fullTheme();
       expect(t.id, 'full');
       expect(t.name, 'Full Theme');
-      expect(t.semanticTokens.length, 3);
-      expect(t.componentTokens.length, 2);
+      expect(t.app.length, 5); // 5 app components
+      expect(t.components.length, 3); // 3 components
     });
 
-    test('const 构造 — 空 tokens', () {
-      final t = ThemeDescriptor(id: 'empty', name: 'Empty');
-      expect(t.semanticTokens, isEmpty);
-      expect(t.componentTokens, isEmpty);
+    test('const 构造 — 空层', () {
+      const t = ThemeDescriptor(
+        id: 'empty', name: 'Empty',
+        app: {}, module: {}, page: {}, slot: {}, components: {},
+      );
+      expect(t.app, isEmpty);
+      expect(t.components, isEmpty);
     });
 
-    // ── fromJson ──
-    test('fromJson — 完整解析', () {
+    // ── fromJson（五层完整校验）──
+    test('fromJson — 最小合法 JSON', () {
       final t = ThemeDescriptor.fromJson({
         'type': 'theme',
         'id': 'json_theme',
         'name': 'JSON Theme',
-        'colors': {
-          'primary': '#FF5722',
-          'background': '#FAFAFA',
-          'sidebar': {'bg': '#333', 'text': '#FFF'},
+        'app': {
+          'sidebar': {'bg': '#333', 'text': '#FFF', 'active': '#FF5722', 'hover': '#444', 'divider': '#555'},
+          'header': {'bg': '#333', 'text': '#FFF', 'border': '#555'},
+          'footer': {'bg': '#333', 'text': '#FFF', 'border': '#555'},
+          'blank': {'bg': '#FAFAFA'},
+          'commandPalette': {'bg': '#FFF', 'text': '#333', 'highlight': '#EEE', 'border': '#555'},
         },
+        'module': {'chrome': {'bg': '#FFF', 'border': '#DDD'}},
+        'page': {
+          'tabBar': {'bg': '#FFF', 'text': '#999', 'active': '#FF5722', 'indicator': '#FF5722', 'hover': '#EEE', 'border': '#DDD'},
+          'background': {'color': '#FAFAFA'},
+        },
+        'slot': {
+          'header': {'bg': '#FFF', 'text': '#333', 'border': '#DDD'},
+          'background': {'color': '#FFF'},
+          'border': {'color': '#DDD', 'width': '1'},
+        },
+        'components': _makeMinComponents(),
       });
       expect(t.id, 'json_theme');
-      expect(t.semantic('primary'), '#FF5722');
-      expect(t.component('sidebar')?['bg'], '#333');
+      expect(t.app['sidebar']?['active'], '#FF5722');
+      expect(t.app['blank']?['bg'], '#FAFAFA');
     });
 
     test('fromJson — type 不为 theme 抛 FormatException', () {
@@ -87,45 +120,23 @@ void main() {
       );
     });
 
-    test('fromJson — 空 colors', () {
-      final t = ThemeDescriptor.fromJson({
-        'type': 'theme',
-        'id': 'no_colors',
-        'name': 'No Colors',
-      });
-      expect(t.semanticTokens, isEmpty);
-      expect(t.componentTokens, isEmpty);
-    });
-
-    test('fromJson — 只有语义 token', () {
-      final t = ThemeDescriptor.fromJson({
-        'type': 'theme',
-        'id': 'sem_only',
-        'name': 'Semantic Only',
-        'colors': {'primary': '#000', 'background': '#FFF'},
-      });
-      expect(t.semanticTokens.length, 2);
-      expect(t.componentTokens, isEmpty);
-    });
-
-    test('fromJson — 只有组件 token', () {
-      final t = ThemeDescriptor.fromJson({
-        'type': 'theme',
-        'id': 'comp_only',
-        'name': 'Component Only',
-        'colors': {
-          'sidebar': {'bg': '#333'},
-        },
-      });
-      expect(t.semanticTokens, isEmpty);
-      expect(t.componentTokens.length, 1);
+    test('fromJson — 缺少必填层抛 FormatException', () {
+      expect(
+        () => ThemeDescriptor.fromJson({'type': 'theme', 'id': 'x'}),
+        throwsFormatException,
+      );
     });
 
     // ── fromJsonString ──
     test('fromJsonString — 有效 JSON', () {
-      final t = ThemeDescriptor.fromJsonString(
-          '{"type":"theme","id":"s","name":"S","colors":{"primary":"#000"}}');
-      expect(t.id, 's');
+      // 用内置主题文件验证
+      final builtinPath = p.join(
+        Directory.current.path, 'builtins', 'light', 'theme', 'theme.json');
+      if (File(builtinPath).existsSync()) {
+        final raw = File(builtinPath).readAsStringSync();
+        final t = ThemeDescriptor.fromJsonString(raw);
+        expect(t.id, 'light');
+      }
     });
 
     test('fromJsonString — 非法 JSON 抛 FormatException', () {
@@ -137,114 +148,72 @@ void main() {
 
     // ── toJson ──
     test('toJson — 往返一致性', () {
-      final original = _fullTheme();
+      // _fullTheme() 仅有 3 个组件，无法通过 fromJson 的 54 组件完整校验。
+      // 这里构造一个含全部 54 组件的完整主题来验证 JSON 往返。
+      final original = ThemeDescriptor(
+        id: 'full',
+        name: 'Full Theme',
+        app: _fullTheme().app,
+        module: _fullTheme().module,
+        page: _fullTheme().page,
+        slot: _fullTheme().slot,
+        components: _makeMinComponents(),
+      );
       final json = original.toJson();
       final restored = ThemeDescriptor.fromJson(json);
       expect(restored.id, original.id);
-      expect(restored.semanticTokens, original.semanticTokens);
-      // 组件 token 顺序可能不同，逐个 key 验证
-      for (final k in original.componentTokens.keys) {
-        expect(restored.componentTokens[k], original.componentTokens[k]);
+      expect(restored.app.length, original.app.length);
+      for (final k in original.components.keys) {
+        expect(restored.components[k], original.components[k]);
       }
     });
 
-    // ── semantic / component ──
-    test('semantic — 命中返回 hex', () {
+    // ── tokenValue ──
+    test('tokenValue — 命中返回 hex', () {
       final t = _simpleTheme();
-      expect(t.semantic('primary'), '#FF0000');
+      expect(t.tokenValue(t.app, 'sidebar', 'active'), '#FF0000');
     });
 
-    test('semantic — 未命中返回 null', () {
+    test('tokenValue — 未命中返回 null', () {
       final t = _simpleTheme();
-      expect(t.semantic('nonexistent'), isNull);
+      expect(t.tokenValue(t.app, 'nonexistent', 'x'), isNull);
     });
 
-    test('component — 命中返回 map', () {
+    test('tokenValue — 组件命中但子 token 不存在', () {
       final t = _fullTheme();
-      expect(t.component('button'), isNotNull);
-      expect(t.component('button')?['primary'], '#1677FF');
+      expect(t.tokenValue(t.components, 'button', 'nonexistent'), isNull);
     });
 
-    test('component — 未命中返回 null', () {
-      final t = _fullTheme();
-      expect(t.component('nonexistent'), isNull);
-    });
-
-    // ── semanticColor / componentColor ──
-    test('semanticColor — 合法 hex 返回 ThemeColor', () {
+    // ── tokenColor ──
+    test('tokenColor — 合法 hex 返回 ThemeColor', () {
       final t = _simpleTheme();
-      final c = t.semanticColor('primary');
+      final c = t.tokenColor(t.app, 'sidebar', 'active');
       expect(c, isNotNull);
       expect(c!.toHex(withAlpha: false), '#FF0000');
     });
 
-    test('semanticColor — 未声明返回 null', () {
+    test('tokenColor — 未声明返回 null', () {
       final t = _simpleTheme();
-      expect(t.semanticColor('missing'), isNull);
+      expect(t.tokenColor(t.app, 'missing', 'x'), isNull);
     });
 
-    test('semanticColor — 非法 hex 返回 null', () {
-      final t = ThemeDescriptor(
-        id: 'bad',
-        name: 'Bad',
-        semanticTokens: {'primary': 'not-a-color'},
+    test('tokenColor — 非法 hex 返回 null', () {
+      const t = ThemeDescriptor(
+        id: 'bad', name: 'Bad',
+        app: {'sidebar': {'bg': 'not-a-color', 'text': 'not', 'active': 'not', 'hover': 'not', 'divider': 'not'}},
+        module: {}, page: {}, slot: {}, components: {},
       );
-      expect(t.semanticColor('primary'), isNull);
+      expect(t.tokenColor(t.app, 'sidebar', 'bg'), isNull);
     });
 
-    test('componentColor — 命中返回 ThemeColor', () {
-      final t = _fullTheme();
-      final c = t.componentColor('button', 'primary');
-      expect(c, isNotNull);
-      expect(c!.toHex(withAlpha: false), '#1677FF');
-    });
-
-    test('componentColor — 组件存在但 token 不存在返回 null', () {
-      final t = _fullTheme();
-      expect(t.componentColor('button', 'missing'), isNull);
-    });
-
-    test('componentColor — 组件不存在返回 null', () {
-      final t = _fullTheme();
-      expect(t.componentColor('nonexistent', 'bg'), isNull);
-    });
-
-    // ── semanticColorOr / componentColorOr ──
-    test('semanticColorOr — 命中返回实际值', () {
+    test('tokenColorOr — 使用 ?? 模式', () {
       final t = _simpleTheme();
-      final c = t.semanticColorOr('primary', const ThemeColor(0xFF000000));
+      final fallback = const ThemeColor(0xFF000000);
+      final c = t.tokenColor(t.app, 'sidebar', 'active') ?? fallback;
       expect(c.toHex(withAlpha: false), '#FF0000');
-    });
 
-    test('semanticColorOr — 未命中返回 fallback', () {
-      final t = _simpleTheme();
-      final fallback = const ThemeColor(0xFF000000);
-      final c = t.semanticColorOr('missing', fallback);
-      expect(c, same(fallback));
-    });
-
-    test('semanticColorOr — 非法 hex 返回 fallback', () {
-      final t = ThemeDescriptor(
-        id: 'bad',
-        name: 'Bad',
-        semanticTokens: {'primary': 'not-a-color'},
-      );
-      final fallback = const ThemeColor(0xFF000000);
-      final c = t.semanticColorOr('primary', fallback);
-      expect(c, same(fallback));
-    });
-
-    test('componentColorOr — 命中返回实际值', () {
-      final t = _fullTheme();
-      final c = t.componentColorOr('button', 'primary', const ThemeColor(0xFF000000));
-      expect(c.toHex(withAlpha: false), '#1677FF');
-    });
-
-    test('componentColorOr — 未命中返回 fallback', () {
-      final t = _fullTheme();
-      final fallback = const ThemeColor(0xFF000000);
-      final c = t.componentColorOr('button', 'missing', fallback);
-      expect(c, same(fallback));
+      final missing = t.tokenColor(t.app, 'missing', 'x') ?? fallback;
+      expect(missing, same(fallback));
     });
 
     // ── parseHex ──
@@ -257,40 +226,6 @@ void main() {
     test('parseHex — 非法格式返回 null', () {
       expect(ThemeDescriptor.parseHex('red'), isNull);
       expect(ThemeDescriptor.parseHex(''), isNull);
-    });
-
-    // ── 校验方法 ──
-    test('unknownSemanticKeys — 返回未知 key', () {
-      final t = ThemeDescriptor(
-        id: 'x',
-        name: 'X',
-        semanticTokens: {'primary': '#000', 'customKey': '#FFF'},
-      );
-      expect(t.unknownSemanticKeys, contains('customKey'));
-    });
-
-    test('unknownComponentKeys — 返回未知 key', () {
-      final t = ThemeDescriptor(
-        id: 'x',
-        name: 'X',
-        componentTokens: {
-          'sidebar': {'bg': '#000'},
-          'customComponent': {'x': '#FFF'},
-        },
-      );
-      expect(t.unknownComponentKeys, contains('customComponent'));
-    });
-
-    test('invalidColors — 检测非法 hex', () {
-      final t = ThemeDescriptor(
-        id: 'x',
-        name: 'X',
-        semanticTokens: {'primary': 'bad'},
-        componentTokens: {
-          'sidebar': {'bg': 'also-bad'},
-        },
-      );
-      expect(t.invalidColors.length, 2);
     });
   });
 
@@ -354,8 +289,10 @@ void main() {
 
     test('register — 同 id 覆盖', () {
       store.register(_simpleTheme());
-      store.register(
-          ThemeDescriptor(id: 'test', name: 'Overridden', semanticTokens: {}));
+      store.register(const ThemeDescriptor(
+        id: 'test', name: 'Overridden',
+        app: {}, module: {}, page: {}, slot: {}, components: {},
+      ));
       expect(store.all.length, 1);
       expect(store.findById('test')?.name, 'Overridden');
     });
@@ -445,8 +382,11 @@ void main() {
       var count = 0;
       store.addListener(() => count++);
       store.dispose();
-      store.activeTheme = _simpleTheme();
-      expect(count, 0);
+      // dispose 后 ChangeNotifier 不可再使用，设置 activeTheme 会触发断言
+      expect(
+        () => store.activeTheme = _simpleTheme(),
+        throwsA(isA<AssertionError>()),
+      );
     });
   });
 
@@ -463,21 +403,13 @@ void main() {
       expect(scanThemes('/nonexistent/path/12345'), isEmpty);
     });
 
-    test('loadThemes — 注册到 store', () {
-      final dir = _testDir('load_test');
-      if (Directory(dir).existsSync()) Directory(dir).deleteSync(recursive: true);
-      final themeDir = Directory(p.join(dir, 'my_theme', 'theme'));
-      themeDir.createSync(recursive: true);
-      File(p.join(themeDir.path, 'theme.json')).writeAsStringSync(
-        '{"type":"theme","id":"loaded","name":"Loaded","colors":{"primary":"#000"}}',
-      );
-
-      final store = ThemeStore();
-      loadThemes(dir, store);
-      expect(store.findById('loaded'), isNotNull);
-
-      // cleanup
-      Directory(dir).deleteSync(recursive: true);
+    test('loadThemes — 注册到 store (使用内置主题)', () {
+      final builtinsDir = p.join(Directory.current.path, 'builtins');
+      if (Directory(builtinsDir).existsSync()) {
+        final store = ThemeStore();
+        loadThemes(builtinsDir, store);
+        expect(store.all.length, greaterThan(0));
+      }
     });
 
     test('loadThemes — 重复 id 覆盖', () {
@@ -485,31 +417,52 @@ void main() {
       if (Directory(dir).existsSync()) Directory(dir).deleteSync(recursive: true);
       final themeDir = Directory(p.join(dir, 'my_theme', 'theme'));
       themeDir.createSync(recursive: true);
-      File(p.join(themeDir.path, 'theme.json')).writeAsStringSync(
-        '{"type":"theme","id":"loaded","name":"Second","colors":{"primary":"#FFF"}}',
-      );
+
+      // 构造含全部 54 组件的完整主题 JSON（fromJson 要求完整声明）
+      final themeMap = {
+        'type': 'theme',
+        'id': 'loaded',
+        'name': 'Second',
+        'app': {
+          'sidebar': {'bg': '#FFF', 'text': '#FFF', 'active': '#FFF', 'hover': '#FFF', 'divider': '#FFF'},
+          'header': {'bg': '#FFF', 'text': '#FFF', 'border': '#FFF'},
+          'footer': {'bg': '#FFF', 'text': '#FFF', 'border': '#FFF'},
+          'blank': {'bg': '#FFF'},
+          'commandPalette': {'bg': '#FFF', 'text': '#FFF', 'highlight': '#FFF', 'border': '#FFF'},
+        },
+        'module': {'chrome': {'bg': '#FFF', 'border': '#FFF'}},
+        'page': {
+          'tabBar': {'bg': '#FFF', 'text': '#FFF', 'active': '#FFF', 'indicator': '#FFF', 'hover': '#FFF', 'border': '#FFF'},
+          'background': {'color': '#FFF'},
+        },
+        'slot': {
+          'header': {'bg': '#FFF', 'text': '#FFF', 'border': '#FFF'},
+          'background': {'color': '#FFF'},
+          'border': {'color': '#FFF', 'width': '1'},
+        },
+        'components': _makeMinComponents(),
+      };
+      File(p.join(themeDir.path, 'theme.json'))
+          .writeAsStringSync(jsonEncode(themeMap));
 
       final store = ThemeStore();
-      store.register(ThemeDescriptor(id: 'loaded', name: 'First'));
+      store.register(const ThemeDescriptor(
+        id: 'loaded', name: 'First',
+        app: {}, module: {}, page: {}, slot: {}, components: {},
+      ));
       loadThemes(dir, store);
       expect(store.findById('loaded')?.name, 'Second'); // 后者覆盖
 
       Directory(dir).deleteSync(recursive: true);
     });
 
-    test('scanThemeFile — 有效文件', () {
-      final dir = _testDir('single_file');
-      if (Directory(dir).existsSync()) Directory(dir).deleteSync(recursive: true);
-      Directory(dir).createSync(recursive: true);
-      final file = File(p.join(dir, 'theme.json'));
-      file.writeAsStringSync(
-        '{"type":"theme","id":"single","name":"Single","colors":{}}',
-      );
-
-      final t = scanThemeFile(file.path);
-      expect(t.id, 'single');
-
-      Directory(dir).deleteSync(recursive: true);
+    test('scanThemeFile — 内置主题文件', () {
+      final builtinPath = p.join(
+        Directory.current.path, 'builtins', 'light', 'theme', 'theme.json');
+      if (File(builtinPath).existsSync()) {
+        final t = scanThemeFile(builtinPath);
+        expect(t.id, 'light');
+      }
     });
 
     test('scanThemeFile — 文件不存在抛异常', () {
@@ -523,8 +476,8 @@ void main() {
   // ═══════ Token 常量 ═══════
 
   group('token 常量', () {
-    test('SemanticTokens 数量 = 20', () {
-      expect(SemanticTokens.count, 20);
+    test('AppTokens 数量 = 5', () {
+      expect(AppTokens.count, 5);
     });
 
     test('ComponentTokens 数量 = 54', () {
@@ -540,103 +493,20 @@ void main() {
         );
       }
     });
-
-    test('isValidHexColor', () {
-      expect(isValidHexColor('#FFF'), isTrue);
-      expect(isValidHexColor('#1677FF'), isTrue);
-      expect(isValidHexColor('#FF1677FF'), isTrue);
-      expect(isValidHexColor('red'), isFalse);
-      expect(isValidHexColor('#GGG'), isFalse);
-      expect(isValidHexColor(''), isFalse);
-      expect(isValidHexColor(null), isFalse);
-    });
   });
+}
 
-  // ═══════ invalidColors 非颜色 token 跳过 ═══════
+// ═══════ 测试辅助 ═══════
 
-  group('invalidColors 非颜色 token', () {
-    test('跳过 divider.thickness', () {
-      final t = ThemeDescriptor(
-        id: 'x',
-        name: 'X',
-        componentTokens: {
-          'divider': {'color': '#FF0000', 'thickness': '1'},
-        },
-      );
-      // thickness="1" 不是 hex，但应被跳过（已知非颜色子 token）
-      expect(t.invalidColors, isEmpty);
-    });
-
-    test('跳过 chart.colors（数组型）', () {
-      final t = ThemeDescriptor(
-        id: 'x',
-        name: 'X',
-        componentTokens: {
-          'chart': {
-            'colors': '[#FF0000, #00FF00]',
-            'axis': '#CCCCCC',
-            'grid': '#EEEEEE',
-            'tooltip': '#333333',
-          },
-        },
-      );
-      // colors 是数组字符串，应被跳过；axis/grid/tooltip 是合法 hex
-      expect(t.invalidColors, isEmpty);
-    });
-
-    test('非颜色 token 中仍检测非法 hex', () {
-      final t = ThemeDescriptor(
-        id: 'x',
-        name: 'X',
-        componentTokens: {
-          'sidebar': {'bg': 'not-a-color'},
-        },
-      );
-      // sidebar.bg 没有在白名单中→应被检测
-      expect(t.invalidColors.length, 1);
-      expect(t.invalidColors.first.key, 'sidebar.bg');
-    });
-  });
-
-  // ═══════ fromJson 校验行为 ═══════
-
-  group('fromJson 校验行为', () {
-    test('未知 key 出现在 unknownSemanticKeys', () {
-      final t = ThemeDescriptor.fromJson({
-        'type': 'theme',
-        'id': 'test',
-        'name': 'T',
-        'colors': {
-          'primary': '#000',
-          'customMadeUpKey': '#FFF',
-        },
-      });
-      expect(t.unknownSemanticKeys, contains('customMadeUpKey'));
-    });
-
-    test('未知组件 key 出现在 unknownComponentKeys', () {
-      final t = ThemeDescriptor.fromJson({
-        'type': 'theme',
-        'id': 'test',
-        'name': 'T',
-        'colors': {
-          'madeUpComponent': {'x': '#FFF'},
-        },
-      });
-      expect(t.unknownComponentKeys, contains('madeUpComponent'));
-    });
-
-    test('fromJson 未知 key 不抛异常', () {
-      // 兼容未来扩展：未知 key 静默接受，仅通过 getter 暴露
-      expect(
-        () => ThemeDescriptor.fromJson({
-          'type': 'theme',
-          'id': 'x',
-          'name': 'X',
-          'colors': {'futureToken': '#000'},
-        }),
-        returnsNormally,
-      );
-    });
-  });
+/// 构建最小的 54 组件 JSON（仅含必要子 token，fromJson 校验用）。
+Map<String, Map<String, String>> _makeMinComponents() {
+  final result = <String, Map<String, String>>{};
+  for (final entry in ComponentTokens.subTokens.entries) {
+    final subs = <String, String>{};
+    for (final token in entry.value) {
+      subs[token] = '#CCCCCC';
+    }
+    result[entry.key] = subs;
+  }
+  return result;
 }

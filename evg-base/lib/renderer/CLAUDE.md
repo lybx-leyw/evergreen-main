@@ -8,8 +8,8 @@
 
 ```
 lib/renderer/
-├── widgets/       ← 61 个原子组件（纯渲染，不放业务逻辑）
-├── shared/        ← 35 个范式视图 + 布局/调度/Token
+├── widgets/       ← 62 个原子组件（纯渲染，不放业务逻辑）
+├── shared/        ← 36 个范式视图 + 布局/调度/Token
 ├── compositions/  ← 高级组合视图
 ├── multi_agent/   ← 多 Agent 并行视图
 ├── html/          ← HTML5 渲染引擎（Dart→HTML 离线导出）
@@ -108,7 +108,7 @@ import 'shared/render_tokens.dart'; // RenderTokens.colors / spacing / radius / 
 ## 当前状态 (2026-07-06)
 
 - ✅ Sprint 1-3 完成（AppShell, ChatView, ModuleDispatch, LayoutEngine, ThemeProvider + 市场/工作台/设置/通知/权限 + 性能）
-- ✅ 11 stub / 61 widgets + 35 shared + 2 compositions + 2 multi_agent
+- ✅ 11 stub / 62 widgets + 36 shared + 2 compositions + 2 multi_agent
 - ✅ 设计交付物全部签字验收
 - ✅ Phase 5 集成前置交付：README.md / example/ / test/ / 集成指南
 - ✅ 基础设施补全：RenderTokens 常量层 / PluginRenderer 一键渲染 / HTML P2 组件 / 事件系统契约

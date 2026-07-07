@@ -1,4 +1,4 @@
-/// 应用级 Riverpod 提供者——模块注册中心 + SharedPreferences + 插件目录 + Agent 运行时 + 记忆 + Skill。
+/// 应用级 Riverpod 提供者——模块注册中心 + SharedPreferences + 插件目录 + 主题 + Agent 运行时 + 记忆 + Skill。
 ///
 /// 渲染层通过本文件获取全局实例，避免循环依赖。
 library;
@@ -8,6 +8,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:evergreen_base/core/module/module_registry.dart';
+import 'package:evergreen_base/core/theme/theme_store.dart';
 import 'package:evergreen_base/core/agent/controller/controller.dart' as agent;
 import 'package:evergreen_base/core/agent/event.dart' as agent;
 import 'package:evergreen_base/core/agent/memory/file_memory_store.dart';
@@ -128,6 +129,18 @@ const essentialToolNames = <String>{
 
 /// 判断工具名是否为 Agent 基础功能所必需。
 bool isEssentialTool(String name) => essentialToolNames.contains(name);
+
+// ═══════ 主题 ═══════
+
+/// 全局 [ThemeStore]——主题注册、查询、活跃主题切换。
+///
+/// 当 [ThemeStore.activeTheme] 变更时（通过 HTTP POST /theme/active 或直接调用），
+/// [ChangeNotifierProvider] 自动通知所有 watch 此 provider 的消费者重建。
+final themeStoreProvider = ChangeNotifierProvider<ThemeStore>((ref) {
+  throw UnimplementedError(
+    'themeStoreProvider 未注入——请在 main() 的 ProviderScope.overrides 中提供 ThemeStore 实例。',
+  );
+});
 
 // ═══════ 数据中枢 ═══════
 

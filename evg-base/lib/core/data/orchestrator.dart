@@ -137,7 +137,7 @@ class DataOrchestrator {
     _types.remove(type.name);
     _fetchers.remove(type.name);
     _statuses.remove(type.name);
-    if (type.persistentKey != null) _cache?.evict(type.persistentKey!);
+    _cache?.evict(type.name);
     Log().info('DataOrchestrator: 注销 $type');
   }
 
@@ -149,13 +149,11 @@ class DataOrchestrator {
   Future<T?> get<T>(DataType<T> type) async {
     _requireRegistered(type);
 
-    if (type.persistentKey != null) {
-      final entry = _cache?.read(type.persistentKey!);
-      if (entry != null) {
-        final (data, cachedAt) = entry;
-        _updateStatus(type.name, connected: true, fetchedAt: cachedAt);
-        return _decode<T>(data);
-      }
+    final entry = _cache?.read(type.name);
+    if (entry != null) {
+      final (data, cachedAt) = entry;
+      _updateStatus(type.name, connected: true, fetchedAt: cachedAt);
+      return _decode<T>(data);
     }
 
     return _fetchAndCache(type);
@@ -197,7 +195,7 @@ class DataOrchestrator {
 
   /// 清除指定类型的缓存（异步完成文件删除）。
   Future<void> invalidate(DataType type) async {
-    if (type.persistentKey != null) await _cache?.evict(type.persistentKey!);
+    await _cache?.evict(type.name);
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -260,10 +258,8 @@ class DataOrchestrator {
   /// 恢复状态时间戳（启动时从磁盘缓存读取）。
   void refreshStatusFromDisk() {
     for (final s in _statuses.values) {
-      if (s.cacheKey != null) {
-        final entry = _cache?.read(s.cacheKey!);
-        if (entry != null) s.lastFetchedAt = entry.$2;
-      }
+      final entry = _cache?.read(s.name);
+      if (entry != null) s.lastFetchedAt = entry.$2;
     }
   }
 
@@ -305,9 +301,7 @@ class DataOrchestrator {
       }
 
       final now = DateTime.now();
-      if (type.persistentKey != null) {
-        await _cache?.write(type.persistentKey!, _encode(data));
-      }
+      await _cache?.write(type.name, _encode(data));
       _updateStatus(type.name, connected: true, fetchedAt: now);
       return data;
     } catch (e) {

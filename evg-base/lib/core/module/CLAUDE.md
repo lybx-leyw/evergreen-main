@@ -17,11 +17,11 @@ manifest.json → ModuleDescriptor.fromJson() → Registry.register() → seal()
 
 ```
 lib/core/module/
-├── module_descriptor.dart      ← 核心: ModuleDescriptor + 30+ 子描述符 (2290行)
-├── module_registry.dart        ← 核心: 注册/查询/搜索/路由/导航 (325行)
-├── module_loader.dart          ← 扫描 + 启动 exe 后端 (227行)
-├── module_http_server.dart     ← REST API: 6端点 (216行)
-├── module_lifecycle.dart       ← 安装/卸载/禁用/升级 (317行)
+├── module_descriptor.dart      ← 核心: ModuleDescriptor + 48 子描述符 (2685行)
+├── module_registry.dart        ← 核心: 注册/查询/搜索/路由/导航 (318行)
+├── module_loader.dart          ← 扫描 + 启动 exe 后端 (251行)
+├── module_http_server.dart     ← REST API: 6端点 (231行)
+├── module_lifecycle.dart       ← 安装/卸载/禁用/升级 (318行)
 ├── process_manager.dart        ← 四级进程作用域 (430行)
 ├── page_event_bus.dart         ← 页级跨栏事件 (129行)
 ├── expose_state_writer.dart    ← 状态快照写入 (99行)
@@ -32,12 +32,12 @@ lib/core/module/
 ├── modules.dart                ← barrel 导出
 ├── pubspec.yaml                ← 依赖 (flutter stub)
 ├── builtins/                   ← 内置模块
-├── docs/                       ← 14篇开发者指南
+├── docs/                       ← 13篇开发者指南
 ├── example/                    ← 完整示例 + 模板插件
 └── test/
-    ├── descriptor_test.dart    ← 解析/校验/序列化 (517行, 8组)
-    ├── registry_test.dart      ← 注册/seal/查询/搜索/导航 (398行, 8组)
-    └── http_server_test.dart   ← 6端点 + 错误处理 (225行, 3组)
+    ├── descriptor_test.dart    ← 解析/校验/序列化 (850行, 8组)
+    ├── registry_test.dart      ← 注册/seal/查询/搜索/导航 (404行, 8组)
+    └── http_server_test.dart   ← 6端点 + 错误处理 (245行, 3组)
 ```
 
 ---
@@ -96,9 +96,9 @@ JSON 数组 → `ActionButtonDescriptor[]`，JSON 对象 → 旧版 `ActionDescr
 
 | 文件 | 行数 | 覆盖 |
 |------|------|------|
-| `descriptor_test.dart` | 517 | fromJson/toJson 往返、7种UI范式、子描述符边界、const 构造、activateSkills/version |
-| `registry_test.dart` | 398 | register/seal 不可变、findById/findByRoute、search(6维度)、listByCapability、导航(navGroups/navFlat/paletteItems)、依赖校验 |
-| `http_server_test.dart` | 225 | 6端点(health/modules/:id/search/nav/routes)、404/405、重复 start/stop |
+| `descriptor_test.dart` | 850 | fromJson/toJson 往返、7种UI范式、子描述符边界、const 构造、activateSkills/version |
+| `registry_test.dart` | 404 | register/seal 不可变、findById/findByRoute、search(6维度)、listByCapability、导航(navGroups/navFlat/paletteItems)、依赖校验 |
+| `http_server_test.dart` | 245 | 6端点(health/modules/:id/search/nav/routes)、404/405、重复 start/stop |
 
 ---
 

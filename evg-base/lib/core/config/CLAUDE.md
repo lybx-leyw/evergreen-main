@@ -42,8 +42,8 @@ lib/core/config/
 ├── example/                 # 可运行示例
 ├── lib/shared_preferences_stub/  # 内存桩（纯 Dart，无 Flutter 依赖）
 └── test/
-    ├── settings_test.dart   # 28 用例
-    └── permissions_test.dart # 23 用例
+    ├── settings_test.dart   # 21 用例
+    └── permissions_test.dart # 15 用例
 ```
 
 ---
@@ -86,8 +86,8 @@ lib/core/config/
 
 | 文件 | 用例数 | 覆盖范围 |
 |------|--------|---------|
-| `settings_test.dart` | 28 | SettingDecl 构造、initSettings（扫描/默认值/类型解析）、getSetting/setSetting（读写/校验）、getAllSettings、exportConfig/importConfig、异常 toString |
-| `permissions_test.dart` | 23 | PermissionDecl 构造、registerPermissions/getPermissions、setPermission/checkPermission、describePermission、PluginSource、getSources/addSource/removeSource、异常 toString |
+| `settings_test.dart` | 21 | SettingDecl 构造、initSettings（扫描/默认值/类型解析）、getSetting/setSetting（读写/校验）、getAllSettings、exportConfig/importConfig、异常 toString |
+| `permissions_test.dart` | 15 | PermissionDecl 构造、registerPermissions/getPermissions、setPermission/checkPermission、describePermission、PluginSource、getSources/addSource/removeSource、异常 toString |
 
 **运行**：
 ```bash

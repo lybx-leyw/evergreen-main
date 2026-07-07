@@ -1224,11 +1224,16 @@ class SlotDescriptor {
   /// 组件声明。
   final ComponentDescriptor? component;
 
+  /// V2: slot 级 theme 覆盖（可选）。
+  /// 部分覆盖 theme.json 中 slot 层的颜色。
+  final Map<String, Map<String, String>>? theme;
+
   const SlotDescriptor({
     this.style = const StyleDescriptor(),
     this.process = const [],
     this.events = const EventDescriptor(),
     this.component,
+    this.theme,
   });
 
   factory SlotDescriptor.fromJson(Map<String, dynamic>? json) {
@@ -1243,6 +1248,7 @@ class SlotDescriptor {
           ? ComponentDescriptor.fromJson(
               json['component'] as Map<String, dynamic>)
           : null,
+      theme: ModuleDescriptor._parseThemeOverride(json['theme']),
     );
   }
 
@@ -1282,6 +1288,10 @@ class ComponentDescriptor {
   /// 组件数据源。
   final DataSourceDescriptor? dataSource;
 
+  /// V2: 组件级 theme 覆盖（可选）。
+  /// 部分覆盖 theme.json 中 components 层该组件的颜色。
+  final Map<String, Map<String, String>>? theme;
+
   const ComponentDescriptor({
     required this.type,
     this.config = const {},
@@ -1289,6 +1299,7 @@ class ComponentDescriptor {
     this.events = const EventDescriptor(),
     this.process = const [],
     this.dataSource,
+    this.theme,
   });
 
   factory ComponentDescriptor.fromJson(Map<String, dynamic>? json) {
@@ -1303,6 +1314,7 @@ class ComponentDescriptor {
       process: _parseProcessList(json['process']),
       dataSource: DataSourceDescriptor.fromJson(
           json['dataSource'] as Map<String, dynamic>?),
+      theme: ModuleDescriptor._parseThemeOverride(json['theme']),
     );
   }
 
@@ -2386,6 +2398,10 @@ class PageDescriptor {
   /// 布局。
   final LayoutDescriptor layout;
 
+  /// V2: 页面级 theme 覆盖（可选）。
+  /// 部分覆盖 theme.json 中 page 层的颜色。
+  final Map<String, Map<String, String>>? theme;
+
   const PageDescriptor({
     required this.id,
     required this.label,
@@ -2396,6 +2412,7 @@ class PageDescriptor {
     this.process = const [],
     this.dataSource,
     this.layout = const LayoutDescriptor(),
+    this.theme,
   });
 
   factory PageDescriptor.fromJson(Map<String, dynamic>? json) {
@@ -2413,6 +2430,7 @@ class PageDescriptor {
           json['dataSource'] as Map<String, dynamic>?),
       layout: LayoutDescriptor.fromJson(
           json['layout'] as Map<String, dynamic>?),
+      theme: ModuleDescriptor._parseThemeOverride(json['theme']),
     );
   }
 
@@ -2498,6 +2516,10 @@ class ModuleDescriptor {
   /// 页面列表。
   final List<PageDescriptor> pages;
 
+  /// V2: 模块级 theme 覆盖（可选）。
+  /// 部分覆盖 theme.json 中 module 层的颜色。
+  final Map<String, Map<String, String>>? theme;
+
   const ModuleDescriptor({
     this.schemaVersion = '2.0',
     required this.id,
@@ -2516,6 +2538,7 @@ class ModuleDescriptor {
     this.dataBindings = const [],
     this.workspace,
     this.pages = const [],
+    this.theme,
   });
 
   // ═══ 便捷查询 ═══
@@ -2588,7 +2611,20 @@ class ModuleDescriptor {
         'pages',
         (p) => PageDescriptor.fromJson(p as Map<String, dynamic>),
       ),
+      theme: _parseThemeOverride(json['theme']),
     );
+  }
+
+  static Map<String, Map<String, String>>? _parseThemeOverride(dynamic raw) {
+    if (raw == null || raw is! Map) return null;
+    final result = <String, Map<String, String>>{};
+    for (final entry in (raw as Map).entries) {
+      if (entry.value is Map) {
+        result[entry.key.toString()] =
+            (entry.value as Map).map((k, v) => MapEntry(k.toString(), v.toString()));
+      }
+    }
+    return result.isEmpty ? null : result;
   }
 
   factory ModuleDescriptor.fromJsonString(String str) =>

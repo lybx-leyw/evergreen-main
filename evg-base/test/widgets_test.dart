@@ -18,28 +18,45 @@ int _r(int value) => (value >> 16) & 0xFF;
 int _g(int value) => (value >> 8) & 0xFF;
 int _b(int value) => value & 0xFF;
 
-// ═══════ ThemeProvider: token→Color 映射 ═══════
+// ═══════ ThemeDescriptor: 五层 token 查询 ═══════
+
+// 构建最小合法主题（const 构造不校验子 token）
+ThemeDescriptor _makeLightTheme() => const ThemeDescriptor(
+  id: 'light',
+  name: 'Light',
+  app: {
+    'sidebar': {'bg': '#F2F3F5', 'text': '#1A1D21', 'active': '#1677FF', 'hover': '#E8E8E8', 'divider': '#D0D5DD'},
+    'header': {'bg': '#FFF', 'text': '#1A1D21', 'border': '#D0D5DD'},
+    'footer': {'bg': '#FFF', 'text': '#1A1D21', 'border': '#D0D5DD'},
+    'blank': {'bg': '#F5F5F5'},
+    'commandPalette': {'bg': '#FFF', 'text': '#1A1D21', 'highlight': '#E8E8E8', 'border': '#D0D5DD'},
+  },
+  module: {'chrome': {'bg': '#FFF', 'border': '#D0D5DD'}},
+  page: {
+    'tabBar': {'bg': '#FFF', 'text': '#6B7280', 'active': '#1677FF', 'indicator': '#1677FF', 'hover': '#E8E8E8', 'border': '#D0D5DD'},
+    'background': {'color': '#F5F5F5'},
+  },
+  slot: {
+    'header': {'bg': '#FFF', 'text': '#1A1D21', 'border': '#D0D5DD'},
+    'background': {'color': '#FFFFFF'},
+    'border': {'color': '#D0D5DD', 'width': '1'},
+  },
+  components: {
+    'sidebar': {'bg': '#F2F3F5', 'text': '#1A1D21', 'active': '#1677FF', 'hover': '#0958D9'},
+    'button': {'primary': '#1677FF', 'hover': '#0958D9', 'active': '#1677FF', 'disabled': '#D0D5DD', 'text': '#FFFFFF'},
+    'bubble': {'user': '#4096FF', 'assistant': '#21262D', 'text': '#E6EDF3', 'timestamp': '#8B949E'},
+    'thinking': {'bg': '#1C1A14', 'text': '#8B949E', 'border': '#D29922'},
+    'toolCall': {'bg': '#21262D', 'text': '#E6EDF3', 'border': '#30363D'},
+    'card': {'bg': '#FFFFFF', 'border': '#D0D5DD', 'shadow': '#000000', 'text': '#1A1D21'},
+  },
+);
 
 void main() {
-  group('ThemeProvider — token→Color 映射', () {
+  group('ThemeDescriptor — 五层 token 查询', () {
     late ThemeDescriptor lightTheme;
 
     setUp(() {
-      lightTheme = ThemeDescriptor.fromJson({
-        'name': 'Light',
-        'type': 'theme',
-        'colors': {
-          'primary': '#1677FF',
-          'background': '#F5F5F5',
-          'surface': '#FFFFFF',
-          'text': '#1A1D21',
-          'textSecondary': '#6B7280',
-          'error': '#CF222E',
-          'success': '#2DA44E',
-          'warning': '#FA8C16',
-          'border': '#D0D5DD',
-        },
-      });
+      lightTheme = _makeLightTheme();
     });
 
     test('parseHex 返回正确的 ThemeColor（#1677FF）', () {
@@ -72,92 +89,74 @@ void main() {
       expect(ThemeDescriptor.parseHex(''), isNull);
     });
 
-    test('semantic 方法返回正确 token 值', () {
-      expect(lightTheme.semantic('primary'), '#1677FF');
-      expect(lightTheme.semantic('background'), '#F5F5F5');
-      expect(lightTheme.semantic('text'), '#1A1D21');
+    test('tokenValue 返回正确 token 值（app 层）', () {
+      expect(lightTheme.tokenValue(lightTheme.app, 'sidebar', 'active'), '#1677FF');
+      expect(lightTheme.tokenValue(lightTheme.app, 'blank', 'bg'), '#F5F5F5');
+      expect(lightTheme.tokenValue(lightTheme.app, 'sidebar', 'text'), '#1A1D21');
     });
 
-    test('semantic 对未知 key 返回 null', () {
-      expect(lightTheme.semantic('unknown_key'), isNull);
+    test('tokenValue 对未知 key 返回 null', () {
+      expect(lightTheme.tokenValue(lightTheme.app, 'unknown_key', 'x'), isNull);
     });
 
-    test('semanticColor 返回 ThemeColor', () {
-      final color = lightTheme.semanticColor('primary');
+    test('tokenColor 返回 ThemeColor', () {
+      final color = lightTheme.tokenColor(lightTheme.app, 'sidebar', 'active');
       expect(color, isNotNull);
       expect(_r(color!.value), 0x16);
       expect(_g(color.value), 0x77);
       expect(_b(color.value), 0xFF);
     });
 
-    test('componentColor 对未注册组件返回 null', () {
-      expect(lightTheme.componentColor('unknownComp', 'token'), isNull);
+    test('tokenColor 对未注册组件返回 null', () {
+      expect(lightTheme.tokenColor(lightTheme.components, 'unknownComp', 'token'), isNull);
     });
 
-    test('component 对无组件 token 返回 null', () {
-      final comp = lightTheme.component('bubble');
-      // 未注册组件 token 时返回 null
-      expect(comp, isNull);
+    test('组件 token 查询（components 层）', () {
+      final sidebar = lightTheme.components['sidebar'];
+      expect(sidebar, isNotNull);
+      expect(sidebar!['bg'], '#F2F3F5');
+    });
+
+    test('未注册组件返回 null', () {
+      // bubble 不在当前 components 的 button/sidebar/card 中
+      expect(lightTheme.tokenValue(lightTheme.components, 'nonexistent', 'bg'), isNull);
     });
   });
 
-  group('ThemeDescriptor — dark theme', () {
-    late ThemeDescriptor darkTheme;
+  group('ThemeDescriptor — dark theme 组件 token', () {
+    late ThemeDescriptor theme;
 
     setUp(() {
-      darkTheme = ThemeDescriptor.fromJson({
-        'name': 'Dark',
-        'type': 'theme',
-        'colors': {
-          'primary': '#4096FF',
-          'background': '#0D1117',
-          'surface': '#161B22',
-          'text': '#E6EDF3',
-          'textSecondary': '#8B949E',
-          'error': '#F85149',
-          'success': '#3FB950',
-          'warning': '#D29922',
-          'border': '#30363D',
-          'bubble': {
-            'user': '#4096FF',
-            'assistant': '#21262D',
-            'text': '#E6EDF3',
-          },
-          'thinking': {
-            'bg': '#1C1A14',
-            'text': '#8B949E',
-            'border': '#D29922',
-          },
-          'toolCall': {
-            'bg': '#21262D',
-            'text': '#E6EDF3',
-            'border': '#30363D',
-          },
-        },
-      });
+      theme = _makeLightTheme(); // Reuse with built-in component data
     });
 
-    test('暗色主题语义 token', () {
-      expect(darkTheme.semantic('primary'), '#4096FF');
-      expect(darkTheme.semantic('background'), '#0D1117');
-      expect(darkTheme.semantic('text'), '#E6EDF3');
-    });
-
-    test('暗色主题组件 token', () {
-      final bubble = darkTheme.component('bubble')!;
+    test('bubble 组件 token', () {
+      final bubble = theme.components['bubble']!;
       expect(bubble['user'], '#4096FF');
-      expect(darkTheme.component('thinking')!['bg'], '#1C1A14');
-      expect(darkTheme.component('toolCall')!['bg'], '#21262D');
+      expect(bubble['assistant'], '#21262D');
+      expect(bubble['text'], '#E6EDF3');
     });
 
-    test('componentColor 返回正确 ThemeColor', () {
-      final user = darkTheme.componentColor('bubble', 'user');
+    test('thinking 组件 token', () {
+      expect(theme.components['thinking']!['bg'], '#1C1A14');
+      expect(theme.components['thinking']!['text'], '#8B949E');
+      expect(theme.components['thinking']!['border'], '#D29922');
+    });
+
+    test('toolCall 组件 token', () {
+      expect(theme.components['toolCall']!['bg'], '#21262D');
+      expect(theme.components['toolCall']!['text'], '#E6EDF3');
+      expect(theme.components['toolCall']!['border'], '#30363D');
+    });
+
+    test('component tokenColor 返回正确 ThemeColor', () {
+      final user = theme.tokenColor(theme.components, 'bubble', 'user');
       expect(user, isNotNull);
       expect(_r(user!.value), 0x40);
       expect(_g(user.value), 0x96);
       expect(_b(user.value), 0xFF);
 
-      final tBg = darkTheme.componentColor('thinking', 'bg');
+      final tBg = theme.tokenColor(theme.components, 'thinking', 'bg');
       expect(tBg, isNotNull);
       expect(_r(tBg!.value), 0x1C);
       expect(_g(tBg.value), 0x1A);

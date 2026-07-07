@@ -3,7 +3,7 @@ library;
 
 import 'dart:convert';
 import 'dart:io';
-import 'package:test/test.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
 import '../src/tokens.dart';
@@ -19,13 +19,42 @@ Map<String, dynamic> _loadJson(String path) {
   return jsonDecode(raw) as Map<String, dynamic>;
 }
 
+/// 递归检查五层 JSON 中所有 hex 值。
+void _checkAllHex(Map<String, dynamic> json, String label) {
+  // 遍历 app/module/page/slot/components 五层
+  for (final layerKey in ['app', 'module', 'page', 'slot', 'components']) {
+    final layer = json[layerKey];
+    if (layer is! Map<String, dynamic>) continue;
+    for (final comp in layer.entries) {
+      if (comp.value is Map) {
+        for (final tok in (comp.value as Map).entries) {
+          final val = tok.value.toString();
+          // 跳过非颜色 token（thickness、width、数组等）
+          if (_isNonColorToken(comp.key.toString(), tok.key.toString())) continue;
+          expect(isValidHexColor(val), isTrue,
+              reason: '$label $layerKey.${comp.key}.${tok.key} 颜色格式非法: $val');
+        }
+      }
+    }
+  }
+}
+
+bool _isNonColorToken(String component, String subToken) {
+  const nonColor = <String, Set<String>>{
+    'divider': {'thickness', 'width'},
+    'border': {'width'},
+    'chart': {'colors'},
+  };
+  return nonColor[component]?.contains(subToken) ?? false;
+}
+
 // ═══════ tests ═══════
 
 void main() {
   group('token 完整性', () {
-    test('SemanticTokens.allowedKeys 包含 20 个 key', () {
-      expect(SemanticTokens.count, 20);
-      expect(SemanticTokens.allowedKeys, hasLength(20));
+    test('AppTokens.allowedKeys 包含 5 个 key', () {
+      expect(AppTokens.count, 5);
+      expect(AppTokens.allowedKeys, hasLength(5));
     });
 
     test('ComponentTokens.allowedKeys 包含 54 个 key', () {
@@ -33,10 +62,10 @@ void main() {
       expect(ComponentTokens.allowedKeys, hasLength(54));
     });
 
-    test('语义 token 无重复', () {
+    test('App token 无重复', () {
       expect(
-        SemanticTokens.allowedKeys.length,
-        SemanticTokens.allowedKeys.toSet().length,
+        AppTokens.allowedKeys.length,
+        AppTokens.allowedKeys.toSet().length,
       );
     });
 
@@ -57,60 +86,32 @@ void main() {
   });
 
   group('内置主题', () {
-    test('light.json — 语义 token 全覆盖 20 个', () {
+    test('light.json — App 层完整', () {
       final json = _loadJson(_themePath('light'));
-      final colors = json['colors'] as Map<String, dynamic>;
-      final semanticKeys = colors.keys
-          .where((k) => colors[k] is String)
-          .toList();
-      for (final expected in SemanticTokens.allowedKeys) {
-        expect(semanticKeys, contains(expected),
-            reason: 'light.json 缺少语义 token: $expected');
+      final app = json['app'] as Map<String, dynamic>;
+      for (final expected in AppTokens.allowedKeys) {
+        expect(app.containsKey(expected), isTrue,
+            reason: 'light.json app 层缺少组件: $expected');
       }
     });
 
-    test('dark.json — 语义 token 全覆盖 20 个', () {
+    test('dark.json — App 层完整', () {
       final json = _loadJson(_themePath('dark'));
-      final colors = json['colors'] as Map<String, dynamic>;
-      final semanticKeys = colors.keys
-          .where((k) => colors[k] is String)
-          .toList();
-      for (final expected in SemanticTokens.allowedKeys) {
-        expect(semanticKeys, contains(expected),
-            reason: 'dark.json 缺少语义 token: $expected');
+      final app = json['app'] as Map<String, dynamic>;
+      for (final expected in AppTokens.allowedKeys) {
+        expect(app.containsKey(expected), isTrue,
+            reason: 'dark.json app 层缺少组件: $expected');
       }
     });
 
     test('light.json — 所有颜色值合法 hex', () {
       final json = _loadJson(_themePath('light'));
-      final colors = json['colors'] as Map<String, dynamic>;
-      for (final e in colors.entries) {
-        if (e.value is String) {
-          expect(isValidHexColor(e.value as String), isTrue,
-              reason: 'light.json 语义 token "${e.key}" 颜色格式非法: ${e.value}');
-        } else if (e.value is Map) {
-          for (final se in (e.value as Map).entries) {
-            expect(isValidHexColor(se.value.toString()), isTrue,
-                reason: 'light.json 组件 token "${e.key}.${se.key}" 颜色格式非法: ${se.value}');
-          }
-        }
-      }
+      _checkAllHex(json, 'light.json');
     });
 
     test('dark.json — 所有颜色值合法 hex', () {
       final json = _loadJson(_themePath('dark'));
-      final colors = json['colors'] as Map<String, dynamic>;
-      for (final e in colors.entries) {
-        if (e.value is String) {
-          expect(isValidHexColor(e.value as String), isTrue,
-              reason: 'dark.json 语义 token "${e.key}" 颜色格式非法: ${e.value}');
-        } else if (e.value is Map) {
-          for (final se in (e.value as Map).entries) {
-            expect(isValidHexColor(se.value.toString()), isTrue,
-                reason: 'dark.json 组件 token "${e.key}.${se.key}" 颜色格式非法: ${se.value}');
-          }
-        }
-      }
+      _checkAllHex(json, 'dark.json');
     });
 
     test('light.json — type=theme', () {

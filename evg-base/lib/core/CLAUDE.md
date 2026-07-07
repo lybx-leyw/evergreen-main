@@ -9,7 +9,7 @@
 
 ```
 lib/core/
-├── errors.dart              # AppError 基类 + 13 种子类错误
+├── errors.dart              # AppError 基类 + 14 种子类错误
 ├── log.dart                 # Log 单例（debug→stderr, release→文件轮转）
 ├── result.dart              # Result<T> sealed class（Ok / Err）
 ├── services/                # 平台级基础服务
@@ -42,6 +42,7 @@ lib/core/
 │   └── core/                #   文本版 Core 自证应用
 ├── docs/
 │   └── plugin-format.md     #   .plugin 包格式规范 v1.0
+│   └── plugin-authoring-guide-core-services.md # 插件打包与分发指南
 ├── scripts/                 # OCR 子进程脚本
 ├── pubspec.yaml             # 依赖声明（stub 指向 lib/）
 ├── README.md                # 模块总览
@@ -183,7 +184,7 @@ URL → download（3 次重试: 1s/3s/5s）→ ZIP 解压 → manifest.json 校�
 | `ocr_pipeline_test.dart` | 文件不存在/空路径/parsePageOutput 多格式（9 用例） |
 | `signature_test.dart` | SHA-256 计算/常数时间比较/签名场景（10 用例） |
 | `update_service_test.dart` | 网络错误降级/自定义 repo（2 用例） |
-| `widget_test.dart` | AppError 13 工厂/Result\<T\> 完整 API（41 用例） |
+| `widget_test.dart` | AppError 14 工厂/Result\<T\> 完整 API |
 
 运行：`dart test`（在 `lib/core/` 目录下）
 

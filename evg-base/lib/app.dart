@@ -42,42 +42,23 @@ final _shellNavigatorKey = GlobalKey<NavigatorState>();
 /// 当前主题模式（亮色 / 暗色 / 跟随系统）。
 final themeModeProvider = StateProvider<ThemeMode>((ref) => ThemeMode.system);
 
-/// 亮色主题——从 [themeDescriptorProvider] 解析。
+/// 亮色主题——从 [themeDescriptorProvider] 解析 app 层。
 final lightThemeProvider = Provider<ThemeData>((ref) {
   final descriptor = ref.watch(themeDescriptorProvider);
-  if (descriptor != null) return buildThemeFromDescriptor(descriptor);
+  if (descriptor != null) {
+    return buildAppThemeFromDescriptor(descriptor, brightness: Brightness.light);
+  }
   return ThemeData(useMaterial3: true, brightness: Brightness.light);
 });
 
-/// 暗色主题——从亮色语义 token 派生出暗色变体。
+/// 暗色主题——从 [themeDescriptorProvider] 解析 app 层（dark 变体）。
 final darkThemeProvider = Provider<ThemeData>((ref) {
   final descriptor = ref.watch(themeDescriptorProvider);
-  if (descriptor != null) return _buildDarkTheme(descriptor);
+  if (descriptor != null) {
+    return buildAppThemeFromDescriptor(descriptor, brightness: Brightness.dark);
+  }
   return ThemeData(useMaterial3: true, brightness: Brightness.dark);
 });
-
-/// 从 [ThemeDescriptor] 构建暗色 ThemeData。
-ThemeData _buildDarkTheme(ThemeDescriptor descriptor) {
-  final s = descriptor.semanticTokens;
-  final colorScheme = ColorScheme(
-    brightness: Brightness.dark,
-    primary: _hex(s['primary'] ?? '#1677FF'),
-    onPrimary: _hex(s['onPrimary'] ?? '#FFFFFF'),
-    secondary: _hex(s['secondary'] ?? '#52C41A'),
-    onSecondary: _hex(s['onSecondary'] ?? '#FFFFFF'),
-    error: _hex(s['error'] ?? '#CF222E'),
-    onError: _hex(s['onError'] ?? '#FFFFFF'),
-    surface: _hex('#1A1D21'),
-    onSurface: _hex('#E6E8EC'),
-    outline: _hex('#3A3D42'),
-    shadow: _hex('#000000'),
-  );
-  return ThemeData(
-    colorScheme: colorScheme,
-    useMaterial3: true,
-    scaffoldBackgroundColor: _hex('#111316'),
-  );
-}
 
 Color _hex(String hex) {
   final s = hex.replaceFirst('#', '');

@@ -1,4 +1,4 @@
-/// 主题加载器——扫描 theme.json 文件。
+/// 主题加载器——扫描 theme.json 文件（五层模型）。
 ///
 /// # 顶层函数
 ///
@@ -11,6 +11,7 @@ library;
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:io' show stderr;
 import 'package:path/path.dart' as p;
 import 'theme_descriptor.dart';
 import 'theme_store.dart';
@@ -32,8 +33,8 @@ List<ThemeDescriptor> scanThemes(String dirPath) {
       final map = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
       if (map['type'] != 'theme') continue;
       themes.add(ThemeDescriptor.fromJson(map));
-    } catch (_) {
-      // 解析失败静默跳过
+    } on FormatException catch (e) {
+      stderr.writeln('[theme] 加载 "${file.path}" 失败: $e');
     }
   }
   return themes;

@@ -29,12 +29,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path/path.dart' as p;
 import 'package:evergreen_base/core/module/module_descriptor.dart';
+import 'package:evergreen_base/core/theme/theme_descriptor.dart';
 import 'package:evergreen_base/core/module/process_manager.dart';
 import 'package:evergreen_base/core/module/page_event_bus.dart';
 import 'package:evergreen_base/core/module/expose_state_writer.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
 import 'package:evergreen_base/core/log.dart';
 import 'package:evergreen_base/providers.dart';
+import 'renderer_providers.dart';
 import '../widgets/data_table.dart';
 import '../widgets/map_panel.dart';
 import '../widgets/video_player.dart';
@@ -52,6 +54,7 @@ import 'chat_controller_view.dart';
 import 'settings_view.dart';
 import 'data_dashboard_view.dart';
 import 'slot_widgets.dart';
+import 'theme_provider.dart';
 
 /// 复合视图——根据 [ModuleDescriptor.pages] 渲染多页面 Tab 界面。
 ///
@@ -92,6 +95,9 @@ class _CompositeViewState extends State<CompositeView>
 
   /// EventBus 订阅列表（页面切走时 cancel）。
   final List<StreamSubscription> _busSubscriptions = [];
+
+  /// 当前页面的五层主题构建者（由 build() 设置，供子方法使用）。
+  LayerThemeBuilder? _themeBuilder;
 
   @override
   void initState() {
@@ -290,21 +296,69 @@ class _CompositeViewState extends State<CompositeView>
       return DefaultView(descriptor: descriptor);
     }
 
-    return Column(
-      children: [
-        // 页面 Tab 栏
-        _buildTabBar(pages),
-        // 页面内容
-        Expanded(
-          child: TabBarView(
-            controller: _tabController,
-            children: pages.map((page) => _buildPageContent(page)).toList(),
-          ),
-        ),
-        // 动作按钮栏
-        if ((descriptor.actions?.actionButtons ?? []).isNotEmpty) _buildActionBar(),
-      ],
+    // ── 主题：读取活跃 ThemeDescriptor，构建 LayerThemeBuilder ──
+    final themeDesc = _readThemeDescriptor(context);
+    final themeBuilder = LayerThemeBuilder(
+      descriptor: themeDesc,
+      moduleOverride: descriptor.theme,
     );
+    _themeBuilder = themeBuilder;
+
+    // App 层 → Module 层 → 内容
+    return LayerThemeScope(
+      layerName: 'app',
+      data: themeBuilder.appLayer,
+      child: LayerThemeScope(
+        layerName: 'module',
+        data: themeBuilder.moduleLayer,
+        child: Column(
+          children: [
+            // 页面 Tab 栏
+            _buildTabBar(pages),
+            // 页面内容
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: pages
+                    .map((page) => _buildPageContent(page, themeBuilder))
+                    .toList(),
+              ),
+            ),
+            // 动作按钮栏
+            if ((descriptor.actions?.actionButtons ?? []).isNotEmpty)
+              _buildActionBar(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 从 Riverpod 读取活跃主题；未加载时返回内置默认。
+  ThemeDescriptor _readThemeDescriptor(BuildContext context) {
+    try {
+      final container = _riverpodContainer(context);
+      return container.read(themeDescriptorProvider) ?? _builtinDefault();
+    } catch (_) {
+      return _builtinDefault();
+    }
+  }
+
+  /// 内置 default 主题（程序化构造，无需依赖 theme.json 加载）。
+  ThemeDescriptor _builtinDefault() {
+    return ThemeDescriptor(
+      id: 'default',
+      name: '品牌蓝',
+      app: _defaultAppTokens(),
+      module: _defaultModuleTokens(),
+      page: _defaultPageTokens(),
+      slot: _defaultSlotTokens(),
+      components: _defaultComponentTokens(),
+    );
+  }
+
+  ProviderContainer _riverpodContainer(BuildContext context) {
+    // ignore: invalid_use_of_protected_member
+    return ProviderScope.containerOf(context);
   }
 
   Widget _buildTabBar(List<PageDescriptor> pages) {
@@ -391,7 +445,7 @@ class _CompositeViewState extends State<CompositeView>
     return Tab(text: label, iconMargin: EdgeInsets.zero);
   }
 
-  Widget _buildPageContent(PageDescriptor page) {
+  Widget _buildPageContent(PageDescriptor page, LayerThemeBuilder themeBuilder) {
     final allSlots = page.layout.slots;
     final pageId = page.id;
     final bus = _pageBuses[pageId];
@@ -416,13 +470,23 @@ class _CompositeViewState extends State<CompositeView>
     // 内容区（用过滤后的 contentSlots）
     final content = _buildLayoutFromEntries(contentSlots, page.layout.type, page.layout.preset, pageId, bus);
 
-    if (toolbar == null) return content;
-    return Column(
-      children: [
-        toolbar,
-        const Divider(height: 1),
-        Expanded(child: content),
-      ],
+    final pageData = themeBuilder.pageLayer.merge(page.theme);
+
+    final body = toolbar == null
+        ? content
+        : Column(
+            children: [
+              toolbar,
+              const Divider(height: 1),
+              Expanded(child: content),
+            ],
+          );
+
+    // Page 层主题注入
+    return LayerThemeScope(
+      layerName: 'page',
+      data: pageData,
+      child: body,
     );
   }
 
@@ -442,6 +506,10 @@ class _CompositeViewState extends State<CompositeView>
         moduleDescriptor: widget.descriptor,
         pageEventBus: bus,
         chrome: true,  // 工具栏 slot：跳过 Card 壳，直接渲染组件
+        baseSlotTokens: _themeBuilder?.descriptor.slot ?? const {},
+        baseComponentsTokens: _themeBuilder?.descriptor.components ?? const {},
+        slotThemeOverride: e.value.theme,
+        componentThemeOverride: e.value.component?.theme,
       );
       if (align == 'right') { rights.add(w); } else { lefts.add(w); }
     }
@@ -501,7 +569,8 @@ class _CompositeViewState extends State<CompositeView>
   /// 渲染单个 slot 组件（支持折叠/展开 + 动画）。折叠时保留头栏。
   Widget _slotWidget(MapEntry<String, SlotDescriptor> entry, PageEventBus? bus, String pageId) {
     final visible = _isSlotVisible(pageId, entry.key, entry.value);
-    final comp = entry.value.component!;
+    final slotDesc = entry.value;
+    final comp = slotDesc.component!;
     // config.collapsible: true（默认）→ 允许折叠/展开，false → 无 tap
     final collapsible = (comp.config['collapsible'] as bool?) ?? true;
     final dispatch = SlotDispatch(
@@ -511,6 +580,10 @@ class _CompositeViewState extends State<CompositeView>
       pageEventBus: bus,
       onToggle: collapsible ? () => _toggleSlot(pageId, entry.key) : null,
       collapsed: !visible,
+      baseSlotTokens: _themeBuilder?.descriptor.slot ?? const {},
+      baseComponentsTokens: _themeBuilder?.descriptor.components ?? const {},
+      slotThemeOverride: slotDesc.theme,
+      componentThemeOverride: comp.theme,
     );
     // 仅可折叠 slot 使用 AnimatedSize；不可折叠 slot 直接渲染以避免布局冲突
     if (!collapsible) return dispatch;
@@ -562,6 +635,14 @@ class _CompositeViewState extends State<CompositeView>
                             config: entry.value.component!,
                             moduleDescriptor: widget.descriptor,
                             pageEventBus: bus,
+                            baseSlotTokens:
+                                _themeBuilder?.descriptor.slot ?? const {},
+                            baseComponentsTokens:
+                                _themeBuilder?.descriptor.components ??
+                                    const {},
+                            slotThemeOverride: entry.value.theme,
+                            componentThemeOverride:
+                                entry.value.component?.theme,
                           )
                         : _slotWidget(entry, bus, pageId);
                     return SizedBox(
@@ -630,6 +711,14 @@ class _CompositeViewState extends State<CompositeView>
                             config: e.value.component!,
                             moduleDescriptor: widget.descriptor,
                             pageEventBus: bus,
+                            baseSlotTokens:
+                                _themeBuilder?.descriptor.slot ?? const {},
+                            baseComponentsTokens:
+                                _themeBuilder?.descriptor.components ??
+                                    const {},
+                            slotThemeOverride: e.value.theme,
+                            componentThemeOverride:
+                                e.value.component?.theme,
                           )
                         : _slotWidget(e, bus, pageId);
                     return SizedBox(height: h, child: child);
@@ -804,6 +893,113 @@ class _CompositeViewState extends State<CompositeView>
       ),
     );
   }
+
+  // ═══════ 内置默认主题 Token（无 theme.json 时回退） ═══════
+
+  static const _appColors = {
+    'sidebar': {'bg': '#F2F3F5', 'text': '#1A1D21', 'active': '#1677FF', 'hover': '#E8EAED', 'divider': '#D0D5DD'},
+    'header': {'bg': '#FFFFFF', 'text': '#1A1D21', 'border': '#D0D5DD'},
+    'footer': {'bg': '#F5F6F8', 'text': '#656D78', 'border': '#D0D5DD'},
+    'blank': {'bg': '#F5F6F8'},
+    'commandPalette': {'bg': '#FFFFFF', 'text': '#1A1D21', 'highlight': '#1677FF', 'border': '#D0D5DD'},
+  };
+
+  static const _moduleColors = {
+    'chrome': {'bg': '#FFFFFF', 'border': '#D0D5DD'},
+  };
+
+  static const _pageColors = {
+    'tabBar': {'bg': '#FFFFFF', 'text': '#656D78', 'active': '#1677FF', 'indicator': '#1677FF', 'hover': '#E8EAED', 'border': '#D0D5DD'},
+    'background': {'color': '#F5F6F8'},
+  };
+
+  static const _slotColors = {
+    'header': {'bg': '#F2F3F5', 'text': '#656D78', 'border': '#D0D5DD'},
+    'background': {'color': '#FFFFFF'},
+    'border': {'color': '#D0D5DD', 'width': '1'},
+  };
+
+  static const _componentColors = {
+    // 导航 (5)
+    'sidebar': {'bg': '#F2F3F5', 'text': '#1A1D21', 'active': '#1677FF', 'hover': '#E8EAED'},
+    'tab': {'text': '#656D78', 'active': '#1677FF', 'indicator': '#1677FF', 'hover': '#E8EAED'},
+    'breadcrumb': {'text': '#656D78', 'link': '#1677FF', 'separator': '#D0D5DD'},
+    'pagination': {'bg': '#FFFFFF', 'active': '#1677FF', 'text': '#1A1D21', 'hover': '#E8EAED'},
+    'stepper': {'done': '#52C41A', 'active': '#1677FF', 'pending': '#D0D5DD', 'line': '#D0D5DD'},
+    // 对话 (5)
+    'bubble': {'user': '#1677FF', 'assistant': '#F2F3F5', 'text': '#1A1D21', 'timestamp': '#656D78'},
+    'thinking': {'bg': '#F2F3F5', 'text': '#0958D9', 'border': '#D0D5DD'},
+    'toolCall': {'bg': '#F2F3F5', 'text': '#1A1D21', 'border': '#D0D5DD'},
+    'codeBlock': {'bg': '#1A1D21', 'text': '#E6EDF3', 'border': '#30363D', 'header': '#21262D'},
+    'blockquote': {'border': '#1677FF', 'text': '#656D78', 'bg': '#F5F6F8'},
+    // 表单 (7)
+    'input': {'bg': '#F2F3F5', 'text': '#1A1D21', 'border': '#D0D5DD', 'focus': '#1677FF', 'placeholder': '#656D78', 'error': '#FF4D4F'},
+    'checkbox': {'border': '#D0D5DD', 'fill': '#1677FF', 'check': '#FFFFFF'},
+    'radio': {'border': '#D0D5DD', 'fill': '#1677FF'},
+    'switch_': {'track': '#D0D5DD', 'thumb': '#FFFFFF', 'trackActive': '#1677FF'},
+    'slider': {'track': '#E8EAED', 'fill': '#1677FF', 'thumb': '#FFFFFF'},
+    'dropdown': {'bg': '#FFFFFF', 'text': '#1A1D21', 'border': '#D0D5DD', 'itemHover': '#E8EAED'},
+    'datePicker': {'header': '#1677FF', 'selected': '#1677FF', 'today': '#E8EAED', 'hover': '#F5F6F8'},
+    // 反馈 (6)
+    'progressBar': {'track': '#E8EAED', 'fill': '#1677FF', 'text': '#FFFFFF'},
+    'spinner': {'color': '#1677FF', 'track': '#E8EAED'},
+    'skeleton': {'bg': '#E8EAED', 'shimmer': '#F5F6F8'},
+    'toast': {'bg': '#FFFFFF', 'text': '#1A1D21', 'border': '#D0D5DD', 'success': '#52C41A', 'error': '#FF4D4F', 'warning': '#FA8C16', 'info': '#1677FF'},
+    'alert': {'bg': '#FFFFFF', 'text': '#1A1D21', 'border': '#D0D5DD', 'icon': '#FA8C16'},
+    'emptyState': {'icon': '#D0D5DD', 'text': '#656D78', 'action': '#1677FF'},
+    // 数据展示 (9)
+    'table': {'header': '#F2F3F5', 'stripe': '#F5F6F8', 'text': '#1A1D21', 'border': '#D0D5DD', 'hover': '#E8EAED'},
+    'card': {'bg': '#FFFFFF', 'border': '#D0D5DD', 'shadow': '#000000', 'text': '#1A1D21'},
+    'list': {'bg': '#FFFFFF', 'hover': '#E8EAED', 'divider': '#D0D5DD'},
+    'chip': {'bg': '#E8EAED', 'text': '#1A1D21', 'border': '#D0D5DD', 'close': '#656D78'},
+    'avatar': {'bg': '#1677FF', 'text': '#FFFFFF', 'border': '#FFFFFF'},
+    'badge': {'bg': '#FF4D4F', 'text': '#FFFFFF'},
+    'tooltip': {'bg': '#1A1D21', 'text': '#FFFFFF'},
+    'calendar': {'header': '#1677FF', 'selected': '#1677FF', 'today': '#E8EAED', 'otherMonth': '#D0D5DD', 'event': '#FF4D4F'},
+    'timeline': {'line': '#D0D5DD', 'dot': '#1677FF', 'card': '#FFFFFF'},
+    // 按钮 (3)
+    'button': {'primary': '#1677FF', 'hover': '#0958D9', 'active': '#0958D9', 'disabled': '#D0D5DD', 'text': '#FFFFFF'},
+    'iconButton': {'color': '#656D78', 'hover': '#E8EAED', 'active': '#1677FF'},
+    'fab': {'bg': '#1677FF', 'icon': '#FFFFFF', 'shadow': '#000000'},
+    // 布局 (6)
+    'drawer': {'bg': '#FFFFFF', 'text': '#1A1D21', 'overlay': '#000000'},
+    'modal': {'bg': '#FFFFFF', 'overlay': '#000000', 'text': '#1A1D21', 'border': '#D0D5DD'},
+    'header': {'bg': '#FFFFFF', 'text': '#1A1D21', 'border': '#D0D5DD'},
+    'footer': {'bg': '#F5F6F8', 'text': '#656D78', 'border': '#D0D5DD'},
+    'divider': {'color': '#E8EAED', 'thickness': '1'},
+    'scrollbar': {'thumb': '#D0D5DD', 'track': '#F5F6F8'},
+    // 图表 (1)
+    'chart': {'colors': '#1677FF,#52C41A,#FA8C16,#FF4D4F,#722ED1', 'axis': '#D0D5DD', 'grid': '#E8EAED', 'tooltip': '#1A1D21'},
+    // 媒体 (3)
+    'videoPlayer': {'controls': '#FFFFFF', 'progress': '#1677FF', 'overlay': '#000000'},
+    'audioPlayer': {'controls': '#1677FF', 'waveform': '#E8EAED', 'progress': '#1677FF'},
+    'imageViewer': {'bg': '#000000', 'overlay': '#000000'},
+    // 杂项 (5)
+    'link': {'text': '#1677FF', 'hover': '#0958D9', 'visited': '#722ED1'},
+    'menu': {'bg': '#FFFFFF', 'text': '#1A1D21', 'hover': '#E8EAED', 'divider': '#D0D5DD'},
+    'commandPalette': {'bg': '#FFFFFF', 'text': '#1A1D21', 'highlight': '#1677FF', 'border': '#D0D5DD'},
+    'contextMenu': {'bg': '#FFFFFF', 'text': '#1A1D21', 'hover': '#E8EAED', 'divider': '#D0D5DD'},
+    'search': {'bg': '#F2F3F5', 'text': '#1A1D21', 'border': '#D0D5DD', 'focus': '#1677FF', 'icon': '#656D78'},
+    // 范式 (4)
+    'spreadsheet': {'header': '#F2F3F5', 'grid': '#D0D5DD', 'cell': '#FFFFFF', 'cellSelected': '#E8EAED', 'formulaBar': '#F5F6F8', 'tab': '#E8EAED'},
+    'document': {'bg': '#F5F6F8', 'text': '#1A1D21', 'ruler': '#D0D5DD', 'pageShadow': '#000000', 'comment': '#FFFBE6', 'selection': '#1677FF'},
+    'presentation': {'bg': '#F5F6F8', 'canvas': '#FFFFFF', 'slideBorder': '#D0D5DD', 'toolbar': '#F2F3F5', 'notes': '#FFFBE6'},
+    'workspace': {'bg': '#F5F6F8', 'tabBar': '#F2F3F5', 'panel': '#FFFFFF', 'resizeHandle': '#D0D5DD', 'empty': '#F5F6F8'},
+  };
+
+  LayerTokens _defaultAppTokens() => _cloneTokens(_appColors);
+
+  LayerTokens _defaultModuleTokens() => _cloneTokens(_moduleColors);
+
+  LayerTokens _defaultPageTokens() => _cloneTokens(_pageColors);
+
+  LayerTokens _defaultSlotTokens() => _cloneTokens(_slotColors);
+
+  LayerTokens _defaultComponentTokens() => _cloneTokens(_componentColors);
+
+  static LayerTokens _cloneTokens(Map<String, Map<String, String>> source) {
+    return source.map((k, v) => MapEntry(k, Map<String, String>.from(v)));
+  }
 }
 
 /// Slot 调度器——根据 [ComponentDescriptor.component] 类型名分发到对应视图。
@@ -851,6 +1047,18 @@ class SlotDispatch extends StatelessWidget {
   /// 是否为工具栏 chrome slot——跳过 Card 壳 + AnimatedSize，直接渲染内容。
   final bool chrome;
 
+  /// Slot 层基础 Token（来自 theme.json slot 层）。
+  final LayerTokens baseSlotTokens;
+
+  /// Component 层基础 Token（来自 theme.json components 层）。
+  final LayerTokens baseComponentsTokens;
+
+  /// Slot 级主题覆盖（来自 manifest.json slot.theme）。
+  final Map<String, Map<String, String>>? slotThemeOverride;
+
+  /// 组件级主题覆盖（来自 manifest.json component.theme）。
+  final Map<String, Map<String, String>>? componentThemeOverride;
+
   const SlotDispatch({
     super.key,
     required this.slotKey,
@@ -860,6 +1068,10 @@ class SlotDispatch extends StatelessWidget {
     this.onToggle,
     this.collapsed = false,
     this.chrome = false,
+    this.baseSlotTokens = const {},
+    this.baseComponentsTokens = const {},
+    this.slotThemeOverride,
+    this.componentThemeOverride,
   });
 
   @override
@@ -970,9 +1182,35 @@ class SlotDispatch extends StatelessWidget {
                                            : '未知',
                                      ),
       };
-    // chrome slot：跳过 Card 壳，直接渲染内容（高度约束由布局层提供）
-    if (chrome || config.config['chrome'] == true) return content;
-    return _buildSlotCard(context, slotKey, content);
+
+    // ── 构建分层主题 ──
+    final slotData = LayerThemeData.fromTokens(baseSlotTokens)
+        .merge(slotThemeOverride);
+    final compData = LayerThemeData.fromTokens(baseComponentsTokens)
+        .merge(componentThemeOverride);
+
+    // 组件内容用 Component 层包裹
+    final themedContent = LayerThemeScope(
+      layerName: 'components',
+      data: compData,
+      child: content,
+    );
+
+    // chrome slot：跳过 Card 壳，直接渲染内容
+    if (chrome || config.config['chrome'] == true) {
+      return LayerThemeScope(
+        layerName: 'slot',
+        data: slotData,
+        child: themedContent,
+      );
+    }
+
+    // 常规 slot：用 Slot 层包裹 Card
+    return LayerThemeScope(
+      layerName: 'slot',
+      data: slotData,
+      child: _buildSlotCard(context, slotKey, themedContent),
+    );
   }
 
   /// 从 config 中提取 markdown 内容。

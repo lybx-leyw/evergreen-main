@@ -2,15 +2,15 @@
 ///
 /// 插件 .exe 通过本端点列出/查询/切换主题，无需直接访问 ThemeStore。
 ///
-/// ## 6 端点一览
+/// ## 7 端点一览
 /// | # | 方法 | 路径 | 说明 |
 /// |---|------|------|------|
-/// | 1 | GET  | `/theme/health`              | 健康检查 |
-/// | 2 | GET  | `/theme/themes`              | 列出所有已注册主题 |
-/// | 3 | GET  | `/theme/themes/:id`          | 获取单个主题详情 |
-/// | 4 | GET  | `/theme/active`              | 获取当前活跃主题 |
-/// | 5 | POST | `/theme/active`              | 切换活跃主题 |
-/// | 6 | GET  | `/theme/token?component=&token=` | 查询组件 token 颜色值 |
+/// | 1 | GET  | `/theme/health`                             | 健康检查 |
+/// | 2 | GET  | `/theme/themes`                             | 列出所有已注册主题 |
+/// | 3 | GET  | `/theme/themes/:id`                         | 获取单个主题详情 |
+/// | 4 | GET  | `/theme/active`                             | 获取当前活跃主题 |
+/// | 5 | POST | `/theme/active`                             | 切换活跃主题 |
+/// | 6 | GET  | `/theme/token?layer=&component=&token=`     | 查询五层 token 颜色值 |
 library;
 
 import 'dart:async';
@@ -66,7 +66,6 @@ class ThemeHttpServer {
   Future<void> _handleRequest(HttpRequest request) async {
     final sw = Stopwatch()..start();
     try {
-      // CORS 预检
       if (request.method == 'OPTIONS') {
         _respond(request, 204, {}, sw);
         return;
@@ -82,7 +81,6 @@ class ThemeHttpServer {
     final path = request.uri.path;
     final segments = path.split('/')..removeAt(0);
 
-    // 精确匹配
     final exactKey = '$method $path';
     final exact = _routes[exactKey];
     if (exact != null) {
@@ -90,7 +88,6 @@ class ThemeHttpServer {
       return;
     }
 
-    // 参数匹配
     for (final entry in _paramRoutes.entries) {
       final parts = entry.key.split(' ');
       if (parts[0] != method) continue;
@@ -114,7 +111,6 @@ class ThemeHttpServer {
       }
     }
 
-    // 404
     _respond(request, 404, {
       'error': '未找到: $method $path',
     }, sw);
@@ -122,7 +118,8 @@ class ThemeHttpServer {
 
   // ── 路由表 ──
 
-  late final Map<String, Future<void> Function(HttpRequest, Map<String, String>, Stopwatch)>
+  late final Map<String,
+      Future<void> Function(HttpRequest, Map<String, String>, Stopwatch)>
       _routes = {
     // 1: health
     'GET /theme/health': (req, _, sw) async {
@@ -137,11 +134,16 @@ class ThemeHttpServer {
     'GET /theme/themes': (req, _, sw) async {
       _respond(req, 200, {
         'themes': _store.all.map((t) => {
-              'id': t.id,
-              'name': t.name,
-              'semanticCount': t.semanticTokens.length,
-              'componentCount': t.componentTokens.length,
-            }).toList(),
+          'id': t.id,
+          'name': t.name,
+          'layerCounts': {
+            'app': t.app.length,
+            'module': t.module.length,
+            'page': t.page.length,
+            'slot': t.slot.length,
+            'components': t.components.length,
+          },
+        }).toList(),
       }, sw);
     },
 
@@ -174,11 +176,16 @@ class ThemeHttpServer {
       }, sw);
     },
 
-    // 6: query token color
+    // 6: query token color (五层)
     'GET /theme/token': (req, _, sw) async {
+      final layer = req.uri.queryParameters['layer'];
       final component = req.uri.queryParameters['component'];
       final token = req.uri.queryParameters['token'];
 
+      if (layer == null || layer.isEmpty) {
+        _respond(req, 400, {'error': '缺少 layer 参数 (app|module|page|slot|components)'}, sw);
+        return;
+      }
       if (component == null || component.isEmpty) {
         _respond(req, 400, {'error': '缺少 component 参数'}, sw);
         return;
@@ -194,10 +201,27 @@ class ThemeHttpServer {
         return;
       }
 
-      final color = theme.componentColor(component, token);
-      if (color == null) {
+      final layerTokens = switch (layer) {
+        'app' => theme.app,
+        'module' => theme.module,
+        'page' => theme.page,
+        'slot' => theme.slot,
+        'components' => theme.components,
+        _ => null,
+      };
+
+      if (layerTokens == null) {
+        _respond(req, 400, {
+          'error': '无效 layer: $layer (应为 app|module|page|slot|components)',
+        }, sw);
+        return;
+      }
+
+      final colorHex = theme.tokenValue(layerTokens, component, token);
+      if (colorHex == null) {
         _respond(req, 404, {
           'error': 'token 未找到',
+          'layer': layer,
           'component': component,
           'token': token,
           'themeId': theme.id,
@@ -206,7 +230,8 @@ class ThemeHttpServer {
       }
 
       _respond(req, 200, {
-        'color': color.toHex(withAlpha: false),
+        'color': colorHex,
+        'layer': layer,
         'component': component,
         'token': token,
         'themeId': theme.id,
@@ -214,7 +239,8 @@ class ThemeHttpServer {
     },
   };
 
-  late final Map<String, Future<void> Function(HttpRequest, Map<String, String>, Stopwatch)>
+  late final Map<String,
+      Future<void> Function(HttpRequest, Map<String, String>, Stopwatch)>
       _paramRoutes = {
     // 3: get theme by id
     'GET /theme/themes/:id': (req, p, sw) async {
@@ -230,15 +256,29 @@ class ThemeHttpServer {
 
   // ═══════ 辅助 ═══════
 
-  void _respond(HttpRequest request, int status, Map<String, dynamic> body, Stopwatch sw) {
+  void _respond(
+    HttpRequest request,
+    int status,
+    Map<String, dynamic> body,
+    Stopwatch sw,
+  ) {
     request.response.statusCode = status;
     request.response.headers.contentType = ContentType.json;
     request.response.headers.add('Access-Control-Allow-Origin', '*');
-    request.response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-    request.response.headers.add('Access-Control-Allow-Headers', 'Content-Type');
+    request.response.headers.add(
+      'Access-Control-Allow-Methods',
+      'GET, POST, OPTIONS',
+    );
+    request.response.headers.add(
+      'Access-Control-Allow-Headers',
+      'Content-Type',
+    );
     request.response.write(jsonEncode(body));
     request.response.close();
-    stderr.writeln('[ThemeHttp] ${request.method} ${request.uri.path} → $status (${sw.elapsedMilliseconds}ms)');
+    stderr.writeln(
+      '[ThemeHttp] ${request.method} ${request.uri.path} '
+      '→ $status (${sw.elapsedMilliseconds}ms)',
+    );
   }
 }
 

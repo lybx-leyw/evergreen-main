@@ -111,7 +111,7 @@ void _browse() {
   }
   print('\n═══ 已加载主题 ═══');
   for (final t in _themes.all) {
-    print('  ${t.id.padRight(18)} ${t.name} (${t.semanticTokens.length}+${t.componentTokens.length} tokens)');
+    print('  ${t.id.padRight(18)} ${t.name} (app=${t.app.length} components=${t.components.length})');
   }
 }
 
@@ -273,15 +273,14 @@ Future<void> _toolDemo() async {
 void _themeShow() {
   for (final t in _themes.all) {
     print('═══ ${t.name} (${t.id}) ═══');
-    print('  语义 (${t.semanticTokens.length}):');
-    for (final key in ['primary', 'secondary', 'background', 'surface', 'text', 'textSecondary', 'error', 'success', 'border']) {
-      final v = t.semantic(key);
-      if (v != null) print('    ${key.padRight(14)} ████████  $v');
+    print('  App层 (${t.app.length}):');
+    for (final name in t.app.keys) {
+      print('    app.${name.padRight(16)} ${t.app[name]!.entries.map((e) => '${e.key}=${e.value}').join(' ')}');
     }
-    print('  组件 (${t.componentTokens.length}):');
-    for (final name in t.componentTokens.keys.take(12)) {
-      final c = t.component(name)!;
-      print('    ${name.padRight(14)} ${c.entries.map((e) => '${e.key}=${e.value}').join(' ')}');
+    print('  组件层 (${t.components.length}):');
+    for (final name in t.components.keys.take(8)) {
+      final c = t.components[name]!;
+      print('    ${name.padRight(16)} ${c.entries.map((e) => '${e.key}=${e.value}').join(' ')}');
     }
   }
   print('');

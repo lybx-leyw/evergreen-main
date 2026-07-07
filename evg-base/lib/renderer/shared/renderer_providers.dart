@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:evergreen_base/core/module/modules.dart';
 import 'package:evergreen_base/core/theme/theme_descriptor.dart';
+import 'package:evergreen_base/providers.dart' show themeStoreProvider;
 import 'render_tokens.dart';
 
 // ═══════ 当前模块 ═══════
@@ -34,8 +35,14 @@ final isMobileProvider = Provider<bool>((ref) {
 
 // ═══════ 主题提供者 ═══════
 
-/// 已解析的主题描述符。
-final themeDescriptorProvider = StateProvider<ThemeDescriptor?>((ref) => null);
+/// 已解析的主题描述符——从 [themeStoreProvider] 派生，主题切换时自动更新。
+///
+/// 当 [ThemeStore.activeTheme] 变更（HTTP POST /theme/active 或直接设置）时，
+/// [themeStoreProvider] 通知 → 本 provider 重建 → 所有 watch 本 provider 的 UI 重建。
+final themeDescriptorProvider = Provider<ThemeDescriptor?>((ref) {
+  final store = ref.watch(themeStoreProvider);
+  return store.activeTheme;
+});
 
 /// 从 [themeDescriptorProvider] 派生的渲染令牌。
 ///

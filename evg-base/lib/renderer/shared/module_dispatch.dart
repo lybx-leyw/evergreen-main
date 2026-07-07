@@ -13,6 +13,7 @@ import 'default_view.dart';
 import 'editor_view.dart';
 import 'composite_view.dart';
 import 'html_render_view.dart';
+import 'chat_controller_view.dart';
 
 /// UI 范式调度器——按模块内容自动选择视图。
 /// 未知配置静默回退到 [DefaultView]。
@@ -34,6 +35,12 @@ class ModuleDispatch extends StatelessWidget {
     if (renderMode == 'html') {
       debugPrint('[ModuleDispatch] ${descriptor.id}: HTML → HtmlRenderView');
       return HtmlRenderView(moduleId: descriptor.id);
+    }
+
+    // V2: AI 助手模块 → 全屏 ChatControllerView（含抽屉/全局记忆/Skill/工作区）
+    if (descriptor.id == 'ai-assistant') {
+      debugPrint('[ModuleDispatch] ${descriptor.id}: chat → ChatControllerView');
+      return ChatControllerView(descriptor: descriptor);
     }
 
     // V2: 有 pages → CompositeView（每页独立 layout + slots）
