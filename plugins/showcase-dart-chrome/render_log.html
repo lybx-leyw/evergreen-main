@@ -1,0 +1,1399 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🎭 展示大厅 (Chrome) — V2</title>
+<style>
+:root {
+  /* 背景 */
+  --evg-bg-primary: #0d1117;
+  --evg-bg-secondary: #161b22;
+  --evg-bg-tertiary: #1c2128;
+
+  /* 边框 */
+  --evg-border-default: #30363d;
+  --evg-border-accent: #1f6feb;
+  --evg-border-success: #3fb950;
+
+  /* 文字 */
+  --evg-text-primary: #c9d1d9;
+  --evg-text-secondary: #8b949e;
+  --evg-text-tertiary: #484f58;
+
+  /* 强调色 */
+  --evg-accent-blue: #58a6ff;
+  --evg-accent-blue-bg: #1f6feb22;
+  --evg-accent-blue-border: #1f6feb44;
+
+  /* 状态色 */
+  --evg-state-success: #3fb950;
+  --evg-state-success-bg: #3fb95022;
+  --evg-state-success-border: #3fb95044;
+  --evg-state-error: #ff7b72;
+
+  /* 按钮 */
+  --evg-button-green: #238636;
+  --evg-button-bg: #21262d;
+
+  /* 代码 */
+  --evg-code-kw: #ff7b72;
+  --evg-code-fn: #d2a8ff;
+  --evg-code-str: #a5d6ff;
+  --evg-code-num: #79c0ff;
+  --evg-code-cmt: #8b949e;
+
+  /* 间距 */
+  --evg-space-xs: 4.0px;
+  --evg-space-sm: 6.0px;
+  --evg-space-md: 8.0px;
+  --evg-space-lg: 12.0px;
+  --evg-space-xl: 16.0px;
+  --evg-space-xxl: 24.0px;
+
+  /* 圆角 */
+  --evg-radius-sm: 3.0px;
+  --evg-radius-md: 4.0px;
+  --evg-radius-lg: 6.0px;
+  --evg-radius-xl: 8.0px;
+  --evg-radius-xxl: 12.0px;
+  --evg-radius-round: 20.0px;
+
+  /* 字体 */
+  --evg-font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --evg-font-mono: 'Cascadia Code', 'Fira Code', monospace;
+  --evg-font-size-xs: 9.0px;
+  --evg-font-size-sm: 10.0px;
+  --evg-font-size-base: 11.0px;
+  --evg-font-size-md: 12.0px;
+  --evg-font-size-lg: 13.0px;
+  --evg-font-size-xl: 14.0px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: var(--evg-bg-primary); color: var(--evg-text-primary);
+}
+
+/* ── Shell: 侧边栏 + 内容区 ── */
+#evg-app { display: flex; flex-direction: column; height: 100vh; }
+.evg-shell { display: flex; flex: 1; overflow: hidden; }
+.evg-sidebar {
+  width: 200px; flex-shrink: 0; background: var(--evg-bg-secondary);
+  border-right: 1px solid var(--evg-border-default); display: flex; flex-direction: column; overflow-y: auto;
+}
+.evg-sidebar-header {
+  padding: 12px; font-size: 12px; font-weight: 700; color: var(--evg-accent-blue);
+  border-bottom: 1px solid var(--evg-border-default); text-transform: uppercase; letter-spacing: .5px;
+}
+.evg-nav-item {
+  display: block; padding: 8px 12px; color: var(--evg-text-secondary); text-decoration: none;
+  font-size: 13px; border-left: 2px solid transparent; transition: all .15s;
+}
+.evg-nav-item:hover, .evg-nav-item.active { color: var(--evg-text-primary); border-left-color: var(--evg-accent-blue); background: var(--evg-bg-tertiary); }
+.evg-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+/* ── Tab 页签 ── */
+.evg-tabs {
+  display: flex; gap: 2px; padding: 4px 8px 0;
+  background: var(--evg-bg-secondary); border-bottom: 1px solid var(--evg-border-default); flex-shrink: 0;
+}
+.evg-tab {
+  padding: 6px 14px; border: 1px solid transparent; border-radius: 6px 6px 0 0;
+  background: transparent; color: var(--evg-text-secondary); cursor: pointer; font-size: 12px;
+}
+.evg-tab:hover { color: var(--evg-text-primary); background: var(--evg-bg-tertiary); }
+.evg-tab.active { color: var(--evg-accent-blue); background: var(--evg-bg-primary); border-color: var(--evg-border-default); border-bottom-color: var(--evg-bg-primary); }
+
+/* ── 页面 & 布局 ── */
+.evg-pages { flex: 1; overflow: hidden; }
+.evg-page { height: 100%; }
+.evg-page.active { display: block !important; }
+.evg-layout { width: 100%; height: 100%; padding: 8px; overflow: auto; }
+
+/* ── Slot 卡片 ── */
+.evg-slot {
+  border: 1px solid var(--evg-border-default); border-radius: 8px;
+  background: var(--evg-bg-secondary); overflow: hidden; display: flex; flex-direction: column;
+}
+.evg-slot-header {
+  display: flex; align-items: center; gap: 6px; padding: 6px 10px;
+  background: var(--evg-bg-tertiary); border-bottom: 1px solid var(--evg-border-default); font-size: 11px;
+  flex-shrink: 0;
+}
+.evg-slot-name { color: var(--evg-text-primary); font-weight: 600; }
+.evg-slot-type { color: var(--evg-accent-blue); font-size: 10px; }
+.evg-slot-body { flex: 1; overflow: auto; }
+.evg-badge {
+  background: var(--evg-accent-blue-bg); color: var(--evg-accent-blue); padding: 1px 6px; border-radius: 8px;
+  font-size: 10px; border: 1px solid var(--evg-accent-blue-border); white-space: nowrap;
+}
+.evg-badge-listen {
+  background: var(--evg-state-success-bg); color: var(--evg-state-success); padding: 1px 6px; border-radius: 8px;
+  font-size: 10px; border: 1px solid var(--evg-state-success-border); white-space: nowrap;
+}
+
+/* ── 组件通用 ── */
+.evg-comp { width: 100%; height: 100%; display: flex; flex-direction: column; }
+.evg-comp-title { font-size:13px; font-weight:600; color:var(--evg-text-primary); padding:8px 12px 4px; }
+.evg-empty { padding: 40px; text-align: center; color: var(--evg-text-secondary); }
+
+/* ── Chat ── */
+.evg-comp-chat { display: flex; flex-direction: column; }
+.evg-chat-msgs { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+.evg-msg { display: flex; gap: 8px; align-items: flex-start; }
+.evg-msg.user { flex-direction: row-reverse; }
+.evg-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--evg-border-accent); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+.evg-msg.user .evg-avatar { background: var(--evg-state-success); }
+.evg-bubble { background: var(--evg-bg-tertiary); border: 1px solid var(--evg-border-default); border-radius: 12px; padding: 8px 12px; font-size: 13px; line-height: 1.6; max-width: 80%; }
+.evg-msg.user .evg-bubble { background: var(--evg-accent-blue-bg); border-color: var(--evg-accent-blue-border); }
+.evg-chat-input { display: flex; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--evg-border-default); background: var(--evg-bg-secondary); }
+.evg-chat-input input { flex: 1; padding: 8px 12px; background: var(--evg-bg-primary); border: 1px solid var(--evg-border-default); border-radius: 6px; color: var(--evg-text-primary); font-size: 13px; }
+.evg-chat-input button { padding: 6px 16px; background: var(--evg-button-green); border: none; border-radius: 6px; color: #fff; cursor: pointer; font-size: 12px; }
+.evg-quick-replies { display: flex; gap: 6px; flex-wrap: wrap; padding: 6px 12px; }
+.evg-quick-reply { background: var(--evg-bg-tertiary); border: 1px solid var(--evg-border-default); border-radius: 12px; padding: 3px 10px; font-size: 11px; color: var(--evg-accent-blue); cursor: pointer; white-space: nowrap; }
+
+/* ── Code Editor ── */
+.evg-comp-code { display: flex; flex-direction: column; }
+.evg-code-header { display: flex; justify-content: space-between; padding: 6px 12px; background: var(--evg-bg-tertiary); border-bottom: 1px solid var(--evg-border-default); font-size: 12px; color: var(--evg-text-secondary); }
+.evg-code-lang { color: var(--evg-accent-blue); }
+.evg-code-body { display: flex; flex: 1; overflow: auto; }
+.evg-code-lines { padding: 8px 10px; color: var(--evg-text-tertiary); font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 13px; line-height: 1.6; text-align: right; background: var(--evg-bg-primary); min-width: 36px; user-select: none; }
+.evg-code-pre { flex: 1; padding: 8px 12px; background: var(--evg-bg-primary); color: var(--evg-text-primary); font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 13px; line-height: 1.6; overflow: auto; margin: 0; }
+.evg-kw { color: var(--evg-code-kw); }
+.evg-fn { color: var(--evg-code-fn); }
+.evg-str { color: var(--evg-code-str); }
+.evg-num { color: var(--evg-code-num); }
+.evg-cmt { color: var(--evg-code-cmt); font-style: italic; }
+
+/* ── Data Table ── */
+.evg-comp-table { padding: 8px; }
+.evg-table-filter { margin-bottom: 8px; }
+.evg-table-filter input { width: 100%; padding: 6px 10px; background: var(--evg-bg-primary); border: 1px solid var(--evg-border-default); border-radius: 4px; color: var(--evg-text-primary); font-size: 12px; }
+.evg-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.evg-table th, .evg-table td { padding: 6px 10px; border: 1px solid var(--evg-border-default); text-align: left; }
+.evg-table th { background: var(--evg-bg-tertiary); font-weight: 600; }
+.evg-table tr:hover td { background: var(--evg-bg-tertiary); }
+.evg-sort { color: var(--evg-text-tertiary); font-size: 10px; cursor: pointer; }
+
+/* ── Card Grid ── */
+.evg-comp-cards { padding: 8px; }
+.evg-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+.evg-card { background: var(--evg-bg-tertiary); border: 1px solid var(--evg-border-default); border-radius: 8px; padding: 10px; }
+.evg-card-field { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }
+.evg-card-label { color: var(--evg-text-secondary); }
+.evg-card-val { color: var(--evg-text-primary); font-weight: 600; }
+
+/* ── Chart ── */
+.evg-comp-chart { padding: 8px 8px 40px 8px; display: flex; flex-direction: column; }
+.evg-chart-area { flex: 1; display: flex; align-items: flex-end; padding: 12px 0 0; }
+.evg-chart-bars { display: flex; align-items: flex-end; gap: 4px; width: 100%; height: 100%; }
+.evg-bar-wrapper { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+.evg-bar { width: 80%; min-width: 16px; border-radius: 3px 3px 0 0; position: relative; min-height: 4px; transition: height .3s; }
+.evg-bar-val { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 10px; color: var(--evg-text-secondary); }
+.evg-bar-label { font-size: 9px; color: var(--evg-text-secondary); margin-top: 4px; }
+.evg-chart-pie { width: 120px; height: 120px; border-radius: 50%; margin: 12px auto; }
+.evg-chart-pie.donut { position: relative; }
+.evg-chart-pie.donut::after { content: ''; position: absolute; top: 30px; left: 30px; width: 60px; height: 60px; border-radius: 50%; background: var(--evg-bg-primary); }
+.evg-chart-legend { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 8px; }
+.evg-legend-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--evg-text-secondary); }
+.evg-legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+.evg-line-svg { width: 100%; height: 100%; }
+
+/* ── Lottery ── */
+.evg-comp-lottery { display: flex; flex-direction: column; align-items: center; padding: 12px; gap: 12px; }
+.evg-lottery-header { text-align: center; }
+.evg-lottery-sub { font-size: 11px; color: var(--evg-text-secondary); }
+.evg-lottery-wheel-container { position: relative; }
+.evg-lottery-canvas { border-radius: 50%; border: 4px solid var(--evg-border-default); background: var(--evg-bg-tertiary); }
+.evg-lottery-btn { margin-top: 12px; padding: 8px 24px; background: linear-gradient(135deg, var(--evg-button-green), var(--evg-border-accent)); border: none; border-radius: 20px; color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; }
+.evg-lottery-history { text-align: center; }
+
+/* ── Document ── */
+.evg-comp-doc { display: flex; flex-direction: column; }
+.evg-doc-toolbar { display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: var(--evg-bg-tertiary); border-bottom: 1px solid var(--evg-border-default); font-size: 12px; }
+.evg-doc-actions { display: flex; gap: 4px; }
+.evg-doc-tag { background: var(--evg-accent-blue-bg); border: 1px solid var(--evg-accent-blue-border); border-radius: 3px; padding: 1px 6px; font-size: 10px; color: var(--evg-accent-blue); }
+.evg-doc-content { flex: 1; padding: 16px; overflow-y: auto; line-height: 1.8; }
+.evg-doc-content h2 { font-size: 18px; margin-bottom: 12px; color: var(--evg-text-primary); }
+.evg-doc-content p { margin-bottom: 8px; }
+.evg-doc-content blockquote { border-left: 3px solid var(--evg-accent-blue); padding: 4px 12px; color: var(--evg-text-secondary); margin: 8px 0; background: var(--evg-bg-tertiary); border-radius: 0 4px 4px 0; }
+
+/* ── Spreadsheet ── */
+.evg-comp-sheet { display: flex; flex-direction: column; }
+.evg-sheet-header { display: flex; justify-content: space-between; padding: 6px 12px; background: var(--evg-bg-tertiary); border-bottom: 1px solid var(--evg-border-default); font-size: 12px; color: var(--evg-text-primary); }
+.evg-sheet-table { flex: 1; overflow: auto; }
+.evg-sheet-table table { border-collapse: collapse; width: max-content; min-width: 100%; font-size: 12px; }
+.evg-sheet-table th, .evg-sheet-table td { border: 1px solid var(--evg-border-default); padding: 4px 8px; min-width: 60px; text-align: left; }
+.evg-sheet-table th { background: var(--evg-bg-tertiary); font-weight: 600; position: sticky; top: 0; }
+.evg-sheet-table td { background: var(--evg-bg-primary); }
+.evg-row-num { color: var(--evg-text-tertiary); text-align: center; background: var(--evg-bg-secondary) !important; }
+
+/* ── Video ── */
+.evg-comp-video { display: flex; flex-direction: column; }
+.evg-video-placeholder { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--evg-bg-primary); gap: 12px; }
+.evg-video-icon { width: 60px; height: 60px; border-radius: 50%; background: var(--evg-accent-blue-bg); border: 2px solid var(--evg-accent-blue); color: var(--evg-accent-blue); display: flex; align-items: center; justify-content: center; font-size: 24px; }
+.evg-video-text { font-size: 14px; color: var(--evg-text-secondary); }
+.evg-video-controls { display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: var(--evg-bg-secondary); border-top:1px solid var(--evg-border-default); width:100%; font-size:14px; color:var(--evg-text-primary); }
+
+/* ── Presentation ── */
+.evg-comp-pres { display: flex; flex-direction: column; }
+.evg-pres-slide { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; gap: 16px; position: relative; }
+.evg-pres-title { font-size: 20px; font-weight: 700; color: var(--evg-accent-blue); }
+.evg-pres-content { font-size: 14px; color: var(--evg-text-secondary); text-align: center; line-height: 1.8; }
+.evg-pres-page { position: absolute; bottom: 12px; right: 12px; font-size: 11px; color: var(--evg-text-tertiary); }
+.evg-pres-nav { display: flex; justify-content: center; gap: 12px; padding: 8px; border-top:1px solid var(--evg-border-default); }
+.evg-pres-nav button { padding: 4px 12px; background: var(--evg-button-bg); border: 1px solid var(--evg-border-default); border-radius: 4px; color: var(--evg-text-primary); font-size: 12px; cursor: pointer; }
+
+/* ── TypeCheck ── */
+.evg-comp-typecheck { padding: 12px; }
+.evg-tc-question { display: flex; gap: 8px; margin: 12px 0; font-size: 14px; }
+.evg-tc-q-number { color: var(--evg-accent-blue); font-weight: 700; }
+.evg-tc-q-text { color: var(--evg-text-primary); }
+.evg-tc-options { display: flex; flex-direction: column; gap: 6px; }
+.evg-tc-opt { padding: 8px 12px; background: var(--evg-bg-tertiary); border: 1px solid var(--evg-border-default); border-radius: 6px; font-size: 13px; cursor: pointer; }
+.evg-tc-opt.correct { border-color: var(--evg-state-success); background: var(--evg-state-success-bg); }
+.evg-tc-score { margin-top: 12px; font-size: 12px; color: var(--evg-text-secondary); }
+
+/* ── Form ── */
+.evg-comp-form { padding: 12px; }
+.evg-form-field { margin-bottom: 10px; }
+.evg-form-field label { display: block; font-size: 12px; color: var(--evg-text-secondary); margin-bottom: 4px; }
+.evg-form-field input, .evg-form-field textarea, .evg-form-field select {
+  width: 100%; padding: 6px 10px; background: var(--evg-bg-primary); border: 1px solid var(--evg-border-default);
+  border-radius: 4px; color: var(--evg-text-primary); font-size: 13px;
+}
+.evg-form-field.inline { display: flex; align-items: center; gap: 8px; }
+.evg-form-field.inline input { width: auto; }
+.evg-form-submit { padding: 6px 20px; background: var(--evg-button-green); border: none; border-radius: 6px; color: #fff; font-size: 13px; cursor: pointer; }
+
+/* ── Calendar ── */
+.evg-comp-cal { padding: 12px; }
+.evg-cal-header { display: flex; justify-content: space-between; align-items: center; font-size: 14px; color: var(--evg-text-primary); margin-bottom: 8px; }
+.evg-cal-header button { background: var(--evg-button-bg); border: 1px solid var(--evg-border-default); border-radius: 4px; color: var(--evg-text-primary); cursor: pointer; padding: 2px 8px; }
+.evg-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.evg-cal-dh { text-align: center; font-size: 11px; color: var(--evg-text-secondary); padding: 4px; }
+.evg-cal-day { text-align: center; padding: 6px; font-size: 12px; border-radius: 4px; cursor: pointer; }
+.evg-cal-day:hover { background: var(--evg-bg-tertiary); }
+.evg-cal-day.active { background: var(--evg-border-accent); color: #fff; }
+
+/* ── Map ── */
+.evg-comp-map { display: flex; flex-direction: column; }
+.evg-map-placeholder { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--evg-bg-primary); gap: 8px; position: relative; }
+.evg-map-pin { font-size: 36px; animation: bounce 2s infinite; }
+@keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+.evg-map-coords { font-size: 11px; color: var(--evg-text-secondary); }
+.evg-map-zoom { position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column; gap: 2px; }
+.evg-map-zoom button { width: 24px; height: 24px; background: var(--evg-button-bg); border:1px solid var(--evg-border-default); color:var(--evg-text-primary); cursor:pointer; border-radius:4px; font-size:14px; }
+
+/* ── Markdown ── */
+.evg-comp-md { display: flex; flex-direction: column; }
+.evg-md-content { flex: 1; overflow: auto; font-size: 13px; }
+
+/* ── Divider ── */
+.evg-comp-divider { padding: 4px 0; }
+.evg-comp-divider hr { border: none; border-top: 1px solid var(--evg-border-default); }
+
+/* ── Flashcards ── */
+.evg-comp-flash { padding: 12px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.evg-flash-card { width: 100%; max-width: 300px; height: 160px; perspective: 600px; }
+.evg-flash-front, .evg-flash-back { width: 100%; height: 100%; border-radius: 12px; display: flex; align-items: center; justify-content: center; padding: 16px; text-align: center; font-size: 14px; }
+.evg-flash-front { background: var(--evg-bg-tertiary); border: 1px solid var(--evg-border-default); color: var(--evg-text-primary); }
+.evg-flash-back { background: var(--evg-accent-blue-bg); border: 1px solid var(--evg-accent-blue-border); color: var(--evg-accent-blue); }
+.evg-flash-nav { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--evg-text-secondary); }
+.evg-flash-nav button { padding: 4px 10px; background: var(--evg-button-bg); border: 1px solid var(--evg-border-default); border-radius: 4px; color: var(--evg-text-primary); font-size: 11px; cursor: pointer; }
+
+/* ── Quiz ── */
+.evg-comp-quiz { padding: 12px; }
+.evg-quiz-question { margin: 12px 0; }
+.evg-quiz-q { font-size: 14px; color: var(--evg-text-primary); margin-bottom: 8px; }
+.evg-quiz-options { display: flex; flex-direction: column; gap: 4px; }
+.evg-quiz-options label { display: flex; align-items: center; gap: 6px; padding: 6px 10px; background: var(--evg-bg-tertiary); border: 1px solid var(--evg-border-default); border-radius: 4px; cursor: pointer; font-size: 13px; }
+.evg-quiz-submit { margin-top: 12px; padding: 6px 20px; background: var(--evg-button-green); border: none; border-radius: 6px; color: #fff; font-size: 13px; cursor: pointer; }
+
+/* ── Mindmap ── */
+.evg-comp-mindmap { padding: 12px; }
+.evg-mm-root { display: inline-block; padding: 10px 20px; background: var(--evg-border-accent); color: #fff; border-radius: 20px; font-size: 14px; font-weight: 700; }
+.evg-mm-branch { padding: 6px 14px; background: var(--evg-bg-tertiary); border: 1px solid var(--evg-border-default); border-radius: 12px; font-size: 12px; color: var(--evg-text-secondary); }
+
+/* ── Placeholder ── */
+.evg-comp-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 20px; gap: 8px; }
+.evg-ph-icon { font-size: 36px; opacity: .5; }
+.evg-ph-type { font-size: 13px; font-weight: 600; color: var(--evg-text-secondary); }
+.evg-ph-hint { font-size: 11px; color: var(--evg-text-tertiary); }
+
+/* ── P2: StatTile ── */
+.evg-comp-stat-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; gap: 8px; }
+.evg-stat-header { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--evg-text-secondary); }
+.evg-stat-icon { font-size: 20px; }
+.evg-stat-value { font-size: 32px; font-weight: 700; color: var(--evg-accent-blue); }
+.evg-stat-trend { font-size: 12px; font-weight: 600; }
+.evg-stat-trend.up { color: var(--evg-state-success); }
+.evg-stat-trend.down { color: var(--evg-state-error); }
+.evg-stat-subtitle { font-size: 11px; color: var(--evg-text-tertiary); }
+
+/* ── P2: Timeline ── */
+.evg-comp-timeline { padding: 12px; overflow-y: auto; }
+.evg-tl-container { padding-left: 16px; border-left: 2px solid var(--evg-border-default); margin-top: 12px; }
+.evg-tl-item { position: relative; padding: 8px 0 8px 20px; }
+.evg-tl-marker { position: absolute; left: -6px; top: 12px; width: 10px; height: 10px; border-radius: 50%; background: var(--evg-accent-blue); border: 2px solid var(--evg-bg-primary); }
+.evg-tl-line { position: absolute; left: -2px; top: 22px; bottom: 0; width: 2px; background: var(--evg-border-default); }
+.evg-tl-time { font-size: 10px; color: var(--evg-text-tertiary); margin-bottom: 2px; }
+.evg-tl-label { font-size: 13px; color: var(--evg-text-primary); font-weight: 600; }
+.evg-tl-desc { font-size: 11px; color: var(--evg-text-secondary); margin-top: 2px; }
+
+/* ── P2: CardList ── */
+.evg-comp-card-list { padding: 8px; overflow-y: auto; }
+.evg-cl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.evg-cl-card { background: var(--evg-bg-tertiary); border: 1px solid var(--evg-border-default); border-radius: 8px; overflow: hidden; }
+.evg-cl-image { height: 120px; background-size: cover; background-position: center; background-color: var(--evg-bg-secondary); }
+.evg-cl-body { padding: 10px; }
+.evg-cl-title { font-size: 13px; font-weight: 600; color: var(--evg-text-primary); margin-bottom: 4px; }
+.evg-cl-text { font-size: 12px; color: var(--evg-text-secondary); line-height: 1.5; }
+.evg-cl-footer { padding: 6px 10px; border-top: 1px solid var(--evg-border-default); font-size: 11px; color: var(--evg-text-tertiary); }
+
+/* ── P2: Kanban ── */
+.evg-comp-kanban { padding: 8px; overflow-x: auto; }
+.evg-kb-board { display: flex; gap: 8px; min-height: 200px; }
+.evg-kb-column { flex: 1; min-width: 180px; background: var(--evg-bg-secondary); border: 1px solid var(--evg-border-default); border-radius: 8px; display: flex; flex-direction: column; }
+.evg-kb-col-header { padding: 8px 10px; font-size: 12px; font-weight: 600; color: var(--evg-text-primary); border-bottom: 1px solid var(--evg-border-default); display: flex; justify-content: space-between; }
+.evg-kb-count { background: var(--evg-accent-blue-bg); color: var(--evg-accent-blue); padding: 1px 6px; border-radius: 8px; font-size: 10px; }
+.evg-kb-col-body { flex: 1; padding: 6px; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
+.evg-kb-card { background: var(--evg-bg-tertiary); border: 1px solid var(--evg-border-default); border-radius: 6px; padding: 8px 10px; font-size: 12px; color: var(--evg-text-primary); display: flex; justify-content: space-between; align-items: center; }
+.evg-kb-tag { background: var(--evg-accent-blue-bg); color: var(--evg-accent-blue); padding: 1px 5px; border-radius: 3px; font-size: 9px; }
+
+/* ── P2: Tree ── */
+.evg-comp-tree { padding: 8px; overflow: auto; }
+.evg-tree-container { font-size: 13px; }
+.evg-tree-node { user-select: none; }
+.evg-tree-row { display: flex; align-items: center; gap: 4px; padding: 3px 6px; border-radius: 4px; cursor: pointer; }
+.evg-tree-row:hover { background: var(--evg-bg-tertiary); }
+.evg-tree-toggle { font-size: 8px; color: var(--evg-text-secondary); width: 14px; text-align: center; }
+.evg-tree-icon { font-size: 14px; }
+.evg-tree-label { color: var(--evg-text-primary); }
+
+/* ── P2: AudioPlayer ── */
+.evg-comp-audio { padding: 12px; }
+.evg-audio-body { margin-top: 12px; }
+.evg-audio-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px; background: var(--evg-bg-primary); border-radius: 8px; border: 1px solid var(--evg-border-default); gap: 8px; color: var(--evg-text-secondary); }
+
+/* ── P2: ImageGallery ── */
+.evg-comp-gallery { padding: 8px; overflow-y: auto; }
+.evg-gal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin-top: 8px; }
+.evg-gal-item { border-radius: 8px; overflow: hidden; background: var(--evg-bg-secondary); border: 1px solid var(--evg-border-default); }
+.evg-gal-thumb { height: 100px; background-size: cover; background-position: center; background-color: var(--evg-bg-primary); display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; }
+.evg-gal-overlay { position: absolute; inset: 0; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .2s; font-size: 24px; }
+.evg-gal-thumb:hover .evg-gal-overlay { opacity: 1; }
+.evg-gal-caption { padding: 4px 8px; font-size: 10px; color: var(--evg-text-secondary); }
+
+/* ── P2: Notepad ── */
+.evg-comp-notepad { display: flex; flex-direction: column; }
+.evg-np-toolbar { display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: var(--evg-bg-tertiary); border-bottom: 1px solid var(--evg-border-default); font-size: 12px; color: var(--evg-text-primary); }
+.evg-np-status { font-size: 10px; color: var(--evg-state-success); }
+.evg-np-editor { flex: 1; background: var(--evg-bg-primary); color: var(--evg-text-primary); border: none; padding: 12px; font-family: 'Cascadia Code', monospace; font-size: 13px; line-height: 1.6; resize: none; outline: none; }
+
+/* ── P2: Whiteboard ── */
+.evg-comp-whiteboard { display: flex; flex-direction: column; }
+.evg-wb-toolbar { display: flex; gap: 4px; padding: 6px 8px; background: var(--evg-bg-tertiary); border-bottom: 1px solid var(--evg-border-default); }
+.evg-wb-tool { background: var(--evg-button-bg); border: 1px solid var(--evg-border-default); border-radius: 4px; color: var(--evg-text-primary); cursor: pointer; padding: 4px 8px; font-size: 14px; }
+.evg-wb-tool:hover { background: var(--evg-border-default); }
+.evg-wb-canvas { flex: 1; background: var(--evg-bg-primary); }
+.evg-wb-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 8px; }
+
+/* ── P2: DiffViewer ── */
+.evg-comp-diff { display: flex; flex-direction: column; }
+.evg-diff-header { display: flex; padding: 6px 12px; background: var(--evg-bg-tertiary); border-bottom: 1px solid var(--evg-border-default); }
+.evg-diff-label { flex: 1; font-size: 12px; color: var(--evg-text-primary); font-weight: 600; }
+.evg-diff-body { flex: 1; overflow: auto; font-family: 'Cascadia Code', monospace; font-size: 12px; line-height: 1.7; }
+.evg-diff-line { padding: 1px 12px; }
+.evg-diff-line code { white-space: pre; }
+.evg-diff-add { background: #3fb95015; }
+.evg-diff-add code { color: var(--evg-state-success); }
+.evg-diff-del { background: #ff7b7215; }
+.evg-diff-del code { color: var(--evg-state-error); }
+.evg-diff-same code { color: var(--evg-text-primary); }
+
+/* ── P2: Terminal ── */
+.evg-comp-terminal { display: flex; flex-direction: column; border-radius: 6px; overflow: hidden; }
+.evg-term-header { display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: var(--evg-bg-tertiary); border-bottom: 1px solid var(--evg-border-default); }
+.evg-term-dot { width: 10px; height: 10px; border-radius: 50%; }
+.evg-term-title { font-size: 11px; color: var(--evg-text-secondary); margin-left: 8px; }
+.evg-term-body { flex: 1; background: var(--evg-bg-primary); padding: 8px 12px; font-family: 'Cascadia Code', monospace; font-size: 12px; line-height: 1.7; overflow: auto; }
+.evg-term-prompt { color: var(--evg-accent-blue); margin-right: 6px; }
+.evg-term-cursor { animation: blink 1s step-end infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+/* ── P2: Crossword ── */
+.evg-comp-crossword { padding: 12px; overflow: auto; }
+.evg-cw-grid { display: inline-block; margin: 8px 0; }
+.evg-cw-row { display: flex; }
+.evg-cw-cell { width: 32px; height: 32px; border: 1px solid var(--evg-border-default); display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; color: var(--evg-text-primary); text-transform: uppercase; background: var(--evg-bg-primary); }
+.evg-cw-cell.filled { background: var(--evg-bg-tertiary); }
+.evg-cw-clues { margin-top: 12px; }
+.evg-cw-clue-title { font-size: 12px; font-weight: 600; color: var(--evg-accent-blue); margin-bottom: 4px; }
+.evg-cw-clue { font-size: 11px; color: var(--evg-text-secondary); padding: 2px 0; }
+
+/* ── P2: Pronunciation ── */
+.evg-comp-pronunciation { padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.evg-pron-word { font-size: 36px; font-weight: 700; color: var(--evg-text-primary); }
+.evg-pron-phonetic { font-size: 16px; color: var(--evg-accent-blue); font-style: italic; }
+.evg-pron-controls { display: flex; gap: 8px; }
+.evg-pron-btn { padding: 8px 16px; background: var(--evg-button-bg); border: 1px solid var(--evg-border-default); border-radius: 6px; color: var(--evg-text-primary); cursor: pointer; font-size: 12px; }
+.evg-pron-btn:hover { background: var(--evg-border-default); }
+.evg-pron-score { margin-top: 8px; }
+
+/* ── P2: PromptBuilder ── */
+.evg-comp-prompt-builder { padding: 12px; overflow-y: auto; }
+.evg-pb-template { margin-bottom: 12px; }
+.evg-pb-label { font-size: 12px; font-weight: 600; color: var(--evg-text-secondary); margin-bottom: 6px; }
+.evg-pb-pre { background: var(--evg-bg-primary); border: 1px solid var(--evg-border-default); border-radius: 6px; padding: 10px; font-size: 12px; line-height: 1.6; color: var(--evg-text-primary); white-space: pre-wrap; }
+.evg-pb-vars { margin-bottom: 12px; }
+.evg-pb-field { margin-bottom: 8px; }
+.evg-pb-field label { display: block; font-size: 11px; color: var(--evg-accent-blue); margin-bottom: 3px; text-transform: capitalize; }
+.evg-pb-field input { width: 100%; padding: 6px 10px; background: var(--evg-bg-primary); border: 1px solid var(--evg-border-default); border-radius: 4px; color: var(--evg-text-primary); font-size: 12px; }
+.evg-pb-generate { padding: 6px 20px; background: var(--evg-button-green); border: none; border-radius: 6px; color: #fff; font-size: 13px; cursor: pointer; }
+
+/* ── P2: Custom ── */
+.evg-comp-custom { width: 100%; height: 100%; }
+.evg-custom-iframe { width: 100%; height: 100%; border: none; }
+
+/* ── P2: WebView ── */
+.evg-comp-webview { display: flex; flex-direction: column; }
+.evg-wv-toolbar { display: flex; align-items: center; gap: 4px; padding: 4px 8px; background: var(--evg-bg-tertiary); border-bottom: 1px solid var(--evg-border-default); }
+.evg-wv-btn { background: var(--evg-button-bg); border: 1px solid var(--evg-border-default); border-radius: 4px; color: var(--evg-text-primary); cursor: pointer; padding: 3px 8px; font-size: 12px; }
+.evg-wv-btn:hover { background: var(--evg-border-default); }
+.evg-wv-url { flex: 1; font-size: 11px; color: var(--evg-text-secondary); margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.evg-wv-content { flex: 1; }
+.evg-wv-iframe { width: 100%; height: 100%; border: none; }
+
+</style>
+</head>
+<body>
+<div id="evg-app" style="">
+  <div class="evg-shell">
+  <div class="evg-sidebar">
+  <div class="evg-sidebar-header">🌲 导航</div>
+  <a class="evg-nav-item" href="/showcase-dart-chrome/chat">🤖 AI 助手</a><a class="evg-nav-item" href="/showcase-dart-chrome/code">💻 编程器</a><a class="evg-nav-item" href="/showcase-dart-chrome/dashboard">📊 仪表盘</a><a class="evg-nav-item" href="/showcase-dart-chrome/lottery">⭐ 抽奖机</a><a class="evg-nav-item" href="/showcase-dart-chrome/data-view">🗄️ 数据视图</a><a class="evg-nav-item" href="/showcase-dart-chrome/docs">📝 文档+表格</a><a class="evg-nav-item" href="/showcase-dart-chrome/media">🎬 媒体</a><a class="evg-nav-item" href="/showcase-dart-chrome/learn">📚 学习工具</a><a class="evg-nav-item" href="/showcase-dart-chrome/planner">🗺️ 地图+日历</a>
+</div>
+  <div class="evg-main">
+    <div class="evg-tabs">
+      <button class="evg-tab" data-page="home" onclick="switchPage('home')">🏠 主页</button><button class="evg-tab" data-page="chat_page" onclick="switchPage('chat_page')">💬 AI 助手</button><button class="evg-tab" data-page="code_page" onclick="switchPage('code_page')">💻 编程器</button><button class="evg-tab" data-page="dashboard_page" onclick="switchPage('dashboard_page')">📊 仪表盘</button><button class="evg-tab" data-page="lottery_page" onclick="switchPage('lottery_page')">🎰 Data 抽奖机</button><button class="evg-tab" data-page="data_view_page" onclick="switchPage('data_view_page')">🗄️ 数据视图</button><button class="evg-tab" data-page="docs_page" onclick="switchPage('docs_page')">📝 文档+表格</button><button class="evg-tab" data-page="media_page" onclick="switchPage('media_page')">🎬 媒体中心</button><button class="evg-tab" data-page="learn_page" onclick="switchPage('learn_page')">📚 学习工具</button><button class="evg-tab" data-page="planner_page" onclick="switchPage('planner_page')">🗺️ 地图+日历</button>
+    </div>
+    <div class="evg-pages">
+      <div class="evg-page" id="page-home" style="display:none">
+  <div class="evg-layout evg-layout-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; grid-template-rows: auto; gap: 16px; width: 100%; height: 100%; overflow: auto">
+    <div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 nav-chat</span>
+    <span class="evg-slot-type">nav-button</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-navbtn">
+  <a class="evg-navbtn" href="chat_page">
+    <span class="evg-navbtn-icon">🤖</span>
+    <span class="evg-navbtn-label">💬 AI 助手</span>
+  </a>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 nav-code</span>
+    <span class="evg-slot-type">nav-button</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-navbtn">
+  <a class="evg-navbtn" href="code_page">
+    <span class="evg-navbtn-icon">⌨️</span>
+    <span class="evg-navbtn-label">💻 编程器</span>
+  </a>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 nav-dashboard</span>
+    <span class="evg-slot-type">nav-button</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-navbtn">
+  <a class="evg-navbtn" href="dashboard_page">
+    <span class="evg-navbtn-icon">📈</span>
+    <span class="evg-navbtn-label">📊 仪表盘</span>
+  </a>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 nav-lottery</span>
+    <span class="evg-slot-type">nav-button</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-navbtn">
+  <a class="evg-navbtn" href="lottery_page">
+    <span class="evg-navbtn-icon">🎯</span>
+    <span class="evg-navbtn-label">🎰 抽奖机</span>
+  </a>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 nav-data</span>
+    <span class="evg-slot-type">nav-button</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-navbtn">
+  <a class="evg-navbtn" href="data_view_page">
+    <span class="evg-navbtn-icon">📋</span>
+    <span class="evg-navbtn-label">🗄️ 数据视图</span>
+  </a>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 nav-docs</span>
+    <span class="evg-slot-type">nav-button</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-navbtn">
+  <a class="evg-navbtn" href="docs_page">
+    <span class="evg-navbtn-icon">📄</span>
+    <span class="evg-navbtn-label">📝 文档+表格</span>
+  </a>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 nav-media</span>
+    <span class="evg-slot-type">nav-button</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-navbtn">
+  <a class="evg-navbtn" href="media_page">
+    <span class="evg-navbtn-icon">🎥</span>
+    <span class="evg-navbtn-label">🎬 媒体中心</span>
+  </a>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 nav-learn</span>
+    <span class="evg-slot-type">nav-button</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-navbtn">
+  <a class="evg-navbtn" href="learn_page">
+    <span class="evg-navbtn-icon">🎓</span>
+    <span class="evg-navbtn-label">📚 学习工具</span>
+  </a>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 nav-planner</span>
+    <span class="evg-slot-type">nav-button</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-navbtn">
+  <a class="evg-navbtn" href="planner_page">
+    <span class="evg-navbtn-icon">📍</span>
+    <span class="evg-navbtn-label">🗺️ 地图+日历</span>
+  </a>
+</div>
+  </div>
+</div>
+  </div>
+</div><div class="evg-page" id="page-chat_page" style="display:none">
+  <div class="evg-layout evg-layout-grid" style="display: grid; grid-template-columns: 1fr; grid-template-rows: auto; gap: 0px; width: 100%; height: 100%; overflow: auto">
+    <div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 toolbar</span>
+    <span class="evg-slot-type">button</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-button">
+  <div class="evg-btn-bar" style="justify-content:flex-start"><button class="evg-btn evg-btn-tonal" data-event="slot:switch_page:home">🏠 🏠 返回主页</button></div>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 center</span>
+    <span class="evg-slot-type">chat</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-chat">
+  
+  <div class="evg-chat-msgs">
+    <div class="evg-msg assistant">
+      <div class="evg-avatar">AI</div>
+      <div class="evg-bubble">实时会话运行态加载。<br><i style="color:var(--evg-text-secondary);font-size:11px">思考中…</i></div>
+    </div>
+  </div>
+  <div class="evg-chat-input">
+    <input type="text" placeholder="向展示 AI 助手提问，体验完整聊天功能..." />
+    <button>发送</button>
+  </div>
+  <div class="evg-quick-replies"><span class="evg-quick-reply">👋 你好</span><span class="evg-quick-reply">📋 功能列表</span><span class="evg-quick-reply">🎯 示例</span></div>
+</div>
+  </div>
+</div>
+  </div>
+</div><div class="evg-page" id="page-code_page" style="display:none">
+  <div class="evg-layout evg-layout-grid" style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto; gap: 8px; width: 100%; height: 100%; overflow: auto">
+    <div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 toolbar</span>
+    <span class="evg-slot-type">button</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-button">
+  <div class="evg-btn-bar" style="justify-content:flex-start"><button class="evg-btn evg-btn-tonal" data-event="slot:switch_page:home">🏠 🏠 返回主页</button></div>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 left</span>
+    <span class="evg-slot-type">code-editor</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-code">
+  <div class="evg-code-header">
+    <span>📄 main.py</span>
+    <span class="evg-code-lang">python</span>
+  </div>
+  <div class="evg-code-body">
+    <div class="evg-code-lines">1<br>2<br>3<br>4<br>5<br>6<br>7<br>8<br>9<br>10<br>11</div>
+    <pre class="evg-code-pre"><span class="evg-kw">import</span> json
+<span class="evg-kw">from</span> pathlib <span class="evg-kw">import</span> Path
+
+<span class="evg-kw">def</span> <span class="evg-fn">analyze_data</span>(filepath: <span class="evg-kw">str</span>) -> <span class="evg-kw">dict</span>:
+    <span class="evg-cmt"># 读取并分析 JSON 数据文件</span>
+    data = json.loads(Path(filepath).read_text())
+    result = {
+        <span class="evg-str">"total"</span>: <span class="evg-num">len</span>(data),
+        <span class="evg-str">"keys"</span>: <span class="evg-num">list</span>(data[<span class="evg-num">0</span>].keys()) <span class="evg-kw">if</span> data <span class="evg-kw">else</span> [],
+    }
+    <span class="evg-kw">return</span> result</pre>
+  </div>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 right</span>
+    <span class="evg-slot-type">data-table</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-table">
+  
+  <div class="evg-table-filter"><input type="text" placeholder="搜索..." /></div>
+  <table class="evg-table">
+    <thead><tr><th>行号 <span class="evg-sort">⇅</span></th><th>类型 <span class="evg-sort">⇅</span></th><th>消息 <span class="evg-sort">⇅</span></th></tr></thead>
+    <tbody><tr><td colspan="3" class="evg-empty">（暂无数据 / 官方空态）</td></tr></tbody>
+  </table>
+</div>
+  </div>
+</div>
+  </div>
+</div><div class="evg-page" id="page-dashboard_page" style="display:none">
+  <div class="evg-layout evg-layout-grid" style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto; gap: 12px; width: 100%; height: 100%; overflow: auto">
+    <div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 toolbar</span>
+    <span class="evg-slot-type">button</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-button">
+  <div class="evg-btn-bar" style="justify-content:flex-start"><button class="evg-btn evg-btn-tonal" data-event="slot:switch_page:home">🏠 🏠 返回主页</button></div>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 bottom-left</span>
+    <span class="evg-slot-type">data-table</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-table">
+  <div class="evg-comp-title">📋 系统组件状态</div>
+  <div class="evg-table-filter"><input type="text" placeholder="搜索..." /></div>
+  <table class="evg-table">
+    <thead><tr><th>ID <span class="evg-sort">⇅</span></th><th>名称 <span class="evg-sort">⇅</span></th><th>状态 <span class="evg-sort">⇅</span></th></tr></thead>
+    <tbody><tr><td colspan="3" class="evg-empty">（暂无数据 / 官方空态）</td></tr></tbody>
+  </table>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 top</span>
+    <span class="evg-slot-type">chart</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-chart line">
+  <div class="evg-comp-title">📈 访问趋势 (近30天)</div>
+  <div class="evg-chart-line-area">
+    <svg viewBox="0 0 400 150" class="evg-line-svg">
+      <polyline fill="none" stroke="#58a6ff" stroke-width="2"
+        points="0,120 40,90 80,100 120,70 160,50 200,60 240,30 280,45 320,25 360,40 400,20"/>
+      <polyline fill="none" stroke="#3fb950" stroke-width="2"
+        points="0,100 40,110 80,95 120,85 160,60 200,70 240,55 280,40 320,50 360,35 400,30"/>
+    </svg>
+  </div>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 bottom-right</span>
+    <span class="evg-slot-type">data-table</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-cards">
+  <div class="evg-comp-title">📊 关键指标</div>
+  <div class="evg-card-grid"><div class="evg-card"><div class="evg-cl-body"><div class="evg-cl-text">（暂无数据 / 官方空态）</div></div></div></div>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 middle</span>
+    <span class="evg-slot-type">chart</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-chart">
+  <div class="evg-comp-title">🕐 24小时活跃度</div>
+  <div class="evg-chart-area">
+    <div class="evg-chart-bars">
+              <div class="evg-bar-wrapper">
+          <div class="evg-bar" style="height:45%;background:#ff7b72">
+            <span class="evg-bar-val">45</span>
+          </div>
+          <span class="evg-bar-label">1月</span>
+        </div>        <div class="evg-bar-wrapper">
+          <div class="evg-bar" style="height:72%;background:#d2a8ff">
+            <span class="evg-bar-val">72</span>
+          </div>
+          <span class="evg-bar-label">2月</span>
+        </div>        <div class="evg-bar-wrapper">
+          <div class="evg-bar" style="height:38%;background:#79c0ff">
+            <span class="evg-bar-val">38</span>
+          </div>
+          <span class="evg-bar-label">3月</span>
+        </div>        <div class="evg-bar-wrapper">
+          <div class="evg-bar" style="height:60%;background:#3fb950">
+            <span class="evg-bar-val">60</span>
+          </div>
+          <span class="evg-bar-label">4月</span>
+        </div>        <div class="evg-bar-wrapper">
+          <div class="evg-bar" style="height:85%;background:#d29922">
+            <span class="evg-bar-val">85</span>
+          </div>
+          <span class="evg-bar-label">5月</span>
+        </div>        <div class="evg-bar-wrapper">
+          <div class="evg-bar" style="height:55%;background:#f78166">
+            <span class="evg-bar-val">55</span>
+          </div>
+          <span class="evg-bar-label">6月</span>
+        </div>        <div class="evg-bar-wrapper">
+          <div class="evg-bar" style="height:93%;background:#a5d6ff">
+            <span class="evg-bar-val">93</span>
+          </div>
+          <span class="evg-bar-label">7月</span>
+        </div>        <div class="evg-bar-wrapper">
+          <div class="evg-bar" style="height:40%;background:#ffa198">
+            <span class="evg-bar-val">40</span>
+          </div>
+          <span class="evg-bar-label">8月</span>
+        </div>        <div class="evg-bar-wrapper">
+          <div class="evg-bar" style="height:67%;background:#ff7b72">
+            <span class="evg-bar-val">67</span>
+          </div>
+          <span class="evg-bar-label">9月</span>
+        </div>        <div class="evg-bar-wrapper">
+          <div class="evg-bar" style="height:50%;background:#d2a8ff">
+            <span class="evg-bar-val">50</span>
+          </div>
+          <span class="evg-bar-label">10月</span>
+        </div>        <div class="evg-bar-wrapper">
+          <div class="evg-bar" style="height:78%;background:#79c0ff">
+            <span class="evg-bar-val">78</span>
+          </div>
+          <span class="evg-bar-label">11月</span>
+        </div>        <div class="evg-bar-wrapper">
+          <div class="evg-bar" style="height:62%;background:#3fb950">
+            <span class="evg-bar-val">62</span>
+          </div>
+          <span class="evg-bar-label">12月</span>
+        </div>
+    </div>
+  </div>
+</div>
+  </div>
+</div>
+  </div>
+</div><div class="evg-page" id="page-lottery_page" style="display:none">
+  <div class="evg-layout evg-layout-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; grid-template-rows: auto; gap: 12px; width: 100%; height: 100%; overflow: auto">
+    <div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 toolbar</span>
+    <span class="evg-slot-type">button</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-button">
+  <div class="evg-btn-bar" style="justify-content:flex-start"><button class="evg-btn evg-btn-tonal" data-event="slot:switch_page:home">🏠 🏠 返回主页</button></div>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 left</span>
+    <span class="evg-slot-type">chart</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-chart pie">
+  <div class="evg-comp-title">🎨 稀有度分布</div>
+  <div class="evg-chart-pie" style="background:conic-gradient(#ff7b72 0.0deg 126.0deg, #d2a8ff 126.0deg 216.0deg, #79c0ff 216.0deg 288.0deg, #3fb950 288.0deg 360.0deg)"></div>
+  <div class="evg-chart-legend"><div class="evg-legend-item"><span class="evg-legend-dot" style="background:#ff7b72"></span>A类 35%</div><div class="evg-legend-item"><span class="evg-legend-dot" style="background:#d2a8ff"></span>B类 25%</div><div class="evg-legend-item"><span class="evg-legend-dot" style="background:#79c0ff"></span>C类 20%</div><div class="evg-legend-item"><span class="evg-legend-dot" style="background:#3fb950"></span>D类 20%</div></div>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 right</span>
+    <span class="evg-slot-type">data-table</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-table">
+  <div class="evg-comp-title">📜 抽奖历史</div>
+  <div class="evg-table-filter"><input type="text" placeholder="搜索..." /></div>
+  <table class="evg-table">
+    <thead><tr><th>时间 <span class="evg-sort">⇅</span></th><th>奖品 <span class="evg-sort">⇅</span></th><th>稀有度 <span class="evg-sort">⇅</span></th></tr></thead>
+    <tbody><tr><td colspan="3" class="evg-empty">（暂无数据 / 官方空态）</td></tr></tbody>
+  </table>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 center</span>
+    <span class="evg-slot-type">lottery-wheel</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-lottery">
+  <div class="evg-lottery-header">
+    <div class="evg-comp-title">🎰 🎰 插件幸运大转盘</div>
+    <div class="evg-lottery-sub">点击抽奖，试试你的运气！</div>
+  </div>
+  <div class="evg-lottery-wheel-container">
+    <canvas class="evg-lottery-canvas" width="200" height="200"></canvas>
+    <button class="evg-lottery-btn">🎯 🎯 立即抽奖！</button>
+  </div>
+  <div class="evg-lottery-history">
+    <span style="font-size:11px;color:var(--evg-text-secondary)">📜 最近: 一等奖 二等奖 三等奖...</span>
+  </div>
+</div>
+  </div>
+</div>
+  </div>
+</div><div class="evg-page" id="page-data_view_page" style="display:none">
+  <div class="evg-layout evg-layout-grid" style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto; gap: 12px; width: 100%; height: 100%; overflow: auto">
+    <div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 toolbar</span>
+    <span class="evg-slot-type">button</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-button">
+  <div class="evg-btn-bar" style="justify-content:flex-start"><button class="evg-btn evg-btn-tonal" data-event="slot:switch_page:home">🏠 🏠 返回主页</button></div>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 top-right</span>
+    <span class="evg-slot-type">chart</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-chart line">
+  <div class="evg-comp-title">🎯 插件能力评分</div>
+  <div class="evg-chart-line-area">
+    <svg viewBox="0 0 400 150" class="evg-line-svg">
+      <polyline fill="none" stroke="#58a6ff" stroke-width="2"
+        points="0,120 40,90 80,100 120,70 160,50 200,60 240,30 280,45 320,25 360,40 400,20"/>
+      <polyline fill="none" stroke="#3fb950" stroke-width="2"
+        points="0,100 40,110 80,95 120,85 160,60 200,70 240,55 280,40 320,50 360,35 400,30"/>
+    </svg>
+  </div>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 bottom-left</span>
+    <span class="evg-slot-type">data-table</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-table">
+  <div class="evg-comp-title">📊 插件使用统计</div>
+  <div class="evg-table-filter"><input type="text" placeholder="搜索..." /></div>
+  <table class="evg-table">
+    <thead><tr><th>插件名 <span class="evg-sort">⇅</span></th><th>类型 <span class="evg-sort">⇅</span></th><th>今日调用 <span class="evg-sort">⇅</span></th><th>平均延迟 <span class="evg-sort">⇅</span></th><th>成功率 <span class="evg-sort">⇅</span></th></tr></thead>
+    <tbody><tr><td colspan="5" class="evg-empty">（暂无数据 / 官方空态）</td></tr></tbody>
+  </table>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 bottom-right</span>
+    <span class="evg-slot-type">data-table</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-cards">
+  <div class="evg-comp-title">📚 趣味冷知识</div>
+  <div class="evg-card-grid"><div class="evg-card"><div class="evg-cl-body"><div class="evg-cl-text">（暂无数据 / 官方空态）</div></div></div></div>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 top-left</span>
+    <span class="evg-slot-type">chart</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-chart line">
+  <div class="evg-comp-title">💻 实时性能监控</div>
+  <div class="evg-chart-line-area">
+    <svg viewBox="0 0 400 150" class="evg-line-svg">
+      <polyline fill="none" stroke="#58a6ff" stroke-width="2"
+        points="0,120 40,90 80,100 120,70 160,50 200,60 240,30 280,45 320,25 360,40 400,20"/>
+      <polyline fill="none" stroke="#3fb950" stroke-width="2"
+        points="0,100 40,110 80,95 120,85 160,60 200,70 240,55 280,40 320,50 360,35 400,30"/>
+    </svg>
+  </div>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 middle-right</span>
+    <span class="evg-slot-type">chart</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-chart">
+  <div class="evg-comp-title">🕐 活跃时段热力图</div>
+  <div class="evg-chart-area">
+    <div class="evg-chart-bars">
+              <div class="evg-bar-wrapper">
+          <div class="evg-bar" style="height:45%;background:#ff7b72">
+            <span class="evg-bar-val">45</span>
+          </div>
+          <span class="evg-bar-label">1月</span>
+        </div>        <div class="evg-bar-wrapper">
+          <div class="evg-bar" style="height:72%;background:#d2a8ff">
+            <span class="evg-bar-val">72</span>
+          </div>
+          <span class="evg-bar-label">2月</span>
+        </div>        <div class="evg-bar-wrapper">
+          <div class="evg-bar" style="height:38%;background:#79c0ff">
+            <span class="evg-bar-val">38</span>
+          </div>
+          <span class="evg-bar-label">3月</span>
+        </div>        <div class="evg-bar-wrapper">
+          <div class="evg-bar" style="height:60%;background:#3fb950">
+            <span class="evg-bar-val">60</span>
+          </div>
+          <span class="evg-bar-label">4月</span>
+        </div>        <div class="evg-bar-wrapper">
+          <div class="evg-bar" style="height:85%;background:#d29922">
+            <span class="evg-bar-val">85</span>
+          </div>
+          <span class="evg-bar-label">5月</span>
+        </div>        <div class="evg-bar-wrapper">
+          <div class="evg-bar" style="height:55%;background:#f78166">
+            <span class="evg-bar-val">55</span>
+          </div>
+          <span class="evg-bar-label">6月</span>
+        </div>        <div class="evg-bar-wrapper">
+          <div class="evg-bar" style="height:93%;background:#a5d6ff">
+            <span class="evg-bar-val">93</span>
+          </div>
+          <span class="evg-bar-label">7月</span>
+        </div>        <div class="evg-bar-wrapper">
+          <div class="evg-bar" style="height:40%;background:#ffa198">
+            <span class="evg-bar-val">40</span>
+          </div>
+          <span class="evg-bar-label">8月</span>
+        </div>        <div class="evg-bar-wrapper">
+          <div class="evg-bar" style="height:67%;background:#ff7b72">
+            <span class="evg-bar-val">67</span>
+          </div>
+          <span class="evg-bar-label">9月</span>
+        </div>        <div class="evg-bar-wrapper">
+          <div class="evg-bar" style="height:50%;background:#d2a8ff">
+            <span class="evg-bar-val">50</span>
+          </div>
+          <span class="evg-bar-label">10月</span>
+        </div>        <div class="evg-bar-wrapper">
+          <div class="evg-bar" style="height:78%;background:#79c0ff">
+            <span class="evg-bar-val">78</span>
+          </div>
+          <span class="evg-bar-label">11月</span>
+        </div>        <div class="evg-bar-wrapper">
+          <div class="evg-bar" style="height:62%;background:#3fb950">
+            <span class="evg-bar-val">62</span>
+          </div>
+          <span class="evg-bar-label">12月</span>
+        </div>
+    </div>
+  </div>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 middle-left</span>
+    <span class="evg-slot-type">chart</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-chart pie">
+  <div class="evg-comp-title">📦 插件类型分布</div>
+  <div class="evg-chart-pie" style="background:conic-gradient(#ff7b72 0.0deg 126.0deg, #d2a8ff 126.0deg 216.0deg, #79c0ff 216.0deg 288.0deg, #3fb950 288.0deg 360.0deg)"></div>
+  <div class="evg-chart-legend"><div class="evg-legend-item"><span class="evg-legend-dot" style="background:#ff7b72"></span>A类 35%</div><div class="evg-legend-item"><span class="evg-legend-dot" style="background:#d2a8ff"></span>B类 25%</div><div class="evg-legend-item"><span class="evg-legend-dot" style="background:#79c0ff"></span>C类 20%</div><div class="evg-legend-item"><span class="evg-legend-dot" style="background:#3fb950"></span>D类 20%</div></div>
+</div>
+  </div>
+</div>
+  </div>
+</div><div class="evg-page" id="page-docs_page" style="display:none">
+  <div class="evg-layout evg-layout-grid" style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto; gap: 8px; width: 100%; height: 100%; overflow: auto">
+    <div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 toolbar</span>
+    <span class="evg-slot-type">button</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-button">
+  <div class="evg-btn-bar" style="justify-content:flex-start"><button class="evg-btn evg-btn-tonal" data-event="slot:switch_page:home">🏠 🏠 返回主页</button></div>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 left</span>
+    <span class="evg-slot-type">document</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-doc">
+  <div class="evg-doc-toolbar">
+    <span class="evg-doc-logo">📝 文档编辑器</span>
+    <div class="evg-doc-actions"><span class="evg-doc-tag">pdf</span><span class="evg-doc-tag">docx</span><span class="evg-doc-tag">md</span><span class="evg-doc-tag">html</span><span class="evg-doc-tag">txt</span></div>
+  </div>
+  <div class="evg-doc-content">
+    <h2>文档标题</h2>
+    <p>这是一段示例文档内容。支持<strong>粗体</strong>、<em>斜体</em>、<u>下划线</u>、<s>删除线</s>等格式。</p>
+    <blockquote>这是引用块——用于强调重要内容。</blockquote>
+    <p>支持多种导出格式，包括 PDF、Word、Markdown 等。</p>
+  </div>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 right</span>
+    <span class="evg-slot-type">spreadsheet</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-sheet">
+  <div class="evg-sheet-header">
+    <span>📊 电子表格</span>
+    <span style="font-size:11px;color:var(--evg-text-secondary)">10列 × 50行</span>
+  </div>
+  <div class="evg-sheet-table">
+    <table>
+      <thead><tr><th></th><th>A</th><th>B</th><th>C</th><th>D</th><th>E</th></tr></thead>
+      <tbody><tr><td class="evg-row-num">1</td><td contenteditable="true">数据1</td><td contenteditable="true"></td><td contenteditable="true"></td><td contenteditable="true"></td><td contenteditable="true"></td></tr><tr><td class="evg-row-num">2</td><td contenteditable="true">数据2</td><td contenteditable="true"></td><td contenteditable="true"></td><td contenteditable="true"></td><td contenteditable="true"></td></tr><tr><td class="evg-row-num">3</td><td contenteditable="true">数据3</td><td contenteditable="true"></td><td contenteditable="true"></td><td contenteditable="true"></td><td contenteditable="true"></td></tr><tr><td class="evg-row-num">4</td><td contenteditable="true">数据4</td><td contenteditable="true"></td><td contenteditable="true"></td><td contenteditable="true"></td><td contenteditable="true"></td></tr><tr><td class="evg-row-num">5</td><td contenteditable="true">数据5</td><td contenteditable="true"></td><td contenteditable="true"></td><td contenteditable="true"></td><td contenteditable="true"></td></tr></tbody>
+    </table>
+  </div>
+</div>
+  </div>
+</div>
+  </div>
+</div><div class="evg-page" id="page-media_page" style="display:none">
+  <div class="evg-layout evg-layout-grid" style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto; gap: 8px; width: 100%; height: 100%; overflow: auto">
+    <div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 toolbar</span>
+    <span class="evg-slot-type">button</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-button">
+  <div class="evg-btn-bar" style="justify-content:flex-start"><button class="evg-btn evg-btn-tonal" data-event="slot:switch_page:home">🏠 🏠 返回主页</button></div>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 left</span>
+    <span class="evg-slot-type">video</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-video">
+  <div class="evg-video-placeholder">
+    <div class="evg-video-icon">▶</div>
+    <div class="evg-video-text">视频播放器</div>
+    <div class="evg-video-controls">
+      <span>▶</span><span>⏸</span><span>🔊</span>
+      <span style="flex:1;height:4px;background:var(--evg-border-default);border-radius:2px;margin:0 8px"></span>
+      <span>⛶</span><span>⚙</span>
+    </div>
+  </div>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 right</span>
+    <span class="evg-slot-type">presentation</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-pres">
+  <div class="evg-pres-slide">
+    <div class="evg-pres-title">幻灯片演示</div>
+    <div class="evg-pres-content">
+      <p>支持动画、过渡效果、演讲者备注、多种布局模板。</p>
+      <p>导出格式：PDF / PPTX / PNG / HTML</p>
+    </div>
+    <div class="evg-pres-page">1 / 5</div>
+  </div>
+  <div class="evg-pres-nav">
+    <button>◀ 上一页</button>
+    <button>下一页 ▶</button>
+  </div>
+</div>
+  </div>
+</div>
+  </div>
+</div><div class="evg-page" id="page-learn_page" style="display:none">
+  <div class="evg-layout evg-layout-grid" style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto; gap: 8px; width: 100%; height: 100%; overflow: auto">
+    <div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 toolbar</span>
+    <span class="evg-slot-type">button</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-button">
+  <div class="evg-btn-bar" style="justify-content:flex-start"><button class="evg-btn evg-btn-tonal" data-event="slot:switch_page:home">🏠 🏠 返回主页</button></div>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 left</span>
+    <span class="evg-slot-type">type-check</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-typecheck">
+  <div class="evg-comp-title">✅ 类型检查</div>
+  <div class="evg-tc-question">
+    <span class="evg-tc-q-number">Q1.</span>
+    <span class="evg-tc-q-text">以下哪个是正确的 Python 列表声明？</span>
+  </div>
+  <div class="evg-tc-options">
+    <div class="evg-tc-opt">A. list = (1, 2, 3)</div>
+    <div class="evg-tc-opt correct">B. list = [1, 2, 3]</div>
+    <div class="evg-tc-opt">C. list = {1, 2, 3}</div>
+    <div class="evg-tc-opt">D. list = <1, 2, 3></div>
+  </div>
+  <div class="evg-tc-score">得分: <span style="color:var(--evg-state-success)">1/1</span> | 尝试: 1</div>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 right</span>
+    <span class="evg-slot-type">form</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-form">
+  <div class="evg-comp-title">📋 表单</div>
+  <div class="evg-form-field">
+  <label>姓名 <span style="color:var(--evg-state-error)">*</span></label>
+  <input type="text" placeholder="输入你的名字" />
+</div><div class="evg-form-field">
+  <label>邮箱 <span style="color:var(--evg-state-error)">*</span></label>
+  <input type="email" placeholder="" />
+</div><div class="evg-form-field">
+  <label>年龄</label>
+  <input type="number" min="1" max="150" />
+</div><div class="evg-form-field">
+  <label>等级</label>
+  <select><option value="beginner">初学者</option><option value="intermediate">中级</option><option value="advanced">高级</option></select>
+</div><div class="evg-form-field">
+  <label>自我介绍</label>
+  <textarea rows="3" placeholder=""></textarea>
+</div><div class="evg-form-field inline">
+  <input type="checkbox" id="f_agree" required />
+  <label for="f_agree">同意条款 <span style="color:var(--evg-state-error)">*</span></label>
+</div><div class="evg-form-field">
+  <label>生日</label>
+  <input type="date" />
+</div>
+  <button class="evg-form-submit">提交</button>
+</div>
+  </div>
+</div>
+  </div>
+</div><div class="evg-page" id="page-planner_page" style="display:none">
+  <div class="evg-layout evg-layout-grid" style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto; gap: 8px; width: 100%; height: 100%; overflow: auto">
+    <div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 toolbar</span>
+    <span class="evg-slot-type">button</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-button">
+  <div class="evg-btn-bar" style="justify-content:flex-start"><button class="evg-btn evg-btn-tonal" data-event="slot:switch_page:home">🏠 🏠 返回主页</button></div>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 left</span>
+    <span class="evg-slot-type">calendar</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-cal">
+  <div class="evg-cal-header">
+    <button>◀</button>
+    <span>2026年 7月</span>
+    <button>▶</button>
+  </div>
+  <div class="evg-cal-grid">
+    <div class="evg-cal-dh">一</div><div class="evg-cal-dh">二</div><div class="evg-cal-dh">三</div><div class="evg-cal-dh">四</div><div class="evg-cal-dh">五</div><div class="evg-cal-dh">六</div><div class="evg-cal-dh">日</div>
+    <div class="evg-cal-day">1</div><div class="evg-cal-day">2</div><div class="evg-cal-day">3</div><div class="evg-cal-day">4</div><div class="evg-cal-day">5</div><div class="evg-cal-day">6</div><div class="evg-cal-day">7</div><div class="evg-cal-day">8</div><div class="evg-cal-day">9</div><div class="evg-cal-day">10</div><div class="evg-cal-day">11</div><div class="evg-cal-day">12</div><div class="evg-cal-day">13</div><div class="evg-cal-day">14</div><div class="evg-cal-day active">15</div><div class="evg-cal-day">16</div><div class="evg-cal-day">17</div><div class="evg-cal-day">18</div><div class="evg-cal-day">19</div><div class="evg-cal-day">20</div><div class="evg-cal-day">21</div><div class="evg-cal-day">22</div><div class="evg-cal-day">23</div><div class="evg-cal-day">24</div><div class="evg-cal-day">25</div><div class="evg-cal-day">26</div><div class="evg-cal-day">27</div><div class="evg-cal-day">28</div><div class="evg-cal-day">29</div><div class="evg-cal-day">30</div><div class="evg-cal-day">31</div><div class="evg-cal-day"></div><div class="evg-cal-day"></div><div class="evg-cal-day"></div><div class="evg-cal-day"></div>
+  </div>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 right</span>
+    <span class="evg-slot-type">map</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-map">
+  <div class="evg-map-placeholder">
+    <div class="evg-map-pin">📍</div>
+    <div class="evg-map-coords">39.9042, 116.4074</div>
+    <div class="evg-map-zoom">
+      <button>+</button><button>−</button>
+    </div>
+  </div>
+</div>
+  </div>
+</div>
+  </div>
+</div>
+    </div>
+  </div>
+</div>
+</div>
+<script>
+// V2 事件系统: emit / listen / delegates
+window.evergreen = {
+  events: [],
+  emit(eventName, payload) {
+    const evt = { name: eventName, payload, time: Date.now() };
+    this.events.push(evt);
+    const listeners = document.querySelectorAll('[data-listen]');
+    listeners.forEach(el => {
+      try {
+        const cfg = JSON.parse(el.dataset.listen || '[]');
+        cfg.forEach(l => {
+          if (l.event === eventName) {
+            console.log('[Evergreen] emit:', eventName, '→ handler:', l.handler, payload);
+            el.dispatchEvent(new CustomEvent('evg:' + eventName, { detail: payload }));
+          }
+        });
+      } catch(e) {}
+    });
+  }
+};
+
+</script>
+<script>
+// 初始化页面切换
+function switchPage(pageId) {
+  document.querySelectorAll('.evg-page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.evg-tab').forEach(t => t.classList.remove('active'));
+  const page = document.getElementById('page-' + pageId);
+  if (page) page.classList.add('active');
+  const tab = document.querySelector('[data-page="' + pageId + '"]');
+  if (tab) tab.classList.add('active');
+}
+
+// 默认激活第一个页面
+(function() {
+  const pages = [{"id":"home","label":"🏠 主页","default":true,"layout":null},{"id":"chat_page","label":"💬 AI 助手","routePath":"/showcase-dart-chrome/chat","layout":null},{"id":"code_page","label":"💻 编程器","routePath":"/showcase-dart-chrome/code","layout":null,"globalProcess":null},{"id":"dashboard_page","label":"📊 仪表盘","routePath":"/showcase-dart-chrome/dashboard","layout":null,"dataSource":null},{"id":"lottery_page","label":"🎰 Data 抽奖机","routePath":"/showcase-dart-chrome/lottery","layout":null,"dataSource":null,"bottom":null},{"id":"data_view_page","label":"🗄️ 数据视图","routePath":"/showcase-dart-chrome/data-view","layout":null,"dataSource":null},{"id":"docs_page","label":"📝 文档+表格","routePath":"/showcase-dart-chrome/docs","layout":null},{"id":"media_page","label":"🎬 媒体中心","routePath":"/showcase-dart-chrome/media","layout":null},{"id":"learn_page","label":"📚 学习工具","routePath":"/showcase-dart-chrome/learn","layout":null},{"id":"planner_page","label":"🗺️ 地图+日历","routePath":"/showcase-dart-chrome/planner","layout":null}];
+  if (pages.length > 0) {
+    const firstPage = pages.find(p => p.default === true) || pages[0];
+    switchPage(firstPage.id);
+  }
+})();
+
+</script>
+</body>
+</html>

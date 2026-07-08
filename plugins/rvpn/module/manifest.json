@@ -1,0 +1,54 @@
+{
+  "schemaVersion": "2.0",
+  "renderMode": "dart",
+  "type": "module",
+  "id": "rvpn",
+  "name": "RVPN",
+  "description": "校内 RVPN 控制面板（展示当前网络连接真实状态）",
+  "icon": "vpn_key",
+  "route": "/rvpn",
+  "version": "2.0.0",
+  "dependencies": [],
+  "nav": {
+    "sidebar": {
+      "section": "系统",
+      "sectionOrder": 30,
+      "order": 10,
+      "badge": false
+    }
+  },
+  "pages": [
+    {
+      "id": "rvpn_page",
+      "label": "🔐 RVPN 面板",
+      "default": true,
+      "layout": {
+        "type": "grid",
+        "preset": { "columns": 1, "gap": 8 },
+        "slots": {
+          "status": {
+            "component": {
+              "type": "data-table",
+              "config": {
+                "chrome": true,
+                "display": "table",
+                "title": "当前网络连接",
+                "dataSource": {
+                  "name": "status",
+                  "endpoint": "/api/rvpn/status",
+                  "dataPath": "connections",
+                  "refreshInterval": 30
+                },
+                "columns": [
+                  { "key": "adapter", "label": "网络适配器" },
+                  { "key": "ipv4", "label": "IPv4 地址" },
+                  { "key": "gateway", "label": "默认网关" }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

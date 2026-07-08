@@ -1,0 +1,6 @@
+{
+  "script": "protonvpn_data.exe",
+  "dataTypes": [
+    { "name": "status", "typeArg": "status", "desc": "当前网络连接真实状态（本机适配器）" }
+  ]
+}

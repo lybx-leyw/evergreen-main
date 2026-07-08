@@ -1512,6 +1512,9 @@ class _DataTableSlotState extends ConsumerState<_DataTableSlot> {
           await Future.delayed(const Duration(milliseconds: 500));
           continue;
         }
+        Log().error('DataTable 渲染取数失败',
+            data: {'name': ds['name'], 'dataPath': ds['dataPath'] ?? 'data',
+              'attempt': attempt, 'error': msg});
         _error = msg;
         break;
       }
@@ -2027,6 +2030,9 @@ class _TimetableSlotState extends ConsumerState<_TimetableSlot> {
           await Future.delayed(const Duration(milliseconds: 500));
           continue;
         }
+        Log().error('Timetable 渲染取数失败',
+            data: {'name': ds['name'], 'dataPath': ds['dataPath'] ?? 'data',
+              'attempt': attempt, 'error': msg});
         _error = msg;
         break;
       }
@@ -2132,6 +2138,8 @@ Future<Map<String, dynamic>> _fetchFromData(Map<String, dynamic> ds, {int? dataP
   if (port == null || port == 0) throw Exception('数据服务未启动（找不到 .data_port）');
 
   final url = 'http://127.0.0.1:$port/data/types/$typeName';
+  Log().info('渲染取数开始',
+      data: {'typeName': typeName, 'port': port, 'url': url});
   final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
   try {
     final req = await client.getUrl(Uri.parse(url));
@@ -2140,10 +2148,22 @@ Future<Map<String, dynamic>> _fetchFromData(Map<String, dynamic> ds, {int? dataP
     final decoded = (jsonDecode(body) as Map<String, dynamic>);
     // 优先检查响应体中的 error 字段（DataHttpServer 现在在 502/404 时也返回 JSON 错误体）
     if (decoded.containsKey('error')) {
+      Log().warn('渲染取数失败（数据服务返回 error）',
+          data: {'typeName': typeName, 'status': resp.statusCode, 'error': decoded['error']});
       throw Exception(decoded['error'] as String? ?? '未知数据错误');
     }
-    if (resp.statusCode == 404) throw Exception('数据源 "$typeName" 未注册');
-    if (resp.statusCode != 200) throw Exception('HTTP ${resp.statusCode}');
+    if (resp.statusCode == 404) {
+      Log().warn('渲染取数失败（数据源未注册）',
+          data: {'typeName': typeName, 'status': 404});
+      throw Exception('数据源 "$typeName" 未注册');
+    }
+    if (resp.statusCode != 200) {
+      Log().warn('渲染取数失败（HTTP 状态）',
+          data: {'typeName': typeName, 'status': resp.statusCode});
+      throw Exception('HTTP ${resp.statusCode}');
+    }
+    Log().info('渲染取数成功',
+        data: {'typeName': typeName, 'bytes': body.length, 'keys': decoded.keys.toList()});
     return decoded;
   } finally {
     client.close();

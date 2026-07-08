@@ -1,0 +1,50 @@
+{
+  "schemaVersion": "2.0",
+  "renderMode": "dart",
+  "type": "module",
+  "id": "translate",
+  "name": "PDF翻译",
+  "description": "PDF/文本翻译（DeepSeek API 真实翻译）",
+  "icon": "translate",
+  "route": "/translate",
+  "version": "2.0.0",
+  "dependencies": [],
+  "nav": {
+    "sidebar": {
+      "section": "学习",
+      "sectionOrder": 10,
+      "order": 30,
+      "badge": false
+    }
+  },
+  "pages": [
+    {
+      "id": "translate_page",
+      "label": "🌐 翻译",
+      "default": true,
+      "layout": {
+        "type": "grid",
+        "preset": { "columns": 1, "gap": 8 },
+        "slots": {
+          "form": {
+            "component": {
+              "type": "form",
+              "config": {
+                "title": "PDF / 文本翻译",
+                "submitLabel": "翻译",
+                "fields": [
+                  { "key": "inputPath", "label": "PDF 路径 / 文本", "type": "textarea",
+                    "placeholder": "粘贴待翻译文本，或填写 PDF 文件路径" },
+                  { "key": "langOut", "label": "目标语言", "type": "select",
+                    "options": ["zh", "en"], "default": "zh" }
+                ],
+                "endpoint": "/api/translate/text",
+                "note": "翻译由 DeepSeek API 真实执行（设置中配置 DeepSeekAPI Key）"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

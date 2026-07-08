@@ -27,6 +27,7 @@ import 'package:evergreen_base/core/module/module_http_server.dart';
 import 'package:evergreen_base/core/data/cache.dart';
 import 'package:evergreen_base/core/data/orchestrator.dart';
 import 'package:evergreen_base/core/data/type.dart';
+import 'package:evergreen_base/core/log.dart';
 import 'package:evergreen_base/core/data/data_http_server.dart';
 import 'package:evergreen_base/core/theme/theme_loader.dart';
 import 'package:evergreen_base/core/theme/theme_store.dart';
@@ -101,6 +102,7 @@ void _scanAndRegisterDataSources(String pluginsDir, DataOrchestrator orch) {
 
   for (final entity in dir.listSync()) {
     if (entity is! Directory) continue;
+    final pluginId = p.basename(entity.path);
     final manifestFile = File(p.join(entity.path, 'data', 'manifest.json'));
     if (!manifestFile.existsSync()) continue;
 
@@ -117,9 +119,11 @@ void _scanAndRegisterDataSources(String pluginsDir, DataOrchestrator orch) {
       final exePath = p.join(dataDir, script);
       final exeExists = File(exePath).existsSync();
       if (!exeExists) {
-        stderr.writeln('[main] data script 不存在: $exePath (仍注册，运行时可能失败)');
+        Log().warn('DataSource 扫描: 数据脚本不存在，仍注册（运行时将失败）',
+            data: {'plugin': pluginId, 'script': script, 'exe': exePath});
       }
 
+      final names = <String>[];
       for (final dt in dataTypes) {
         if (dt is! Map<String, dynamic>) continue;
         final name = dt['name'] as String? ?? '';
@@ -127,6 +131,7 @@ void _scanAndRegisterDataSources(String pluginsDir, DataOrchestrator orch) {
         final ttlStr = dt['ttl'] as String? ?? '5m';
         final persistentKey = dt['persistentKey'] as String?;
         if (name.isEmpty) continue;
+        names.add('$name(typeArg=$typeArg)');
 
         var ttl = const Duration(minutes: 5);
         final ttlMatch = RegExp(r'^(\d+)(s|m|h)$').firstMatch(ttlStr);
@@ -149,6 +154,10 @@ void _scanAndRegisterDataSources(String pluginsDir, DataOrchestrator orch) {
 
         // CLI fetcher: Process.run → stdout JSON
         orch.register(type, () async {
+          final sw = Stopwatch()..start();
+          Log().info('数据源拉取开始',
+              data: {'plugin': pluginId, 'name': name, 'exe': exePath,
+                'args': ['--type', typeArg, '--project-root', _projectRoot]});
           ProcessResult result;
           try {
             result = await Process.run(
@@ -157,31 +166,65 @@ void _scanAndRegisterDataSources(String pluginsDir, DataOrchestrator orch) {
               workingDirectory: dataDir,
             );
           } on ProcessException catch (e) {
+            Log().error('数据源拉取失败（无法启动脚本）',
+                data: {'plugin': pluginId, 'name': name, 'script': script, 'error': e.message});
             throw Exception('无法启动数据脚本 "$script": ${e.message}');
           }
+          final elapsedMs = sw.elapsedMilliseconds;
+          final stdoutRaw = result.stdout as String;
+          final stderrRaw = (result.stderr as String).trim();
           if (result.exitCode != 0) {
-            final err = (result.stderr as String).trim();
             // 如果 stdout 有 JSON 错误消息，优先使用
+            String errMsg = stderrRaw.isNotEmpty
+                ? stderrRaw
+                : '$script 异常退出 (code ${result.exitCode})';
             try {
-              final stdoutJson = jsonDecode(result.stdout as String) as Map<String, dynamic>;
+              final stdoutJson = jsonDecode(stdoutRaw) as Map<String, dynamic>;
               if (stdoutJson.containsKey('error')) {
-                throw Exception(stdoutJson['error'] as String? ?? err);
+                errMsg = stdoutJson['error'] as String? ?? errMsg;
               }
             } catch (_) {}
-            throw Exception(err.isNotEmpty ? err : '$script 异常退出 (code ${result.exitCode})');
+            Log().error('数据源拉取失败（exitCode != 0）',
+                data: {
+                  'plugin': pluginId,
+                  'name': name,
+                  'exitCode': result.exitCode,
+                  'elapsedMs': elapsedMs,
+                  'stderr': stderrRaw.length > 800 ? '${stderrRaw.substring(0, 800)}…' : stderrRaw,
+                  'stdoutTail': stdoutRaw.length > 300
+                      ? stdoutRaw.substring(0, 300)
+                      : stdoutRaw,
+                });
+            throw Exception(errMsg);
           }
-          final parsed = jsonDecode(result.stdout as String) as Map<String, dynamic>;
+          final parsed = jsonDecode(stdoutRaw) as Map<String, dynamic>;
           // 防御：脚本 exit code 0 但返回了错误 JSON
           if (parsed.containsKey('error')) {
-            throw Exception(parsed['error'] as String? ?? '$script 返回了错误');
+            final err = parsed['error'] as String? ?? '$script 返回了错误';
+            Log().error('数据源拉取失败（脚本返回 error JSON）',
+                data: {'plugin': pluginId, 'name': name, 'elapsedMs': elapsedMs, 'error': err});
+            throw Exception(err);
           }
+          Log().info('数据源拉取成功',
+              data: {
+                'plugin': pluginId,
+                'name': name,
+                'elapsedMs': elapsedMs,
+                'stdoutBytes': stdoutRaw.length,
+                'keys': parsed.keys.toList(),
+              });
           return parsed;
         });
 
-        stderr.writeln('[main] data source registered: $name → $script --type $typeArg');
+        Log().info('DataSource 注册',
+            data: {'plugin': pluginId, 'name': name, 'script': script,
+              'typeArg': typeArg, 'exeExists': exeExists, 'ttl': ttlStr,
+              'persistentKey': persistentKey});
       }
+      Log().info('DataSource 扫描完成',
+          data: {'plugin': pluginId, 'count': names.length, 'types': names});
     } catch (e) {
-      stderr.writeln('[main] 数据源扫描失败 ${entity.path}: $e');
+      Log().error('数据源扫描失败', data: {'plugin': pluginId, 'path': entity.path, 'error': e.toString()});
     }
   }
 }
@@ -207,6 +250,9 @@ void _scanV2Manifests(String pluginsDir, Map<String, Map<String, dynamic>> out) 
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+
+
 
   // ── 桌面窗口 ──
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {

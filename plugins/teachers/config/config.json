@@ -1,0 +1,13 @@
+{
+  "id": "teachers",
+  "name": "查老师模块配置",
+  "settings": [],
+  "permissions": [
+    {
+      "key": "TEACHERS_LOCAL",
+      "label": "本地数据访问",
+      "description": "允许查老师模块读取本地教师评分数据集（无网络访问）",
+      "default": true
+    }
+  ]
+}

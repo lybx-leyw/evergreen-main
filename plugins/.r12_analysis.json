@@ -1,0 +1,269 @@
+{
+  "total": 33,
+  "results": {
+    "agent": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 95,
+      "mean_brightness": 34.1,
+      "blank": false,
+      "level": "ok"
+    },
+    "ai-assistant": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 123,
+      "mean_brightness": 26.7,
+      "blank": false,
+      "level": "ok"
+    },
+    "autosign": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 70,
+      "mean_brightness": 24.4,
+      "blank": false,
+      "level": "ok"
+    },
+    "classroom": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 75,
+      "mean_brightness": 24.6,
+      "blank": false,
+      "level": "ok"
+    },
+    "course-offerings": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 76,
+      "mean_brightness": 24.5,
+      "blank": false,
+      "level": "ok"
+    },
+    "courses": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 105,
+      "mean_brightness": 35.0,
+      "blank": false,
+      "level": "ok"
+    },
+    "dashboard": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 229,
+      "mean_brightness": 36.2,
+      "blank": false,
+      "level": "ok"
+    },
+    "data-dashboard": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 213,
+      "mean_brightness": 37.6,
+      "blank": false,
+      "level": "ok"
+    },
+    "downloads": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 81,
+      "mean_brightness": 25.0,
+      "blank": false,
+      "level": "ok"
+    },
+    "ecard": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 73,
+      "mean_brightness": 24.4,
+      "blank": false,
+      "level": "ok"
+    },
+    "exams": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 81,
+      "mean_brightness": 25.2,
+      "blank": false,
+      "level": "ok"
+    },
+    "library": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 74,
+      "mean_brightness": 24.5,
+      "blank": false,
+      "level": "ok"
+    },
+    "multi-agent": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 63,
+      "mean_brightness": 24.5,
+      "blank": false,
+      "level": "ok"
+    },
+    "notes": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 95,
+      "mean_brightness": 33.4,
+      "blank": false,
+      "level": "ok"
+    },
+    "palace": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 76,
+      "mean_brightness": 24.4,
+      "blank": false,
+      "level": "ok"
+    },
+    "pintia": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 52,
+      "mean_brightness": 24.6,
+      "blank": false,
+      "level": "ok"
+    },
+    "plan": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 98,
+      "mean_brightness": 38.7,
+      "blank": false,
+      "level": "ok"
+    },
+    "protonvpn": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 50,
+      "mean_brightness": 24.1,
+      "blank": false,
+      "level": "ok"
+    },
+    "quick-connect": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 74,
+      "mean_brightness": 24.5,
+      "blank": false,
+      "level": "ok"
+    },
+    "quiz": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 72,
+      "mean_brightness": 32.3,
+      "blank": false,
+      "level": "ok"
+    },
+    "rvpn": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 54,
+      "mean_brightness": 24.0,
+      "blank": false,
+      "level": "ok"
+    },
+    "schedule-export": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 74,
+      "mean_brightness": 24.5,
+      "blank": false,
+      "level": "ok"
+    },
+    "scheduler": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 79,
+      "mean_brightness": 24.5,
+      "blank": false,
+      "level": "ok"
+    },
+    "scores": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 82,
+      "mean_brightness": 24.6,
+      "blank": false,
+      "level": "ok"
+    },
+    "settings": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 137,
+      "mean_brightness": 38.4,
+      "blank": false,
+      "level": "ok"
+    },
+    "teachers": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 52,
+      "mean_brightness": 24.2,
+      "blank": false,
+      "level": "ok"
+    },
+    "todo": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 71,
+      "mean_brightness": 24.4,
+      "blank": false,
+      "level": "ok"
+    },
+    "training-plans": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 80,
+      "mean_brightness": 25.1,
+      "blank": false,
+      "level": "ok"
+    },
+    "translate": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 87,
+      "mean_brightness": 38.5,
+      "blank": false,
+      "level": "ok"
+    },
+    "tutor": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 101,
+      "mean_brightness": 34.0,
+      "blank": false,
+      "level": "ok"
+    },
+    "vocab-tutor": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 57,
+      "mean_brightness": 24.1,
+      "blank": false,
+      "level": "ok"
+    },
+    "wordpecker": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 65,
+      "mean_brightness": 31.6,
+      "blank": false,
+      "level": "ok"
+    },
+    "zdbk-notifications": {
+      "w": 1781,
+      "h": 1147,
+      "distinct_colors": 74,
+      "mean_brightness": 24.5,
+      "blank": false,
+      "level": "ok"
+    }
+  }
+}

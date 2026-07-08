@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "2.0",
+  "renderMode": "dart",
+  "type": "module",
+  "id": "plan",
+  "name": "计划管理",
+  "description": "学习计划与待办表单",
+  "icon": "assignment",
+  "route": "/plan",
+  "version": "2.0.0",
+  "dependencies": [],
+  "nav": {
+    "sidebar": {
+      "section": "学习",
+      "sectionOrder": 10,
+      "order": 40,
+      "badge": false
+    }
+  },
+  "pages": [
+    {
+      "id": "plan_page",
+      "label": "📝 计划管理",
+      "default": true,
+      "layout": {
+        "type": "grid",
+        "preset": { "columns": 1, "gap": 0 },
+        "slots": {
+          "main": {
+            "component": {
+              "type": "form",
+              "config": {
+                "title": "新建学习计划",
+                "fields": [
+                  { "key": "title", "label": "计划标题", "type": "text", "required": true },
+                  { "key": "type", "label": "类型", "type": "select", "options": ["每日", "每周", "考前冲刺"] },
+                  { "key": "deadline", "label": "截止日期", "type": "date" },
+                  { "key": "note", "label": "备注", "type": "textarea" }
+                ],
+                "submitLabel": "保存计划"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

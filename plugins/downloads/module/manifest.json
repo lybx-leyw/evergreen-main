@@ -1,0 +1,57 @@
+{
+  "schemaVersion": "2.0",
+  "renderMode": "dart",
+  "type": "module",
+  "id": "downloads",
+  "name": "下载",
+  "description": "下载——学在浙大课程资料与作业附件清单",
+  "icon": "download",
+  "route": "/downloads",
+  "version": "2.0.0",
+  "dependencies": [],
+  "nav": {
+    "sidebar": {
+      "section": "学习",
+      "sectionOrder": 20,
+      "order": 80,
+      "badge": false
+    }
+  },
+  "pages": [
+    {
+      "id": "downloads_page",
+      "label": "📥 下载",
+      "default": true,
+      "layout": {
+        "type": "grid",
+        "preset": { "columns": 1, "gap": 0 },
+        "slots": {
+          "main": {
+            "component": {
+              "type": "data-table",
+              "config": {
+                "chrome": true,
+                "display": "table",
+                "filter": true,
+                "sortable": true,
+                "title": "课程文件",
+                "dataSource": {
+                  "name": "downloads",
+                  "endpoint": "/api/downloads",
+                  "dataPath": "files",
+                  "refreshInterval": 600
+                },
+                "columns": [
+                  { "key": "name", "label": "文件名" },
+                  { "key": "size", "label": "大小" },
+                  { "key": "course", "label": "课程" },
+                  { "key": "url", "label": "链接" }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

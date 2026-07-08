@@ -1,0 +1,45 @@
+{
+  "schemaVersion": "2.0",
+  "renderMode": "dart",
+  "type": "module",
+  "id": "tutor",
+  "name": "AI辅导",
+  "description": "AI 辅导——双人格答疑（讲解 / 苏格拉底式）",
+  "icon": "psychology",
+  "route": "/tutor",
+  "version": "2.0.0",
+  "dependencies": [],
+  "nav": {
+    "sidebar": {
+      "section": "AI 工具",
+      "sectionOrder": 20,
+      "order": 30,
+      "badge": false
+    }
+  },
+  "pages": [
+    {
+      "id": "tutor_page",
+      "label": "🎓 AI 辅导",
+      "default": true,
+      "layout": {
+        "type": "grid",
+        "preset": { "columns": 1, "gap": 0 },
+        "slots": {
+          "main": {
+            "component": {
+              "type": "ai-assistant",
+              "config": {
+                "preset": "tutor",
+                "system_prompt": "你是学生的 AI 辅导老师。针对问题先引导思考（苏格拉底式），必要时给出清晰讲解与步骤。讲解与引导双人格切换，依据问题难度自动选择。用中文回复。",
+                "multi_session": true,
+                "global_memory": true,
+                "tools": { "mode": "specific", "allowed": ["web_search", "write_file", "read_global_memory", "write_global_memory"] }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

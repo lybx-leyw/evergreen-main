@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "2.0",
+  "renderMode": "dart",
+  "type": "module",
+  "id": "scheduler",
+  "name": "智能调度",
+  "description": "智能调度——贪心 deadline-first 把任务排进每日可用时段",
+  "icon": "schedule",
+  "route": "/scheduler",
+  "version": "2.0.0",
+  "dependencies": [],
+  "nav": {
+    "sidebar": {
+      "section": "系统",
+      "sectionOrder": 80,
+      "order": 80,
+      "badge": false
+    }
+  },
+  "pages": [
+    {
+      "id": "scheduler_page",
+      "label": "🗓️ 智能调度",
+      "default": true,
+      "layout": {
+        "type": "grid",
+        "preset": { "columns": 1, "gap": 0 },
+        "slots": {
+          "main": {
+            "component": {
+              "type": "data-table",
+              "config": {
+                "chrome": true,
+                "display": "table",
+                "filter": false,
+                "sortable": false,
+                "title": "今日调度计划",
+                "dataSource": {
+                  "name": "scheduler_plan",
+                  "endpoint": "/api/scheduler/plan",
+                  "dataPath": "blocks",
+                  "refreshInterval": 0
+                },
+                "columns": [
+                  { "key": "startTime", "label": "开始" },
+                  { "key": "endTime", "label": "结束" },
+                  { "key": "description", "label": "任务" },
+                  { "key": "location", "label": "地点" },
+                  { "key": "deadline", "label": "截止" }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

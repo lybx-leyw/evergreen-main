@@ -1,0 +1,16 @@
+{
+  "type": "data-source",
+  "id": "training-plans-data",
+  "name": "培养方案数据源",
+  "script": "training_plans_data.exe",
+  "dataTypes": [
+    {
+      "name": "training_plans",
+      "typeArg": "training_plans",
+      "category": "培养方案",
+      "displayName": "培养方案",
+      "ttl": "30m",
+      "persistentKey": "training_plans"
+    }
+  ]
+}

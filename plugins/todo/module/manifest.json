@@ -1,0 +1,59 @@
+{
+  "schemaVersion": "2.0",
+  "renderMode": "dart",
+  "type": "module",
+  "id": "todo",
+  "name": "待办",
+  "description": "待办——聚合学在浙大作业与考试（按截止时间排序）",
+  "icon": "check_circle",
+  "route": "/todo",
+  "version": "2.0.0",
+  "dependencies": [],
+  "nav": {
+    "sidebar": {
+      "section": "学习",
+      "sectionOrder": 10,
+      "order": 40,
+      "badge": false
+    }
+  },
+  "pages": [
+    {
+      "id": "todo_page",
+      "label": "✅ 待办",
+      "default": true,
+      "layout": {
+        "type": "grid",
+        "preset": { "columns": 1, "gap": 0 },
+        "slots": {
+          "main": {
+            "component": {
+              "type": "data-table",
+              "config": {
+                "chrome": true,
+                "display": "table",
+                "filter": true,
+                "sortable": true,
+                "title": "我的待办",
+                "dataSource": {
+                  "name": "todos",
+                  "endpoint": "/api/todos",
+                  "dataPath": "todos",
+                  "refreshInterval": 300
+                },
+                "columns": [
+                  { "key": "title", "label": "标题" },
+                  { "key": "courseName", "label": "课程" },
+                  { "key": "type", "label": "类型" },
+                  { "key": "deadline", "label": "截止" },
+                  { "key": "isSubmitted", "label": "已提交" },
+                  { "key": "source", "label": "来源" }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

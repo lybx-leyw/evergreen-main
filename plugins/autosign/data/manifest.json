@@ -1,0 +1,16 @@
+{
+  "type": "data-source",
+  "id": "autosign-data",
+  "name": "自动签到数据源",
+  "script": "autosign_data.exe",
+  "dataTypes": [
+    {
+      "name": "autosign",
+      "typeArg": "autosign",
+      "category": "学习",
+      "displayName": "自动签到日志",
+      "ttl": "0s",
+      "persistentKey": "autosign"
+    }
+  ]
+}

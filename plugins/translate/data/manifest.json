@@ -1,0 +1,6 @@
+{
+  "script": "translate_data.exe",
+  "dataTypes": [
+    { "name": "translate_text", "typeArg": "translate_text", "desc": "文本翻译（DeepSeek API 真实调用）" }
+  ]
+}

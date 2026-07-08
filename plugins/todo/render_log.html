@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>待办 — V2</title>
+<style>
+:root {
+  /* 背景 */
+  --evg-bg-primary: #0d1117;
+  --evg-bg-secondary: #161b22;
+  --evg-bg-tertiary: #1c2128;
+
+  /* 边框 */
+  --evg-border-default: #30363d;
+  --evg-border-accent: #1f6feb;
+  --evg-border-success: #3fb950;
+
+  /* 文字 */
+  --evg-text-primary: #c9d1d9;
+  --evg-text-secondary: #8b949e;
+  --evg-text-tertiary: #484f58;
+
+  /* 强调色 */
+  --evg-accent-blue: #58a6ff;
+  --evg-accent-blue-bg: #1f6feb22;
+  --evg-accent-blue-border: #1f6feb44;
+
+  /* 状态色 */
+  --evg-state-success: #3fb950;
+  --evg-state-success-bg: #3fb95022;
+  --evg-state-success-border: #3fb95044;
+  --evg-state-error: #ff7b72;
+
+  /* 按钮 */
+  --evg-button-green: #238636;
+  --evg-button-bg: #21262d;
+
+  /* 代码 */
+  --evg-code-kw: #ff7b72;
+  --evg-code-fn: #d2a8ff;
+  --evg-code-str: #a5d6ff;
+  --evg-code-num: #79c0ff;
+  --evg-code-cmt: #8b949e;
+
+  /* 间距 */
+  --evg-space-xs: 4.0px;
+  --evg-space-sm: 6.0px;
+  --evg-space-md: 8.0px;
+  --evg-space-lg: 12.0px;
+  --evg-space-xl: 16.0px;
+  --evg-space-xxl: 24.0px;
+
+  /* 圆角 */
+  --evg-radius-sm: 3.0px;
+  --evg-radius-md: 4.0px;
+  --evg-radius-lg: 6.0px;
+  --evg-radius-xl: 8.0px;
+  --evg-radius-xxl: 12.0px;
+  --evg-radius-round: 20.0px;
+
+  /* 字体 */
+  --evg-font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --evg-font-mono: 'Cascadia Code', 'Fira Code', monospace;
+  --evg-font-size-xs: 9.0px;
+  --evg-font-size-sm: 10.0px;
+  --evg-font-size-base: 11.0px;
+  --evg-font-size-md: 12.0px;
+  --evg-font-size-lg: 13.0px;
+  --evg-font-size-xl: 14.0px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: var(--evg-bg-primary); color: var(--evg-text-primary);
+}
+
+/* ── Shell: 侧边栏 + 内容区 ── */
+#evg-app { display: flex; flex-direction: column; height: 100vh; }
+.evg-shell { display: flex; flex: 1; overflow: hidden; }
+.evg-sidebar {
+  width: 200px; flex-shrink: 0; background: var(--evg-bg-secondary);
+  border-right: 1px solid var(--evg-border-default); display: flex; flex-direction: column; overflow-y: auto;
+}
+.evg-sidebar-header {
+  padding: 12px; font-size: 12px; font-weight: 700; color: var(--evg-accent-blue);
+  border-bottom: 1px solid var(--evg-border-default); text-transform: uppercase; letter-spacing: .5px;
+}
+.evg-nav-item {
+  display: block; padding: 8px 12px; color: var(--evg-text-secondary); text-decoration: none;
+  font-size: 13px; border-left: 2px solid transparent; transition: all .15s;
+}
+.evg-nav-item:hover, .evg-nav-item.active { color: var(--evg-text-primary); border-left-color: var(--evg-accent-blue); background: var(--evg-bg-tertiary); }
+.evg-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+/* ── Tab 页签 ── */
+.evg-tabs {
+  display: flex; gap: 2px; padding: 4px 8px 0;
+  background: var(--evg-bg-secondary); border-bottom: 1px solid var(--evg-border-default); flex-shrink: 0;
+}
+.evg-tab {
+  padding: 6px 14px; border: 1px solid transparent; border-radius: 6px 6px 0 0;
+  background: transparent; color: var(--evg-text-secondary); cursor: pointer; font-size: 12px;
+}
+.evg-tab:hover { color: var(--evg-text-primary); background: var(--evg-bg-tertiary); }
+.evg-tab.active { color: var(--evg-accent-blue); background: var(--evg-bg-primary); border-color: var(--evg-border-default); border-bottom-color: var(--evg-bg-primary); }
+
+/* ── 页面 & 布局 ── */
+.evg-pages { flex: 1; overflow: hidden; }
+.evg-page { height: 100%; }
+.evg-page.active { display: block !important; }
+.evg-layout { width: 100%; height: 100%; padding: 8px; overflow: auto; }
+
+/* ── Slot 卡片 ── */
+.evg-slot {
+  border: 1px solid var(--evg-border-default); border-radius: 8px;
+  background: var(--evg-bg-secondary); overflow: hidden; display: flex; flex-direction: column;
+}
+.evg-slot-header {
+  display: flex; align-items: center; gap: 6px; padding: 6px 10px;
+  background: var(--evg-bg-tertiary); border-bottom: 1px solid var(--evg-border-default); font-size: 11px;
+  flex-shrink: 0;
+}
+.evg-slot-name { color: var(--evg-text-primary); font-weight: 600; }
+.evg-slot-type { color: var(--evg-accent-blue); font-size: 10px; }
+.evg-slot-body { flex: 1; overflow: auto; }
+.evg-badge {
+  background: var(--evg-accent-blue-bg); color: var(--evg-accent-blue); padding: 1px 6px; border-radius: 8px;
+  font-size: 10px; border: 1px solid var(--evg-accent-blue-border); white-space: nowrap;
+}
+.evg-badge-listen {
+  background: var(--evg-state-success-bg); color: var(--evg-state-success); padding: 1px 6px; border-radius: 8px;
+  font-size: 10px; border: 1px solid var(--evg-state-success-border); white-space: nowrap;
+}
+
+/* ── 组件通用 ── */
+.evg-comp { width: 100%; height: 100%; display: flex; flex-direction: column; }
+.evg-comp-title { font-size:13px; font-weight:600; color:var(--evg-text-primary); padding:8px 12px 4px; }
+.evg-empty { padding: 40px; text-align: center; color: var(--evg-text-secondary); }
+
+/* ── Chat ── */
+.evg-comp-chat { display: flex; flex-direction: column; }
+.evg-chat-msgs { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+.evg-msg { display: flex; gap: 8px; align-items: flex-start; }
+.evg-msg.user { flex-direction: row-reverse; }
+.evg-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--evg-border-accent); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+.evg-msg.user .evg-avatar { background: var(--evg-state-success); }
+.evg-bubble { background: var(--evg-bg-tertiary); border: 1px solid var(--evg-border-default); border-radius: 12px; padding: 8px 12px; font-size: 13px; line-height: 1.6; max-width: 80%; }
+.evg-msg.user .evg-bubble { background: var(--evg-accent-blue-bg); border-color: var(--evg-accent-blue-border); }
+.evg-chat-input { display: flex; gap: 8px; padding: 8px 12px; border-top: 1px solid var(--evg-border-default); background: var(--evg-bg-secondary); }
+.evg-chat-input input { flex: 1; padding: 8px 12px; background: var(--evg-bg-primary); border: 1px solid var(--evg-border-default); border-radius: 6px; color: var(--evg-text-primary); font-size: 13px; }
+.evg-chat-input button { padding: 6px 16px; background: var(--evg-button-green); border: none; border-radius: 6px; color: #fff; cursor: pointer; font-size: 12px; }
+.evg-quick-replies { display: flex; gap: 6px; flex-wrap: wrap; padding: 6px 12px; }
+.evg-quick-reply { background: var(--evg-bg-tertiary); border: 1px solid var(--evg-border-default); border-radius: 12px; padding: 3px 10px; font-size: 11px; color: var(--evg-accent-blue); cursor: pointer; white-space: nowrap; }
+
+/* ── Code Editor ── */
+.evg-comp-code { display: flex; flex-direction: column; }
+.evg-code-header { display: flex; justify-content: space-between; padding: 6px 12px; background: var(--evg-bg-tertiary); border-bottom: 1px solid var(--evg-border-default); font-size: 12px; color: var(--evg-text-secondary); }
+.evg-code-lang { color: var(--evg-accent-blue); }
+.evg-code-body { display: flex; flex: 1; overflow: auto; }
+.evg-code-lines { padding: 8px 10px; color: var(--evg-text-tertiary); font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 13px; line-height: 1.6; text-align: right; background: var(--evg-bg-primary); min-width: 36px; user-select: none; }
+.evg-code-pre { flex: 1; padding: 8px 12px; background: var(--evg-bg-primary); color: var(--evg-text-primary); font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 13px; line-height: 1.6; overflow: auto; margin: 0; }
+.evg-kw { color: var(--evg-code-kw); }
+.evg-fn { color: var(--evg-code-fn); }
+.evg-str { color: var(--evg-code-str); }
+.evg-num { color: var(--evg-code-num); }
+.evg-cmt { color: var(--evg-code-cmt); font-style: italic; }
+
+/* ── Data Table ── */
+.evg-comp-table { padding: 8px; }
+.evg-table-filter { margin-bottom: 8px; }
+.evg-table-filter input { width: 100%; padding: 6px 10px; background: var(--evg-bg-primary); border: 1px solid var(--evg-border-default); border-radius: 4px; color: var(--evg-text-primary); font-size: 12px; }
+.evg-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.evg-table th, .evg-table td { padding: 6px 10px; border: 1px solid var(--evg-border-default); text-align: left; }
+.evg-table th { background: var(--evg-bg-tertiary); font-weight: 600; }
+.evg-table tr:hover td { background: var(--evg-bg-tertiary); }
+.evg-sort { color: var(--evg-text-tertiary); font-size: 10px; cursor: pointer; }
+
+/* ── Card Grid ── */
+.evg-comp-cards { padding: 8px; }
+.evg-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+.evg-card { background: var(--evg-bg-tertiary); border: 1px solid var(--evg-border-default); border-radius: 8px; padding: 10px; }
+.evg-card-field { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; }
+.evg-card-label { color: var(--evg-text-secondary); }
+.evg-card-val { color: var(--evg-text-primary); font-weight: 600; }
+
+/* ── Chart ── */
+.evg-comp-chart { padding: 8px 8px 40px 8px; display: flex; flex-direction: column; }
+.evg-chart-area { flex: 1; display: flex; align-items: flex-end; padding: 12px 0 0; }
+.evg-chart-bars { display: flex; align-items: flex-end; gap: 4px; width: 100%; height: 100%; }
+.evg-bar-wrapper { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+.evg-bar { width: 80%; min-width: 16px; border-radius: 3px 3px 0 0; position: relative; min-height: 4px; transition: height .3s; }
+.evg-bar-val { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 10px; color: var(--evg-text-secondary); }
+.evg-bar-label { font-size: 9px; color: var(--evg-text-secondary); margin-top: 4px; }
+.evg-chart-pie { width: 120px; height: 120px; border-radius: 50%; margin: 12px auto; }
+.evg-chart-pie.donut { position: relative; }
+.evg-chart-pie.donut::after { content: ''; position: absolute; top: 30px; left: 30px; width: 60px; height: 60px; border-radius: 50%; background: var(--evg-bg-primary); }
+.evg-chart-legend { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 8px; }
+.evg-legend-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--evg-text-secondary); }
+.evg-legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+.evg-line-svg { width: 100%; height: 100%; }
+
+/* ── Lottery ── */
+.evg-comp-lottery { display: flex; flex-direction: column; align-items: center; padding: 12px; gap: 12px; }
+.evg-lottery-header { text-align: center; }
+.evg-lottery-sub { font-size: 11px; color: var(--evg-text-secondary); }
+.evg-lottery-wheel-container { position: relative; }
+.evg-lottery-canvas { border-radius: 50%; border: 4px solid var(--evg-border-default); background: var(--evg-bg-tertiary); }
+.evg-lottery-btn { margin-top: 12px; padding: 8px 24px; background: linear-gradient(135deg, var(--evg-button-green), var(--evg-border-accent)); border: none; border-radius: 20px; color: #fff; font-size: 14px; font-weight: 700; cursor: pointer; }
+.evg-lottery-history { text-align: center; }
+
+/* ── Document ── */
+.evg-comp-doc { display: flex; flex-direction: column; }
+.evg-doc-toolbar { display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: var(--evg-bg-tertiary); border-bottom: 1px solid var(--evg-border-default); font-size: 12px; }
+.evg-doc-actions { display: flex; gap: 4px; }
+.evg-doc-tag { background: var(--evg-accent-blue-bg); border: 1px solid var(--evg-accent-blue-border); border-radius: 3px; padding: 1px 6px; font-size: 10px; color: var(--evg-accent-blue); }
+.evg-doc-content { flex: 1; padding: 16px; overflow-y: auto; line-height: 1.8; }
+.evg-doc-content h2 { font-size: 18px; margin-bottom: 12px; color: var(--evg-text-primary); }
+.evg-doc-content p { margin-bottom: 8px; }
+.evg-doc-content blockquote { border-left: 3px solid var(--evg-accent-blue); padding: 4px 12px; color: var(--evg-text-secondary); margin: 8px 0; background: var(--evg-bg-tertiary); border-radius: 0 4px 4px 0; }
+
+/* ── Spreadsheet ── */
+.evg-comp-sheet { display: flex; flex-direction: column; }
+.evg-sheet-header { display: flex; justify-content: space-between; padding: 6px 12px; background: var(--evg-bg-tertiary); border-bottom: 1px solid var(--evg-border-default); font-size: 12px; color: var(--evg-text-primary); }
+.evg-sheet-table { flex: 1; overflow: auto; }
+.evg-sheet-table table { border-collapse: collapse; width: max-content; min-width: 100%; font-size: 12px; }
+.evg-sheet-table th, .evg-sheet-table td { border: 1px solid var(--evg-border-default); padding: 4px 8px; min-width: 60px; text-align: left; }
+.evg-sheet-table th { background: var(--evg-bg-tertiary); font-weight: 600; position: sticky; top: 0; }
+.evg-sheet-table td { background: var(--evg-bg-primary); }
+.evg-row-num { color: var(--evg-text-tertiary); text-align: center; background: var(--evg-bg-secondary) !important; }
+
+/* ── Video ── */
+.evg-comp-video { display: flex; flex-direction: column; }
+.evg-video-placeholder { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--evg-bg-primary); gap: 12px; }
+.evg-video-icon { width: 60px; height: 60px; border-radius: 50%; background: var(--evg-accent-blue-bg); border: 2px solid var(--evg-accent-blue); color: var(--evg-accent-blue); display: flex; align-items: center; justify-content: center; font-size: 24px; }
+.evg-video-text { font-size: 14px; color: var(--evg-text-secondary); }
+.evg-video-controls { display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: var(--evg-bg-secondary); border-top:1px solid var(--evg-border-default); width:100%; font-size:14px; color:var(--evg-text-primary); }
+
+/* ── Presentation ── */
+.evg-comp-pres { display: flex; flex-direction: column; }
+.evg-pres-slide { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; gap: 16px; position: relative; }
+.evg-pres-title { font-size: 20px; font-weight: 700; color: var(--evg-accent-blue); }
+.evg-pres-content { font-size: 14px; color: var(--evg-text-secondary); text-align: center; line-height: 1.8; }
+.evg-pres-page { position: absolute; bottom: 12px; right: 12px; font-size: 11px; color: var(--evg-text-tertiary); }
+.evg-pres-nav { display: flex; justify-content: center; gap: 12px; padding: 8px; border-top:1px solid var(--evg-border-default); }
+.evg-pres-nav button { padding: 4px 12px; background: var(--evg-button-bg); border: 1px solid var(--evg-border-default); border-radius: 4px; color: var(--evg-text-primary); font-size: 12px; cursor: pointer; }
+
+/* ── TypeCheck ── */
+.evg-comp-typecheck { padding: 12px; }
+.evg-tc-question { display: flex; gap: 8px; margin: 12px 0; font-size: 14px; }
+.evg-tc-q-number { color: var(--evg-accent-blue); font-weight: 700; }
+.evg-tc-q-text { color: var(--evg-text-primary); }
+.evg-tc-options { display: flex; flex-direction: column; gap: 6px; }
+.evg-tc-opt { padding: 8px 12px; background: var(--evg-bg-tertiary); border: 1px solid var(--evg-border-default); border-radius: 6px; font-size: 13px; cursor: pointer; }
+.evg-tc-opt.correct { border-color: var(--evg-state-success); background: var(--evg-state-success-bg); }
+.evg-tc-score { margin-top: 12px; font-size: 12px; color: var(--evg-text-secondary); }
+
+/* ── Form ── */
+.evg-comp-form { padding: 12px; }
+.evg-form-field { margin-bottom: 10px; }
+.evg-form-field label { display: block; font-size: 12px; color: var(--evg-text-secondary); margin-bottom: 4px; }
+.evg-form-field input, .evg-form-field textarea, .evg-form-field select {
+  width: 100%; padding: 6px 10px; background: var(--evg-bg-primary); border: 1px solid var(--evg-border-default);
+  border-radius: 4px; color: var(--evg-text-primary); font-size: 13px;
+}
+.evg-form-field.inline { display: flex; align-items: center; gap: 8px; }
+.evg-form-field.inline input { width: auto; }
+.evg-form-submit { padding: 6px 20px; background: var(--evg-button-green); border: none; border-radius: 6px; color: #fff; font-size: 13px; cursor: pointer; }
+
+/* ── Calendar ── */
+.evg-comp-cal { padding: 12px; }
+.evg-cal-header { display: flex; justify-content: space-between; align-items: center; font-size: 14px; color: var(--evg-text-primary); margin-bottom: 8px; }
+.evg-cal-header button { background: var(--evg-button-bg); border: 1px solid var(--evg-border-default); border-radius: 4px; color: var(--evg-text-primary); cursor: pointer; padding: 2px 8px; }
+.evg-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.evg-cal-dh { text-align: center; font-size: 11px; color: var(--evg-text-secondary); padding: 4px; }
+.evg-cal-day { text-align: center; padding: 6px; font-size: 12px; border-radius: 4px; cursor: pointer; }
+.evg-cal-day:hover { background: var(--evg-bg-tertiary); }
+.evg-cal-day.active { background: var(--evg-border-accent); color: #fff; }
+
+/* ── Map ── */
+.evg-comp-map { display: flex; flex-direction: column; }
+.evg-map-placeholder { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--evg-bg-primary); gap: 8px; position: relative; }
+.evg-map-pin { font-size: 36px; animation: bounce 2s infinite; }
+@keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+.evg-map-coords { font-size: 11px; color: var(--evg-text-secondary); }
+.evg-map-zoom { position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column; gap: 2px; }
+.evg-map-zoom button { width: 24px; height: 24px; background: var(--evg-button-bg); border:1px solid var(--evg-border-default); color:var(--evg-text-primary); cursor:pointer; border-radius:4px; font-size:14px; }
+
+/* ── Markdown ── */
+.evg-comp-md { display: flex; flex-direction: column; }
+.evg-md-content { flex: 1; overflow: auto; font-size: 13px; }
+
+/* ── Divider ── */
+.evg-comp-divider { padding: 4px 0; }
+.evg-comp-divider hr { border: none; border-top: 1px solid var(--evg-border-default); }
+
+/* ── Flashcards ── */
+.evg-comp-flash { padding: 12px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.evg-flash-card { width: 100%; max-width: 300px; height: 160px; perspective: 600px; }
+.evg-flash-front, .evg-flash-back { width: 100%; height: 100%; border-radius: 12px; display: flex; align-items: center; justify-content: center; padding: 16px; text-align: center; font-size: 14px; }
+.evg-flash-front { background: var(--evg-bg-tertiary); border: 1px solid var(--evg-border-default); color: var(--evg-text-primary); }
+.evg-flash-back { background: var(--evg-accent-blue-bg); border: 1px solid var(--evg-accent-blue-border); color: var(--evg-accent-blue); }
+.evg-flash-nav { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--evg-text-secondary); }
+.evg-flash-nav button { padding: 4px 10px; background: var(--evg-button-bg); border: 1px solid var(--evg-border-default); border-radius: 4px; color: var(--evg-text-primary); font-size: 11px; cursor: pointer; }
+
+/* ── Quiz ── */
+.evg-comp-quiz { padding: 12px; }
+.evg-quiz-question { margin: 12px 0; }
+.evg-quiz-q { font-size: 14px; color: var(--evg-text-primary); margin-bottom: 8px; }
+.evg-quiz-options { display: flex; flex-direction: column; gap: 4px; }
+.evg-quiz-options label { display: flex; align-items: center; gap: 6px; padding: 6px 10px; background: var(--evg-bg-tertiary); border: 1px solid var(--evg-border-default); border-radius: 4px; cursor: pointer; font-size: 13px; }
+.evg-quiz-submit { margin-top: 12px; padding: 6px 20px; background: var(--evg-button-green); border: none; border-radius: 6px; color: #fff; font-size: 13px; cursor: pointer; }
+
+/* ── Mindmap ── */
+.evg-comp-mindmap { padding: 12px; }
+.evg-mm-root { display: inline-block; padding: 10px 20px; background: var(--evg-border-accent); color: #fff; border-radius: 20px; font-size: 14px; font-weight: 700; }
+.evg-mm-branch { padding: 6px 14px; background: var(--evg-bg-tertiary); border: 1px solid var(--evg-border-default); border-radius: 12px; font-size: 12px; color: var(--evg-text-secondary); }
+
+/* ── Placeholder ── */
+.evg-comp-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; padding: 20px; gap: 8px; }
+.evg-ph-icon { font-size: 36px; opacity: .5; }
+.evg-ph-type { font-size: 13px; font-weight: 600; color: var(--evg-text-secondary); }
+.evg-ph-hint { font-size: 11px; color: var(--evg-text-tertiary); }
+
+/* ── P2: StatTile ── */
+.evg-comp-stat-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; gap: 8px; }
+.evg-stat-header { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--evg-text-secondary); }
+.evg-stat-icon { font-size: 20px; }
+.evg-stat-value { font-size: 32px; font-weight: 700; color: var(--evg-accent-blue); }
+.evg-stat-trend { font-size: 12px; font-weight: 600; }
+.evg-stat-trend.up { color: var(--evg-state-success); }
+.evg-stat-trend.down { color: var(--evg-state-error); }
+.evg-stat-subtitle { font-size: 11px; color: var(--evg-text-tertiary); }
+
+/* ── P2: Timeline ── */
+.evg-comp-timeline { padding: 12px; overflow-y: auto; }
+.evg-tl-container { padding-left: 16px; border-left: 2px solid var(--evg-border-default); margin-top: 12px; }
+.evg-tl-item { position: relative; padding: 8px 0 8px 20px; }
+.evg-tl-marker { position: absolute; left: -6px; top: 12px; width: 10px; height: 10px; border-radius: 50%; background: var(--evg-accent-blue); border: 2px solid var(--evg-bg-primary); }
+.evg-tl-line { position: absolute; left: -2px; top: 22px; bottom: 0; width: 2px; background: var(--evg-border-default); }
+.evg-tl-time { font-size: 10px; color: var(--evg-text-tertiary); margin-bottom: 2px; }
+.evg-tl-label { font-size: 13px; color: var(--evg-text-primary); font-weight: 600; }
+.evg-tl-desc { font-size: 11px; color: var(--evg-text-secondary); margin-top: 2px; }
+
+/* ── P2: CardList ── */
+.evg-comp-card-list { padding: 8px; overflow-y: auto; }
+.evg-cl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+.evg-cl-card { background: var(--evg-bg-tertiary); border: 1px solid var(--evg-border-default); border-radius: 8px; overflow: hidden; }
+.evg-cl-image { height: 120px; background-size: cover; background-position: center; background-color: var(--evg-bg-secondary); }
+.evg-cl-body { padding: 10px; }
+.evg-cl-title { font-size: 13px; font-weight: 600; color: var(--evg-text-primary); margin-bottom: 4px; }
+.evg-cl-text { font-size: 12px; color: var(--evg-text-secondary); line-height: 1.5; }
+.evg-cl-footer { padding: 6px 10px; border-top: 1px solid var(--evg-border-default); font-size: 11px; color: var(--evg-text-tertiary); }
+
+/* ── P2: Kanban ── */
+.evg-comp-kanban { padding: 8px; overflow-x: auto; }
+.evg-kb-board { display: flex; gap: 8px; min-height: 200px; }
+.evg-kb-column { flex: 1; min-width: 180px; background: var(--evg-bg-secondary); border: 1px solid var(--evg-border-default); border-radius: 8px; display: flex; flex-direction: column; }
+.evg-kb-col-header { padding: 8px 10px; font-size: 12px; font-weight: 600; color: var(--evg-text-primary); border-bottom: 1px solid var(--evg-border-default); display: flex; justify-content: space-between; }
+.evg-kb-count { background: var(--evg-accent-blue-bg); color: var(--evg-accent-blue); padding: 1px 6px; border-radius: 8px; font-size: 10px; }
+.evg-kb-col-body { flex: 1; padding: 6px; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
+.evg-kb-card { background: var(--evg-bg-tertiary); border: 1px solid var(--evg-border-default); border-radius: 6px; padding: 8px 10px; font-size: 12px; color: var(--evg-text-primary); display: flex; justify-content: space-between; align-items: center; }
+.evg-kb-tag { background: var(--evg-accent-blue-bg); color: var(--evg-accent-blue); padding: 1px 5px; border-radius: 3px; font-size: 9px; }
+
+/* ── P2: Tree ── */
+.evg-comp-tree { padding: 8px; overflow: auto; }
+.evg-tree-container { font-size: 13px; }
+.evg-tree-node { user-select: none; }
+.evg-tree-row { display: flex; align-items: center; gap: 4px; padding: 3px 6px; border-radius: 4px; cursor: pointer; }
+.evg-tree-row:hover { background: var(--evg-bg-tertiary); }
+.evg-tree-toggle { font-size: 8px; color: var(--evg-text-secondary); width: 14px; text-align: center; }
+.evg-tree-icon { font-size: 14px; }
+.evg-tree-label { color: var(--evg-text-primary); }
+
+/* ── P2: AudioPlayer ── */
+.evg-comp-audio { padding: 12px; }
+.evg-audio-body { margin-top: 12px; }
+.evg-audio-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px; background: var(--evg-bg-primary); border-radius: 8px; border: 1px solid var(--evg-border-default); gap: 8px; color: var(--evg-text-secondary); }
+
+/* ── P2: ImageGallery ── */
+.evg-comp-gallery { padding: 8px; overflow-y: auto; }
+.evg-gal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin-top: 8px; }
+.evg-gal-item { border-radius: 8px; overflow: hidden; background: var(--evg-bg-secondary); border: 1px solid var(--evg-border-default); }
+.evg-gal-thumb { height: 100px; background-size: cover; background-position: center; background-color: var(--evg-bg-primary); display: flex; align-items: center; justify-content: center; cursor: pointer; position: relative; }
+.evg-gal-overlay { position: absolute; inset: 0; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity .2s; font-size: 24px; }
+.evg-gal-thumb:hover .evg-gal-overlay { opacity: 1; }
+.evg-gal-caption { padding: 4px 8px; font-size: 10px; color: var(--evg-text-secondary); }
+
+/* ── P2: Notepad ── */
+.evg-comp-notepad { display: flex; flex-direction: column; }
+.evg-np-toolbar { display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; background: var(--evg-bg-tertiary); border-bottom: 1px solid var(--evg-border-default); font-size: 12px; color: var(--evg-text-primary); }
+.evg-np-status { font-size: 10px; color: var(--evg-state-success); }
+.evg-np-editor { flex: 1; background: var(--evg-bg-primary); color: var(--evg-text-primary); border: none; padding: 12px; font-family: 'Cascadia Code', monospace; font-size: 13px; line-height: 1.6; resize: none; outline: none; }
+
+/* ── P2: Whiteboard ── */
+.evg-comp-whiteboard { display: flex; flex-direction: column; }
+.evg-wb-toolbar { display: flex; gap: 4px; padding: 6px 8px; background: var(--evg-bg-tertiary); border-bottom: 1px solid var(--evg-border-default); }
+.evg-wb-tool { background: var(--evg-button-bg); border: 1px solid var(--evg-border-default); border-radius: 4px; color: var(--evg-text-primary); cursor: pointer; padding: 4px 8px; font-size: 14px; }
+.evg-wb-tool:hover { background: var(--evg-border-default); }
+.evg-wb-canvas { flex: 1; background: var(--evg-bg-primary); }
+.evg-wb-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 8px; }
+
+/* ── P2: DiffViewer ── */
+.evg-comp-diff { display: flex; flex-direction: column; }
+.evg-diff-header { display: flex; padding: 6px 12px; background: var(--evg-bg-tertiary); border-bottom: 1px solid var(--evg-border-default); }
+.evg-diff-label { flex: 1; font-size: 12px; color: var(--evg-text-primary); font-weight: 600; }
+.evg-diff-body { flex: 1; overflow: auto; font-family: 'Cascadia Code', monospace; font-size: 12px; line-height: 1.7; }
+.evg-diff-line { padding: 1px 12px; }
+.evg-diff-line code { white-space: pre; }
+.evg-diff-add { background: #3fb95015; }
+.evg-diff-add code { color: var(--evg-state-success); }
+.evg-diff-del { background: #ff7b7215; }
+.evg-diff-del code { color: var(--evg-state-error); }
+.evg-diff-same code { color: var(--evg-text-primary); }
+
+/* ── P2: Terminal ── */
+.evg-comp-terminal { display: flex; flex-direction: column; border-radius: 6px; overflow: hidden; }
+.evg-term-header { display: flex; align-items: center; gap: 6px; padding: 8px 12px; background: var(--evg-bg-tertiary); border-bottom: 1px solid var(--evg-border-default); }
+.evg-term-dot { width: 10px; height: 10px; border-radius: 50%; }
+.evg-term-title { font-size: 11px; color: var(--evg-text-secondary); margin-left: 8px; }
+.evg-term-body { flex: 1; background: var(--evg-bg-primary); padding: 8px 12px; font-family: 'Cascadia Code', monospace; font-size: 12px; line-height: 1.7; overflow: auto; }
+.evg-term-prompt { color: var(--evg-accent-blue); margin-right: 6px; }
+.evg-term-cursor { animation: blink 1s step-end infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+/* ── P2: Crossword ── */
+.evg-comp-crossword { padding: 12px; overflow: auto; }
+.evg-cw-grid { display: inline-block; margin: 8px 0; }
+.evg-cw-row { display: flex; }
+.evg-cw-cell { width: 32px; height: 32px; border: 1px solid var(--evg-border-default); display: flex; align-items: center; justify-content: center; font-size: 16px; font-weight: 700; color: var(--evg-text-primary); text-transform: uppercase; background: var(--evg-bg-primary); }
+.evg-cw-cell.filled { background: var(--evg-bg-tertiary); }
+.evg-cw-clues { margin-top: 12px; }
+.evg-cw-clue-title { font-size: 12px; font-weight: 600; color: var(--evg-accent-blue); margin-bottom: 4px; }
+.evg-cw-clue { font-size: 11px; color: var(--evg-text-secondary); padding: 2px 0; }
+
+/* ── P2: Pronunciation ── */
+.evg-comp-pronunciation { padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.evg-pron-word { font-size: 36px; font-weight: 700; color: var(--evg-text-primary); }
+.evg-pron-phonetic { font-size: 16px; color: var(--evg-accent-blue); font-style: italic; }
+.evg-pron-controls { display: flex; gap: 8px; }
+.evg-pron-btn { padding: 8px 16px; background: var(--evg-button-bg); border: 1px solid var(--evg-border-default); border-radius: 6px; color: var(--evg-text-primary); cursor: pointer; font-size: 12px; }
+.evg-pron-btn:hover { background: var(--evg-border-default); }
+.evg-pron-score { margin-top: 8px; }
+
+/* ── P2: PromptBuilder ── */
+.evg-comp-prompt-builder { padding: 12px; overflow-y: auto; }
+.evg-pb-template { margin-bottom: 12px; }
+.evg-pb-label { font-size: 12px; font-weight: 600; color: var(--evg-text-secondary); margin-bottom: 6px; }
+.evg-pb-pre { background: var(--evg-bg-primary); border: 1px solid var(--evg-border-default); border-radius: 6px; padding: 10px; font-size: 12px; line-height: 1.6; color: var(--evg-text-primary); white-space: pre-wrap; }
+.evg-pb-vars { margin-bottom: 12px; }
+.evg-pb-field { margin-bottom: 8px; }
+.evg-pb-field label { display: block; font-size: 11px; color: var(--evg-accent-blue); margin-bottom: 3px; text-transform: capitalize; }
+.evg-pb-field input { width: 100%; padding: 6px 10px; background: var(--evg-bg-primary); border: 1px solid var(--evg-border-default); border-radius: 4px; color: var(--evg-text-primary); font-size: 12px; }
+.evg-pb-generate { padding: 6px 20px; background: var(--evg-button-green); border: none; border-radius: 6px; color: #fff; font-size: 13px; cursor: pointer; }
+
+/* ── P2: Custom ── */
+.evg-comp-custom { width: 100%; height: 100%; }
+.evg-custom-iframe { width: 100%; height: 100%; border: none; }
+
+/* ── P2: WebView ── */
+.evg-comp-webview { display: flex; flex-direction: column; }
+.evg-wv-toolbar { display: flex; align-items: center; gap: 4px; padding: 4px 8px; background: var(--evg-bg-tertiary); border-bottom: 1px solid var(--evg-border-default); }
+.evg-wv-btn { background: var(--evg-button-bg); border: 1px solid var(--evg-border-default); border-radius: 4px; color: var(--evg-text-primary); cursor: pointer; padding: 3px 8px; font-size: 12px; }
+.evg-wv-btn:hover { background: var(--evg-border-default); }
+.evg-wv-url { flex: 1; font-size: 11px; color: var(--evg-text-secondary); margin-left: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.evg-wv-content { flex: 1; }
+.evg-wv-iframe { width: 100%; height: 100%; border: none; }
+
+</style>
+</head>
+<body>
+<div id="evg-app" style="">
+  <div class="evg-shell">
+  <div class="evg-sidebar">
+  <div class="evg-sidebar-header">🌲 导航</div>
+  
+</div>
+  <div class="evg-main">
+    <div class="evg-tabs">
+      <button class="evg-tab" data-page="todo_page" onclick="switchPage('todo_page')">✅ 待办</button>
+    </div>
+    <div class="evg-pages">
+      <div class="evg-page" id="page-todo_page" style="display:none">
+  <div class="evg-layout evg-layout-grid" style="display: grid; grid-template-columns: 1fr; grid-template-rows: auto; gap: 0px; width: 100%; height: 100%; overflow: auto">
+    <div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 main</span>
+    <span class="evg-slot-type">data-table</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-table">
+  <div class="evg-comp-title">我的待办</div>
+  <div class="evg-table-filter"><input type="text" placeholder="搜索..." /></div>
+  <table class="evg-table">
+    <thead><tr><th>标题 <span class="evg-sort">⇅</span></th><th>课程 <span class="evg-sort">⇅</span></th><th>类型 <span class="evg-sort">⇅</span></th><th>截止 <span class="evg-sort">⇅</span></th><th>已提交 <span class="evg-sort">⇅</span></th><th>来源 <span class="evg-sort">⇅</span></th></tr></thead>
+    <tbody><tr><td>word练习文本</td><td>大学计算机先修课</td><td>material</td><td>2024-08-16T16:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>excel练习材料</td><td>大学计算机先修课</td><td>material</td><td>2024-08-16T16:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>powerpoint练习</td><td>大学计算机先修课</td><td>material</td><td>2024-08-16T16:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>第一次课堂作业</td><td>大学写作——写作·社会</td><td>homework</td><td>2025-09-22T01:33:00Z</td><td>false</td><td>courses</td></tr><tr><td>vocabulary exercise</td><td>大学英语Ⅲ</td><td>homework</td><td>2025-09-22T03:45:00Z</td><td>false</td><td>courses</td></tr><tr><td>【作业01】见PTA【ZJU-JSL-C程序设计基础及实验-2025秋冬-作业01】，截止时间：2025-9-30 12:25【计入平时成绩】</td><td>C程序设计基础及实验</td><td>homework</td><td>2025-09-30T04:25:00Z</td><td>false</td><td>courses</td></tr><tr><td>第0章习题和第1章习题</td><td>微积分（甲）Ⅰ</td><td>homework</td><td>2025-10-05T07:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>第1章习题之二</td><td>微积分（甲）Ⅰ</td><td>homework</td><td>2025-10-05T14:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>【作业02】见PTA【ZJU-JSL-C程序设计基础及实验-2025秋冬-作业02】，截止时间：2025-10-14 12:25【计入平时成绩】</td><td>C程序设计基础及实验</td><td>homework</td><td>2025-10-14T04:25:00Z</td><td>false</td><td>courses</td></tr><tr><td>第1章习题之四</td><td>微积分（甲）Ⅰ</td><td>homework</td><td>2025-10-16T07:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>第1章习题之三</td><td>微积分（甲）Ⅰ</td><td>homework</td><td>2025-10-16T07:01:00Z</td><td>false</td><td>courses</td></tr><tr><td>作文1成长过程</td><td>大学英语Ⅲ</td><td>homework</td><td>2025-10-18T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>新生第一讲 课后思考题</td><td>形势与政策Ⅰ</td><td>homework</td><td>2025-10-19T10:50:00Z</td><td>false</td><td>courses</td></tr><tr><td>【作业03】见PTA【ZJU-JSL-C程序设计基础及实验-2025秋冬-作业03】，截止时间：2025-10-21 12:25【计入平时成绩】</td><td>C程序设计基础及实验</td><td>homework</td><td>2025-10-21T04:25:00Z</td><td>false</td><td>courses</td></tr><tr><td>第2章习题之一</td><td>微积分（甲）Ⅰ</td><td>homework</td><td>2025-10-26T12:37:00Z</td><td>false</td><td>courses</td></tr><tr><td>【作业04】见PTA【ZJU-JSL-C程序设计基础及实验-2025秋冬-作业04】，截止时间：2025-10-28 12:25【计入平时成绩】</td><td>C程序设计基础及实验</td><td>homework</td><td>2025-10-28T04:25:00Z</td><td>false</td><td>courses</td></tr><tr><td>【作业05】见PTA【ZJU-JSL-C程序设计基础及实验-2025秋冬-作业05】，截止时间：2025-10-28 12:25【计入平时成绩】</td><td>C程序设计基础及实验</td><td>homework</td><td>2025-10-28T04:25:00Z</td><td>false</td><td>courses</td></tr><tr><td>第二次线上作业</td><td>大学写作——写作·社会</td><td>homework</td><td>2025-11-01T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>第2章习题之二</td><td>微积分（甲）Ⅰ</td><td>homework</td><td>2025-11-02T12:45:00Z</td><td>false</td><td>courses</td></tr><tr><td>第2章习题之三</td><td>微积分（甲）Ⅰ</td><td>homework</td><td>2025-11-02T12:53:00Z</td><td>false</td><td>courses</td></tr><tr><td>【作业06】见PTA【ZJU-JSL-C程序设计基础及实验-2025秋冬-作业06】，截止时间：2025-11-04 12:25【计入平时成绩】</td><td>C程序设计基础及实验</td><td>homework</td><td>2025-11-04T04:25:00Z</td><td>false</td><td>courses</td></tr><tr><td>第2章习题之四</td><td>微积分（甲）Ⅰ</td><td>homework</td><td>2025-11-09T12:57:00Z</td><td>false</td><td>courses</td></tr><tr><td>读书报告</td><td>思想道德与法治</td><td>homework</td><td>2025-11-10T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>第3章习题（一）</td><td>微积分（甲）Ⅰ</td><td>homework</td><td>2025-11-16T11:29:00Z</td><td>false</td><td>courses</td></tr><tr><td>读书报告</td><td>大学写作——写作·社会</td><td>homework</td><td>2025-11-16T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>【作业07】见PTA【ZJU-JSL-C程序设计基础及实验-2025秋冬-作业07】，截止时间：2025-11-18 12:25【计入平时成绩】</td><td>C程序设计基础及实验</td><td>homework</td><td>2025-11-18T04:25:00Z</td><td>false</td><td>courses</td></tr><tr><td>第3章习题（二）</td><td>微积分（甲）Ⅰ</td><td>homework</td><td>2025-11-23T11:44:00Z</td><td>false</td><td>courses</td></tr><tr><td>第3章习题（三）</td><td>微积分（甲）Ⅰ</td><td>homework</td><td>2025-11-23T11:48:00Z</td><td>false</td><td>courses</td></tr><tr><td>第4章习题（一）</td><td>微积分（甲）Ⅰ</td><td>homework</td><td>2025-11-30T01:28:00Z</td><td>false</td><td>courses</td></tr><tr><td>第4章习题（二）</td><td>微积分（甲）Ⅰ</td><td>homework</td><td>2025-11-30T01:35:00Z</td><td>false</td><td>courses</td></tr><tr><td>【作业08】见PTA【ZJU-JSL-C程序设计基础及实验-2025秋冬-作业08】，截止时间：2025-12-02 12:25【计入平时成绩】</td><td>C程序设计基础及实验</td><td>homework</td><td>2025-12-02T04:25:00Z</td><td>false</td><td>courses</td></tr><tr><td>第4章习题（三）</td><td>微积分（甲）Ⅰ</td><td>homework</td><td>2025-12-07T01:42:00Z</td><td>false</td><td>courses</td></tr><tr><td>【作业09】见PTA【ZJU-JSL-C程序设计基础及实验-2025秋冬-作业09】，截止时间：2025-12-09 12:25【计入平时成绩】</td><td>C程序设计基础及实验</td><td>homework</td><td>2025-12-09T04:25:00Z</td><td>false</td><td>courses</td></tr><tr><td>第4章习题（四）</td><td>微积分（甲）Ⅰ</td><td>homework</td><td>2025-12-14T01:47:00Z</td><td>false</td><td>courses</td></tr><tr><td>【作业10】见PTA【ZJU-JSL-C程序设计基础及实验-2025秋冬-作业10】，截止时间：2025-12-16 12:25【计入平时成绩】</td><td>C程序设计基础及实验</td><td>homework</td><td>2025-12-16T04:25:00Z</td><td>false</td><td>courses</td></tr><tr><td>第4章习题（五）</td><td>微积分（甲）Ⅰ</td><td>homework</td><td>2025-12-21T01:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>第4章习题（六）</td><td>微积分（甲）Ⅰ</td><td>homework</td><td>2025-12-21T01:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>文献综述初稿</td><td>大学写作——写作·社会</td><td>homework</td><td>2025-12-21T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>【作业11】见PTA【ZJU-JSL-C程序设计基础及实验-2025秋冬-作业11】，截止时间：2025-12-23 12:25【计入平时成绩】</td><td>C程序设计基础及实验</td><td>homework</td><td>2025-12-23T04:25:00Z</td><td>false</td><td>courses</td></tr><tr><td>不定积分（一）</td><td>微积分（甲）Ⅰ</td><td>homework</td><td>2025-12-28T12:12:00Z</td><td>false</td><td>courses</td></tr><tr><td>朗读考试</td><td>大学英语Ⅲ</td><td>homework</td><td>2025-12-29T03:35:00Z</td><td>false</td><td>courses</td></tr><tr><td>【作业12】见PTA【ZJU-JSL-C程序设计基础及实验-2025秋冬-作业12】，截止时间：2025-12-30 12:25【计入平时成绩】</td><td>C程序设计基础及实验</td><td>homework</td><td>2025-12-30T04:25:00Z</td><td>false</td><td>courses</td></tr><tr><td>现场教学</td><td>思想道德与法治</td><td>homework</td><td>2025-12-31T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>志愿服务报告</td><td>思想道德与法治</td><td>homework</td><td>2025-12-31T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>期中考试</td><td>微积分（甲）Ⅰ</td><td>homework</td><td>2026-01-01T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>特殊函数的不定积分</td><td>微积分（甲）Ⅰ</td><td>homework</td><td>2026-01-04T12:18:00Z</td><td>false</td><td>courses</td></tr><tr><td>文献综述终稿</td><td>大学写作——写作·社会</td><td>homework</td><td>2026-01-04T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>第一次作业</td><td>线性代数（甲）</td><td>homework</td><td>2026-01-06T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>第二次作业</td><td>线性代数（甲）</td><td>homework</td><td>2026-01-06T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>第三次作业</td><td>线性代数（甲）</td><td>homework</td><td>2026-01-09T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>第四次作业</td><td>线性代数（甲）</td><td>homework</td><td>2026-01-09T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>第五次作业</td><td>线性代数（甲）</td><td>homework</td><td>2026-01-09T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>第六次作业</td><td>线性代数（甲）</td><td>homework</td><td>2026-01-09T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>第七次作业</td><td>线性代数（甲）</td><td>homework</td><td>2026-01-09T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>第八次作业</td><td>线性代数（甲）</td><td>homework</td><td>2026-01-09T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>第九次作业</td><td>线性代数（甲）</td><td>homework</td><td>2026-01-09T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>第十次作业</td><td>线性代数（甲）</td><td>homework</td><td>2026-01-09T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>第十一次作业</td><td>线性代数（甲）</td><td>homework</td><td>2026-01-09T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>第十二次作业</td><td>线性代数（甲）</td><td>homework</td><td>2026-01-09T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>第十三次作业</td><td>线性代数（甲）</td><td>homework</td><td>2026-01-09T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>定积分的概念和性质</td><td>微积分（甲）Ⅰ</td><td>homework</td><td>2026-01-11T12:27:00Z</td><td>false</td><td>courses</td></tr><tr><td>Chap01_引言</td><td>C程序设计基础及实验</td><td>material</td><td>2026-01-16T02:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>Chap02_用C语言编写程序</td><td>C程序设计基础及实验</td><td>material</td><td>2026-01-16T02:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>Chap03_分支结构</td><td>C程序设计基础及实验</td><td>material</td><td>2026-01-16T02:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>Chap00_课程导引</td><td>C程序设计基础及实验</td><td>material</td><td>2026-01-16T02:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>PTA操作流程</td><td>C程序设计基础及实验</td><td>material</td><td>2026-01-16T02:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>Chap04_循环结构</td><td>C程序设计基础及实验</td><td>material</td><td>2026-01-19T02:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>Chap05_函数</td><td>C程序设计基础及实验</td><td>material</td><td>2026-01-19T02:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>Chap06_回顾数据类型和表达式</td><td>C程序设计基础及实验</td><td>material</td><td>2026-01-19T02:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>Chap08_指针</td><td>C程序设计基础及实验</td><td>material</td><td>2026-01-19T02:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>Chap09_结构</td><td>C程序设计基础及实验</td><td>material</td><td>2026-01-19T02:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>Chap10_函数与程序结构</td><td>C程序设计基础及实验</td><td>material</td><td>2026-01-19T02:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>Chap11_指针进阶</td><td>C程序设计基础及实验</td><td>material</td><td>2026-01-19T02:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>Chap12_文件</td><td>C程序设计基础及实验</td><td>material</td><td>2026-01-19T02:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>Chap13_总结复习</td><td>C程序设计基础及实验</td><td>material</td><td>2026-01-19T02:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>2025-2026学年C程序设计基础及实验-教学日历</td><td>C程序设计基础及实验</td><td>material</td><td>2026-01-19T02:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>Chap07_数组</td><td>C程序设计基础及实验</td><td>material</td><td>2026-01-19T04:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>定积分的计算（包括变上限积分的求导等）</td><td>微积分（甲）Ⅰ</td><td>homework</td><td>2026-01-25T12:36:00Z</td><td>false</td><td>courses</td></tr><tr><td>反常积分的计算</td><td>微积分（甲）Ⅰ</td><td>homework</td><td>2026-02-01T12:41:00Z</td><td>false</td><td>courses</td></tr><tr><td>定积分的应用</td><td>微积分（甲）Ⅰ</td><td>homework</td><td>2026-02-15T12:50:00Z</td><td>false</td><td>courses</td></tr><tr><td>第一周作业</td><td>大学物理（乙）Ⅰ</td><td>homework</td><td>2026-03-13T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>2025-2026学年《形势与政策Ⅰ》 研究性学习</td><td>形势与政策Ⅰ</td><td>homework</td><td>2026-03-15T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>第二周作业</td><td>大学物理（乙）Ⅰ</td><td>homework</td><td>2026-03-20T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>习题7.1</td><td>微积分（甲）Ⅱ</td><td>homework</td><td>2026-03-22T11:14:00Z</td><td>false</td><td>courses</td></tr><tr><td>习题7.2</td><td>微积分（甲）Ⅱ</td><td>homework</td><td>2026-03-22T11:20:00Z</td><td>false</td><td>courses</td></tr><tr><td>被试情况收集#1</td><td>普通心理学</td><td>homework</td><td>2026-03-25T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>第三周作业</td><td>大学物理（乙）Ⅰ</td><td>homework</td><td>2026-03-27T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>习题7.3</td><td>微积分（甲）Ⅱ</td><td>homework</td><td>2026-03-29T11:25:00Z</td><td>false</td><td>courses</td></tr><tr><td>习题7.4</td><td>微积分（甲）Ⅱ</td><td>homework</td><td>2026-03-29T11:31:00Z</td><td>false</td><td>courses</td></tr><tr><td>读书报告</td><td>心理学与人工智能</td><td>homework</td><td>2026-03-29T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>第一次小测</td><td>大学物理（乙）Ⅰ</td><td>homework</td><td>2026-04-03T04:29:00Z</td><td>false</td><td>courses</td></tr><tr><td>第四周作业</td><td>大学物理（乙）Ⅰ</td><td>homework</td><td>2026-04-03T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>习题7.4，习题7.5</td><td>微积分（甲）Ⅱ</td><td>homework</td><td>2026-04-05T11:42:00Z</td><td>false</td><td>courses</td></tr><tr><td>lab01</td><td>深度学习导论</td><td>homework</td><td>2026-04-08T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>第五周作业</td><td>大学物理（乙）Ⅰ</td><td>homework</td><td>2026-04-10T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>习题7.7</td><td>微积分（甲）Ⅱ</td><td>homework</td><td>2026-04-12T12:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>习题8.1</td><td>微积分（甲）Ⅱ</td><td>homework</td><td>2026-04-12T14:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>第六周作业</td><td>大学物理（乙）Ⅰ</td><td>homework</td><td>2026-04-17T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>习题8.2</td><td>微积分（甲）Ⅱ</td><td>homework</td><td>2026-04-19T14:17:00Z</td><td>false</td><td>courses</td></tr><tr><td>习题8.3</td><td>微积分（甲）Ⅱ</td><td>homework</td><td>2026-04-19T14:26:00Z</td><td>false</td><td>courses</td></tr><tr><td>lab02</td><td>深度学习导论</td><td>homework</td><td>2026-04-22T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>读书报告(加分)</td><td>心理学与人工智能</td><td>homework</td><td>2026-04-23T10:50:00Z</td><td>false</td><td>courses</td></tr><tr><td>期末论文</td><td>心理学与人工智能</td><td>homework</td><td>2026-04-23T10:50:00Z</td><td>false</td><td>courses</td></tr><tr><td>第七周作业</td><td>大学物理（乙）Ⅰ</td><td>homework</td><td>2026-04-24T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>脑电相关知识</td><td>心理学研究技术</td><td>homework</td><td>2026-04-26T04:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>习题8.4</td><td>微积分（甲）Ⅱ</td><td>homework</td><td>2026-04-26T11:36:00Z</td><td>false</td><td>courses</td></tr><tr><td>读书报告</td><td>中国近现代史纲要</td><td>homework</td><td>2026-04-27T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>半学期被试实验时长统计</td><td>普通心理学</td><td>homework</td><td>2026-04-29T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>第八周作业</td><td>大学物理（乙）Ⅰ</td><td>homework</td><td>2026-05-01T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>习题8.5</td><td>微积分（甲）Ⅱ</td><td>homework</td><td>2026-05-03T13:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>习题9.1，习题9.2</td><td>微积分（甲）Ⅱ</td><td>homework</td><td>2026-05-06T13:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>lab03</td><td>深度学习导论</td><td>homework</td><td>2026-05-07T06:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>期中成绩（匿名公布版）</td><td>普通心理学</td><td>material</td><td>2026-05-11T19:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>眼动记录的未来应用设想</td><td>心理学研究技术</td><td>homework</td><td>2026-05-12T15:59:59Z</td><td>false</td><td>courses</td></tr><tr><td>第九周作业</td><td>大学物理（乙）Ⅰ</td><td>homework</td><td>2026-05-15T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>lab04</td><td>深度学习导论</td><td>homework</td><td>2026-05-20T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>习题9.3，习题9.4，习题9.5</td><td>微积分（甲）Ⅱ</td><td>homework</td><td>2026-05-21T13:05:00Z</td><td>false</td><td>courses</td></tr><tr><td>习题9.3，9.6（全微分与泰勒公式）</td><td>微积分（甲）Ⅱ</td><td>homework</td><td>2026-05-21T13:05:00Z</td><td>false</td><td>courses</td></tr><tr><td>第二次小测</td><td>大学物理（乙）Ⅰ</td><td>homework</td><td>2026-05-22T04:28:00Z</td><td>false</td><td>courses</td></tr><tr><td>第十周作业</td><td>大学物理（乙）Ⅰ</td><td>homework</td><td>2026-05-22T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>口述历史</td><td>中国近现代史纲要</td><td>homework</td><td>2026-05-25T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>习题9.6</td><td>微积分（甲）Ⅱ</td><td>homework</td><td>2026-05-28T13:47:00Z</td><td>false</td><td>courses</td></tr><tr><td>第十一周作业</td><td>大学物理（乙）Ⅰ</td><td>homework</td><td>2026-05-29T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>习题9.7</td><td>微积分（甲）Ⅱ</td><td>homework</td><td>2026-05-31T13:53:00Z</td><td>false</td><td>courses</td></tr><tr><td>lab05</td><td>深度学习导论</td><td>homework</td><td>2026-06-03T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>第十二周作业</td><td>大学物理（乙）Ⅰ</td><td>homework</td><td>2026-06-05T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>第十三周作业</td><td>大学物理（乙）Ⅰ</td><td>homework</td><td>2026-06-12T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>习题10.1</td><td>微积分（甲）Ⅱ</td><td>homework</td><td>2026-06-14T13:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>习题10.1、10.2</td><td>微积分（甲）Ⅱ</td><td>homework</td><td>2026-06-18T13:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>第十四周作业</td><td>大学物理（乙）Ⅰ</td><td>homework</td><td>2026-06-19T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>正式 朗读考试提交位置</td><td>大学英语Ⅳ</td><td>homework</td><td>2026-06-22T07:46:00Z</td><td>false</td><td>courses</td></tr><tr><td>你也来写一个结课感想？</td><td>大学英语Ⅳ</td><td>homework</td><td>2026-06-22T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>考试顺利！</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-22T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>模拟 朗读提交位置</td><td>大学英语Ⅳ</td><td>homework</td><td>2026-06-22T15:59:59Z</td><td>false</td><td>courses</td></tr><tr><td>第三次小测</td><td>大学物理（乙）Ⅰ</td><td>homework</td><td>2026-06-23T04:35:00Z</td><td>false</td><td>courses</td></tr><tr><td>小论文</td><td>普通心理学</td><td>homework</td><td>2026-06-24T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>lab06</td><td>深度学习导论</td><td>homework</td><td>2026-06-24T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>习题10.2、10.3、10.5</td><td>微积分（甲）Ⅱ</td><td>homework</td><td>2026-06-25T13:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>三重积分的概念及计算（习题10.4）</td><td>微积分（甲）Ⅱ</td><td>homework</td><td>2026-06-25T13:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>重积分的应用（习题10.5）</td><td>微积分（甲）Ⅱ</td><td>homework</td><td>2026-06-25T13:00:00Z</td><td>false</td><td>courses</td></tr><tr><td>U1R1 单词预习</td><td>大学英语Ⅳ</td><td>online_video</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>U1R2 单词预习</td><td>大学英语Ⅳ</td><td>online_video</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>U2R1 单词预习</td><td>大学英语Ⅳ</td><td>online_video</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>朗读材料</td><td>大学英语Ⅳ</td><td>material</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>U3R1单词预习</td><td>大学英语Ⅳ</td><td>online_video</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>U4R1单词预习</td><td>大学英语Ⅳ</td><td>online_video</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>U4R2单词预习</td><td>大学英语Ⅳ</td><td>online_video</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>U5R1 单词预习</td><td>大学英语Ⅳ</td><td>online_video</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>U5R2 单词预习</td><td>大学英语Ⅳ</td><td>online_video</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>U6R1 单词预习</td><td>大学英语Ⅳ</td><td>online_video</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>U6R2 单词预习</td><td>大学英语Ⅳ</td><td>online_video</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>U7R1 单词预习</td><td>大学英语Ⅳ</td><td>online_video</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>U7R2 单词预习</td><td>大学英语Ⅳ</td><td>online_video</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>U8R1 单词预习</td><td>大学英语Ⅳ</td><td>online_video</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>U8R2 单词预习</td><td>大学英语Ⅳ</td><td>online_video</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U1单元概览</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U1 第一次课 课程概览</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U1 第一次课 课程作业</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U1第二次课 课程概览</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U1 第二次课 课程作业</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U1第三次课 课程概览</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U1 第三次课 课程作业</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U1第四次课 课程概览</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U1 第四次课 课程作业</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U1 第四次课B 课程概览</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U1 第四次课B 课程作业</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U4 单元概览</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U4第一次课 课程概览</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U4 第一次课 课程作业</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U4 第二次课 课程概览</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U4 第二次课 课程作业</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U4 第三次课 课程概览</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U4 第三次课 课程作业</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>U1-U4 复习课 概况</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U4 第四次课 课程作业</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U8 单元概览</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U8 第一次课 课程概览</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U8 第一次课 课程作业</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U8 第二次课 课程概览</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U8 第二次课 课程作业</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>期末须知</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>教学计划</td><td>大学英语Ⅳ</td><td>material</td><td>2026-06-25T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>小测与期末考试题型与范围</td><td>大学英语Ⅳ</td><td>material</td><td>2026-06-25T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U5 单元概览</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U5 第一次课 课程概览</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U5 第一次课 课程作业</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U5 第二次课 课程概览</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U5 第二次课 课程作业</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U5 第三次课 课程概览 （实际第二次课）</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U5 第三次课 课程作业 （实际第二次课）</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U5 第四次课 课程概览</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U5 第四次课 课程作业</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U6 单元概览</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U6 第一次课 课程概览</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U6 第一次课 课程作业</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U6 第二次课 课程概览</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U6 第二次课 课程作业</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U6 第三次课 课程概览</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U6 第三次课 课程作业</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U7 单元概览</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U7 第一次课 课程概览</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U7 第一次课 课程作业</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U7 第二次课 课程概览</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U7 第二次课 课程作业</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U7 第三次课 课程概览</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U7 第三次课 课程作业</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>U5-U7 复习课 概览</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U7 第四次课 作业</td><td>大学英语Ⅳ</td><td>page</td><td>2026-06-25T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>习题11.1</td><td>微积分（甲）Ⅱ</td><td>homework</td><td>2026-06-28T13:35:00Z</td><td>false</td><td>courses</td></tr><tr><td>习题11.2</td><td>微积分（甲）Ⅱ</td><td>homework</td><td>2026-06-28T13:40:00Z</td><td>false</td><td>courses</td></tr><tr><td>习题11.3</td><td>微积分（甲）Ⅱ</td><td>homework</td><td>2026-06-28T13:44:00Z</td><td>false</td><td>courses</td></tr><tr><td>习题12.1，12.2</td><td>微积分（甲）Ⅱ</td><td>homework</td><td>2026-06-30T13:46:00Z</td><td>false</td><td>courses</td></tr><tr><td>习题11.4</td><td>微积分（甲）Ⅱ</td><td>homework</td><td>2026-06-30T13:49:00Z</td><td>false</td><td>courses</td></tr><tr><td>期中考试</td><td>微积分（甲）Ⅱ</td><td>homework</td><td>2026-06-30T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>下半学期被试时长统计</td><td>普通心理学</td><td>homework</td><td>2026-06-30T15:59:00Z</td><td>false</td><td>courses</td></tr><tr><td>fMRI-课件</td><td>心理学研究技术</td><td>material</td><td>2026-07-01T02:21:00Z</td><td>false</td><td>courses</td></tr><tr><td>习题12.3</td><td>微积分（甲）Ⅱ</td><td>homework</td><td>2026-07-05T13:45:00Z</td><td>false</td><td>courses</td></tr><tr><td>习题12.5</td><td>微积分（甲）Ⅱ</td><td>homework</td><td>2026-07-06T13:01:00Z</td><td>false</td><td>courses</td></tr><tr><td>习题12.4</td><td>微积分（甲）Ⅱ</td><td>homework</td><td>2026-07-06T13:25:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U2 单元概览</td><td>大学英语Ⅳ</td><td>page</td><td>2026-07-26T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U2 第一次课 课程概览</td><td>大学英语Ⅳ</td><td>page</td><td>2026-07-26T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U2 第一次课 课程作业</td><td>大学英语Ⅳ</td><td>page</td><td>2026-07-26T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U2 第二次课 课程概览</td><td>大学英语Ⅳ</td><td>page</td><td>2026-07-26T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U2 第二次课 课程作业</td><td>大学英语Ⅳ</td><td>page</td><td>2026-07-26T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U3 单元概览</td><td>大学英语Ⅳ</td><td>page</td><td>2026-07-26T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U3 第一次课 课程概览</td><td>大学英语Ⅳ</td><td>page</td><td>2026-07-26T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U3 第一次课 课程作业</td><td>大学英语Ⅳ</td><td>page</td><td>2026-07-26T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U3 第二次课 课程概览</td><td>大学英语Ⅳ</td><td>page</td><td>2026-07-26T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>B3U3 第二次课 课程作业</td><td>大学英语Ⅳ</td><td>page</td><td>2026-07-26T15:55:00Z</td><td>false</td><td>courses</td></tr><tr><td>L2 数据采集</td><td>心理学研究技术</td><td>material</td><td>2026-07-30T10:02:00Z</td><td>false</td><td>courses</td></tr><tr><td>L1 眼动基础</td><td>心理学研究技术</td><td>material</td><td>2026-07-31T10:03:00Z</td><td>false</td><td>courses</td></tr></tbody>
+  </table>
+</div>
+  </div>
+</div>
+  </div>
+</div>
+    </div>
+  </div>
+</div>
+</div>
+<script>
+// V2 事件系统: emit / listen / delegates
+window.evergreen = {
+  events: [],
+  emit(eventName, payload) {
+    const evt = { name: eventName, payload, time: Date.now() };
+    this.events.push(evt);
+    const listeners = document.querySelectorAll('[data-listen]');
+    listeners.forEach(el => {
+      try {
+        const cfg = JSON.parse(el.dataset.listen || '[]');
+        cfg.forEach(l => {
+          if (l.event === eventName) {
+            console.log('[Evergreen] emit:', eventName, '→ handler:', l.handler, payload);
+            el.dispatchEvent(new CustomEvent('evg:' + eventName, { detail: payload }));
+          }
+        });
+      } catch(e) {}
+    });
+  }
+};
+
+</script>
+<script>
+// 初始化页面切换
+function switchPage(pageId) {
+  document.querySelectorAll('.evg-page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.evg-tab').forEach(t => t.classList.remove('active'));
+  const page = document.getElementById('page-' + pageId);
+  if (page) page.classList.add('active');
+  const tab = document.querySelector('[data-page="' + pageId + '"]');
+  if (tab) tab.classList.add('active');
+}
+
+// 默认激活第一个页面
+(function() {
+  const pages = [{"id":"todo_page","label":"✅ 待办","default":true,"layout":null}];
+  if (pages.length > 0) {
+    const firstPage = pages.find(p => p.default === true) || pages[0];
+    switchPage(firstPage.id);
+  }
+})();
+
+</script>
+</body>
+</html>

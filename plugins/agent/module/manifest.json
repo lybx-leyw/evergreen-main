@@ -1,0 +1,45 @@
+{
+  "schemaVersion": "2.0",
+  "renderMode": "dart",
+  "type": "module",
+  "id": "agent",
+  "name": "AI助手",
+  "description": "内置 AI 助手对话（深度思考 / 联网 / 工具调用 / 多会话）",
+  "icon": "smart_toy",
+  "route": "/agent",
+  "version": "2.0.0",
+  "dependencies": [],
+  "nav": {
+    "sidebar": {
+      "section": "AI 工具",
+      "sectionOrder": 20,
+      "order": 10,
+      "badge": false
+    }
+  },
+  "pages": [
+    {
+      "id": "chat_page",
+      "label": "🤖 AI 助手",
+      "default": true,
+      "layout": {
+        "type": "grid",
+        "preset": { "columns": 1, "gap": 0 },
+        "slots": {
+          "main": {
+            "component": {
+              "type": "ai-assistant",
+              "config": {
+                "preset": "general",
+                "system_prompt": "你是 Evergreen 内置 AI 助手，帮助学生解答学习、选课、考试、校园生活等问题。保持简洁友好，必要时使用工具联网或读写记忆。",
+                "multi_session": true,
+                "global_memory": true,
+                "tools": { "mode": "all" }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

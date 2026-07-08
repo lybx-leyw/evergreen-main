@@ -1,0 +1,22 @@
+{
+  "id": "translate",
+  "name": "PDF翻译模块配置",
+  "settings": [
+    {
+      "key": "DeepSeekAPI",
+      "label": "DeepSeek API Key",
+      "type": "string",
+      "isSecure": true,
+      "default": "",
+      "hint": "DeepSeek API Key，用于真实翻译（免费额度可用）"
+    }
+  ],
+  "permissions": [
+    {
+      "key": "TRANSLATE_NETWORK",
+      "label": "网络访问",
+      "description": "允许翻译模块调用 api.deepseek.com 执行翻译",
+      "default": true
+    }
+  ]
+}

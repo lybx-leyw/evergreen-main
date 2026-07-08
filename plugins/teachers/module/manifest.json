@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "2.0",
+  "renderMode": "dart",
+  "type": "module",
+  "id": "teachers",
+  "name": "查老师",
+  "description": "搜索浙大教师评分与评价（本地数据集，毫秒级，无频率限制）",
+  "icon": "school",
+  "route": "/teachers",
+  "version": "2.0.0",
+  "dependencies": [],
+  "nav": {
+    "sidebar": {
+      "section": "校园",
+      "sectionOrder": 20,
+      "order": 30,
+      "badge": false
+    }
+  },
+  "pages": [
+    {
+      "id": "teachers_page",
+      "label": "🔍 查老师",
+      "default": true,
+      "layout": {
+        "type": "grid",
+        "preset": { "columns": 1, "gap": 0 },
+        "slots": {
+          "list": {
+            "component": {
+              "type": "data-table",
+              "config": {
+                "chrome": true,
+                "display": "table",
+                "filter": true,
+                "sortable": true,
+                "title": "教师评分（按热度/评分排序）",
+                "dataSource": {
+                  "name": "teachers",
+                  "endpoint": "/api/teachers/list",
+                  "dataPath": "teachers",
+                  "refreshInterval": 86400
+                },
+                "columns": [
+                  { "key": "name", "label": "教师" },
+                  { "key": "college", "label": "学院" },
+                  { "key": "rate", "label": "评分" },
+                  { "key": "hot", "label": "热度" },
+                  { "key": "py", "label": "拼音" }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

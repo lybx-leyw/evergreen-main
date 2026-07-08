@@ -1,0 +1,6 @@
+{
+  "script": "teachers_data.exe",
+  "dataTypes": [
+    { "name": "teachers", "typeArg": "teachers", "desc": "教师评分搜索（默认返回热度榜）" }
+  ]
+}

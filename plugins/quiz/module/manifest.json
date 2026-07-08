@@ -1,0 +1,44 @@
+{
+  "schemaVersion": "2.0",
+  "renderMode": "dart",
+  "type": "module",
+  "id": "quiz",
+  "name": "答题",
+  "description": "答题测验（选择题/填空/配对）",
+  "icon": "quiz",
+  "route": "/quiz",
+  "version": "2.0.0",
+  "dependencies": [],
+  "nav": {
+    "sidebar": {
+      "section": "AI 工具",
+      "sectionOrder": 20,
+      "order": 70,
+      "badge": false
+    }
+  },
+  "pages": [
+    {
+      "id": "quiz_page",
+      "label": "✅ 答题",
+      "default": true,
+      "layout": {
+        "type": "grid",
+        "preset": { "columns": 1, "gap": 0 },
+        "slots": {
+          "main": {
+            "component": {
+              "type": "quiz",
+              "config": {
+                "wordList": "words.json",
+                "questionTypes": ["multiple-choice", "fill-blank", "match-pairs"],
+                "timeLimit": 300,
+                "passScore": 80
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

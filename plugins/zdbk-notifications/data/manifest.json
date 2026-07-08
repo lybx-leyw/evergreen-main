@@ -1,0 +1,16 @@
+{
+  "type": "data-source",
+  "id": "zdbk-notifications-data",
+  "name": "教务通知数据源",
+  "script": "zdbk_notifications_data.exe",
+  "dataTypes": [
+    {
+      "name": "zdbk_notifications",
+      "typeArg": "zdbk_notifications",
+      "category": "通知",
+      "displayName": "教务通知",
+      "ttl": "10m",
+      "persistentKey": "zdbk_notifications"
+    }
+  ]
+}

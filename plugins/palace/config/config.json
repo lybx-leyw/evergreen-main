@@ -1,0 +1,3 @@
+{
+  "note": "事件存储于 .greenix/palace/events/{YYYY}/{MM}/{id}.md（YAML frontmatter + Markdown）"
+}

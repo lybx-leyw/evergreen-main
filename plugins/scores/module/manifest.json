@@ -1,0 +1,117 @@
+{
+  "schemaVersion": "2.0",
+  "renderMode": "dart",
+  "type": "module",
+  "id": "scores",
+  "name": "成绩",
+  "description": "成绩单与 GPA 多尺度概览",
+  "icon": "grade",
+  "route": "/scores",
+  "version": "2.0.0",
+  "dependencies": [],
+  "nav": {
+    "sidebar": {
+      "section": "学习",
+      "sectionOrder": 10,
+      "order": 60,
+      "badge": false
+    }
+  },
+  "pages": [
+    {
+      "id": "transcript_page",
+      "label": "📊 成绩单",
+      "default": true,
+      "layout": {
+        "type": "grid",
+        "preset": { "columns": 1, "gap": 0 },
+        "slots": {
+          "list": {
+            "component": {
+              "type": "data-table",
+              "config": {
+                "chrome": true,
+                "display": "table",
+                "filter": true,
+                "sortable": true,
+                "title": "成绩单",
+                "dataSource": {
+                  "name": "scores_transcript",
+                  "endpoint": "/api/scores/transcript",
+                  "dataPath": "grades",
+                  "refreshInterval": 600
+                },
+                "columns": [
+                  { "key": "name", "label": "课程" },
+                  { "key": "id", "label": "课程号" },
+                  { "key": "credit", "label": "学分" },
+                  { "key": "original", "label": "成绩" },
+                  { "key": "fivePoint", "label": "五分制" },
+                  { "key": "fourPointGpa", "label": "4.3制" },
+                  { "key": "hundredPoint", "label": "百分制" }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "summary_page",
+      "label": "📈 GPA 概览",
+      "layout": {
+        "type": "grid",
+        "preset": { "columns": 1, "gap": 0 },
+        "slots": {
+          "summary": {
+            "component": {
+              "type": "data-table",
+              "config": {
+                "chrome": true,
+                "display": "table",
+                "title": "GPA 多尺度概览",
+                "dataSource": {
+                  "name": "scores_summary",
+                  "endpoint": "/api/scores/summary",
+                  "dataPath": "summary",
+                  "refreshInterval": 600
+                },
+                "columns": [
+                  { "key": "domesticGpa", "label": "国内GPA(首修)" },
+                  { "key": "abroadGpa", "label": "出国GPA(最高)" },
+                  { "key": "fourPointGpa", "label": "四分制4.3" },
+                  { "key": "fourPointLegacyGpa", "label": "四分制4.0" },
+                  { "key": "hundredPointAvg", "label": "百分制平均" },
+                  { "key": "earnedCredits", "label": "已修学分" },
+                  { "key": "totalCredits", "label": "总学分" }
+                ]
+              }
+            }
+          },
+          "trend": {
+            "component": {
+              "type": "data-table",
+              "config": {
+                "chrome": true,
+                "display": "table",
+                "sortable": true,
+                "title": "分学期 GPA 趋势",
+                "dataSource": {
+                  "name": "scores_summary",
+                  "endpoint": "/api/scores/summary",
+                  "dataPath": "summary/semesterGpa",
+                  "refreshInterval": 600
+                },
+                "columns": [
+                  { "key": "semester", "label": "学期" },
+                  { "key": "gpa", "label": "学期GPA" },
+                  { "key": "credits", "label": "学期学分" }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

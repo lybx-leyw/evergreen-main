@@ -10,6 +10,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:evergreen_base/core/data/data.dart';
+import 'package:evergreen_base/core/log.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'package:evergreen_base/providers.dart';
 
@@ -52,7 +53,10 @@ class _DataDashboardViewState extends ConsumerState<DataDashboardView> {
       } else {
         await orch.refresh(type);
       }
-    } catch (_) {}
+    } catch (e) {
+      Log().error('DataDashboard 拉取数据源失败',
+          data: {'name': status.name, 'error': e.toString()});
+    }
     if (mounted) {
       setState(() {
         _loading[status.name] = false;

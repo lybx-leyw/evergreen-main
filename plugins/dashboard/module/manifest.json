@@ -1,0 +1,45 @@
+{
+  "schemaVersion": "2.0",
+  "renderMode": "dart",
+  "type": "module",
+  "id": "dashboard",
+  "name": "仪表盘",
+  "description": "首页功能卡总览——分类导航到各模块",
+  "icon": "dashboard",
+  "route": "/dashboard",
+  "version": "2.0.0",
+  "dependencies": [],
+  "nav": {
+    "sidebar": {
+      "section": "系统",
+      "sectionOrder": 80,
+      "order": 5,
+      "badge": false
+    }
+  },
+  "pages": [
+    {
+      "id": "main",
+      "label": "🏠 仪表盘",
+      "default": true,
+      "layout": {
+        "type": "grid",
+        "preset": { "columns": 3, "gap": 12 },
+        "slots": {
+          "courses": { "component": { "type": "nav-button", "config": { "label": "课程", "icon": "📚", "target": "/courses" } } },
+          "scores": { "component": { "type": "nav-button", "config": { "label": "成绩", "icon": "📊", "target": "/scores" } } },
+          "exams": { "component": { "type": "nav-button", "config": { "label": "考试", "icon": "📅", "target": "/exams" } } },
+          "training": { "component": { "type": "nav-button", "config": { "label": "培养方案", "icon": "📖", "target": "/training-plans" } } },
+          "offerings": { "component": { "type": "nav-button", "config": { "label": "开课情况", "icon": "🗓️", "target": "/course-offerings" } } },
+          "notices": { "component": { "type": "nav-button", "config": { "label": "教务通知", "icon": "📢", "target": "/zdbk-notifications" } } },
+          "library": { "component": { "type": "nav-button", "config": { "label": "图书馆", "icon": "📚", "target": "/library" } } },
+          "plan": { "component": { "type": "nav-button", "config": { "label": "计划管理", "icon": "📝", "target": "/plan" } } },
+          "quiz": { "component": { "type": "nav-button", "config": { "label": "答题", "icon": "✅", "target": "/quiz" } } },
+          "agent": { "component": { "type": "nav-button", "config": { "label": "AI 助手", "icon": "🤖", "target": "/agent" } } },
+          "settings": { "component": { "type": "nav-button", "config": { "label": "设置", "icon": "⚙️", "target": "/settings" } } },
+          "help": { "component": { "type": "nav-button", "config": { "label": "数据中枢", "icon": "🗄️", "target": "/data-dashboard" } } }
+        }
+      }
+    }
+  ]
+}

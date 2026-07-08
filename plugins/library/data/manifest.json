@@ -1,0 +1,16 @@
+{
+  "type": "data-source",
+  "id": "library-data",
+  "name": "图书馆数据源",
+  "script": "library_data.exe",
+  "dataTypes": [
+    {
+      "name": "library_books",
+      "typeArg": "library_books",
+      "category": "图书馆",
+      "displayName": "在借图书",
+      "ttl": "10m",
+      "persistentKey": "library_books"
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "schemaVersion": "2.0",
+  "renderMode": "dart",
+  "type": "module",
+  "id": "course-offerings",
+  "name": "开课情况",
+  "description": "本学期开课列表（课程/教师/时间/地点/学分）",
+  "icon": "calendar_view_week",
+  "route": "/course-offerings",
+  "version": "2.0.0",
+  "dependencies": [],
+  "nav": {
+    "sidebar": {
+      "section": "学习",
+      "sectionOrder": 10,
+      "order": 20,
+      "badge": false
+    }
+  },
+  "pages": [
+    {
+      "id": "offerings_page",
+      "label": "📋 开课列表",
+      "default": true,
+      "layout": {
+        "type": "grid",
+        "preset": { "columns": 1, "gap": 0 },
+        "slots": {
+          "list": {
+            "component": {
+              "type": "data-table",
+              "config": {
+                "chrome": true,
+                "display": "table",
+                "filter": true,
+                "sortable": true,
+                "title": "开课情况",
+                "dataSource": {
+                  "name": "course_offerings",
+                  "endpoint": "/api/course-offerings/list",
+                  "dataPath": "offerings",
+                  "refreshInterval": 1800
+                },
+                "columns": [
+                  { "key": "courseName", "label": "课程名" },
+                  { "key": "courseCode", "label": "课程代码" },
+                  { "key": "teacher", "label": "教师" },
+                  { "key": "credits", "label": "学分" },
+                  { "key": "totalHours", "label": "总学时" },
+                  { "key": "college", "label": "开课学院" },
+                  { "key": "courseType", "label": "课程性质" },
+                  { "key": "schedule", "label": "上课时间" },
+                  { "key": "location", "label": "上课地点" }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

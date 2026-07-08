@@ -32,6 +32,10 @@ String componentIcon(String type) {
 // P0: V2 TARGET Showcase 使用的 13 个核心类型
 // ============================================================
 
+/// chat / ai-assistant — R11：必须渲染 config 中声明的真实字段
+///（preset / system_prompt / tools / multi_session / global_memory 等），
+/// 不得写死「介绍平台功能」之类示例对话。会话本身为运行态实时加载，
+/// 仅以占位气泡说明，不伪造历史消息。
 String _renderChat(Map<String, dynamic> comp) {
   final cfg = comp['config'] as Map<String, dynamic>? ?? {};
   final input = comp['input'] as Map<String, dynamic>? ?? {};
@@ -40,28 +44,42 @@ String _renderChat(Map<String, dynamic> comp) {
   final thinkingVisible = thinking['visible'] == true;
   final bubble = cfg['bubble'] as Map<String, dynamic>? ?? {};
   final showAvatar = bubble['showAvatar'] == true;
-  final quickReplies = (input['quickReplies'] as List<dynamic>? ?? [])
-      .map((q) => '<span class="evg-quick-reply">${_esc(q['label'] ?? '')}</span>')
+
+  // ai-assistant 专用真实字段
+  final preset = cfg['preset'] as String?;
+  final systemPrompt = cfg['system_prompt'] as String?;
+  final toolsRaw = cfg['tools'];
+  final toolsList = toolsRaw is List
+      ? toolsRaw
+      : (toolsRaw is Map ? toolsRaw.values.toList() : <dynamic>[]);
+  final tools = toolsList
+      .map((t) => _esc((t is Map ? (t['name'] ?? t['id']) : t).toString()))
+      .join('、');
+  final multiSession = cfg['multi_session'] == true;
+  final globalMemory = cfg['global_memory'] == true;
+
+  final configPanel = (preset != null || systemPrompt != null || tools.isNotEmpty)
+      ? '''
+  <div class="evg-chat-config">
+    ${preset != null ? '<div class="evg-chat-cfg-row"><b>预设</b>: ${_esc(preset)}</div>' : ''}
+    ${systemPrompt != null ? '<div class="evg-chat-cfg-row"><b>系统提示</b>: ${_esc(systemPrompt)}</div>' : ''}
+    ${tools.isNotEmpty ? '<div class="evg-chat-cfg-row"><b>工具</b>: $tools</div>' : ''}
+    <div class="evg-chat-cfg-row"><b>多会话</b>: ${multiSession ? '开' : '关'} ｜ <b>全局记忆</b>: ${globalMemory ? '开' : '关'}</div>
+  </div>'''
+      : '';
+
+  final qrRaw = input['quickReplies'];
+  final quickReplies = (qrRaw is List ? qrRaw : <dynamic>[])
+      .map((q) => '<span class="evg-quick-reply">${_esc(q is Map ? (q['label'] ?? '') : '')}</span>')
       .join('');
 
   return '''
 <div class="evg-comp evg-comp-chat">
+  $configPanel
   <div class="evg-chat-msgs">
     <div class="evg-msg assistant">
       ${showAvatar ? '<div class="evg-avatar">AI</div>' : ''}
-      <div class="evg-bubble">你好！我是展示 AI 助手，有什么可以帮你的？</div>
-    </div>
-    <div class="evg-msg user">
-      <div class="evg-avatar">U</div>
-      <div class="evg-bubble">介绍一下这个平台的功能</div>
-    </div>
-    <div class="evg-msg assistant">
-      ${showAvatar ? '<div class="evg-avatar">AI</div>' : ''}
-      <div class="evg-bubble">
-        Evergreen 是一个无账号、无服务端、本地优先的 AI 原生微工具集成平台。<br><br>
-        支持 ChatGPT 式对话、代码编辑器、图表仪表盘、抽奖转盘、文档编辑器等 30+ 组件。
-        ${thinkingVisible ? '<br><br><span style="color:var(--evg-text-secondary);font-size:11px"><i>思考中...</i></span>' : ''}
-      </div>
+      <div class="evg-bubble">${preset != null ? '已加载预设「${_esc(preset)}」，实时会话运行态加载。' : '实时会话运行态加载。'}${thinkingVisible ? '<br><i style="color:var(--evg-text-secondary);font-size:11px">思考中…</i>' : ''}</div>
     </div>
   </div>
   <div class="evg-chat-input">
@@ -99,21 +117,33 @@ String _renderDataTable(Map<String, dynamic> comp) {
       .toList() ?? [{'key': 'id', 'label': 'ID'}, {'key': 'name', 'label': '名称'}, {'key': 'status', 'label': '状态'}];
   final filter = cfg['filter'] == true;
   final sortable = cfg['sortable'] == true;
+  // R10 渲染日志升级：真实数据行（由外部数据源拉取后注入 config.rows）。
+  final rows = (cfg['rows'] as List<dynamic>?)
+      ?.whereType<Map<dynamic, dynamic>>()
+      .toList() ?? const <Map<dynamic, dynamic>>[];
 
-  if (display == 'card') return _renderDataCards(title, columns);
-  return _renderDataTableHTML(title, columns, filter, sortable);
+  if (display == 'card') return _renderDataCards(title, columns, rows);
+  return _renderDataTableHTML(title, columns, filter, sortable, rows);
 }
 
 String _renderDataTableHTML(
-    String title, List<dynamic> columns, bool filter, bool sortable) {
+    String title, List<dynamic> columns, bool filter, bool sortable,
+    [List<Map<dynamic, dynamic>> rows = const <Map<dynamic, dynamic>>[]]) {
   final headers = columns.map((c) {
     final label = _esc(c['label'] as String? ?? '');
     return '<th>$label${sortable ? ' <span class="evg-sort">⇅</span>' : ''}</th>';
   }).join('');
-  final sampleRows = [1, 2, 3].map((i) {
-    final cells = columns.map((c) => '<td>${_sampleCell(c['key'] as String? ?? '', i)}</td>').join('');
-    return '<tr>$cells</tr>';
-  }).join('');
+  final bodyRows = rows.isEmpty
+      ? '<tr><td colspan="${columns.length}" class="evg-empty">（暂无数据 / 官方空态）</td></tr>'
+      : rows.map((row) {
+          final cells = columns.map((c) {
+            final key = c['key'] as String? ?? '';
+            final val = row[key];
+            final text = val == null ? '' : (val is String ? val : val.toString());
+            return '<td>${_esc(text)}</td>';
+          }).join('');
+          return '<tr>$cells</tr>';
+        }).join('');
 
   return '''
 <div class="evg-comp evg-comp-table">
@@ -121,20 +151,25 @@ String _renderDataTableHTML(
   ${filter ? '<div class="evg-table-filter"><input type="text" placeholder="搜索..." /></div>' : ''}
   <table class="evg-table">
     <thead><tr>$headers</tr></thead>
-    <tbody>$sampleRows</tbody>
+    <tbody>$bodyRows</tbody>
   </table>
 </div>''';
 }
 
-String _renderDataCards(String title, List<dynamic> columns) {
-  final cards = [1, 2, 3, 4].map((i) {
-    final entries = columns.map((c) {
-      final key = c['key'] as String? ?? '';
-      final label = c['label'] as String? ?? key;
-      return '<div class="evg-card-field"><span class="evg-card-label">$label</span><span class="evg-card-val">${_sampleCell(key, i)}</span></div>';
-    }).join('');
-    return '<div class="evg-card">$entries</div>';
-  }).join('');
+String _renderDataCards(String title, List<dynamic> columns,
+    [List<Map<dynamic, dynamic>> rows = const <Map<dynamic, dynamic>>[]]) {
+  final cards = rows.isEmpty
+      ? '<div class="evg-card"><div class="evg-cl-body"><div class="evg-cl-text">（暂无数据 / 官方空态）</div></div></div>'
+      : rows.map((row) {
+          final entries = columns.map((c) {
+            final key = c['key'] as String? ?? '';
+            final label = c['label'] as String? ?? key;
+            final val = row[key];
+            final text = val == null ? '' : (val is String ? val : val.toString());
+            return '<div class="evg-card-field"><span class="evg-card-label">$label</span><span class="evg-card-val">${_esc(text)}</span></div>';
+          }).join('');
+          return '<div class="evg-card">$entries</div>';
+        }).join('');
 
   return '''
 <div class="evg-comp evg-comp-cards">
@@ -283,7 +318,19 @@ String _renderSpreadsheet(Map<String, dynamic> comp) {
 </div>''';
 }
 
+/// R10 渲染日志升级：config.url 提供真实视频源时渲染真实 <video> 播放器
+/// （不增加原 video 组件描述外功能；url 为空时仍是运行态占位）。
 String _renderVideo(Map<String, dynamic> comp) {
+  final cfg = comp['config'] as Map<String, dynamic>? ?? {};
+  final url = cfg['url'] as String? ?? '';
+  if (url.isNotEmpty) {
+    return '''
+<div class="evg-comp evg-comp-video">
+  <div class="evg-video-placeholder">
+    <video src="${_esc(url)}" controls style="max-width:100%;border-radius:8px"></video>
+  </div>
+</div>''';
+  }
   return '''
 <div class="evg-comp evg-comp-video">
   <div class="evg-video-placeholder">
@@ -468,33 +515,83 @@ String _renderDivider(Map<String, dynamic> comp) {
   return '<div class="evg-comp evg-comp-divider"><hr /></div>';
 }
 
+/// flashcards — 闪卡复习（间隔重复）。
+/// R11：必须渲染 config.wordList 中的真实词（由 harness 从 words.json 注入），
+/// 不得写死示例卡。wordList 元素可为 {word, meaning} 或纯字符串。
 String _renderFlashcards(Map<String, dynamic> comp) {
+  final cfg = comp['config'] as Map<String, dynamic>? ?? {};
+  final raw = cfg['wordList'];
+  final words = raw is List
+      ? raw
+      : <dynamic>[];
+  final algorithm = cfg['algorithm'] as String? ?? 'spaced-repetition';
+  final total = words.length;
+
+  if (total == 0) {
+    return _renderEmpty('flashcards', '暂无词卡（运行时加载词库）');
+  }
+
+  final first = words.first;
+  final front = first is Map ? (first['word'] ?? first['term'] ?? '') : first.toString();
+  final back = first is Map ? (first['meaning'] ?? first['def'] ?? first['definition'] ?? '') : '';
+
+  final cardsHtml = words.take(8).map((w) {
+    final f = w is Map ? (w['word'] ?? w['term'] ?? '') : w.toString();
+    final b = w is Map ? (w['meaning'] ?? w['def'] ?? w['definition'] ?? '') : '';
+    return '''
+<div class="evg-flash-card">
+  <div class="evg-flash-front">${_esc(f.toString())}</div>
+  <div class="evg-flash-back"><code>${_esc(b.toString())}</code></div>
+</div>''';
+  }).join('');
+
   return '''
 <div class="evg-comp evg-comp-flash">
-  <div class="evg-comp-title">🃏 闪卡</div>
-  <div class="evg-flash-card">
-    <div class="evg-flash-front">Python 中如何声明列表？</div>
-    <div class="evg-flash-back"><code>my_list = [1, 2, 3]</code></div>
-  </div>
+  <div class="evg-comp-title">🃏 闪卡复习（$algorithm）</div>
+  <div class="evg-flash-deck">$cardsHtml</div>
   <div class="evg-flash-nav">
-    <button>◀ 上一张</button><span>1 / 10</span><button>下一张 ▶</button>
+    <button>◀ 上一张</button><span>1 / $total</span><button>下一张 ▶</button>
     <button>翻转</button>
   </div>
 </div>''';
 }
 
+/// quiz — 答题测验。R11：必须从 config.wordList 生成真实题目，不得写死。
+/// wordList 元素 {word, meaning} 或字符串；据此生成「选出正确释义」选择题。
 String _renderQuiz(Map<String, dynamic> comp) {
+  final cfg = comp['config'] as Map<String, dynamic>? ?? {};
+  final raw = cfg['wordList'];
+  final words = raw is List ? raw : <dynamic>[];
+  final types = (cfg['questionTypes'] as List<dynamic>? ?? []).cast<String>();
+  final timeLimit = cfg['timeLimit'] as int? ?? 0;
+  final passScore = cfg['passScore'] as int? ?? 0;
+
+  if (words.isEmpty) {
+    return _renderEmpty('quiz', '暂无题目（运行时加载词库）');
+  }
+
+  final first = words.first;
+  final qWord = first is Map ? (first['word'] ?? first['term'] ?? '') : first.toString();
+  final qMeaning = first is Map ? (first['meaning'] ?? first['def'] ?? '') : '';
+  // 取其它词的释义作为干扰项
+  final distractors = words.skip(1).take(3).map((w) {
+    final m = w is Map ? (w['meaning'] ?? w['def'] ?? '') : '';
+    return m.toString();
+  }).where((s) => s.isNotEmpty).toList();
+  final options = [qMeaning.toString(), ...distractors];
+  options.shuffle();
+
+  final optsHtml = options.asMap().entries.map((e) {
+    final letter = String.fromCharCode(65 + e.key);
+    return '<label><input type="radio" name="q1" /> $letter. ${_esc(e.value)}</label>';
+  }).join('');
+
   return '''
 <div class="evg-comp evg-comp-quiz">
-  <div class="evg-comp-title">❓ 测验</div>
+  <div class="evg-comp-title">❓ 测验（${types.join('/')} · 限时 ${timeLimit}s · 及格 $passScore 分）</div>
   <div class="evg-quiz-question">
-    <div class="evg-quiz-q">1. 哪个关键字用于定义 Python 函数?</div>
-    <div class="evg-quiz-options">
-      <label><input type="radio" name="q1" /> func</label>
-      <label><input type="radio" name="q1" checked /> def</label>
-      <label><input type="radio" name="q1" /> function</label>
-      <label><input type="radio" name="q1" /> define</label>
-    </div>
+    <div class="evg-quiz-q">1. 「${_esc(qWord.toString())}」的正确释义是？</div>
+    <div class="evg-quiz-options">$optsHtml</div>
   </div>
   <button class="evg-quiz-submit">提交答案</button>
 </div>''';
@@ -987,6 +1084,15 @@ String _renderWebView(Map<String, dynamic> comp) {
 </div>''';
 }
 
+/// 已实现的组件在无数据时的干净空态（区别于"待实现"占位）。
+String _renderEmpty(String type, String hint) {
+  return '''
+<div class="evg-comp evg-comp-empty">
+  <div class="evg-empty-icon">📭</div>
+  <div class="evg-empty-hint">$hint</div>
+</div>''';
+}
+
 /// 通用占位（保留给 placeholder-01~20 等未命名组件）
 String _renderPlaceholder(String type, Map<String, dynamic> config) {
   final icon = componentIcon(type);
@@ -1005,6 +1111,138 @@ String _renderPlaceholder(String type, Map<String, dynamic> config) {
 
 String _renderGeneric(Map<String, dynamic> comp) {
   return _renderPlaceholder(comp['type'] as String? ?? 'unknown', comp['config'] as Map<String, dynamic>? ?? {});
+}
+
+/// button — 工具栏按钮组（读取 config.buttons 真实声明）。
+String _renderButton(Map<String, dynamic> comp) {
+  final cfg = comp['config'] as Map<String, dynamic>? ?? {};
+  final align = cfg['align'] as String? ?? 'left';
+  final buttons = (cfg['buttons'] as List<dynamic>? ?? [])
+      .map((b) {
+        final m = b as Map<String, dynamic>? ?? {};
+        final label = m['label'] as String? ?? '';
+        final icon = m['icon'] as String? ?? '';
+        final style = m['style'] as String? ?? 'filled';
+        final event = m['event'] as String? ?? '';
+        return '<button class="evg-btn evg-btn-$style" data-event="${_esc(event)}">'
+            '${icon != null && icon!.isNotEmpty ? '$icon ' : ''}${_esc(label)}</button>';
+      })
+      .join('');
+  return '''
+<div class="evg-comp evg-comp-button">
+  <div class="evg-btn-bar" style="justify-content:${align == 'right' ? 'flex-end' : align == 'center' ? 'center' : 'flex-start'}">$buttons</div>
+</div>''';
+}
+
+/// nav-button — 导航卡片（读取 label/icon/target 真实声明）。
+String _renderNavButton(Map<String, dynamic> comp) {
+  final cfg = comp['config'] as Map<String, dynamic>? ?? {};
+  final label = cfg['label'] as String? ?? '导航';
+  final icon = cfg['icon'] as String? ?? '📌';
+  final target = cfg['target'] as String? ?? '#';
+  return '''
+<div class="evg-comp evg-comp-navbtn">
+  <a class="evg-navbtn" href="${_esc(target)}">
+    <span class="evg-navbtn-icon">$icon</span>
+    <span class="evg-navbtn-label">${_esc(label)}</span>
+  </a>
+</div>''';
+}
+
+/// timetable — 周课表（读取 config.sessions 真实课次）。
+/// session: {courseName, teacher, location, dayOfWeek(1-7), periods:[int], courseId}
+String _renderTimetable(Map<String, dynamic> comp) {
+  final cfg = comp['config'] as Map<String, dynamic>? ?? {};
+  final sessions = (cfg['sessions'] as List<dynamic>? ?? [])
+      .whereType<Map<dynamic, dynamic>>()
+      .toList();
+  if (sessions.isEmpty) {
+    return _renderEmpty('timetable', '暂无课表数据（官方空态）');
+  }
+  // 计算最大节次，构建 7 列网格
+  var maxPeriod = 1;
+  for (final s in sessions) {
+    final ps = (s['periods'] as List<dynamic>? ?? []);
+    for (final p in ps) {
+      final n = p is int ? p : int.tryParse(p.toString()) ?? 0;
+      if (n > maxPeriod) maxPeriod = n;
+    }
+  }
+  final dayHeaders = ['一', '二', '三', '四', '五', '六', '日'];
+  final grid = <String>[];
+  for (var p = 1; p <= maxPeriod; p++) {
+    final row = <String>[];
+    for (var d = 1; d <= 7; d++) {
+      final cellSessions = sessions.where((s) {
+        final dow = s['dayOfWeek'] is int
+            ? s['dayOfWeek'] as int
+            : int.tryParse(s['dayOfWeek'].toString()) ?? 0;
+        final ps = (s['periods'] as List<dynamic>? ?? [])
+            .map((x) => x is int ? x : int.tryParse(x.toString()) ?? 0)
+            .toList();
+        return dow == d && ps.contains(p);
+      }).toList();
+      if (cellSessions.isEmpty) {
+        row.add('<td class="evg-tt-cell"></td>');
+      } else {
+        final inner = cellSessions.map((s) {
+          final name = _esc((s['courseName'] ?? s['name'] ?? '?').toString());
+          final teacher = _esc((s['teacher'] ?? '').toString());
+          final loc = _esc((s['location'] ?? '').toString());
+          return '<div class="evg-tt-session"><div class="evg-tt-name">$name</div>'
+              '${teacher.isNotEmpty ? '<div class="evg-tt-teacher">$teacher</div>' : ''}'
+              '${loc.isNotEmpty ? '<div class="evg-tt-loc">$loc</div>' : ''}</div>';
+        }).join('');
+        row.add('<td class="evg-tt-cell evg-tt-filled">$inner</td>');
+      }
+    }
+    grid.add('<tr><th class="evg-tt-period">第$p节</th>${row.join('')}</tr>');
+  }
+
+  return '''
+<div class="evg-comp evg-comp-timetable">
+  <div class="evg-comp-title">📅 周课表（${sessions.length} 节课次）</div>
+  <table class="evg-tt-table">
+    <thead><tr><th></th>${dayHeaders.map((d) => '<th>周$d</th>').join('')}</tr></thead>
+    <tbody>${grid.join('')}</tbody>
+  </table>
+</div>''';
+}
+
+/// settings — 设置面板（读取 config.settings 真实条目；由 harness 注入插件 config.json）。
+String _renderSettings(Map<String, dynamic> comp) {
+  final cfg = comp['config'] as Map<String, dynamic>? ?? {};
+  final settings = (cfg['settings'] as List<dynamic>? ?? [])
+      .whereType<Map<dynamic, dynamic>>()
+      .toList();
+  if (settings.isEmpty) {
+    return _renderEmpty('settings', '暂无设置项');
+  }
+  final rows = settings.map((s) {
+    final label = _esc((s['label'] ?? s['key'] ?? '').toString());
+    final type = _esc((s['type'] ?? 'string').toString());
+    final hint = s['hint'] != null ? '<div class="evg-set-hint">${_esc(s['hint'].toString())}</div>' : '';
+    final value = s['value'] ?? s['default'] ?? '';
+    final ctrl = switch (type) {
+      'bool' => '<input type="checkbox" ${value == true || value == 'true' ? 'checked' : ''} />',
+      'option' => '<select>${((s['options'] as List<dynamic>? ?? []).map((o) {
+        final ov = o is Map ? o['value'] : o;
+        final ol = o is Map ? o['label'] : o;
+        return '<option ${ov == value ? 'selected' : ''}>${_esc(ol.toString())}</option>';
+      }).join(''))}</select>',
+      _ => '<input type="text" value="${_esc(value.toString())}" />',
+    };
+    return '''
+<div class="evg-set-row">
+  <div class="evg-set-label">$label $hint</div>
+  <div class="evg-set-ctrl">$ctrl</div>
+</div>''';
+  }).join('');
+  return '''
+<div class="evg-comp evg-comp-settings">
+  <div class="evg-comp-title">⚙️ 设置</div>
+  <div class="evg-set-list">$rows</div>
+</div>''';
 }
 
 // ============================================================
@@ -1028,6 +1266,10 @@ final Map<String, _Renderer> _renderers = {
   'form': _renderForm,
   'calendar': _renderCalendar,
   'map': _renderMap,
+  'button': _renderButton,
+  'nav-button': _renderNavButton,
+  'timetable': _renderTimetable,
+  'settings': _renderSettings,
 
   // ── P1: 别名 & PLAN_NOW 类型 ──
   'ai-assistant': _renderChat,        // 别名 → chat

@@ -1,0 +1,16 @@
+{
+  "type": "data-source",
+  "id": "downloads-data",
+  "name": "下载数据源",
+  "script": "downloads_data.exe",
+  "dataTypes": [
+    {
+      "name": "downloads",
+      "typeArg": "downloads",
+      "category": "学习",
+      "displayName": "下载文件",
+      "ttl": "10m",
+      "persistentKey": "downloads"
+    }
+  ]
+}

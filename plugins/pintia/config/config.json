@@ -1,0 +1,22 @@
+{
+  "id": "pintia",
+  "name": "PTA 模块配置",
+  "settings": [
+    {
+      "key": "PTASession",
+      "label": "PTASession Cookie",
+      "type": "string",
+      "isSecure": true,
+      "default": "",
+      "hint": "在浏览器登录 https://pintia.cn 后，从开发者工具复制 PTASession cookie 值粘贴此处"
+    }
+  ],
+  "permissions": [
+    {
+      "key": "PINTIA_NETWORK",
+      "label": "网络访问",
+      "description": "允许 PTA 模块访问 pintia.cn 获取题目集列表",
+      "default": true
+    }
+  ]
+}

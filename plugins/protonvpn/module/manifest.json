@@ -1,0 +1,54 @@
+{
+  "schemaVersion": "2.0",
+  "renderMode": "dart",
+  "type": "module",
+  "id": "protonvpn",
+  "name": "ProtonVPN",
+  "description": "ProtonVPN 控制面板（展示当前网络连接真实状态）",
+  "icon": "shield",
+  "route": "/protonvpn",
+  "version": "2.0.0",
+  "dependencies": [],
+  "nav": {
+    "sidebar": {
+      "section": "系统",
+      "sectionOrder": 30,
+      "order": 20,
+      "badge": false
+    }
+  },
+  "pages": [
+    {
+      "id": "protonvpn_page",
+      "label": "🛡 ProtonVPN 面板",
+      "default": true,
+      "layout": {
+        "type": "grid",
+        "preset": { "columns": 1, "gap": 8 },
+        "slots": {
+          "status": {
+            "component": {
+              "type": "data-table",
+              "config": {
+                "chrome": true,
+                "display": "table",
+                "title": "当前网络连接",
+                "dataSource": {
+                  "name": "status",
+                  "endpoint": "/api/protonvpn/status",
+                  "dataPath": "connections",
+                  "refreshInterval": 30
+                },
+                "columns": [
+                  { "key": "adapter", "label": "网络适配器" },
+                  { "key": "ipv4", "label": "IPv4 地址" },
+                  { "key": "gateway", "label": "默认网关" }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

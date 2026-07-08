@@ -153,6 +153,9 @@ class DataOrchestrator {
     if (entry != null) {
       final (data, cachedAt) = entry;
       _updateStatus(type.name, connected: true, fetchedAt: cachedAt);
+      Log().info('DataOrchestrator: 缓存命中（跳过拉取）',
+          data: {'name': type.name, 'cachedAt': cachedAt.toIso8601String(),
+            'bytes': data.length});
       return _decode<T>(data);
     }
 
@@ -189,7 +192,10 @@ class DataOrchestrator {
       if (type == null) continue;
       try {
         await refresh<dynamic>(type);
-      } catch (_) {}
+      } catch (e) {
+        Log().warn('DataOrchestrator: 自动刷新失败',
+            data: {'name': entry.key, 'error': e.toString()});
+      }
     }
   }
 
@@ -301,7 +307,10 @@ class DataOrchestrator {
       }
 
       final now = DateTime.now();
-      await _cache?.write(type.name, _encode(data));
+      final encoded = _encode(data);
+      await _cache?.write(type.name, encoded);
+      Log().info('DataOrchestrator: 缓存写入',
+          data: {'name': type.name, 'bytes': encoded.length});
       _updateStatus(type.name, connected: true, fetchedAt: now);
       return data;
     } catch (e) {

@@ -1,0 +1,75 @@
+{
+  "schemaVersion": "2.0",
+  "renderMode": "dart",
+  "type": "module",
+  "id": "classroom",
+  "name": "智云课堂",
+  "description": "智云课堂录播与课程列表",
+  "icon": "play_lesson",
+  "route": "/classroom",
+  "version": "2.0.0",
+  "dependencies": [],
+  "nav": {
+    "sidebar": {
+      "section": "AI 工具",
+      "sectionOrder": 20,
+      "order": 40,
+      "badge": false
+    }
+  },
+  "pages": [
+    {
+      "id": "list_page",
+      "label": "🎬 课程列表",
+      "default": true,
+      "layout": {
+        "type": "grid",
+        "preset": { "columns": 1, "gap": 0 },
+        "slots": {
+          "list": {
+            "component": {
+              "type": "data-table",
+              "config": {
+                "chrome": true,
+                "display": "table",
+                "filter": true,
+                "sortable": true,
+                "title": "智云课堂录播",
+                "dataSource": {
+                  "name": "courses_list",
+                  "endpoint": "/api/courses/list",
+                  "dataPath": "courses",
+                  "refreshInterval": 600
+                },
+                "columns": [
+                  { "key": "name", "label": "课程" },
+                  { "key": "teacher", "label": "教师" },
+                  { "key": "location", "label": "地点" }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "video_page",
+      "label": "▶️ 播放",
+      "layout": {
+        "type": "grid",
+        "preset": { "columns": 1, "gap": 0 },
+        "slots": {
+          "video": {
+            "component": {
+              "type": "video",
+              "config": {
+                "title": "课程录播",
+                "url": ""
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

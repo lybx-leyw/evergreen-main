@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "2.0",
+  "renderMode": "dart",
+  "type": "module",
+  "id": "schedule-export",
+  "name": "课表导出",
+  "description": "课表导出——由 ZDBK 课表生成 iCalendar (.ics)",
+  "icon": "event_available",
+  "route": "/schedule-export",
+  "version": "2.0.0",
+  "dependencies": [],
+  "nav": {
+    "sidebar": {
+      "section": "校园",
+      "sectionOrder": 40,
+      "order": 40,
+      "badge": false
+    }
+  },
+  "pages": [
+    {
+      "id": "export_page",
+      "label": "📤 课表导出",
+      "default": true,
+      "layout": {
+        "type": "grid",
+        "preset": { "columns": 1, "gap": 0 },
+        "slots": {
+          "main": {
+            "component": {
+              "type": "data-table",
+              "config": {
+                "chrome": true,
+                "display": "table",
+                "filter": false,
+                "sortable": false,
+                "title": "导出的课表",
+                "dataSource": {
+                  "name": "schedule_export",
+                  "endpoint": "/api/schedule/export",
+                  "dataPath": "export",
+                  "refreshInterval": 0
+                },
+                "columns": [
+                  { "key": "path", "label": "ICS 路径" },
+                  { "key": "courseCount", "label": "课程数" },
+                  { "key": "icsPreview", "label": "预览" }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

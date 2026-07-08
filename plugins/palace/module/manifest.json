@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "2.0",
+  "renderMode": "dart",
+  "type": "module",
+  "id": "palace",
+  "name": "宫殿",
+  "description": "宫殿——认知事件仓库（本地 Markdown 事件浏览）",
+  "icon": "account_tree",
+  "route": "/palace",
+  "version": "2.0.0",
+  "dependencies": [],
+  "nav": {
+    "sidebar": {
+      "section": "系统",
+      "sectionOrder": 60,
+      "order": 60,
+      "badge": false
+    }
+  },
+  "pages": [
+    {
+      "id": "palace_page",
+      "label": "🏛️ 宫殿",
+      "default": true,
+      "layout": {
+        "type": "grid",
+        "preset": { "columns": 1, "gap": 0 },
+        "slots": {
+          "main": {
+            "component": {
+              "type": "data-table",
+              "config": {
+                "chrome": true,
+                "display": "table",
+                "filter": true,
+                "sortable": true,
+                "title": "认知事件",
+                "dataSource": {
+                  "name": "palace_events",
+                  "endpoint": "/api/palace/events",
+                  "dataPath": "events",
+                  "refreshInterval": 30
+                },
+                "columns": [
+                  { "key": "type", "label": "类型" },
+                  { "key": "title", "label": "标题" },
+                  { "key": "capturedAt", "label": "捕获时间" },
+                  { "key": "tags", "label": "标签" },
+                  { "key": "summary", "label": "摘要" }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
