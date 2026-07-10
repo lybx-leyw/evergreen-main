@@ -34,14 +34,9 @@ export 'core/utils/greenix_path.dart';
 export 'core/utils/python_env.dart';
 export 'core/utils/file_utils.dart';
 
-// ═══════ 下游 — 原子渲染组件 ═══════
-export 'renderer/widgets/widgets.dart';
-
-// ═══════ 下游 — 组合视图 + 调度基础设施 ═══════
-export 'renderer/shared/shared.dart';
-
-// ═══════ 下游 — 高级组合工作区 ═══════
-export 'renderer/compositions/compositions.dart';
+// ═══════ 下游 — 渲染层六层架构 ═══════
+export 'renderer/components/shared/widgets/widgets.dart';
+export 'renderer/renderer.dart';
 
 // ═══════ 应用级 — 全局 Riverpod 提供者（canonical） ═══════
 export 'providers.dart';

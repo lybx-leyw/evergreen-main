@@ -58,31 +58,47 @@ abstract class ToolHooks {
 
 // ═══════ StormBreaker ═══════
 
-/// 风暴抑制器——重复失败/成功的工具调用自动压制。对应 Go 的 agent.applyStormBreaker。
+/// 风暴抑制器——仅对连续失败的工具调用自动压制。
+///
+/// 规则：
+/// - 连续调用同一工具失败（同签名）达到 [threshold] 次 → 触发抑制
+/// - 任何一次调用成功 → 重置失败计数，取消抑制
+/// - 切换工具（不同签名）→ 重置计数
+///
+/// 对应 Go 的 agent.applyStormBreaker。
 class StormBreaker {
   String _lastSig = '';
-  int _count = 0;
+  int _failCount = 0;
   final int threshold;
-  /// 成功调用的压制阈值，独立于错误阈值（默认 5，比错误 3 更宽松）。
-  final int successThreshold;
-  final Map<String, int> _repeatSuccessCounts = {};
 
-  StormBreaker({this.threshold = 3, this.successThreshold = 5});
+  StormBreaker({this.threshold = 3});
 
   /// 记录一次调用结果，返回是否应被压制。
+  ///
+  /// [error] 不为 null 表示失败，[error] 为 null 表示成功。
+  /// 只有连续失败达到 threshold 时才返回 true。
   bool record(String toolName, String? error) {
-    final sig = '$toolName:${error ?? "success"}';
     if (error != null) {
-      if (sig == _lastSig) { _count++; } else { _lastSig = sig; _count = 1; }
-      return _count >= threshold;
+      // ── 失败 ──
+      final sig = '$toolName:$error';
+      if (sig == _lastSig) {
+        _failCount++;
+      } else {
+        _lastSig = sig;
+        _failCount = 1;
+      }
+      return _failCount >= threshold;
     }
-    _repeatSuccessCounts[toolName] = (_repeatSuccessCounts[toolName] ?? 0) + 1;
+    // ── 成功 → 重置一切 ──
     _lastSig = '';
-    _count = 0;
-    return (_repeatSuccessCounts[toolName] ?? 0) >= successThreshold;
+    _failCount = 0;
+    return false;
   }
 
-  void reset() { _lastSig = ''; _count = 0; _repeatSuccessCounts.clear(); }
+  void reset() {
+    _lastSig = '';
+    _failCount = 0;
+  }
 }
 
 // ═══════ ReadinessResult ═══════
@@ -307,20 +323,6 @@ class Agent {
           print('[Agent:D]   tool: ${call.name} id=${call.id} argsLen=${call.arguments.length}');
           if (_cancelled) break;
 
-          // 风暴抑制检查（仅压制写工具的重复循环，只读工具不受限）
-          final stormTool = _registry.get(call.name);
-          if (stormTool != null && !stormTool.readOnly && _stormBreaker.record(call.name, null)) {
-            final blockMsg = '[storm breaker: 工具 "${call.name}" 被抑制——连续调用次数过多]';
-            _session.add(Message.toolResult(call.id, blockMsg));
-            yield AgentEvent.toolResult(ToolEventPayload(
-              id: call.id,
-              name: call.name,
-              arguments: call.arguments,
-              error: blockMsg,
-            ));
-            continue;
-          }
-
           // 门控检查
           if (_gate != null) {
             Map<String, dynamic> args;
@@ -329,7 +331,7 @@ class Agent {
             } catch (_) {
               args = {};
             }
-            final tool = stormTool ?? _registry.get(call.name);
+            final tool = _registry.get(call.name);
             final (allow, reason) = await _gate!.check(
               call.name,
               args,
@@ -384,6 +386,41 @@ class Agent {
           stopwatch.stop();
           print('[Agent:D]   ✅ ${call.name} completed in ${stopwatch.elapsedMilliseconds}ms'
               ' resultLen=${result.length}');
+
+          // ── 风暴抑制检查（工具执行后） ──
+          // 仅对写工具检查：连续失败 ≥3 次触发抑制；成功则重置计数。
+          final stormTool = _registry.get(call.name);
+          if (stormTool != null && !stormTool.readOnly) {
+            final isError = result.startsWith('[error:');
+            final stormBlocked = _stormBreaker.record(
+              call.name,
+              isError ? result : null,
+            );
+            if (stormBlocked) {
+              final blockMsg = '[storm breaker: 工具 "${call.name}" 连续失败 ${_stormBreaker.threshold} 次，已抑制]';
+              print('[Agent:D]   ⛈ $blockMsg');
+              // 仍然记录本次失败结果到 session
+              _session.add(Message.toolResult(call.id, result));
+              // 发射抑制事件（带 error，让模型感知到被阻止）
+              yield AgentEvent.toolResult(ToolEventPayload(
+                id: call.id,
+                name: call.name,
+                arguments: call.arguments,
+                error: blockMsg,
+              ));
+              // 跳过正常的 output 发射，但继续 Post-hook
+              if (_hooks != null) {
+                Map<String, dynamic> args;
+                try {
+                  args = jsonDecode(call.arguments) as Map<String, dynamic>;
+                } catch (_) {
+                  args = {};
+                }
+                await _hooks!.postToolUse(call.name, args, blockMsg);
+              }
+              continue;
+            }
+          }
 
           // 记录工具结果
           _session.add(Message.toolResult(call.id, result));

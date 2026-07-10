@@ -190,42 +190,52 @@ void main() {
   // ═══════ StormBreaker 风暴抑制 ═══════
 
   group('StormBreaker', () {
-    test('重复失败触发抑制', () {
+    test('连续失败触发抑制', () {
       final sb = StormBreaker(threshold: 3);
-      expect(sb.record('bash', 'error'), false);
-      expect(sb.record('bash', 'error'), false);
-      expect(sb.record('bash', 'error'), true); // 第 3 次触发
+      expect(sb.record('bash', 'error'), false);   // 第 1 次
+      expect(sb.record('bash', 'error'), false);   // 第 2 次
+      expect(sb.record('bash', 'error'), true);    // 第 3 次 → 抑制
+    });
+
+    test('不同错误签名重置计数', () {
+      final sb = StormBreaker(threshold: 3);
+      sb.record('bash', 'error-A');
+      sb.record('bash', 'error-A');
+      expect(sb.record('bash', 'error-B'), false); // 不同错误 → 重置计数为 1
+      expect(sb.record('bash', 'error-B'), false); // 第 2 次 error-B
     });
 
     test('不同工具独立计数', () {
       final sb = StormBreaker(threshold: 3);
       sb.record('bash', 'error');
       sb.record('bash', 'error');
-      expect(sb.record('write', 'error'), false); // 不同工具重置计数
-      expect(sb.record('bash', 'error'), false); // bash 也重置了
+      expect(sb.record('write', 'error'), false); // 不同工具 → 重置
+      expect(sb.record('bash', 'error'), false);  // bash 也重置了
     });
 
-    test('成功后重置', () {
+    test('成功后重置失败计数', () {
       final sb = StormBreaker(threshold: 3);
       sb.record('bash', 'error');
       sb.record('bash', 'error');
-      sb.record('bash', null); // 成功 → 重置
-      expect(sb.record('bash', 'error'), false); // 重新从 1 开始
+      expect(sb.record('bash', null), false);     // 成功 → 重置计数
+      expect(sb.record('bash', 'error'), false);  // 重新从 1 开始
     });
 
-    test('重复成功触发抑制（默认 5 次）', () {
-      final sb = StormBreaker(); // successThreshold 默认 5
-      expect(sb.record('echo', null), false); // 1
-      expect(sb.record('echo', null), false); // 2
-      expect(sb.record('echo', null), false); // 3
-      expect(sb.record('echo', null), false); // 4
-      expect(sb.record('echo', null), true);  // 5 — 触发抑制
+    test('成功调用永不抑制', () {
+      final sb = StormBreaker(threshold: 3);
+      for (var i = 0; i < 10; i++) {
+        expect(sb.record('echo', null), false); // 成功永远不触发抑制
+      }
     });
 
-    test('重复成功触发抑制（自定义阈值）', () {
-      final sb = StormBreaker(successThreshold: 2);
-      expect(sb.record('echo', null), false);
-      expect(sb.record('echo', null), true); // 第 2 次重复成功触发
+    test('成功+失败交错：成功后计数重置', () {
+      final sb = StormBreaker(threshold: 3);
+      sb.record('bash', 'error');     // fail 1
+      sb.record('bash', 'error');     // fail 2
+      sb.record('bash', null);        // 成功 → 重置
+      sb.record('bash', 'error');     // fail 1（重新计数）
+      sb.record('bash', 'error');     // fail 2
+      expect(sb.record('bash', 'error'), true); // fail 3 → 抑制
     });
 
     test('reset 清空全部状态', () {

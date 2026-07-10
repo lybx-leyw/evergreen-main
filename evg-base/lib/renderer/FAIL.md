@@ -54,3 +54,23 @@
 - **问题**：多列布局中 `Row → Expanded` 的列宽计算依赖 `constraints.maxWidth`，但 `Card` 内部的 `border` + `SizedBox` padding 导致实际可用宽度略小于计算值，造成水平溢出（从 1.3px 到 265px 不等）。
 - **修复**：用 `LayoutBuilder` 获取精确的可用宽度，计算 `colWidth = (maxWidth - totalGap) / columns`，然后用 `SizedBox(width: colWidth)` 替代 `Expanded`。这避免了 `Expanded` 按 flex 比例分配的舍入误差。
 - **教训**：在 `Card → SizedBox` 嵌套中使用 `Row → Expanded` 时，Expanded 的 flex 分配可能因 sub-pixel rounding 导致溢出。用 `LayoutBuilder` + 精确宽度计算更可靠。
+
+## 10. `flutter test` 是本环境编译正确性的唯一可靠裁定（vs `dart analyze` 误报）
+
+- **问题**：M1 补齐 12 个 Dart slot + 升级 19 个 HTML 渲染函数后，运行 `dart analyze` / `flutter analyze lib/renderer/` 对大量**既有文件**报 `Undefined class Widget/BuildContext/Color` 等成片错误（data_table.dart、theme_provider.dart、composite_view.dart 等），但这些文件明明 `import 'package:flutter/material.dart'`。
+- **根因**：本环境 `flutter pub get` 重新生成 `.dart_tool/package_config.json` 后，analyzer 解析出现环境性假错（与既有「Flutter analyze 在本环境对 material 报全局 false-error」同源）。**不是代码缺陷**。
+- **裁定**：以 `flutter test` 真实编译器为唯一正确性来源。M1 三个测试套件（`r10_render_log`、`renderer_components_test`、`slot_widgets_test`）全部 `All tests passed!`（exit 0，R10 33 模块全通过）即证明整个 app（含新增 renderer 代码）编译通过。
+- **附带捕获的真实 bug**：`slot_widgets_test` 首次运行时加载失败，暴露 `_terminal_slot.dart:49` 的预存编译错误——`const Text('$ ', ...)` 中的裸 `$` 触发字符串插值解析失败 → 改为 `const Text(r'$ ', ...)`（raw string）。这是 analyzer 假错之外**唯一真实的编译问题**，被 widget 测试捕获。
+- **教训**：(1) 本环境 analyze 假错不可信，`flutter test` 才是 oracle；(2) 每个新 slot 必须有 widget 测试承载，否则预存编译错误（即便从未被编译过）会漏网；(3) 字符串里的 `$` 必须转义或用 raw string。
+
+## 11. `flutter build windows --release` 在本环境因 NuGet 缺失不可行
+
+- **问题**：M1 收尾时尝试跑 `flutter build windows --release` 做终检，直接失败：`Nuget is not installed.`（另有一条非致命 CMake 警告：`webview_windows/.../CMakeLists.txt:34 add_custom_command(TARGET): DEPENDS ... Policy CMP0175`，仅 warning）。
+- **根因**：本机未安装 Visual Studio 构建工具 / Windows SDK / NuGet（Windows 桌面目标编译必需）。与代码无关。
+- **裁定**：在装好 NuGet+VS 构建工具前，`flutter build windows` 无法执行；继续以 `flutter test`（真实编译整个 app，含全部 renderer 代码）作为"可编译/可运行"的验证裁定。若用户要求产出 release exe，需先在本机安装 Windows 桌面构建依赖（或由用户在其环境 build）。
+
+## 12. 全局字符串替换会误伤"图例/非任务行"中的同一 token
+
+- **问题**：用脚本 `s.replace('⚪待启动', '✅完成')` 批量翻转 M1 状态，结果 `count` 报 32 而非预期 31。排查发现多出的 1 处是**状态图例行**（`状态图例：\`✅完成\` \`🔧进行中\` \`⚪待启动\` \`⛔阻塞\``）里的 `⚪待启动` 也被一并替换，导致图例变成 `✅完成 🔧进行中 ✅完成 ⛔阻塞`，丢失"待启动"色块。
+- **根因**：状态 token 同时出现在任务行状态列**和**文档图例中；blind 全文替换不分语境。
+- **教训**：批量替换状态/标记类 token 时，(1) 先 `count` 并与预期逐项对账，差值往往来自图例/说明/重复行；(2) 优先用带语境的定点 `replace_in_file` 或正则限定列位置，避免误伤；(3) 替换后通读图例与统计行。本例由 `/Intro`→`/iloop` 自评暴露。

@@ -10,17 +10,17 @@
 /// - compositions/workspace_page.dart
 library;
 
-import 'package:evergreen_base/renderer/widgets/models.dart';
-import 'package:evergreen_base/renderer/widgets/ability_tag.dart';
-import 'package:evergreen_base/renderer/widgets/install_progress.dart';
-import 'package:evergreen_base/renderer/widgets/notification_card.dart';
-import 'package:evergreen_base/renderer/shared/market_view.dart';
-import 'package:evergreen_base/renderer/shared/plugin_detail_view.dart';
-import 'package:evergreen_base/renderer/shared/my_plugins_view.dart';
-import 'package:evergreen_base/renderer/shared/settings_view.dart';
-import 'package:evergreen_base/renderer/shared/composite_view.dart';
-import 'package:evergreen_base/renderer/shared/permission_management_view.dart';
-import 'package:evergreen_base/renderer/compositions/workspace_page.dart';
+import 'package:evergreen_base/renderer/components/shared/widgets/models.dart';
+import 'package:evergreen_base/renderer/components/shared/widgets/ability_tag.dart';
+import 'package:evergreen_base/renderer/components/shared/widgets/install_progress.dart';
+import 'package:evergreen_base/renderer/components/shared/widgets/notification_card.dart';
+import 'package:evergreen_base/renderer/page/market_view.dart';
+import 'package:evergreen_base/renderer/page/plugin_detail_view.dart';
+import 'package:evergreen_base/renderer/page/my_plugins_view.dart';
+import 'package:evergreen_base/renderer/page/settings_view.dart';
+import 'package:evergreen_base/renderer/page/composite_view.dart';
+import 'package:evergreen_base/renderer/page/permission_management_view.dart';
+// workspace_page removed in renderer refactor
 import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'package:evergreen_base/providers.dart';
 import 'package:flutter/material.dart';
@@ -606,27 +606,7 @@ void main() {
   });
 
   // ═══════════════════════════════════════════════════════════════
-  // 9. WorkspacePage 测试
-  // ═══════════════════════════════════════════════════════════════
-
-  group('WorkspacePage', () {
-    testWidgets('空工作台显示空状态', (tester) async {
-      var toMarket = false;
-      await tester.pumpWidget(_materialApp(
-        WorkspacePage(
-          installedPlugins: const [],
-          onGoToMarket: () => toMarket = true,
-        ),
-      ));
-      expect(find.text('工作台为空'), findsOneWidget);
-      await tester.tap(find.text('前往市场'));
-      expect(toMarket, isTrue);
-    });
-
-  });
-
-  // ═══════════════════════════════════════════════════════════════
-  // 10. PermissionManagementView 测试
+  // 9. PermissionManagementView 测试 (原 WorkspacePage 已随 compositions/ 移除)
   // ═══════════════════════════════════════════════════════════════
 
   group('PermissionManagementView', () {

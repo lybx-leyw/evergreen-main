@@ -6,15 +6,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
-import 'package:evergreen_base/renderer/widgets/models.dart';
-import 'package:evergreen_base/renderer/widgets/dashboard_card.dart';
-import 'package:evergreen_base/renderer/widgets/empty_state.dart';
-import 'package:evergreen_base/renderer/widgets/error_card.dart';
-import 'package:evergreen_base/renderer/widgets/evergreen_progress.dart';
-import 'package:evergreen_base/renderer/widgets/loading_indicator.dart';
-import 'package:evergreen_base/renderer/widgets/confirm_dialog.dart';
-import 'package:evergreen_base/renderer/widgets/ability_tag.dart';
-import 'package:evergreen_base/renderer/widgets/notification_card.dart';
+import 'package:evergreen_base/renderer/components/shared/widgets/models.dart';
+import 'package:evergreen_base/renderer/components/shared/widgets/dashboard_card.dart';
+import 'package:evergreen_base/renderer/components/shared/widgets/empty_state.dart';
+import 'package:evergreen_base/renderer/components/shared/widgets/error_card.dart';
+import 'package:evergreen_base/renderer/components/shared/widgets/evergreen_progress.dart';
+import 'package:evergreen_base/renderer/components/shared/widgets/loading_indicator.dart';
+import 'package:evergreen_base/renderer/components/shared/widgets/confirm_dialog.dart';
+import 'package:evergreen_base/renderer/components/shared/widgets/ability_tag.dart';
+import 'package:evergreen_base/renderer/components/shared/widgets/notification_card.dart';
 
 // ═══════ DashboardCard ═══════
 

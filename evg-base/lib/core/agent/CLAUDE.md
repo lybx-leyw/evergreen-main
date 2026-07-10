@@ -109,14 +109,14 @@ for step in 0..maxSteps:
 - **只读工具可并行，写工具串行**：由 `Tool.readOnly` 决定
 - **Registry 级别启用/禁用**：`enable(name)` / `disable(name)` 控制工具可用性
 - **Gate 四级权限**：`always` > `confirm` > `approve` > `deny`
-- **StormBreaker**：同一写工具连续调用 ≥3 次自动压制，防止死循环
+- **StormBreaker**：同一写工具连续失败 ≥3 次自动压制；成功则重置计数。只抑制失败循环，不抑制成功调用。
 
 ### 3. 四道安全网
 
 | 安全网 | 位置 | 机制 |
 |--------|------|------|
 | **Gate** | Agent.run() ④ | 权限门控——按工具名 + 规则表决定 allow/deny/approve |
-| **StormBreaker** | Agent.run() ④ | 风暴抑制——重复调用同一写工具自动压制 |
+| **StormBreaker** | Agent.run() ④ | 风暴抑制——连续失败 ≥3 次自动压制，成功重置计数 |
 | **Compactor** | Agent.run() ⓪ | 上下文压实——AI 驱动三级阈值 (soft/compact/force)，保留 head+tail+LLM 摘要 |
 | **FinalReadiness** | Agent.run() ⑤ | 最终检查——工具调用后必须产生产生可见回答，否则重试 (max 3次) |
 

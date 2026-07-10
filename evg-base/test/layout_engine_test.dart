@@ -5,7 +5,7 @@ library;
 
 import 'package:flutter/material.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
-import 'package:evergreen_base/renderer/shared/layout_engine.dart';
+import 'package:evergreen_base/renderer/page/layouts/layout_engine.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// 构造 V2 LayoutDescriptor。

@@ -6,11 +6,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
-import 'package:evergreen_base/renderer/shared/module_dispatch.dart';
-import 'package:evergreen_base/renderer/shared/default_view.dart';
-import 'package:evergreen_base/renderer/shared/dashboard_view.dart';
-import 'package:evergreen_base/renderer/shared/editor_view.dart';
-import 'package:evergreen_base/renderer/shared/composite_view.dart';
+import 'package:evergreen_base/renderer/module/module_dispatch.dart';
+import 'package:evergreen_base/renderer/components/data/card_list_slot.dart';
+import 'package:evergreen_base/renderer/components/data/chart_slot.dart';
+import 'package:evergreen_base/renderer/components/document/code_editor_slot.dart';
+import 'package:evergreen_base/renderer/page/composite_view.dart';
 
 void main() {
   group('ModuleDispatch — 范式调度', () {

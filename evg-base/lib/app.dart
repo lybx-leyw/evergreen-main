@@ -22,11 +22,11 @@ import 'package:evergreen_base/core/theme/theme_descriptor.dart';
 import 'package:evergreen_base/core/core_text_app.dart' as text_app;
 import 'package:evergreen_base/main.dart' show textModeServerPorts;
 import 'package:evergreen_base/providers.dart';
-import 'package:evergreen_base/renderer/widgets/app_shell.dart';
-import 'package:evergreen_base/renderer/widgets/command_palette.dart';
-import 'package:evergreen_base/renderer/shared/renderer_providers.dart';
-import 'package:evergreen_base/renderer/shared/theme_provider.dart';
-import 'package:evergreen_base/renderer/shared/module_page.dart';
+import 'package:evergreen_base/renderer/app/app_shell.dart';
+import 'package:evergreen_base/renderer/app/command_palette.dart';
+import 'package:evergreen_base/renderer/app/service/providers/renderer_providers.dart';
+import 'package:evergreen_base/renderer/app/service/theme/theme_provider.dart';
+import 'package:evergreen_base/renderer/module/module_page.dart';
 
 
 /// 文本模式编译常量。

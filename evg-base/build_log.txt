@@ -1,0 +1,11 @@
+Building Windows application...                                 
+CMake Error at flutter/ephemeral/.plugin_symlinks/media_kit_libs_windows_video/windows/CMakeLists.txt:43 (message):
+  C:/Users/19389/Desktop/Evergreen-Multi-Tools/core/Win/evergreen-base -
+  副本/evg-base/build/windows/x64/mpv-dev-x86_64-20230924-git-652a1dd.7z
+  Integrity check failed, please try to re-build project again.
+Call Stack (most recent call first):
+  flutter/ephemeral/.plugin_symlinks/media_kit_libs_windows_video/windows/CMakeLists.txt:80 (download_and_verify)
+
+
+Building Windows application...                                    11.3s
+Unable to generate build files

@@ -149,6 +149,15 @@ evg-base/lib/core/example/plugins/*/*/__pycache__/
 evg-base/analyze_*.txt
 evg-base/*_output.txt
 evg-base/tool/
+analyze_comp.txt
+analyze_out.txt
+analyze_out2.txt
+analyze_result.txt
+analyze_scraper.txt
+build_out.txt
+build_scraper.txt
+test_output.txt
+test_result.txt
 
 # evg-base — 运行时端口文件（App 启动时自动写入，严禁提交）
 evg-base/.*_port
@@ -783,4 +792,3 @@ ${REF_ZJUN}/build/debian/debian
 ${REF_ZJUN}/build/rpm/zjunet-*
 ${REF_ZJUN}/build/rpm/zjunet.spec
 ${REF_ZJUN}/build/openwrt/debian
-evergreen_title.mp4

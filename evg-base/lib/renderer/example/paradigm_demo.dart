@@ -7,8 +7,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
-import '../shared/module_dispatch.dart';
-import '../widgets/models.dart';
+import '../module/module_dispatch.dart';
+import '../components/shared/widgets/models.dart';
 
 /// 范式选择器——让用户在三种范式之间切换。
 class ParadigmDemo extends StatefulWidget {

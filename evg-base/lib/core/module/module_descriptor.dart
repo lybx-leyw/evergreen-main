@@ -1075,6 +1075,17 @@ class LayoutPreset {
 
   factory LayoutPreset.fromJson(Map<String, dynamic>? json) {
     if (json == null) return const LayoutPreset();
+
+    // 提取 dock regions：优先从嵌套的 "regions" 键（manifest 规范格式），
+    // 否则兼容直接写在 preset 层级的区域格式。
+    Map<String, dynamic>? regionsMap;
+    if (json['regions'] is Map<String, dynamic>) {
+      regionsMap = json['regions'] as Map<String, dynamic>;
+    } else if (json['top'] != null || json['bottom'] != null ||
+               json['left'] != null || json['right'] != null || json['fill'] != null) {
+      regionsMap = json;
+    }
+
     return LayoutPreset(
       columns: json['columns'] as int?,
       rows: json['rows'] as String?,
@@ -1083,10 +1094,7 @@ class LayoutPreset {
       gap: (json['gap'] as num?)?.toDouble(),
       justify: json['justify'] as String?,
       align: json['align'] as String?,
-      regions: json['top'] != null || json['bottom'] != null ||
-              json['left'] != null || json['right'] != null || json['fill'] != null
-          ? json
-          : null,
+      regions: regionsMap,
     );
   }
 
@@ -2030,9 +2038,16 @@ class SpreadsheetOptions {
       sheets: json['sheets'] as bool? ?? false,
       conditionalFormatting: json['conditionalFormatting'] as bool? ?? false,
       resizableColumns: json['resizableColumns'] as bool? ?? true,
-      columns: json['columns'] as int? ?? 26,
-      rows: json['rows'] as int? ?? 100,
+      columns: _toIntCount(json['columns'], 26),
+      rows: _toIntCount(json['rows'], 100),
     );
+  }
+
+  /// 将动态值安全转为 int 计数：List → length，num → int，其他 → fallback。
+  static int _toIntCount(dynamic v, int fallback) {
+    if (v is List) return v.length;
+    if (v is num) return v.toInt();
+    return fallback;
   }
 
   Map<String, dynamic> toJson() => {
@@ -2402,12 +2417,17 @@ class PageDescriptor {
   /// 部分覆盖 theme.json 中 page 层的颜色。
   final Map<String, Map<String, String>>? theme;
 
+  /// 是否隐藏顶部模块级 Tab 栏。
+  /// 用于封面页等不需要显示页面导航的场景。
+  final bool hideTab;
+
   const PageDescriptor({
     required this.id,
     required this.label,
     this.route,
     this.isDefault = false,
     this.singlePage = false,
+    this.hideTab = false,
     this.events = const EventDescriptor(),
     this.process = const [],
     this.dataSource,
@@ -2423,6 +2443,7 @@ class PageDescriptor {
       route: json['route'] as String?,
       isDefault: json['default'] as bool? ?? false,
       singlePage: json['singlePage'] as bool? ?? false,
+      hideTab: json['hideTab'] as bool? ?? false,
       events: EventDescriptor.fromJson(
           json['events'] as Map<String, dynamic>?),
       process: _parseProcessList(json['process'], fallback: json['globalProcess']),
@@ -2439,6 +2460,7 @@ class PageDescriptor {
     if (route != null) m['route'] = route;
     if (isDefault) m['default'] = true;
     if (singlePage) m['singlePage'] = true;
+    if (hideTab) m['hideTab'] = true;
     final e = events.toJson();
     if (e.isNotEmpty) m['events'] = e;
     if (process.isNotEmpty) {

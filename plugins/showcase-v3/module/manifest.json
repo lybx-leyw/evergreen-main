@@ -1,0 +1,775 @@
+{
+  "schemaVersion": "2.0",
+  "renderMode": "dart",
+  "type": "module",
+  "id": "showcase-v3",
+  "name": "🎭 展示大厅 v3（Dart）",
+  "description": "Evergreen 组件全量展示——43 个具名组件双端真实渲染，数据均来自项目自身可核信息",
+  "icon": "auto_awesome",
+  "route": "/showcase-v3",
+  "ui": "composite",
+  "version": "2.0.0",
+  "dependencies": [],
+  "nav": {
+    "sidebar": {
+      "section": "展示",
+      "sectionOrder": 100,
+      "order": 1,
+      "badge": true
+    }
+  },
+  "process": [
+    {
+      "exe": "module/showcase_module.exe",
+      "protocol": "http"
+    }
+  ],
+  "pages": [
+    {
+      "id": "page_0",
+      "label": "封面",
+      "default": true,
+      "hideTab": true,
+      "layout": {
+        "type": "dock",
+        "preset": {
+          "regions": {
+            "top": { "height": 120 },
+            "center": {},
+            "bottom": { "height": 220 }
+          }
+        },
+        "slots": {
+          "top": {
+            "component": {
+              "type": "markdown",
+              "config": {
+                "showHeader": false,
+                "content": "# EVERGREEN\n*Flutter 桌面微工具平台*"
+              }
+            }
+          },
+          "center": {
+            "component": {
+              "type": "video-player",
+              "config": {
+                "url": "assets/video/evergreen_title.mp4",
+                "title": "Evergreen 标题动画",
+                "controls": false
+              }
+            }
+          },
+          "bottom": {
+            "component": {
+              "type": "button",
+              "config": {
+                "direction": "row",
+                "gap": 24,
+                "buttons": [
+                  {
+                    "label": "数据仪表盘",
+                    "icon": "📊",
+                    "desc": "43 组件 · 6 服务 · 平台全景",
+                    "style": "card",
+                    "event": "slot:switch_page:page_1"
+                  },
+                  {
+                    "label": "创作工坊",
+                    "icon": "🎨",
+                    "desc": "思维导图 · 白板 · 终端",
+                    "style": "card",
+                    "event": "slot:switch_page:page_2"
+                  },
+                  {
+                    "label": "媒体展示",
+                    "icon": "🎬",
+                    "desc": "视频 · 音频 · 幻灯片",
+                    "style": "card",
+                    "event": "slot:switch_page:page_5"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "page_1",
+      "label": "📊 数据仪表盘",
+      "default": false,
+      "layout": {
+        "type": "grid",
+        "preset": {
+          "columns": 2,
+          "gap": 16
+        },
+        "slots": {
+          "stat-tile-1": {
+            "component": {
+              "type": "stat-tile",
+              "config": {
+                "title": "具名组件",
+                "value": "43",
+                "subtitle": "M1 全量补齐",
+                "trend": "完成",
+                "trendUp": true
+              }
+            }
+          },
+          "stat-tile-2": {
+            "component": {
+              "type": "stat-tile",
+              "config": {
+                "title": "复刻模块",
+                "value": "28",
+                "subtitle": "去内置化重构",
+                "trend": "完成",
+                "trendUp": true
+              }
+            }
+          },
+          "stat-tile-3": {
+            "component": {
+              "type": "stat-tile",
+              "config": {
+                "title": "HttpServer",
+                "value": "6",
+                "subtitle": "Agent/Config/Data/Module/Theme/Core",
+                "trend": "稳定",
+                "trendUp": true
+              }
+            }
+          },
+          "stat-tile-4": {
+            "component": {
+              "type": "stat-tile",
+              "config": {
+                "title": "HTTP 端点",
+                "value": "59",
+                "subtitle": "全服务覆盖",
+                "trend": "稳定",
+                "trendUp": true
+              }
+            }
+          },
+          "chart": {
+            "component": {
+              "type": "chart",
+              "config": {
+                "type": "bar",
+                "title": "组件里程碑",
+                "legend": true,
+                "data": [
+                  { "label": "M0 基线", "value": 28 },
+                  { "label": "M1 补齐", "value": 43 }
+                ]
+              }
+            }
+          },
+          "data-table": {
+            "component": {
+              "type": "data-table",
+              "config": {
+                "title": "插件清单（节选）",
+                "columns": [
+                  { "key": "name", "label": "名称" },
+                  { "key": "type", "label": "类型" }
+                ],
+                "rows": [
+                  { "name": "ai-assistant", "type": "module" },
+                  { "name": "python-runner", "type": "agent" },
+                  { "name": "showcase", "type": "theme" },
+                  { "name": "showcase-v3", "type": "module" }
+                ]
+              }
+            }
+          },
+          "card-list": {
+            "component": {
+              "type": "card-list",
+              "config": {
+                "title": "核心模块",
+                "cards": [
+                  { "title": "课程", "body": "ZJU 课程与成绩拉取" },
+                  { "title": "AI 助手", "body": "流式对话" },
+                  { "title": "番茄钟", "body": "专注计时" },
+                  { "title": "Pintia", "body": "拼题A 刷题与 OJ 训练" }
+                ]
+              }
+            }
+          },
+          "kanban": {
+            "component": {
+              "type": "kanban",
+              "config": {
+                "columns": [
+                  { "title": "规划中", "items": [{ "title": "S2 数据治理" }] },
+                  { "title": "进行中", "items": [{ "title": "S1 dataSource" }] },
+                  { "title": "完成", "items": [{ "title": "M1 组件补齐" }] }
+                ]
+              }
+            }
+          },
+          "tree": {
+            "component": {
+              "type": "tree",
+              "config": {
+                "root": {
+                  "label": "Evergreen 架构",
+                  "children": [
+                    { "label": "core（Dart 服务）", "children": [{ "label": "Agent 运行时" }, { "label": "Config 引擎" }] },
+                    { "label": "plugins（JSON + .exe）" },
+                    { "label": "renderer（Flutter UI）" }
+                  ]
+                }
+              }
+            }
+          },
+          "timeline": {
+            "component": {
+              "type": "timeline",
+              "config": {
+                "title": "版本里程碑",
+                "items": [
+                  { "time": "2026-07-04", "label": "多会话架构", "description": "SessionManager 落地" },
+                  { "time": "2026-07-05", "label": "去内置化重构", "description": "插件统一到 plugins/" },
+                  { "time": "2026-07-08", "label": "组件复刻完成", "description": "29 模块全量复刻" },
+                  { "time": "2026-07-09", "label": "M1 组件补齐", "description": "43 组件双端实现" }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "page_2",
+      "label": "✍️ 创作工坊",
+      "default": false,
+      "layout": {
+        "type": "dock",
+        "preset": {
+          "regions": {
+            "top": { "height": 48 },
+            "left": { "width": 200 },
+            "center": {},
+            "right": { "width": 200 },
+            "bottom": { "height": 160 }
+          }
+        },
+        "slots": {
+          "top": {
+            "component": {
+              "type": "button",
+              "config": {
+                "direction": "row",
+                "align": "center",
+                "gap": 8,
+                "buttons": [
+                  { "label": "保存", "icon": "💾", "style": "tonal", "event": "save" },
+                  { "label": "导出", "icon": "📤", "style": "tonal", "event": "export" },
+                  { "label": "清空", "icon": "🗑️", "style": "outlined", "event": "clear" }
+                ]
+              }
+            }
+          },
+          "left": {
+            "component": {
+              "type": "spreadsheet",
+              "config": {
+                "spreadsheet": {
+                  "columns": [
+                    { "key": "k", "label": "指标" },
+                    { "key": "v", "label": "值" }
+                  ],
+                  "rows": [
+                    { "k": "组件", "v": "43" },
+                    { "k": "模块", "v": "28" },
+                    { "k": "服务", "v": "6" },
+                    { "k": "端点", "v": "59" }
+                  ],
+                  "sheets": false,
+                  "formulas": true
+                }
+              }
+            }
+          },
+          "center": {
+            "component": {
+              "type": "mindmap",
+              "config": {
+                "content": "Evergreen 架构\n  渲染层\n    43 组件 + SlotDispatch\n    CompositeView 范式\n  插件层\n    38 模块 + 六维插件\n    Agent / Module / Theme / Data / Config / Skill\n  服务层\n    AgentRuntime + 6 HttpServer\n    59 HTTP 端点"
+              }
+            }
+          },
+          "right": {
+            "component": {
+              "type": "whiteboard",
+              "config": {
+                "tools": ["pen", "eraser", "shape"],
+                "colors": ["#2ECC71", "#3498DB", "#E74C3C"],
+                "lineWidth": 3
+              }
+            }
+          },
+          "bottom": {
+            "component": {
+              "type": "terminal",
+              "config": {
+                "cwd": "~/evergreen",
+                "lines": [
+                  "$ flutter test",
+                  "All tests passed!",
+                  "$ dart run bin/agent.dart",
+                  "Agent runtime started on :5000",
+                  "$ "
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "page_3",
+      "label": "📝 文档与编辑器",
+      "default": false,
+      "layout": {
+        "type": "grid",
+        "preset": {
+          "columns": 2,
+          "gap": 12
+        },
+        "slots": {
+          "doc-viewer": {
+            "component": {
+              "type": "doc-viewer",
+              "config": {
+                "document": {
+                  "exportFormats": ["pdf", "docx"],
+                  "content": "Evergreen 是 Flutter 桌面微工具平台，无账号、本地优先、AI 原生，支持 Agent/Module/Theme/Data/Config/Skill 六维插件生态。"
+                }
+              }
+            }
+          },
+          "doc-editor": {
+            "component": {
+              "type": "doc-editor",
+              "config": {
+                "document": {
+                  "exportFormats": ["pdf", "docx"],
+                  "content": "Evergreen 文档编辑器：真实渲染 manifest 中的 document 内容。"
+                }
+              }
+            }
+          },
+          "document": {
+            "component": {
+              "type": "document",
+              "config": {
+                "document": {
+                  "exportFormats": ["pdf", "docx"],
+                  "content": "Evergreen 是 Flutter 桌面微工具平台。"
+                }
+              }
+            }
+          },
+          "markdown": {
+            "component": {
+              "type": "markdown",
+              "config": {
+                "content": "# Evergreen\n\n- 无账号、本地优先\n- 六维插件生态\n- 43 组件双端实现"
+              }
+            }
+          },
+          "code-editor": {
+            "component": {
+              "type": "code-editor",
+              "config": {
+                "language": "dart",
+                "readonly": true,
+                "lineNumbers": true,
+                "content": "/// Evergreen 渲染引擎核心\nclass CompositeView extends StatefulWidget {\n  final ModuleDescriptor descriptor;\n  const CompositeView({required this.descriptor});\n  @override\n  State<CompositeView> createState() => _CompositeViewState();\n}"
+              }
+            }
+          },
+          "notepad": {
+            "component": {
+              "type": "notepad",
+              "config": {
+                "content": "Evergreen 项目笔记：六维插件生态，本地优先。",
+                "placeholder": "输入内容"
+              }
+            }
+          },
+          "diff-viewer": {
+            "component": {
+              "type": "diff-viewer",
+              "config": {
+                "leftLabel": "M0 基线",
+                "rightLabel": "M1 补齐",
+                "lines": [
+                  { "type": "del", "text": "❌ 15 组件未实现" },
+                  { "type": "add", "text": "✅ 43 组件全量就绪" },
+                  { "type": "add", "text": "✅ 自适应 SlotScale 缩放" },
+                  { "type": "del", "text": "❌ 字体硬编码" },
+                  { "type": "add", "text": "✅ 样式随 slot 等比缩放" }
+                ]
+              }
+            }
+          },
+          "presentation": {
+            "component": {
+              "type": "presentation",
+              "config": {
+                "slides": [
+                  { "title": "Evergreen 是什么", "body": "Flutter 桌面微工具平台" },
+                  { "title": "六维插件", "body": "Agent/Module/Theme/Data/Config/Skill" },
+                  { "title": "M1 成果", "body": "43 组件双端实现" },
+                  { "title": "无账号 · 本地优先", "body": "数据完全本地化" }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "page_4",
+      "label": "🤖 智能交互",
+      "default": false,
+      "layout": {
+        "type": "grid",
+        "preset": {
+          "columns": 2,
+          "gap": 12
+        },
+        "slots": {
+          "form": {
+            "component": {
+              "type": "form",
+              "config": {
+                "fields": [
+                  { "type": "text", "key": "name", "label": "姓名", "required": true },
+                  { "type": "switch", "key": "notify", "label": "启用通知" }
+                ],
+                "submitLabel": "提交"
+              }
+            }
+          },
+          "settings": {
+            "component": {
+              "type": "settings",
+              "config": {
+                "settings": [
+                  { "label": "用户名", "key": "username", "type": "string", "value": "" },
+                  { "label": "主题", "key": "theme", "type": "option", "options": ["dark", "light"], "value": "dark" },
+                  { "label": "自动启动", "key": "autostart", "type": "bool", "value": true }
+                ]
+              }
+            }
+          },
+          "data-dashboard": {
+            "component": {
+              "type": "data-dashboard",
+              "config": {
+                "title": "Evergreen 数据中枢",
+                "cards": [
+                  { "title": "具名组件", "value": "43" },
+                  { "title": "HTML 适配", "value": "38/38" },
+                  { "title": "复刻模块", "value": "28" },
+                  { "title": "HttpServer", "value": "6" },
+                  { "title": "HTTP 端点", "value": "59" },
+                  { "title": "M1 新增 Slot", "value": "12" }
+                ]
+              }
+            }
+          },
+          "prompt-builder": {
+            "component": {
+              "type": "prompt-builder",
+              "config": {
+                "template": "你是一个{role}，请帮我{action}。",
+                "variables": {
+                  "role": "Python 专家",
+                  "action": "审查代码"
+                }
+              }
+            }
+          },
+          "custom": {
+            "component": {
+              "type": "custom",
+              "config": {
+                "html": "<div style='padding:12px;border:1px solid #2ECC71;border-radius:8px;color:#2ECC71;font-size:14px'>Evergreen 自定义卡片：真实项目信息展示</div>"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "page_5",
+      "label": "🎬 媒体展示",
+      "default": false,
+      "layout": {
+        "type": "flex",
+        "preset": {
+          "direction": "column",
+          "wrap": false,
+          "gap": 12
+        },
+        "slots": {
+          "video-player": {
+            "component": {
+              "type": "video-player",
+              "config": {
+                "url": "assets/video/evergreen_title.mp4",
+                "title": "Evergreen 标题视频"
+              }
+            }
+          },
+          "video": {
+            "component": {
+              "type": "video",
+              "config": {
+                "url": "assets/video/evergreen_title.mp4",
+                "title": "Evergreen 视频（raw）"
+              }
+            }
+          },
+          "audio-player": {
+            "component": {
+              "type": "audio-player",
+              "config": {
+                "src": "assets/audio/sample.wav",
+                "title": "Evergreen 提示音（真实正弦音）"
+              }
+            }
+          },
+          "image-gallery": {
+            "component": {
+              "type": "image-gallery",
+              "config": {
+                "title": "项目素材",
+                "images": [
+                  { "url": "assets/img/logo.svg", "caption": "Evergreen Logo" },
+                  { "url": "assets/img/arch.svg", "caption": "架构分层图" },
+                  { "url": "module/arch.png", "caption": "三角通讯链架构图" }
+                ]
+              }
+            }
+          },
+          "presentation": {
+            "component": {
+              "type": "presentation",
+              "config": {
+                "slides": [
+                  { "title": "Evergreen 是什么", "body": "Flutter 桌面微工具平台" },
+                  { "title": "六维插件", "body": "Agent/Module/Theme/Data/Config/Skill" },
+                  { "title": "M1 成果", "body": "43 组件双端实现" }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "page_6",
+      "label": "📚 学习实验室",
+      "default": false,
+      "layout": {
+        "type": "grid",
+        "preset": {
+          "columns": 2,
+          "gap": 12
+        },
+        "slots": {
+          "type-check": {
+            "component": {
+              "type": "type-check",
+              "config": {
+                "mode": "chinese-to-english",
+                "shuffle": true,
+                "wordList": "words.json"
+              }
+            }
+          },
+          "flashcards": {
+            "component": {
+              "type": "flashcards",
+              "config": {
+                "wordList": "words.json"
+              }
+            }
+          },
+          "quiz": {
+            "component": {
+              "type": "quiz",
+              "config": {
+                "questionTypes": ["choice", "fill-blank"],
+                "passScore": 80,
+                "wordList": "words.json"
+              }
+            }
+          },
+          "crossword": {
+            "component": {
+              "type": "crossword",
+              "config": {
+                "title": "组件填字",
+                "grid": [
+                  ["E", "V", "E", "R"],
+                  ["V", "I", "D", "E"],
+                  ["E", "R", "G", "O"],
+                  ["R", "E", "E", "N"]
+                ],
+                "clues": {
+                  "across": ["Evergreen 首字母 E-V-E-R", "视频组件 video"],
+                  "down": ["渲染层 renderer", "绿色 green"]
+                }
+              }
+            }
+          },
+          "pronunciation": {
+            "component": {
+              "type": "pronunciation",
+              "config": {
+                "word": "Evergreen",
+                "phonetic": "/ˈevərɡriːn/",
+                "score": "未评测"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "page_7",
+      "label": "🧰 扩展工具箱",
+      "default": false,
+      "layout": {
+        "type": "flex",
+        "preset": {
+          "direction": "row",
+          "wrap": true,
+          "gap": 12
+        },
+        "slots": {
+          "calendar": {
+            "component": {
+              "type": "calendar",
+              "config": {
+                "events": [
+                  { "date": "2026-07-09", "title": "M1 组件补齐完成" },
+                  { "date": "2026-07-08", "title": "29 模块复刻完成" },
+                  { "date": "2026-07-04", "title": "多会话架构落地" },
+                  { "date": "2026-07-01", "title": "M1 计划启动" }
+                ]
+              }
+            }
+          },
+          "lottery-wheel": {
+            "component": {
+              "type": "lottery-wheel",
+              "config": {
+                "lottery": {
+                  "title": "幸运抽奖",
+                  "subtitle": "展示大厅专属",
+                  "buttonText": "开始",
+                  "segments": [
+                    { "label": "🎁 大礼包", "color": "#2ECC71" },
+                    { "label": "🏆 M1勋章", "color": "#3498DB" },
+                    { "label": "🎯 定制主题", "color": "#9B59B6" },
+                    { "label": "📦 插件模板", "color": "#E74C3C" }
+                  ]
+                }
+              }
+            }
+          },
+          "webview": {
+            "component": {
+              "type": "webview",
+              "config": {
+                "url": "https://flutter.dev"
+              }
+            }
+          },
+          "map": {
+            "component": {
+              "type": "map",
+              "config": {
+                "map": {
+                  "center": { "lat": 30.27, "lng": 120.12 },
+                  "zoom": 12,
+                  "markers": [
+                    { "lat": 30.27, "lng": 120.12, "label": "杭州研发中心" },
+                    { "lat": 39.9, "lng": 116.4, "label": "北京" }
+                  ]
+                }
+              }
+            }
+          },
+          "timetable": {
+            "component": {
+              "type": "timetable",
+              "config": {
+                "sessions": [
+                  { "courseName": "编译原理", "teacher": "张教授", "location": "教7-201", "dayOfWeek": 1, "periods": [1, 2] }
+                ]
+              }
+            }
+          },
+          "nav-button-home": {
+            "component": {
+              "type": "nav-button",
+              "config": {
+                "label": "回到首页",
+                "icon": "🏠",
+                "target": "page_0"
+              }
+            }
+          },
+          "divider": {
+            "component": {
+              "type": "divider",
+              "config": {
+                "style": "dashed",
+                "margin": 8
+              }
+            }
+          },
+          "divider-2": {
+            "component": {
+              "type": "divider",
+              "config": {
+                "style": "solid",
+                "margin": 4
+              }
+            }
+          },
+          "custom-card": {
+            "component": {
+              "type": "custom",
+              "config": {
+                "html": "<div style='padding:12px;border:1px solid #2ECC71;border-radius:8px;color:#2ECC71'>Evergreen v2.0 · 43 组件 · 8 页展示大厅</div>"
+              }
+            }
+          },
+          "nav-button-dashboard": {
+            "component": {
+              "type": "nav-button",
+              "config": {
+                "label": "数据仪表盘",
+                "icon": "📊",
+                "target": "page_1"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

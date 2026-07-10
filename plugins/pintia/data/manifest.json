@@ -1,6 +1,0 @@
-{
-  "script": "pintia_data.exe",
-  "dataTypes": [
-    { "name": "problem_sets", "typeArg": "problem_sets", "desc": "PTA 题目集列表（PTASession cookie）" }
-  ]
-}

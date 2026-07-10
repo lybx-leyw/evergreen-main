@@ -9,7 +9,7 @@ library;
 
 import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'package:evergreen_base/core/theme/theme_descriptor.dart';
-import 'package:evergreen_base/renderer/widgets/models.dart';
+import 'package:evergreen_base/renderer/components/shared/widgets/models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// 从 [ThemeColor.value] 提取 ARGB 分量。

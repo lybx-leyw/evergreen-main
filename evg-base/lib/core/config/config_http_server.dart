@@ -3,17 +3,18 @@
 /// 插件 .exe 通过本端点读写设置、权限、插件源，无需直接访问 SharedPreferences。
 /// 启动后端口写入 `.config_port` 文件，供外部 .exe 发现。
 ///
-/// ## 8 端点一览
+/// ## 9 端点一览
 /// | # | 方法 | 路径 | 说明 |
 /// |---|------|------|------|
 /// | 1 | GET  | `/config/health`           | 健康检查 |
 /// | 2 | GET  | `/config/settings`         | 列出所有设置项 |
 /// | 3 | GET  | `/config/settings/:key`    | 读取单个设置 |
-/// | 4 | POST | `/config/settings/:key`    | 写入设置 |
-/// | 5 | GET  | `/config/permissions/:id`  | 读取插件权限 |
-/// | 6 | POST | `/config/permissions/:id`  | 设置插件权限 |
-/// | 7 | GET  | `/config/sources`          | 列出插件源 |
-/// | 8 | POST | `/config/sources`          | 添加/删除插件源 |
+/// | 4 | POST | `/config/settings`         | 批量写入设置（body: {"key":"...","value":"..."}） |
+/// | 5 | POST | `/config/settings/:key`    | 按路径写入设置（body: {"value":"..."}） |
+/// | 6 | GET  | `/config/permissions/:id`  | 读取插件权限 |
+/// | 7 | POST | `/config/permissions/:id`  | 设置插件权限 |
+/// | 8 | GET  | `/config/sources`          | 列出插件源 |
+/// | 9 | POST | `/config/sources`          | 添加/删除插件源 |
 library;
 
 import 'dart:async';
@@ -40,6 +41,10 @@ class ConfigHttpServer {
   bool _running = false;
   int _lastStatus = 0;
 
+  /// 动态注册的设置项（未在 config.json 中声明，运行时注入）。
+  /// key → label 映射。
+  final Map<String, String> _dynamicSettings = {};
+
   ConfigHttpServer(this._prefs, {int port = 0}) : _requestedPort = port;
 
   /// 是否正在监听。
@@ -47,6 +52,22 @@ class ConfigHttpServer {
 
   /// 实际端口号（未启动时返回 0）。
   int get port => _server?.port ?? 0;
+
+  /// 动态注册一个全局配置项（无需 config.json 声明）。
+  ///
+  /// 注册后可通过 HTTP `GET/POST /config/settings/{key}` 读写，
+  /// 并在 `GET /config/settings` 列表中显示。
+  /// 若 key 已存在于静态声明或动态注册表，则覆盖 label。
+  void registerSetting(String key, String label) {
+    _dynamicSettings[key] = label;
+    stderr.writeln('[ConfigHttp] 📝 动态注册: $key ($label)');
+  }
+
+  /// 取消注册一个动态配置项。
+  void unregisterSetting(String key) {
+    _dynamicSettings.remove(key);
+    stderr.writeln('[ConfigHttp] 🗑 取消注册: $key');
+  }
 
   /// 启动监听。返回实际绑定的端口号。
   Future<int> start() async {
@@ -151,20 +172,59 @@ class ConfigHttpServer {
     // 2: list all settings
     'GET /config/settings': (req, _) async {
       final all = getAllSettings(_prefs);
+      // 合并动态注册的设置项
+      final dynamicSettings = _dynamicSettings.entries.map((e) => {
+            'key': e.key,
+            'label': e.value,
+            'type': 'string',
+            'value': getSetting(_prefs, e.key),
+            'defaultValue': '',
+            'isSecure': true,
+            'hint': '动态注入的配置项',
+            'options': null,
+          }).toList();
       _respond(req.response, 200, {
-        'settings': all.map((s) => {
-              'key': s.decl.key,
-              'label': s.decl.label,
-              'type': s.decl.type.name,
-              'value': s.value,
-              'defaultValue': s.decl.defaultValue,
-              'isSecure': s.decl.isSecure,
-              'hint': s.decl.hint,
-              'options': s.decl.options
-                  ?.map((o) => {'value': o.value, 'label': o.label})
-                  .toList(),
-            }).toList(),
+        'settings': [
+          ...all.map((s) => {
+                'key': s.decl.key,
+                'label': s.decl.label,
+                'type': s.decl.type.name,
+                'value': s.value,
+                'defaultValue': s.decl.defaultValue,
+                'isSecure': s.decl.isSecure,
+                'hint': s.decl.hint,
+                'options': s.decl.options
+                    ?.map((o) => {'value': o.value, 'label': o.label})
+                    .toList(),
+              }),
+          ...dynamicSettings,
+        ],
       });
+    },
+
+    // 4: write setting by body key (SaveCredentialTool 使用)
+    'POST /config/settings': (req, _) async {
+      final body = await _readBody(req);
+      final key = body['key'] as String?;
+      final value = body['value'] as String?;
+      if (key == null || key.isEmpty) {
+        _respond(req.response, 400, {'error': '缺少 key'});
+        return;
+      }
+      if (value == null) {
+        _respond(req.response, 400, {'error': '缺少 value'});
+        return;
+      }
+      try {
+        await setSetting(_prefs, key, value);
+        // 自动注册为动态设置项（若尚未声明）
+        if (!_dynamicSettings.containsKey(key)) {
+          _dynamicSettings[key] = key;
+        }
+        _respond(req.response, 200, {'key': key, 'value': value, 'registered': true});
+      } on ConfigValidationException catch (e) {
+        _respond(req.response, 400, {'error': '$e'});
+      }
     },
 
     // 7: list sources
@@ -220,7 +280,7 @@ class ConfigHttpServer {
       _respond(req.response, 200, {'key': key, 'value': value});
     },
 
-    // 4: write setting
+    // 5: write setting by URL path key
     'POST /config/settings/:key': (req, p) async {
       final key = p['key']!;
       final body = await _readBody(req);
@@ -230,10 +290,14 @@ class ConfigHttpServer {
         return;
       }
       await setSetting(_prefs, key, value);
+      // 自动注册为动态设置项
+      if (!_dynamicSettings.containsKey(key)) {
+        _dynamicSettings[key] = key;
+      }
       _respond(req.response, 200, {'key': key, 'value': value});
     },
 
-    // 5: read plugin permissions
+    // 6: read plugin permissions
     'GET /config/permissions/:id': (req, p) async {
       final id = p['id']!;
       final perms = getPermissions(_prefs, id);
@@ -252,7 +316,7 @@ class ConfigHttpServer {
       });
     },
 
-    // 6: set plugin permission
+    // 7: set plugin permission
     'POST /config/permissions/:id': (req, p) async {
       final id = p['id']!;
       final body = await _readBody(req);

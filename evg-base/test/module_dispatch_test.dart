@@ -9,7 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:evergreen_base/core/agent/event.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
-import 'package:evergreen_base/renderer/shared/module_dispatch.dart';
+import 'package:evergreen_base/renderer/module/module_dispatch.dart';
 import 'package:evergreen_base/providers.dart';
 import 'package:flutter_test/flutter_test.dart';
 

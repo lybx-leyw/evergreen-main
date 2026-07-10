@@ -13,6 +13,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -56,7 +57,9 @@ import 'package:evergreen_base/core/services/update_service.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
 import 'package:evergreen_base/core/utils/python_env.dart';
 import 'package:evergreen_base/providers.dart';
-import 'package:evergreen_base/renderer/shared/renderer_providers.dart';
+import 'package:evergreen_base/renderer/app/service/providers/renderer_providers.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:webview_windows/webview_windows.dart';
 
 // ═══════ 项目根 ═══════
 
@@ -251,11 +254,25 @@ void _scanV2Manifests(String pluginsDir, Map<String, Map<String, dynamic>> out) 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // ── Web 不支持 dart:io（HttpServer / Process / File），提前退出 ──
+  if (kIsWeb) {
+    runApp(const MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        body: Center(
+          child: Text(
+            'Evergreen 需要桌面环境运行\n\n不支持 Web / Chrome',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 16, color: Colors.white54),
+          ),
+        ),
+      ),
+    ));
+    return;
+  }
 
-
-
-  // ── 桌面窗口 ──
-  if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+  // ── 桌面窗口（跳过 Web：dart:io Platform 不支持）──
+  if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
     try {
       await windowManager.ensureInitialized();
       await windowManager.setMinimumSize(const Size(900, 600));
@@ -272,6 +289,27 @@ void main() async {
   // ── Greenix 路径 ──
   initGreenixPaths();
 
+  // ── media_kit 初始化（libmpv，Windows/macOS/Linux 视频播放） ──
+  try {
+    MediaKit.ensureInitialized();
+    stderr.writeln('[main] media_kit 初始化成功（libmpv 视频播放）');
+  } catch (e) {
+    stderr.writeln('[main] ⚠ media_kit 初始化失败，视频播放不可用: $e');
+  }
+
+  // ── WebView2 环境：开启 CDP 远程调试端口 ──
+  // 供爬虫模块通过 CDP Network 域全量捕获 HTTP 请求。
+  // 端口 9222 是 Chrome DevTools 标准端口，仅监听 127.0.0.1，无外部暴露风险。
+  try {
+    await WebviewController.initializeEnvironment(
+      additionalArguments: '--remote-debugging-port=9222',
+    );
+    stderr.writeln('[main] WebView2 环境已初始化（CDP port 9222）');
+  } catch (e) {
+    stderr.writeln('[main] ⚠ WebView2 环境初始化失败: $e');
+    stderr.writeln('[main]    CDP 网络捕获将不可用，爬虫模块降级到 JS 方案。');
+  }
+
   // ── SharedPreferences ──
   SharedPreferences prefs;
   try {
@@ -280,6 +318,7 @@ void main() async {
   } catch (e) {
     stderr.writeln('[main] SharedPreferences 不可用（无 Windows 平台实现？）: $e');
     stderr.writeln('[main] 将使用内存存储回退方案（设置不会持久化）。');
+    // ignore: invalid_use_of_visible_for_testing_member
     SharedPreferences.setMockInitialValues({});
     prefs = await SharedPreferences.getInstance();
   }

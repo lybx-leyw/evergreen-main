@@ -2,6 +2,13 @@
 cmake_minimum_required(VERSION 3.14)
 project(evergreen_multi_tools LANGUAGES CXX)
 
+# 启用 Windows 长路径支持（避免 media_kit 等插件构建产物路径 >260 字符）
+# CMake 3.14+ 支持 CMAKE_OBJECT_PATH_MAX
+set(CMAKE_OBJECT_PATH_MAX 512)
+
+# 抑制 CMake 3.31+ CMP0175 警告（media_kit / webview_windows 插件 add_custom_command 参数格式旧）
+cmake_policy(SET CMP0175 OLD)
+
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
 set(BINARY_NAME "evergreen_multi_tools")
