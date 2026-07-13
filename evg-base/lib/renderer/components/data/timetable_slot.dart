@@ -1,20 +1,49 @@
-/// 课表 slot——委托 [TimetableGrid] 渲染。
-/// TODO(P4): 从 composite_view.dart 迁移完整实现。
+/// 课表 slot——委托 [TimetableGrid] 渲染周视图。
+///
+/// M2 P2 迁移：由 P4 桩升级为真实实现，读取 `config.sessions` 渲染课程网格，
+/// 并支持 dataSource 注入 `{sessions:[{courseName,periods,dayOfWeek}]}`。
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
+import 'package:evergreen_base/renderer/data/data_source_slot.dart';
+import '../shared/widgets/timetable_grid.dart';
 
-class TimetableSlot extends ConsumerStatefulWidget {
-  final ComponentDescriptor config;
-  const TimetableSlot({required this.config});
+class TimetableSlot extends DataSourceSlot {
+  const TimetableSlot({super.key, required super.config});
 
   @override
-  ConsumerState<TimetableSlot> createState() => _TimetableSlotStateProxy();
+  DataSourceSlotState<TimetableSlot> createState() => _TimetableSlotState();
 }
 
-class _TimetableSlotStateProxy extends ConsumerState<TimetableSlot> {
+class _TimetableSlotState extends DataSourceSlotState<TimetableSlot> {
   @override
-  Widget build(BuildContext context) {
-    return const Center(child: Text('Timetable — P4 迁移'));
+  Map<String, dynamic> mergeData(Map<String, dynamic> base, dynamic resolved) {
+    final merged = <String, dynamic>{...base};
+    if (resolved is List) {
+      merged['sessions'] = resolved;
+    } else if (resolved is Map<String, dynamic>) {
+      if (resolved['sessions'] is List) {
+        merged['sessions'] = resolved['sessions'];
+      } else {
+        merged.addAll(resolved);
+      }
+    }
+    return merged;
+  }
+
+  @override
+  Widget buildStatic(Map<String, dynamic> cfg) {
+    final sessions = <TimetableSession>[];
+    final raw = cfg['sessions'];
+    if (raw is List) {
+      for (final s in raw) {
+        if (s is Map<String, dynamic>) {
+          sessions.add(TimetableSession.fromJson(s));
+        } else if (s is Map) {
+          sessions.add(TimetableSession.fromJson(
+              s.map((k, v) => MapEntry(k.toString(), v))));
+        }
+      }
+    }
+    return TimetableGrid(sessions: sessions);
   }
 }

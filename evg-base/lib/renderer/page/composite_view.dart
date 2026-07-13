@@ -35,6 +35,7 @@ import 'package:evergreen_base/core/module/page_event_bus.dart';
 import 'package:evergreen_base/core/module/expose_state_writer.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
 import 'package:evergreen_base/core/log.dart';
+import 'package:evergreen_base/core/data/data.dart';
 import 'package:evergreen_base/providers.dart';
 import '../app/service/providers/renderer_providers.dart';
 import '../components/shared/widgets/data_table.dart';
@@ -70,6 +71,8 @@ import '../components/learning/pronunciation_slot.dart';
 import '../slot/service/slot_scale.dart';
 import '../components/document/markdown_slot.dart';
 import '../components/document/video_slot.dart';
+import '../components/document/pdf_viewer_slot.dart';
+import '../components/document/scanner_slot.dart';
 import '../components/controls/divider_slot.dart';
 import '../components/controls/nav_button.dart';
 import '../components/controls/button_bar.dart'; // ActionButtonBar
@@ -83,6 +86,9 @@ import '../components/data/calendar_slot.dart';
 import '../components/data/timetable_slot.dart';
 import '../components/controls/lottery_wheel_slot.dart';
 import '../components/document/scraper/scraper_generator_view.dart';
+import '../components/document/tech_planner_slot.dart';
+import '../components/document/plugin-designer/plugin_designer_slot.dart';
+import '../components/marketplace/marketplace_slot.dart';
 
 /// 复合视图——根据 [ModuleDescriptor.pages] 渲染多页面 Tab 界面。
 ///
@@ -91,7 +97,7 @@ import '../components/document/scraper/scraper_generator_view.dart';
 ///
 /// [workingDirectory] 为模块插件目录路径（如 `plugins/vocab-tutor/`）。
 /// 提供后自动管理进程生命周期；不提供时跳过进程管理（纯 UI 模式）。
-class CompositeView extends StatefulWidget {
+class CompositeView extends ConsumerStatefulWidget {
   final ModuleDescriptor descriptor;
 
   /// 模块插件目录路径，用于 ProcessManager 进程管理。
@@ -105,10 +111,10 @@ class CompositeView extends StatefulWidget {
   });
 
   @override
-  State<CompositeView> createState() => _CompositeViewState();
+  ConsumerState<CompositeView> createState() => _CompositeViewState();
 }
 
-class _CompositeViewState extends State<CompositeView>
+class _CompositeViewState extends ConsumerState<CompositeView>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   int _activePageIndex = 0;
@@ -126,6 +132,10 @@ class _CompositeViewState extends State<CompositeView>
 
   /// 当前页面的五层主题构建者（由 build() 设置，供子方法使用）。
   LayerThemeBuilder? _themeBuilder;
+
+  /// 模块级 dataBindings 拉取到的数据：dataType → 行数据列表。
+  /// 经 DataOrchestrator 拉取后注入 [DefaultView]，修复其恒空问题（M2 P3）。
+  Map<String, List<Map<String, dynamic>>> _tableData = const {};
 
   @override
   void initState() {
@@ -165,6 +175,51 @@ class _CompositeViewState extends State<CompositeView>
     }
 
     _tabController.addListener(_onTabChanged);
+
+    // ── M2 P3：模块级 dataBindings 拉取（异步，先渲染静态/空态，到位后刷新）──
+    _loadModuleTableData();
+  }
+
+  @override
+  void didUpdateWidget(covariant CompositeView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.descriptor != widget.descriptor) {
+      _loadModuleTableData();
+    }
+  }
+
+  /// 按 [ModuleDescriptor.dataBindings] 经 DataOrchestrator 拉取各 dataType 行数据，
+  /// 完成后 setState 注入 [DefaultView]。拉取失败的项优雅留空（R5）。
+  Future<void> _loadModuleTableData() async {
+    final bindings = widget.descriptor.dataBindings;
+    if (bindings.isEmpty) {
+      if (_tableData.isNotEmpty && mounted) setState(() => _tableData = const {});
+      return;
+    }
+    final orch = ref.read(dataOrchestratorProvider);
+    final tableData = <String, List<Map<String, dynamic>>>{};
+    for (final b in bindings) {
+      try {
+        final t = DataType<dynamic>(
+          name: b.dataType,
+          category: '',
+          displayName: b.dataType,
+          ttl: const Duration(minutes: 5),
+        );
+        final rows = await orch.get(t);
+        if (rows is List) {
+          tableData[b.dataType] = rows
+              .whereType<Map>()
+              .map((e) => e.map((k, v) => MapEntry(k.toString(), v)))
+              .toList();
+        }
+      } catch (e, st) {
+        Log().warn('dataBindings 拉取失败：dataType=${b.dataType}',
+            error: e, data: {'stack': st.toString()});
+      }
+    }
+    if (!mounted) return;
+    setState(() => _tableData = tableData);
   }
 
   /// Tab 切换——停止旧页面进程，启动新页面进程。
@@ -319,9 +374,9 @@ class _CompositeViewState extends State<CompositeView>
     final descriptor = widget.descriptor;
     final pages = descriptor.pages;
 
-    // 没有 pages 配置？回退到旧默认视图
+    // 没有 pages 配置？回退到旧默认视图（M2 P3：注入模块级 dataBindings 数据）
     if (pages.isEmpty) {
-      return DefaultView(descriptor: descriptor);
+      return DefaultView(descriptor: descriptor, tableData: _tableData);
     }
 
     // ── 主题：读取活跃 ThemeDescriptor，构建 LayerThemeBuilder ──
@@ -1154,7 +1209,7 @@ class SlotDispatch extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final content = switch (config.type) {
-        'ai-assistant' => ChatControllerView(descriptor: moduleDescriptor, embedded: true, compact: true, pageEventBus: pageEventBus, agentConfig: config.config, slotKey: slotKey),
+        'ai-assistant' => ChatControllerView(descriptor: moduleDescriptor, embedded: false, pageEventBus: pageEventBus, agentConfig: config.config, slotKey: slotKey),
         'chat' => ChatControllerView(descriptor: moduleDescriptor, embedded: true, compact: true, pageEventBus: pageEventBus, agentConfig: config.config, slotKey: slotKey),
         'form' => FormView(form: FormDescriptor.fromJson(config.config)),
         'settings' => SettingsView(descriptor: moduleDescriptor),
@@ -1198,6 +1253,20 @@ class SlotDispatch extends StatelessWidget {
         'lottery-wheel' => LotteryWheelSlot(config: config),
         'calendar' => CalendarSlot(config: config),
         'scraper-generator' => ScraperGeneratorView(descriptor: moduleDescriptor, config: config, slotKey: slotKey, pageEventBus: pageEventBus),
+        'tech-planner' => TechPlannerSlot(component: config, moduleId: moduleDescriptor.id),
+        'plugin-designer' => PluginDesignerSlot(slotKey: slotKey, moduleId: moduleDescriptor.id),
+        'pdf-viewer' => PdfViewerSlot(config: config),
+        'scanner' => ScannerSlot(
+            slotKey: slotKey,
+            config: config,
+            pageEventBus: pageEventBus,
+            moduleId: moduleDescriptor.id),
+        'marketplace' => MarketplaceSlot(
+            config: {
+              ...config.config,
+              'pluginsDir': ProviderScope.containerOf(context, listen: false)
+                  .read(pluginsDirProvider),
+            }),
         _ => UnknownSlot(type: config.type, config: config.config, group: config.type.startsWith('placeholder-') ? '预留扩展' : '未知'),
       };
     final slotData = LayerThemeData.fromTokens(baseSlotTokens).merge(slotThemeOverride);
@@ -1211,6 +1280,7 @@ class SlotDispatch extends StatelessWidget {
     if (config case {'src': String src}) return '> 📄 文件: $src\n\n*(文件加载暂未实现)*';
     return '*无内容*\n\n在 config 中设置 `content` 字段来显示 Markdown 内容。';
   }
+
   Widget _buildSlotCard(BuildContext context, String key, Widget content) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;

@@ -1,29 +1,57 @@
-/// HTML render: renderCalendar
-import 'dart:convert';
-import '../shared/html_helpers.dart';
+/// HTML render: renderCalendar — 模板引擎渲染，读取 config.year/month/events。
+library;
 
-String renderCalendar(Map<String, dynamic> comp) {
-  const dayHeaders = ['一', '二', '三', '四', '五', '六', '日'];
-  // 简单 7×5 网格日历
-  final cells = <String>[];
-  for (var i = 1; i <= 31; i++) {
-    cells.add('<div class="evg-cal-day${i == 15 ? ' active' : ''}">$i</div>');
-  }
-  // Pad remaining
-  for (var i = 32; i <= 35; i++) {
-    cells.add('<div class="evg-cal-day"></div>');
-  }
+import '../shared/template_engine.dart';
 
-  return '''
+const _dayHeaders = ['一', '二', '三', '四', '五', '六', '日'];
+
+const _tpl = '''
 <div class="evg-comp evg-comp-cal">
   <div class="evg-cal-header">
     <button>◀</button>
-    <span>2026年 7月</span>
+    <span>{{ year }}年 {{ month }}月</span>
     <button>▶</button>
   </div>
   <div class="evg-cal-grid">
-    ${dayHeaders.map((d) => '<div class="evg-cal-dh">$d</div>').join('')}
-    ${cells.join('')}
+    {% for d in dayHeaders %}<div class="evg-cal-dh">{{ d }}</div>{% endfor %}
+    {% for cell in days %}<div class="evg-cal-day{{ cell.cls }}">{{ cell.day }}</div>{% endfor %}
   </div>
-</div>''';
+  {% if events %}
+  <div class="evg-cal-events">
+    {% for ev in events %}<div class="evg-cal-event">📌 {{ ev.title }}（{{ ev.date }}）</div>{% endfor %}
+  </div>
+  {% endif %}
+</div>
+''';
+
+String renderCalendar(Map<String, dynamic> comp) {
+  final cfg = comp['config'] as Map<String, dynamic>? ?? {};
+  final year = cfg['year'] as int? ?? DateTime.now().year;
+  final month = cfg['month'] as int? ?? DateTime.now().month;
+  final events = (cfg['events'] as List<dynamic>? ?? [])
+      .whereType<Map>()
+      .map((e) => e.cast<String, dynamic>())
+      .toList();
+  final eventDates = <String>{
+    for (final e in events)
+      if (e['date'] is String) e['date'] as String
+  };
+  final pad2 = (int n) => n.toString().padLeft(2, '0');
+  final daysInMonth = DateTime(year, month + 1, 0).day;
+  final days = <Map<String, dynamic>>[
+    for (var d = 1; d <= daysInMonth; d++)
+      {
+        'day': d,
+        'cls': eventDates.contains('$year-${pad2(month)}-${pad2(d)}') ? ' active' : '',
+      },
+  ];
+  final ctx = <String, dynamic>{
+    ...comp,
+    'year': year,
+    'month': month,
+    'dayHeaders': _dayHeaders,
+    'days': days,
+    'events': events,
+  };
+  return renderTemplate(_tpl, ctx);
 }

@@ -1,39 +1,34 @@
-/// HTML render: renderKanban
-import 'dart:convert';
-import '../shared/html_helpers.dart';
+/// HTML render: renderKanban — 模板引擎渲染，读取 config.columns；
+/// 空时显示空态，不再写死默认 3 列（R4/R11 合规）。
+library;
 
-String renderKanban(Map<String, dynamic> comp) {
-  final cfg = comp['config'] as Map<String, dynamic>? ?? {};
-  final columns = (cfg['columns'] as List<dynamic>? ?? [
-    {'title': '待办', 'items': ['任务 A', '任务 B']},
-    {'title': '进行中', 'items': ['任务 C']},
-    {'title': '已完成', 'items': ['任务 D', '任务 E']},
-  ]).cast<Map<String, dynamic>>();
+import '../shared/template_engine.dart';
 
-  final colsHtml = columns.map((col) {
-    final colTitle = col['title'] as String? ?? '';
-    final items = (col['items'] as List<dynamic>? ?? []).map((it) {
-      final text = it is Map ? (it['text'] ?? it['label'] ?? '') : it.toString();
-      final tag = it is Map ? it['tag'] as String? : null;
-      return '''
-<div class="evg-kb-card">
-  <span>${esc(text)}</span>
-  ${tag != null ? '<span class="evg-kb-tag">${esc(tag)}</span>' : ''}
-</div>''';
-    }).join('');
-
-    return '''
-<div class="evg-kb-column">
-  <div class="evg-kb-col-header">
-    <span>${esc(colTitle)}</span>
-    <span class="evg-kb-count">${items.length}</span>
-  </div>
-  <div class="evg-kb-col-body">$items</div>
-</div>''';
-  }).join('');
-
-  return '''
+const _tpl = '''
 <div class="evg-comp evg-comp-kanban">
-  <div class="evg-kb-board">$colsHtml</div>
-</div>''';
-}
+  {% if config.columns %}
+  <div class="evg-kb-board">
+    {% for col in config.columns %}
+    <div class="evg-kb-column">
+      <div class="evg-kb-col-header">
+        <span>{{ col.title }}</span>
+        <span class="evg-kb-count">{{ len(col.items) }}</span>
+      </div>
+      <div class="evg-kb-col-body">
+        {% for it in col.items %}
+        <div class="evg-kb-card">
+          <span>{{ it.text | default(it.label) }}</span>
+          {% if it.tag %}<span class="evg-kb-tag">{{ it.tag }}</span>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="evg-empty">暂无看板数据（config.columns）</div>
+  {% endif %}
+</div>
+''';
+
+String renderKanban(Map<String, dynamic> comp) => renderTemplate(_tpl, comp);

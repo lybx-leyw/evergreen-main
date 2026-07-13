@@ -144,20 +144,18 @@ evg-base/lib/core/example/plugins/*/*/build/
 evg-base/lib/core/example/plugins/*/*/dist/
 evg-base/lib/core/example/plugins/*/*/__pycache__/
 
-# evg-base — 运行时 debug 文件（含绝对路径，严禁提交）
+# 插件运行时状态（不可提交）
+.plugin_states.json
+
+# evg-base — 运行时 debug / 临时输出文件（含绝对路径，严禁提交）
 **/._debug.txt
 evg-base/analyze_*.txt
 evg-base/*_output.txt
 evg-base/tool/
-analyze_comp.txt
-analyze_out.txt
-analyze_out2.txt
-analyze_result.txt
-analyze_scraper.txt
-build_out.txt
-build_scraper.txt
-test_output.txt
-test_result.txt
+analyze_*.txt
+_*.txt
+build_*.txt
+test_*.txt
 
 # evg-base — 运行时端口文件（App 启动时自动写入，严禁提交）
 evg-base/.*_port

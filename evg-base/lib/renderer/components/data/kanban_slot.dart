@@ -1,16 +1,32 @@
 /// Kanban 槽位——从 [ComponentDescriptor.config] 读取列和卡片数据渲染看板。
+/// 支持 M2 dataSource 注入：拉取到的数据合并进 config['columns']。
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
+import 'package:evergreen_base/renderer/data/data_source_slot.dart';
 
 /// Kanban 看板组件。
-class KanbanSlot extends StatelessWidget {
-  final ComponentDescriptor config;
-
-  const KanbanSlot({super.key, required this.config});
+class KanbanSlot extends DataSourceSlot {
+  const KanbanSlot({super.key, required super.config});
 
   @override
-  Widget build(BuildContext context) {
-    final cfg = config.config;
+  DataSourceSlotState<KanbanSlot> createState() => _KanbanSlotState();
+}
+
+class _KanbanSlotState extends DataSourceSlotState<KanbanSlot> {
+  @override
+  Map<String, dynamic> mergeData(Map<String, dynamic> base, dynamic resolved) {
+    final merged = <String, dynamic>{...base};
+    if (resolved is List) {
+      merged['columns'] = resolved;
+    } else if (resolved is Map<String, dynamic>) {
+      merged.addAll(resolved);
+    }
+    return merged;
+  }
+
+  @override
+  Widget buildStatic(Map<String, dynamic> cfg) {
     final columns = (cfg['columns'] as List<dynamic>?) ?? [];
 
     if (columns.isEmpty) {
@@ -49,10 +65,16 @@ class KanbanSlot extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.view_kanban, size: 48, color: Theme.of(context).colorScheme.onSurfaceVariant),
+          Icon(Icons.view_kanban,
+              size: 48,
+              color: Theme.of(context).colorScheme.onSurfaceVariant),
           const SizedBox(height: 8),
-          Text('暂无看板数据', style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          Text('暂无看板数据',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant)),
         ],
       ),
     );
@@ -72,7 +94,8 @@ class _KanbanColumn extends StatelessWidget {
   final Color color;
   final List<dynamic> items;
 
-  const _KanbanColumn({required this.title, required this.color, required this.items});
+  const _KanbanColumn(
+      {required this.title, required this.color, required this.items});
 
   @override
   Widget build(BuildContext context) {
@@ -89,17 +112,24 @@ class _KanbanColumn extends StatelessWidget {
         children: [
           Row(
             children: [
-              Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+              Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
               const SizedBox(width: 6),
-              Text(title, style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600)),
+              Text(title,
+                  style: theme.textTheme.labelLarge
+                      ?.copyWith(fontWeight: FontWeight.w600)),
               const SizedBox(width: 4),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.primaryContainer,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Text('${items.length}', style: theme.textTheme.labelSmall),
+                child: Text('${items.length}',
+                    style: theme.textTheme.labelSmall),
               ),
             ],
           ),
@@ -111,7 +141,9 @@ class _KanbanColumn extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.all(8),
                 child: Text(
-                  itemMap['title'] as String? ?? itemMap['label'] as String? ?? '',
+                  itemMap['title'] as String? ??
+                      itemMap['label'] as String? ??
+                      '',
                   style: theme.textTheme.bodySmall,
                 ),
               ),

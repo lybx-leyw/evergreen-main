@@ -1,21 +1,25 @@
-/// HTML render: renderSpreadsheet
-import 'dart:convert';
-import '../shared/html_helpers.dart';
+/// HTML render: renderSpreadsheet — 模板引擎渲染，读取 config.columns/rows。
+library;
 
-String renderSpreadsheet(Map<String, dynamic> comp) {
-  const cols = ['A', 'B', 'C', 'D', 'E'];
+import '../shared/template_engine.dart';
 
-  return '''
+const _tpl = '''
 <div class="evg-comp evg-comp-sheet">
   <div class="evg-sheet-header">
     <span>📊 电子表格</span>
-    <span style="font-size:11px;color:var(--evg-text-secondary)">10列 × 50行</span>
+    <span style="font-size:11px;color:var(--evg-text-secondary)">{{ len(config.columns) }}列 × {{ len(config.rows) }}行</span>
   </div>
   <div class="evg-sheet-table">
     <table>
-      <thead><tr><th></th>${cols.map((c) => '<th>$c</th>').join('')}</tr></thead>
-      <tbody>${[1, 2, 3, 4, 5].map((r) => '<tr><td class="evg-row-num">$r</td>${cols.map((c) => '<td contenteditable="true">${c == 'A' ? '数据$r' : ''}</td>').join('')}</tr>').join('')}</tbody>
+      <thead><tr><th></th>{% for c in config.columns %}<th>{{ c.label | default(c.key) }}</th>{% endfor %}</tr></thead>
+      <tbody>
+        {% for r in config.rows %}
+        <tr><td class="evg-row-num">{{ loop.index }}</td>{% for c in config.columns %}<td contenteditable="true">{{ r | get(c.key) }}</td>{% endfor %}</tr>
+        {% endfor %}
+      </tbody>
     </table>
   </div>
-</div>''';
-}
+</div>
+''';
+
+String renderSpreadsheet(Map<String, dynamic> comp) => renderTemplate(_tpl, comp);

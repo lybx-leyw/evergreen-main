@@ -12,6 +12,7 @@ library;
 import '../components/shared/html_style.dart';
 import '../components/shared/html_layout.dart';
 import 'html_components.dart';
+import '../../core/data/data.dart';
 import '../app/service/theme/render_tokens.dart';
 
 /// 从 V2 manifest JSON 生成完整 HTML 页面。
@@ -19,8 +20,8 @@ import '../app/service/theme/render_tokens.dart';
 /// [manifest] 是 V2 manifest 的顶层 JSON。
 /// [embedded] 为 true 时不生成侧边栏和 Tab（Flutter AppShell 已提供导航壳），
 /// 仅渲染页面内容区。默认 false（自包含完整页面）。
-String buildHtmlPage(Map<String, dynamic> manifest, {bool embedded = false}) {
-  final moduleHtml = _buildModuleHtml(manifest, embedded: embedded);
+Future<String> buildHtmlPage(Map<String, dynamic> manifest, {bool embedded = false, DataOrchestrator? orch}) async {
+  final moduleHtml = await _buildModuleHtml(manifest, embedded: embedded, orch: orch);
   final moduleStyle = styleToCss(manifest['style'] as Map<String, dynamic>? ?? {});
 
   return '''<!DOCTYPE html>
@@ -51,7 +52,8 @@ ${_initJs(manifest)}
 /// 构建模块级 HTML。
 ///
 /// [embedded] 为 true 时跳过侧边栏和 Tab，直接渲染页面内容。
-String _buildModuleHtml(Map<String, dynamic> manifest, {bool embedded = false}) {
+/// [orch] 为数据中枢（M2 P3-2）：非空时各组件经 dataSource 注入真实数据。
+Future<String> _buildModuleHtml(Map<String, dynamic> manifest, {bool embedded = false, DataOrchestrator? orch}) async {
   final pages = (manifest['pages'] as List<dynamic>?)?.cast<Map<String, dynamic>>() ?? [];
 
   if (pages.isEmpty) {
@@ -60,7 +62,7 @@ String _buildModuleHtml(Map<String, dynamic> manifest, {bool embedded = false}) 
 
   // ── 嵌入模式：有 Tab 切换，无侧边栏（Flutter AppShell 已提供导航）──
   if (embedded) {
-    final pageContents = pages.map((p) => _buildPageHtml(p)).join('');
+    final pageContents = (await Future.wait(pages.map((p) => _buildPageHtml(p, orch)))).join('');
     return '''
 <div class="evg-main">
   <div class="evg-tabs">
@@ -75,7 +77,7 @@ String _buildModuleHtml(Map<String, dynamic> manifest, {bool embedded = false}) 
   // ── 独立模式：完整侧边栏 + Tab ──
   final nav = manifest['nav'] as Map<String, dynamic>? ?? {};
   final sidebar = _buildSidebar(nav, pages);
-  final pageContents = pages.map((page) => _buildPageHtml(page)).join('');
+  final pageContents = (await Future.wait(pages.map((page) => _buildPageHtml(page, orch)))).join('');
 
   return '''
 <div class="evg-shell">
@@ -112,7 +114,7 @@ String _buildSidebar(Map<String, dynamic> nav, List<Map<String, dynamic>> pages)
 }
 
 /// 构建单个页面的 HTML。
-String _buildPageHtml(Map<String, dynamic> page) {
+Future<String> _buildPageHtml(Map<String, dynamic> page, DataOrchestrator? orch) async {
   final pageId = page['id'] as String? ?? 'unknown';
   final layout = page['layout'] as Map<String, dynamic>? ?? {};
   final layoutType = layout['type'] as String? ?? 'flex';
@@ -143,7 +145,7 @@ String _buildPageHtml(Map<String, dynamic> page) {
     Map<String, dynamic>? comp = slot['component'] is Map ? (slot['component'] as Map).cast<String, dynamic>() : null;
     comp ??= slot.containsKey('type') ? slot : null;
     comp ??= <String, dynamic>{'type': 'unknown'};
-    final compHtml = renderComponent(comp);
+    final compHtml = await renderComponent(comp, orch);
     slotHtmls.add(wrapSlot(slotName, compHtml, slot));
   }
 

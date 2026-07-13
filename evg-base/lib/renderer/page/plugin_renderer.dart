@@ -66,7 +66,7 @@ class PluginRenderer {
   /// 返回自包含的 HTML5 文档，可直接写入文件或在 WebView 中显示。
   ///
   /// 页面包含暗色主题 CSS、53 种组件样式、V2 事件系统 JS 桥接。
-  static String renderAsHtml(Map<String, dynamic> manifest) {
+  static Future<String> renderAsHtml(Map<String, dynamic> manifest) {
     return HtmlRenderer.render(manifest);
   }
 

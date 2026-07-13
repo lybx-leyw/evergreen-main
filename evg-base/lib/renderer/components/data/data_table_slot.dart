@@ -2,34 +2,76 @@
 ///
 /// 替代原先的只读 Flutter [DataTable] 实现，
 /// 现在使用 [EditableTableData] + [TableEditController] + [EditableTable]。
+///
+/// M2 P2：改为 [DataSourceSlot] 消费方，支持 dataSource 注入 `rows`
+/// （`List<Map>` → `config.rows`，或 `{rows:[...]}` Map）。内层 [_EditableTableView]
+/// 独立持有 [TableEditController]，数据到达时在 [didUpdateWidget] 重建 controller。
 import 'package:flutter/material.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
+import 'package:evergreen_base/renderer/data/data_source_slot.dart';
 import '../document/editable/editable.dart';
 
 /// DataTable 组件——从 [ComponentDescriptor.config] 读取数据渲染可编辑表格。
-///
-/// 使用 StatefulWidget 持有独立的 [TableEditController]，
-/// 支持单元格内联编辑、斑马纹、新建行等操作。
-class DataTableSlot extends StatefulWidget {
-  final ComponentDescriptor config;
-
-  const DataTableSlot({super.key, required this.config});
+class DataTableSlot extends DataSourceSlot {
+  const DataTableSlot({super.key, required super.config});
 
   @override
-  State<DataTableSlot> createState() => _DataTableSlotState();
+  DataSourceSlotState<DataTableSlot> createState() => _DataTableSlotState();
 }
 
-class _DataTableSlotState extends State<DataTableSlot> {
-  late final TableEditController _controller;
+class _DataTableSlotState extends DataSourceSlotState<DataTableSlot> {
+  @override
+  Map<String, dynamic> mergeData(Map<String, dynamic> base, dynamic resolved) {
+    final merged = <String, dynamic>{...base};
+    if (resolved is List) {
+      merged['rows'] = resolved;
+    } else if (resolved is Map<String, dynamic>) {
+      merged.addAll(resolved);
+    }
+    return merged;
+  }
+
+  @override
+  Widget buildStatic(Map<String, dynamic> cfg) {
+    // 用合并后的 config 作为 key 的一部分，保证注入数据变化时内层重建 controller。
+    return _EditableTableView(cfg: cfg);
+  }
+}
+
+/// 内层视图——独立持有 [TableEditController]，支持单元格内联编辑、斑马纹、新建行。
+class _EditableTableView extends StatefulWidget {
+  final Map<String, dynamic> cfg;
+
+  const _EditableTableView({required this.cfg});
+
+  @override
+  State<_EditableTableView> createState() => _EditableTableViewState();
+}
+
+class _EditableTableViewState extends State<_EditableTableView> {
+  late TableEditController _controller;
   late final ScrollController _scrollController;
 
   @override
   void initState() {
     super.initState();
     _scrollController = ScrollController();
-    final cfg = widget.config.config;
+    _controller = _buildController(widget.cfg);
+  }
+
+  @override
+  void didUpdateWidget(_EditableTableView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 注入数据到达 / config 变化时，重建 controller。
+    if (!identical(oldWidget.cfg, widget.cfg)) {
+      _controller.dispose();
+      _controller = _buildController(widget.cfg);
+    }
+  }
+
+  TableEditController _buildController(Map<String, dynamic> cfg) {
     final tableData = EditableTableData.fromJson(cfg);
-    _controller = TableEditController(data: tableData);
+    return TableEditController(data: tableData);
   }
 
   @override
@@ -45,15 +87,16 @@ class _DataTableSlotState extends State<DataTableSlot> {
       return _emptyState(context);
     }
 
+    final title = widget.cfg['title'] as String?;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         // 标题（如果 config 中有 title）
-        if ((widget.config.config['title'] as String?)?.isNotEmpty == true)
+        if (title?.isNotEmpty == true)
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
             child: Text(
-              widget.config.config['title'] as String,
+              title!,
               style: Theme.of(context)
                   .textTheme
                   .titleSmall

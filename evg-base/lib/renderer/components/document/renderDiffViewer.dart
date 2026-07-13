@@ -1,41 +1,44 @@
-/// HTML render: renderDiffViewer
-import 'dart:convert';
-import '../shared/html_helpers.dart';
+/// HTML render: renderDiffViewer — 模板引擎渲染，读取 config.lines/left/right/leftLabel/rightLabel。
+library;
+
+import '../shared/template_engine.dart';
+
+const _tpl = '''
+<div class="evg-comp evg-comp-diff">
+  <div class="evg-diff-header">
+    <span class="evg-diff-label left">📄 {{ config.leftLabel | default('原文件') }}</span>
+    <span class="evg-diff-label right">📄 {{ config.rightLabel | default('新文件') }}</span>
+  </div>
+  <div class="evg-diff-body">
+    {% for l in diffLines %}<div class="evg-diff-line {{ l.cls }}"><code>{{ l.text }}</code></div>{% endfor %}
+  </div>
+</div>
+''';
 
 String renderDiffViewer(Map<String, dynamic> comp) {
   final cfg = comp['config'] as Map<String, dynamic>? ?? {};
-  final leftLabel = cfg['leftLabel'] as String? ?? '原文件';
-  final rightLabel = cfg['rightLabel'] as String? ?? '新文件';
+  final lines = (cfg['lines'] as List<dynamic>? ?? [])
+      .whereType<Map>()
+      .map((e) => e.cast<String, dynamic>())
+      .toList();
+  final left = cfg['left'] as String?;
+  final right = cfg['right'] as String?;
 
-  // 示例 diff 行
-  const diffLines = [
-    {'type': 'same', 'text': 'import json'},
-    {'type': 'same', 'text': 'from pathlib import Path'},
-    {'type': 'same', 'text': ''},
-    {'type': 'del', 'text': '- def old_function():'},
-    {'type': 'add', 'text': '+ def new_function(data: dict) -> dict:'},
-    {'type': 'add', 'text': '+     """处理数据并返回结果"""'},
-    {'type': 'same', 'text': '      result = {}'},
-    {'type': 'del', 'text': '-     result["count"] = 0'},
-    {'type': 'add', 'text': '+     result["count"] = len(data)'},
-    {'type': 'same', 'text': '      return result'},
-  ];
+  final diffLines = lines.isNotEmpty
+      ? lines.map((l) {
+          final type = l['type'] as String? ?? 'same';
+          final cls = type == 'add'
+              ? 'evg-diff-add'
+              : type == 'del'
+                  ? 'evg-diff-del'
+                  : 'evg-diff-same';
+          return <String, dynamic>{'cls': cls, 'text': l['text'] ?? ''};
+        }).toList()
+      : <Map<String, dynamic>>[
+          if (left != null) {'cls': 'evg-diff-del', 'text': left},
+          if (right != null) {'cls': 'evg-diff-add', 'text': right},
+        ];
 
-  final linesHtml = diffLines.map((l) {
-    final cls = switch (l['type']) {
-      'add' => 'evg-diff-add',
-      'del' => 'evg-diff-del',
-      _ => 'evg-diff-same',
-    };
-    return '<div class="evg-diff-line $cls"><code>${esc(l['text']!)}</code></div>';
-  }).join('');
-
-  return '''
-<div class="evg-comp evg-comp-diff">
-  <div class="evg-diff-header">
-    <span class="evg-diff-label left">📄 ${esc(leftLabel)}</span>
-    <span class="evg-diff-label right">📄 ${esc(rightLabel)}</span>
-  </div>
-  <div class="evg-diff-body">$linesHtml</div>
-</div>''';
+  final ctx = <String, dynamic>{...comp, 'diffLines': diffLines};
+  return renderTemplate(_tpl, ctx);
 }

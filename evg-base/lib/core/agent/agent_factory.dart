@@ -137,12 +137,21 @@ class AgentAssembly {
       if (entry.key == 'preset') continue; // 不写入 preset 本身
 
       // 对 tools / skills 做浅合并（用户指定 allowed 时保留 mode）
-      if ((entry.key == 'tools' || entry.key == 'skills') &&
-          entry.value is Map && merged[entry.key] is Map) {
-        merged[entry.key] = {
-          ...merged[entry.key] as Map,
-          ...entry.value as Map,
-        };
+      if (entry.key == 'tools' || entry.key == 'skills') {
+        final base = merged[entry.key];
+        final override = entry.value;
+        if (base is Map && override is Map) {
+          // Map 覆盖 Map：浅合并，保留 base.mode 与 override.allowed
+          merged[entry.key] = {...base, ...override};
+        } else if (base is Map && override is List) {
+          // 简写 List → 视为 allowed；保留 base.mode（若为 specific/all/none）
+          merged[entry.key] = {...base, 'allowed': override};
+        } else if (override != null) {
+          // 其余类型（含 List → specific）走规整器
+          merged[entry.key] = _normalizeToolsConfig(override);
+        } else {
+          merged[entry.key] = override;
+        }
       } else {
         merged[entry.key] = entry.value;
       }
@@ -197,8 +206,8 @@ class AgentAssembly {
     }
     debugPrint('[AgentAssembly] seeded ${registry.all().length} tools');
 
-    // 工具白名单
-    final toolsConfig = resolvedConfig['tools'] as Map<String, dynamic>?;
+    // 工具白名单（兼容 List/Map/null 三种形态，详见 _normalizeToolsConfig）
+    final toolsConfig = _normalizeToolsConfig(resolvedConfig['tools']);
     _applyToolPolicy(registry, toolsConfig);
     debugPrint('[AgentAssembly] after policy: ${registry.enabled().length} enabled');
 
@@ -281,6 +290,34 @@ class AgentAssembly {
 
   // ═══════ 工具白名单 ═══════
 
+  /// 将 `config['tools']` 规整为统一 Map<String, dynamic> 形态。
+  ///
+  /// 接受（向后兼容）：
+  /// - `null` / 缺省 → `{'mode': 'all'}`（不限制，全部启用）
+  /// - `['web_search', 'run_python']`（List 简写）→ `{'mode': 'specific', 'allowed': [...]}`
+  /// - `{'mode': 'all'|'specific'|'none', 'allowed': [...]}`（Map 完整形式）→ 原样
+  /// - 其它类型 → 兜底 `{'mode': 'all'}` 并 debugPrint 提示
+  ///
+  /// 以前直接 `as Map<String, dynamic>?` 会让 List 简写抛出
+  /// `type 'List<dynamic>' is not a subtype of type 'Map<String, dynamic>?'`，
+  /// 见 P0 修复（2026-07-11）。
+  static Map<String, dynamic> _normalizeToolsConfig(dynamic raw) {
+    if (raw == null) {
+      return {'mode': 'all'};
+    }
+    if (raw is List) {
+      return {
+        'mode': 'specific',
+        'allowed': raw.map((e) => e.toString()).toList(),
+      };
+    }
+    if (raw is Map) {
+      return raw.map((k, v) => MapEntry(k.toString(), v));
+    }
+    debugPrint('[AgentAssembly] ⚠️ tools 字段类型未知: ${raw.runtimeType}，按 all 处理');
+    return {'mode': 'all'};
+  }
+
   /// 根据 `tools` config 应用白名单策略。
   ///
   /// | mode | 行为 |
@@ -289,7 +326,7 @@ class AgentAssembly {
   /// | `specific` | 先全部禁用 → 仅启用 allowed 列表中的工具 |
   /// | `none` | 全部禁用（纯对话，无工具） |
   static void _applyToolPolicy(Registry registry, Map<String, dynamic>? toolsConfig) {
-    final mode = toolsConfig?['mode'] as String? ?? 'none';
+    final mode = toolsConfig?['mode'] as String? ?? 'all';
 
     switch (mode) {
       case 'all':

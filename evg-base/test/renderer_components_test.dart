@@ -15,7 +15,7 @@ Map<String, dynamic> _comp(String type, Map<String, dynamic> config) =>
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('M1 全部补齐组件：真实字段渲染 + 无写死示例', () {
+  test('M1 全部补齐组件：真实字段渲染 + 无写死示例', () async {
     final slots = <String, dynamic>{};
 
     // 每个组件注入带唯一标记的真实字段值。
@@ -194,7 +194,7 @@ void main() {
       ]
     };
 
-    final html = HtmlRenderer.render(manifest);
+    final html = await HtmlRenderer.render(manifest);
 
     // 基本非空展示
     expect(html, contains('evg-comp'));

@@ -9,11 +9,14 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 
 import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'package:evergreen_base/core/module/page_event_bus.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
+import 'package:evergreen_base/providers.dart';
+import 'package:evergreen_base/renderer/data/data_source_resolver.dart';
 import 'package:evergreen_base/renderer/components/shared/widgets/type_check_input.dart';
 import 'package:evergreen_base/renderer/components/shared/widgets/flashcard_view.dart';
 import 'package:evergreen_base/renderer/components/shared/widgets/mindmap_widget.dart';
@@ -298,11 +301,31 @@ class _TypeCheckSlotState extends State<TypeCheckSlot> {
 
 // ═══════ FlashcardsSlot ═══════
 
+/// 从 [resolveDataSource] 返回值中提取词库列表。
+///
+/// 支持两种形态：直接 `List<Map>`，或 `{wordList:[...]}` 的 Map。
+/// 提取失败返回 null（由调用方降级回本地文件）。
+List<Map<String, dynamic>>? extractWordList(dynamic resolved) {
+  List? rawList;
+  if (resolved is List) {
+    rawList = resolved;
+  } else if (resolved is Map && resolved['wordList'] is List) {
+    rawList = resolved['wordList'] as List;
+  }
+  if (rawList == null) return null;
+  return rawList
+      .whereType<Map>()
+      .map((e) => e.map((k, v) => MapEntry(k.toString(), v)))
+      .toList();
+}
+
 /// 闪卡复习 slot 组件。
 ///
-/// 从 config.wordList 加载词库，展示为闪卡（正面=释义，背面=单词），
-/// 用户标记"认识"或"不认识"，通过 EventBus 发出状态事件。
-class FlashcardsSlot extends StatefulWidget {
+/// 词库来源（M2 P2）：
+/// - 有 `config.dataSource` → 经 [resolveDataSource] 拉取 `{wordList:[...]}` 或直接 `List`；
+/// - 否则回退 `config.wordList`（本地工作区文件名）加载。
+/// 展示为闪卡（正面=释义，背面=单词），用户标记"认识"/"不认识"，经 EventBus 发状态事件。
+class FlashcardsSlot extends ConsumerStatefulWidget {
   final String slotKey;
   final ComponentDescriptor config;
   final PageEventBus? pageEventBus;
@@ -317,10 +340,10 @@ class FlashcardsSlot extends StatefulWidget {
   });
 
   @override
-  State<FlashcardsSlot> createState() => _FlashcardsSlotState();
+  ConsumerState<FlashcardsSlot> createState() => _FlashcardsSlotState();
 }
 
-class _FlashcardsSlotState extends State<FlashcardsSlot>
+class _FlashcardsSlotState extends ConsumerState<FlashcardsSlot>
     with SingleTickerProviderStateMixin {
   late AnimationController _flipCtrl;
   bool _isFlipped = false;
@@ -329,6 +352,7 @@ class _FlashcardsSlotState extends State<FlashcardsSlot>
   int _knownCount = 0;
   int _forgottenCount = 0;
   bool _finished = false;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
@@ -338,9 +362,49 @@ class _FlashcardsSlotState extends State<FlashcardsSlot>
       vsync: this,
     );
     _loadWords();
+    final ds = widget.config.dataSource;
+    if (ds != null && ds.refreshInterval > 0) {
+        _refreshTimer = Timer.periodic(Duration(seconds: ds.refreshInterval), (_) {
+        if (!mounted || _finished) return;
+        _loadFromDataSource(ds, forceRefresh: true);
+      });
+    }
   }
 
   void _loadWords() {
+    final ds = widget.config.dataSource;
+    if (ds != null) {
+      _loadFromDataSource(ds);
+    } else {
+      _loadFromFile();
+    }
+  }
+
+  /// 经数据源拉取词库；失败/为空则优雅降级回本地文件。
+  /// [forceRefresh] 为 true 时绕过 orch 缓存强制重抓（自动刷新 Timer 使用）。
+  Future<void> _loadFromDataSource(DataSourceDescriptor ds,
+      {bool forceRefresh = false}) async {
+    try {
+      final resolved = await resolveDataSource(
+        ds: ds,
+        orch: ref.read(dataOrchestratorProvider),
+        forceRefresh: forceRefresh,
+      );
+      final words = extractWordList(resolved);
+      if (words != null && words.isNotEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _words = words;
+          _words.shuffle();
+        });
+        return;
+      }
+    } catch (_) {}
+    if (!mounted) return;
+    _loadFromFile();
+  }
+
+  void _loadFromFile() {
     final cfg = widget.config.config;
     final wordListFile = cfg['wordList'] as String? ?? 'words.json';
     try {
@@ -356,6 +420,7 @@ class _FlashcardsSlotState extends State<FlashcardsSlot>
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _flipCtrl.dispose();
     super.dispose();
   }
@@ -717,7 +782,7 @@ class MindmapSlot extends StatelessWidget {
 /// 通过 config.questionTypes 指定启用的题型列表，
 /// config.timeLimit 设置总时限（秒），config.passScore 设置及格分（百分制）。
 /// 通过 EventBus 发出 test_started / question_answered / test_completed 事件。
-class QuizSlot extends StatefulWidget {
+class QuizSlot extends ConsumerStatefulWidget {
   final String slotKey;
   final ComponentDescriptor config;
   final PageEventBus? pageEventBus;
@@ -732,10 +797,10 @@ class QuizSlot extends StatefulWidget {
   });
 
   @override
-  State<QuizSlot> createState() => _QuizSlotState();
+  ConsumerState<QuizSlot> createState() => _QuizSlotState();
 }
 
-class _QuizSlotState extends State<QuizSlot> {
+class _QuizSlotState extends ConsumerState<QuizSlot> {
   // 词库
   List<Map<String, dynamic>> _words = [];
 
@@ -772,6 +837,9 @@ class _QuizSlotState extends State<QuizSlot> {
   int _remainingSec = 0;
   Timer? _timer;
 
+  // dataSource 自动刷新（refreshInterval）
+  Timer? _refreshTimer;
+
   // 答题记录
   final List<Map<String, dynamic>> _answerLog = [];
 
@@ -780,18 +848,66 @@ class _QuizSlotState extends State<QuizSlot> {
     super.initState();
     _parseConfig();
     _loadWords();
+    final ds = widget.config.dataSource;
+    if (ds != null && ds.refreshInterval > 0) {
+        _refreshTimer = Timer.periodic(Duration(seconds: ds.refreshInterval), (_) {
+        if (!mounted || _started) return;
+        _loadFromDataSource(ds, forceRefresh: true);
+      });
+    }
   }
 
-  void _parseConfig() {
-    final cfg = widget.config.config;
+  void _parseConfig([Map<String, dynamic>? override]) {
+    final cfg = override ?? widget.config.config;
     if (cfg['questionTypes'] is List) {
       _questionTypes = (cfg['questionTypes'] as List).cast<String>();
     }
-    _timeLimitSec = (cfg['timeLimit'] as num?)?.toInt() ?? 300;
-    _passScore = (cfg['passScore'] as num?)?.toInt() ?? 80;
+    if (cfg['timeLimit'] != null) {
+      _timeLimitSec = (cfg['timeLimit'] as num?)?.toInt() ?? _timeLimitSec;
+    }
+    if (cfg['passScore'] != null) {
+      _passScore = (cfg['passScore'] as num?)?.toInt() ?? _passScore;
+    }
   }
 
   void _loadWords() {
+    final ds = widget.config.dataSource;
+    if (ds != null) {
+      _loadFromDataSource(ds);
+    } else {
+      _loadFromFile();
+    }
+  }
+
+  /// 经数据源拉取 `{wordList, questionTypes, timeLimit, passScore}`；
+  /// 失败/为空则优雅降级回本地文件。[forceRefresh] 为 true 时绕过缓存强制重抓。
+  Future<void> _loadFromDataSource(DataSourceDescriptor ds,
+      {bool forceRefresh = false}) async {
+    try {
+      final resolved = await resolveDataSource(
+        ds: ds,
+        orch: ref.read(dataOrchestratorProvider),
+        forceRefresh: forceRefresh,
+      );
+      // Map 形态可同时携带题型/时限/及格分配置。
+      if (resolved is Map<String, dynamic>) {
+        _parseConfig(resolved);
+      }
+      final words = extractWordList(resolved);
+      if (words != null && words.isNotEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _words = words;
+          if (_words.length > 10) _words.shuffle();
+        });
+        return;
+      }
+    } catch (_) {}
+    if (!mounted) return;
+    _loadFromFile();
+  }
+
+  void _loadFromFile() {
     final cfg = widget.config.config;
     final wordListFile = cfg['wordList'] as String? ?? 'words.json';
     try {
@@ -807,6 +923,7 @@ class _QuizSlotState extends State<QuizSlot> {
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _timer?.cancel();
     _fillCtrl.dispose();
     super.dispose();

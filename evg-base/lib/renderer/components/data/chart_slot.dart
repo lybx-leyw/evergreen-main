@@ -1,18 +1,54 @@
 /// Chart 槽位——从 [ComponentDescriptor.config] 读取数据渲染图表。
+/// 支持 M2 dataSource 注入：拉取到的数据合并进 config['data']。
+/// 兼容两种标准形态：List<{label,value}> 或 {labels, series:[{name,data}]}。
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
+import 'package:evergreen_base/renderer/data/data_source_slot.dart';
 import '../shared/widgets/chart_renderer.dart';
 
-/// Chart 组件——直接读取 config 中的 type/title/data/legend。
-/// 不重复渲染标题（slot card header 已显示），图表占满可用空间。
-class ChartSlot extends StatelessWidget {
-  final ComponentDescriptor config;
-
-  const ChartSlot({super.key, required this.config});
+/// Chart 组件——读取 config 中的 type/title/data。
+class ChartSlot extends DataSourceSlot {
+  const ChartSlot({super.key, required super.config});
 
   @override
-  Widget build(BuildContext context) {
-    final cfg = config.config;
+  DataSourceSlotState<ChartSlot> createState() => _ChartSlotState();
+}
+
+class _ChartSlotState extends DataSourceSlotState<ChartSlot> {
+  @override
+  Map<String, dynamic> mergeData(Map<String, dynamic> base, dynamic resolved) {
+    final merged = <String, dynamic>{...base};
+    if (resolved is List) {
+      merged['data'] = resolved;
+    } else if (resolved is Map) {
+      if (resolved['data'] is List) {
+        merged['data'] = resolved['data'];
+      } else if (resolved['labels'] is List && resolved['series'] is List) {
+        // {labels, series:[{name,data:[...]}]} → List<{label,value}>
+        final labels = resolved['labels'] as List;
+        final series = resolved['series'] as List;
+        final firstSeries = series.isNotEmpty ? series[0] : null;
+        final pts = (firstSeries is Map && firstSeries['data'] is List)
+            ? firstSeries['data'] as List
+            : const <dynamic>[];
+        final data = <Map<String, dynamic>>[];
+        for (var i = 0; i < labels.length; i++) {
+          data.add({
+            'label': labels[i],
+            'value': i < pts.length ? pts[i] : 0,
+          });
+        }
+        merged['data'] = data;
+      } else {
+        merged.addAll(resolved as Map<String, dynamic>);
+      }
+    }
+    return merged;
+  }
+
+  @override
+  Widget buildStatic(Map<String, dynamic> cfg) {
     final type = cfg['type'] as String? ?? 'bar';
     final title = cfg['title'] as String? ?? '';
     final data = (cfg['data'] as List<dynamic>?) ?? [];

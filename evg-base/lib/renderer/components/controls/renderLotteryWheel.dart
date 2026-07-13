@@ -1,25 +1,22 @@
-/// HTML render: renderLotteryWheel
-import 'dart:convert';
-import '../shared/html_helpers.dart';
+/// HTML render: renderLotteryWheel — 模板引擎渲染，读取 config.lottery(标题/奖项/按钮)。
+library;
 
-String renderLotteryWheel(Map<String, dynamic> comp) {
-  final cfg = (comp['config'] as Map<String, dynamic>? ?? {})['lottery'] as Map<String, dynamic>? ?? {};
-  final title = cfg['title'] as String? ?? '幸运大转盘';
-  final subtitle = cfg['subtitle'] as String? ?? '';
-  final buttonText = cfg['buttonText'] as String? ?? '立即抽奖!';
+import '../shared/template_engine.dart';
 
-  return '''
+const _tpl = '''
 <div class="evg-comp evg-comp-lottery">
   <div class="evg-lottery-header">
-    <div class="evg-comp-title">🎰 $title</div>
-    ${subtitle.isNotEmpty ? '<div class="evg-lottery-sub">$subtitle</div>' : ''}
+    <div class="evg-comp-title">🎰 {{ config.lottery.title | default('幸运大转盘') }}</div>
+    {% if config.lottery.subtitle %}<div class="evg-lottery-sub">{{ config.lottery.subtitle }}</div>{% endif %}
   </div>
   <div class="evg-lottery-wheel-container">
     <canvas class="evg-lottery-canvas" width="200" height="200"></canvas>
-    <button class="evg-lottery-btn">🎯 $buttonText</button>
+    <button class="evg-lottery-btn">🎯 {{ config.lottery.buttonText | default('立即抽奖!') }}</button>
   </div>
   <div class="evg-lottery-history">
-    <span style="font-size:11px;color:var(--evg-text-secondary)">📜 最近: 一等奖 二等奖 三等奖...</span>
+    <span style="font-size:11px;color:var(--evg-text-secondary)">📜 奖项: {% for s in config.lottery.segments %}{{ s }}{% if not loop.last %} / {% endif %}{% endfor %}</span>
   </div>
-</div>''';
-}
+</div>
+''';
+
+String renderLotteryWheel(Map<String, dynamic> comp) => renderTemplate(_tpl, comp);

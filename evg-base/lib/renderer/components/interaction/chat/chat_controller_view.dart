@@ -44,6 +44,23 @@ import '../../../page/file_viewer.dart';
 import '../../../page/global_memory_view.dart';
 import '../../../page/skill_management_view.dart';
 
+// ── AgentAssembly 多会话数据结构 ──
+
+/// 已保存的 AgentAssembly 会话快照。
+class _AssemblySessionData {
+  final String id;
+  String title;
+  final List<ChatMessage> messages;
+  final DateTime createdAt;
+
+  _AssemblySessionData({
+    required this.id,
+    this.title = '新对话',
+    required this.messages,
+    DateTime? createdAt,
+  }) : createdAt = createdAt ?? DateTime.now();
+}
+
 /// 当前视图的消息列表（全屏模式）。
 final _chatMessagesProvider =
     StateNotifierProvider<_LocalChatMessagesNotifier, List<ChatMessage>>(
@@ -109,10 +126,21 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
   agent.Controller? get _embeddedCtrl => _assembly?.controller;
   StreamSubscription<agent.AgentEvent>? _embeddedEventSub;
 
-  // ── 嵌入模式：本地消息列表 ──
+  // ── AgentAssembly 多会话 ──
   final List<ChatMessage> _embeddedMessages = [];
   bool _embeddedInitialized = false;
   String _embeddedError = '';
+  /// 已保存的会话列表（不含当前活跃会话）。
+  final List<_AssemblySessionData> _assemblySavedSessions = [];
+  /// 当前活跃会话 ID。
+  String _assemblyActiveSessionId = '';
+  /// 当前活跃会话标题（根据首条用户消息自动更新）。
+  String _localSessionTitle = 'AI 助手';
+  /// 当前会话是否已自动命名（仅对首条用户消息触发一次）。
+  bool _assemblySessionAutoTitled = false;
+  bool _localWebSearch = false;
+  String _localEffort = 'medium';
+  bool get _usingAssembly => _assembly != null;
 
   // ── 嵌入模式：EventBus 栏间通信 ──
   List<StreamSubscription<SlotEvent>>? _eventBusSubs;
@@ -133,7 +161,8 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (_isRunning && mounted) setState(() => _elapsedSeconds++);
     });
-    if (widget.embedded && widget.agentConfig != null) {
+    if (widget.agentConfig != null) {
+      // 有 agentConfig → 始终用 AgentAssembly（会话隔离 + 全局记忆共享）
       _initEmbeddedAgent();
     } else {
       Future.microtask(() => _subscribeToEvents());
@@ -411,6 +440,21 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
   // ── 编辑 & 重新生成 ──
 
   void _editUserMessage(int msgIndex) {
+    // AgentAssembly 模式：编辑本地消息
+    if (_usingAssembly) {
+      if (msgIndex < 0 || msgIndex >= _embeddedMessages.length) return;
+      final msg = _embeddedMessages[msgIndex];
+      if (!msg.isUser) return;
+      final text = msg.content;
+      _embeddedCtrl?.session.removeFrom(msgIndex);
+      _embeddedMessages.removeAt(msgIndex);
+      _inputCtrl.text = text;
+      _inputCtrl.selection = TextSelection.collapsed(offset: text.length);
+      FocusScope.of(context).requestFocus();
+      if (mounted) setState(() {});
+      return;
+    }
+
     final messages = ref.read(_chatMessagesProvider);
     if (msgIndex < 0 || msgIndex >= messages.length) return;
     final msg = messages[msgIndex];
@@ -447,8 +491,45 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     return count;
   }
 
+  /// 格式化日期为简短展示（今日 → 时间，昨日 → "昨天"，其他 → 月/日）。
+  String _formatDate(DateTime dt) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final date = DateTime(dt.year, dt.month, dt.day);
+    final diff = today.difference(date).inDays;
+    if (diff == 0) {
+      return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+    } else if (diff == 1) {
+      return '昨天';
+    } else {
+      return '${dt.month}/${dt.day}';
+    }
+  }
+
   Future<void> _regenerate() async {
     if (_isRunning) return;
+
+    // AgentAssembly 模式：从本地消息列表中找最后一条用户消息
+    if (_usingAssembly) {
+      if (_embeddedMessages.isEmpty) return;
+      final lastUserIdx = _embeddedMessages.lastIndexWhere((m) => m.isUser);
+      if (lastUserIdx < 0) return;
+      final text = _embeddedMessages[lastUserIdx].content;
+      // 删除最后一条 assistant 回复 + 最后一条 user
+      if (_embeddedMessages.isNotEmpty && _embeddedMessages.last.isAssistant) {
+        _embeddedMessages.removeLast();
+      }
+      if (_embeddedMessages.isNotEmpty && _embeddedMessages.last.isUser) {
+        _embeddedMessages.removeLast();
+      }
+      // 从 session 中移除最后一轮
+      _embeddedCtrl?.session.removeLastTurn();
+      _editUserText(text);
+      if (mounted) setState(() {});
+      await _sendMessage();
+      return;
+    }
+
     final messages = ref.read(_chatMessagesProvider);
     if (messages.isEmpty) return;
     final ctrl = ref.read(agentControllerProvider);
@@ -513,8 +594,8 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     var text = _inputCtrl.text.trim();
     if (text.isEmpty && _attachedFileName == null) return;
 
-    // 嵌入模式 + 隔离 Agent
-    if (widget.embedded && _embeddedCtrl != null) {
+    // AgentAssembly 模式（嵌入/全屏均可用）
+    if (_embeddedCtrl != null) {
       if (_isRunning) return;
       _sendEmbedded(text);
       return;
@@ -566,6 +647,12 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     if (ctrl == null) return;
     setState(() {
       _embeddedMessages.add(ChatMessage(role: 'user', content: text));
+      // 首条用户消息自动命名（仅一次）
+      if (!_assemblySessionAutoTitled && _embeddedMessages.where((m) => m.isUser).length == 1) {
+        final t = text.replaceAll('\n', ' ').trim();
+        _localSessionTitle = t.length > 30 ? '${t.substring(0, 30)}...' : t;
+        _assemblySessionAutoTitled = true;
+      }
     });
     _startIndicator();
     _inputCtrl.clear();
@@ -630,7 +717,86 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     _subscribeToEmbeddedEvents();
     _setupEmbeddedEventBus(moduleId);
 
+    // 设置初始会话 ID
+    _assemblyActiveSessionId = _assembly!.controller.session.id;
+    _assemblySessionAutoTitled = false;
+
     if (mounted) setState(() => _embeddedInitialized = true);
+  }
+
+  // ── AgentAssembly 多会话管理 ──
+
+  /// 保存当前活跃会话到已保存列表，返回保存后的索引。
+  void _saveCurrentAssemblySession({String? autoTitle}) {
+    if (_embeddedMessages.isEmpty) return;
+    final title = autoTitle ?? _localSessionTitle;
+    // 查找是否已存在相同 ID 的会话（更新而非追加）
+    final existingIdx = _assemblySavedSessions.indexWhere(
+        (s) => s.id == _assemblyActiveSessionId);
+    final data = _AssemblySessionData(
+      id: _assemblyActiveSessionId,
+      title: title,
+      messages: List.from(_embeddedMessages),
+    );
+    if (existingIdx >= 0) {
+      _assemblySavedSessions[existingIdx] = data;
+    } else {
+      _assemblySavedSessions.add(data);
+    }
+  }
+
+  /// 切换到指定已保存的会话。
+  void _switchAssemblySession(int index) {
+    if (index < 0 || index >= _assemblySavedSessions.length) return;
+    if (_isRunning) _embeddedCtrl?.cancel();
+
+    // 保存当前会话
+    _saveCurrentAssemblySession();
+
+    // 加载目标会话
+    final target = _assemblySavedSessions.removeAt(index);
+    _embeddedCtrl?.newSession();
+    _assemblyActiveSessionId = _embeddedCtrl!.session.id;
+
+    // 恢复消息到 UI 和 Controller session
+    for (final msg in target.messages) {
+      if (msg.isUser) {
+        final agentMsg = agent.Message.user(msg.content);
+        _embeddedCtrl!.session.add(agentMsg);
+      } else if (msg.isAssistant) {
+        final agentMsg = agent.Message.assistant(msg.content);
+        _embeddedCtrl!.session.add(agentMsg);
+      }
+    }
+
+    setState(() {
+      _embeddedMessages.clear();
+      _embeddedMessages.addAll(target.messages);
+      _localSessionTitle = target.title;
+      _assemblyActiveSessionId = _embeddedCtrl!.session.id;
+      _assemblySessionAutoTitled = target.title != '新对话';
+    });
+    _scrollToBottom();
+  }
+
+  /// 新建 AgentAssembly 会话（保存当前后创建新的）。
+  void _newAssemblySession() {
+    if (_isRunning) _embeddedCtrl?.cancel();
+    _saveCurrentAssemblySession();
+    _embeddedCtrl?.newSession();
+    setState(() {
+      _embeddedMessages.clear();
+      _assemblyActiveSessionId = _embeddedCtrl!.session.id;
+      _localSessionTitle = 'AI 助手';
+      _assemblySessionAutoTitled = false;
+    });
+  }
+
+  /// 删除已保存的会话。
+  void _deleteAssemblySession(int index) {
+    if (index < 0 || index >= _assemblySavedSessions.length) return;
+    _assemblySavedSessions.removeAt(index);
+    if (mounted) setState(() {});
   }
 
   void _subscribeToEmbeddedEvents() {
@@ -701,6 +867,8 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
         if (!mounted) return;
         _replaceLastEmbeddedAssistant(_buildCombinedMessage());
         _stopIndicator();
+        // 回合完成后保存当前会话（就地更新标题）
+        _saveCurrentAssemblySession(autoTitle: _localSessionTitle);
         break;
 
       case agent.EventKind.notice:
@@ -918,8 +1086,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
               visualDensity: VisualDensity.compact,
               onPressed: () {
                 if (widget.embedded && widget.agentConfig != null) {
-                  _embeddedCtrl?.newSession();
-                  setState(() => _embeddedMessages.clear());
+                  _newAssemblySession();
                 } else {
                   ref.read(createSessionProvider)(null);
                 }
@@ -931,8 +1098,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
             visualDensity: VisualDensity.compact,
             onPressed: () {
               if (widget.embedded && widget.agentConfig != null) {
-                _embeddedCtrl?.newSession();
-                setState(() => _embeddedMessages.clear());
+                _newAssemblySession();
               } else {
                 ref.read(_chatMessagesProvider.notifier).clear();
                 ref.read(agentControllerProvider).newSession();
@@ -949,8 +1115,8 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
   void _showSessionSheet(BuildContext context) {
     final theme = Theme.of(context);
 
-    // ── 嵌入模式：隔离会话管理，不读取全局 session provider ──
-    if (_isEmbedded) {
+    // ── AgentAssembly 模式：隔离会话管理，不读取全局 session provider ──
+    if (_usingAssembly) {
       _showEmbeddedSessionSheet(context, theme);
       return;
     }
@@ -1048,66 +1214,99 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
   void _showEmbeddedSessionSheet(BuildContext context, ThemeData theme) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (ctx) {
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // 拖动条
-              Container(width: 40, height: 4,
-                decoration: BoxDecoration(color: Colors.grey.shade400, borderRadius: BorderRadius.circular(2)),
-              ),
-              const SizedBox(height: 16),
-              Icon(Icons.chat_bubble_outline, size: 32, color: theme.colorScheme.primary),
-              const SizedBox(height: 8),
-              Text('会话管理', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 4),
-              Text('当前组件实例的会话独立于全屏 AI 助手',
-                  style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurfaceVariant)),
-              const SizedBox(height: 20),
-              // 新建会话
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    if (_embeddedCtrl != null) {
-                      _embeddedCtrl!.newSession();
-                      setState(() => _embeddedMessages.clear());
-                    }
-                    Navigator.pop(ctx);
-                  },
-                  icon: const Icon(Icons.add, size: 18),
-                  label: const Text('新建会话'),
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.5,
+          maxChildSize: 0.8,
+          minChildSize: 0.3,
+          builder: (ctx, scrollCtrl) => SingleChildScrollView(
+            controller: scrollCtrl,
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 拖动条
+                Container(width: 40, height: 4,
+                  decoration: BoxDecoration(color: Colors.grey.shade400, borderRadius: BorderRadius.circular(2)),
                 ),
-              ),
-              const SizedBox(height: 8),
-              // 清空对话
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    if (_embeddedCtrl != null) {
-                      _embeddedCtrl!.newSession();
-                    } else {
-                      ref.read(agentControllerProvider).newSession();
-                    }
-                    setState(() => _embeddedMessages.clear());
-                    Navigator.pop(ctx);
-                  },
-                  icon: const Icon(Icons.delete_outline, size: 18),
-                  label: const Text('清空当前对话'),
-                  style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
+                const SizedBox(height: 16),
+                Icon(Icons.chat_bubble_outline, size: 32, color: theme.colorScheme.primary),
+                const SizedBox(height: 8),
+                Text('会话管理', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 4),
+                Text('当前组件实例的会话独立于全屏 AI 助手',
+                    style: TextStyle(fontSize: 11, color: theme.colorScheme.onSurfaceVariant)),
+                const SizedBox(height: 20),
+                // 当前会话信息
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primaryContainer.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.chat, size: 20, color: theme.colorScheme.primary),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(_localSessionTitle,
+                            style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              const Divider(),
-              ListTile(
-                leading: Icon(Icons.memory, size: 18, color: theme.colorScheme.tertiary),
-                title: const Text('全局记忆（共享）', style: TextStyle(fontSize: 13)),
+                const SizedBox(height: 12),
+                // 新建会话
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      _newAssemblySession();
+                      Navigator.pop(ctx);
+                    },
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('新建会话'),
+                  ),
+                ),
+                if (_assemblySavedSessions.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const Divider(),
+                  const SizedBox(height: 8),
+                  ..._assemblySavedSessions.asMap().entries.map((entry) {
+                    final idx = entry.key;
+                    final s = entry.value;
+                    final msgCount = s.messages
+                        .where((m) => m.isUser || m.isAssistant)
+                        .length;
+                    return ListTile(
+                      leading: const Icon(Icons.history, size: 18),
+                      title: Text(s.title, style: const TextStyle(fontSize: 13)),
+                      subtitle: Text(
+                          '$msgCount 条消息 · ${_formatDate(s.createdAt)}',
+                          style: const TextStyle(fontSize: 11)),
+                      dense: true,
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _switchAssemblySession(idx);
+                      },
+                      trailing: IconButton(
+                        icon: const Icon(Icons.delete_outline, size: 16),
+                        onPressed: () => _deleteAssemblySession(idx),
+                      ),
+                    );
+                  }),
+                ],
+                const SizedBox(height: 12),
+                const Divider(),
+                ListTile(
+                  leading: Icon(Icons.memory, size: 18, color: theme.colorScheme.tertiary),
+                  title: const Text('全局记忆（共享）', style: TextStyle(fontSize: 13)),
                 dense: true,
                 onTap: () {
                   Navigator.pop(ctx);
@@ -1116,9 +1315,10 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
               ),
             ],
           ),
-        );
-      },
-    );
+        ),
+      );
+    },
+  );
   }
 
   void _showRenameSheet(BuildContext ctx, String id, String currentTitle) {
@@ -1314,6 +1514,11 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
       return _buildEmbeddedContent();
     }
 
+    // AgentAssembly 全屏模式（独立会话 + 全局记忆共享）
+    if (_usingAssembly) {
+      return _buildAssemblyFullScaffold();
+    }
+
     // ── 全屏模式 ──
     ref.listen<String?>(activeSessionIdProvider, (prev, next) {
       if (prev == next) return;
@@ -1408,6 +1613,456 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
           if (_isRunning) _buildStatusBar(theme),
           _buildInputBar(theme),
         ],
+      ),
+    );
+  }
+
+  // ── AgentAssembly 全屏模式 Scaffold ──
+  /// 使用本地状态（_embeddedMessages, _localSessionTitle 等）构建完整
+  /// Scaffold，与全局 AgentRuntime 解耦，保持会话隔离 + 全局记忆共享。
+  Widget _buildAssemblyFullScaffold() {
+    final messages = _embeddedMessages;
+    final theme = Theme.of(context);
+    final workspace = widget.descriptor.workspace;
+
+    return Scaffold(
+      key: _scaffoldKey,
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.menu),
+          tooltip: '会话历史',
+          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        ),
+        title: Text(
+          _localSessionTitle,
+          style:
+              const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        ),
+        centerTitle: false,
+        actions: [
+          if (workspace != null)
+            IconButton(
+              icon: const Icon(Icons.folder_outlined),
+              tooltip: '工作区',
+              onPressed: () =>
+                  _scaffoldKey.currentState?.openEndDrawer(),
+            ),
+          IconButton(
+            icon: const Icon(Icons.handyman_outlined),
+            tooltip: '工具选项',
+            onPressed: () => _showToolsSheet(context),
+          ),
+          IconButton(
+            icon: const Icon(Icons.auto_fix_high),
+            tooltip: '技能管理',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                  builder: (_) => const SkillManagementView()),
+            ),
+          ),
+        ],
+      ),
+      drawer: _buildAssemblyHistoryDrawer(context, theme),
+      endDrawer: workspace != null
+          ? Drawer(
+              child: WorkspaceDrawer(
+                workspace: workspace,
+                moduleId: widget.descriptor.id,
+                onFileTap: (file) {
+                  _scaffoldKey.currentState?.closeEndDrawer();
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (_) => FileViewer(file: file)),
+                  );
+                },
+              ),
+            )
+          : null,
+      body: Column(
+        children: [
+          Expanded(
+            child: messages.isEmpty
+                ? _buildEmptyState()
+                : ListView.builder(
+                    controller: _scrollCtrl,
+                    padding: const EdgeInsets.all(16),
+                    itemCount: messages.length,
+                    itemBuilder: (context, index) {
+                      final msg = messages[index];
+                      final lastAsstIdx =
+                          messages.lastIndexWhere((m) => m.isAssistant);
+                      return _MessageBubble(
+                        message: msg,
+                        fontScale: widget.fontScale,
+                        messageIndex: index,
+                        onEdit: msg.isUser
+                            ? () => _editUserMessage(index)
+                            : null,
+                        onRegenerate: msg.isAssistant &&
+                                index == lastAsstIdx
+                            ? _regenerate
+                            : null,
+                      );
+                    },
+                  ),
+          ),
+          if (_isRunning) _buildStatusBar(theme),
+          _buildAssemblyInputBar(theme),
+        ],
+      ),
+    );
+  }
+
+  // ── AgentAssembly 全屏模式：左侧抽屉 ──
+
+  Widget _buildAssemblyHistoryDrawer(BuildContext context, ThemeData theme) {
+    return Drawer(
+      width: 300,
+      child: Column(
+        children: [
+          // Header
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(16, 48, 8, 16),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primaryContainer,
+              border: Border(
+                bottom: BorderSide(
+                    color: theme.colorScheme.outlineVariant,
+                    width: 0.5),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.chat_bubble_outline,
+                    size: 18, color: theme.colorScheme.primary),
+                const SizedBox(width: 8),
+                Text('对话历史',
+                    style: theme.textTheme.titleSmall
+                        ?.copyWith(fontWeight: FontWeight.w600)),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.add_comment, size: 20),
+                  tooltip: '新建对话',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () {
+                    _newAssemblySession();
+                    _scaffoldKey.currentState?.closeDrawer();
+                  },
+                ),
+              ],
+            ),
+          ),
+          // 当前活跃会话
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.chat, size: 20,
+                      color: theme.colorScheme.primary),
+                  title: Text(
+                    _localSessionTitle,
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                  subtitle: Text(
+                    '${_embeddedMessages.where((m) => m.isUser || m.isAssistant).length} 条消息 · 独立会话',
+                    style: theme.textTheme.labelSmall,
+                  ),
+                ),
+                const Divider(),
+                // 全局记忆入口
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.psychology_outlined, size: 20),
+                  title: const Text('全局记忆（共享）'),
+                  subtitle: const Text('跨插件共享的知识库'),
+                  onTap: () {
+                    _scaffoldKey.currentState?.closeDrawer();
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                          builder: (_) => const GlobalMemoryView()),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+          // 已保存会话列表
+          if (_assemblySavedSessions.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Text('${_assemblySavedSessions.length} 个已保存会话',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant)),
+            ),
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                itemCount: _assemblySavedSessions.length,
+                itemBuilder: (context, index) {
+                  final s = _assemblySavedSessions[index];
+                  final msgCount = s.messages
+                      .where((m) => m.isUser || m.isAssistant)
+                      .length;
+                  return ListTile(
+                    leading: const Icon(Icons.history, size: 18),
+                    title: Text(s.title,
+                        style: const TextStyle(fontSize: 13),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
+                    subtitle: Text(
+                      '$msgCount 条消息 · ${_formatDate(s.createdAt)}',
+                      style: const TextStyle(fontSize: 11),
+                    ),
+                    dense: true,
+                    onTap: () {
+                      _switchAssemblySession(index);
+                      _scaffoldKey.currentState?.closeDrawer();
+                    },
+                    trailing: PopupMenuButton<String>(
+                      icon: const Icon(Icons.more_vert, size: 16),
+                      itemBuilder: (_) => [
+                        const PopupMenuItem(
+                            value: 'delete', child: Text('删除')),
+                      ],
+                      onSelected: (action) {
+                        if (action == 'delete')
+                          _deleteAssemblySession(index);
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+          ] else ...[
+            Expanded(
+              child: Center(
+                child: Text('暂无已保存的对话',
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: theme.colorScheme.onSurfaceVariant)),
+              ),
+            ),
+          ],
+          const Divider(height: 1),
+          // 清空当前对话
+          ListTile(
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16),
+            leading: Icon(Icons.delete_outline,
+                size: 20, color: Colors.red.shade400),
+            title: Text('清空当前对话',
+                style: TextStyle(color: Colors.red.shade400)),
+            onTap: () {
+              _newAssemblySession();
+              _scaffoldKey.currentState?.closeDrawer();
+            },
+          ),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Text(
+              '会话独立于全屏 AI 助手',
+              style: TextStyle(
+                  fontSize: 11,
+                  color: theme.colorScheme.onSurfaceVariant),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── AgentAssembly 全屏模式：输入栏 ──
+
+  Widget _buildAssemblyInputBar(ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        border: Border(
+          top: BorderSide(
+              color: theme.colorScheme.outlineVariant, width: 0.5),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 模式切换按钮行
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  if (widget.descriptor.workspace != null) ...[
+                    _ToggleChip(
+                      icon: Icons.folder_outlined,
+                      label: '工作区',
+                      value: false,
+                      onChanged: (_) =>
+                          _scaffoldKey.currentState?.openEndDrawer(),
+                      activeColor: const Color(0xFF1565C0),
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                  _ToggleChip(
+                    icon: Icons.language,
+                    label: '联网搜索',
+                    value: _localWebSearch,
+                    onChanged: (v) => setState(() {
+                      _localWebSearch = v;
+                      if (v) {
+                        _assembly?.registry.enable('web_search');
+                        _assembly?.registry.enable('web_fetch');
+                      } else {
+                        _assembly?.registry.disable('web_search');
+                        _assembly?.registry.disable('web_fetch');
+                      }
+                    }),
+                    activeColor: const Color(0xFF1565C0),
+                  ),
+                  const SizedBox(width: 6),
+                  _EffortSelector(
+                    effort: _localEffort,
+                    onChanged: (v) => setState(() {
+                      _localEffort = v;
+                      // AgentAssembly 的 effort 在创建时已配置，
+                      // 运行时修改 effort 需要重建 Provider；
+                      // 此处仅更新 UI 状态。
+                    }),
+                  ),
+                  const SizedBox(width: 6),
+                  _ToggleChip(
+                    icon: Icons.handyman_outlined,
+                    label: '工具',
+                    value: false,
+                    onChanged: (_) => _showToolsSheet(context),
+                    activeColor: const Color(0xFF2E7D32),
+                  ),
+                  const Spacer(),
+                  IconButton(
+                    icon: const Icon(Icons.auto_fix_high, size: 18),
+                    tooltip: '技能管理',
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                          builder: (_) =>
+                              const SkillManagementView()),
+                    ),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  IconButton(
+                    icon:
+                        const Icon(Icons.delete_outline, size: 18),
+                    tooltip: '清空对话',
+                    onPressed: _newAssemblySession,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
+              ),
+            ),
+            // 输入行
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _inputCtrl,
+                    enabled: !_isRunning,
+                    decoration: InputDecoration(
+                      hintText: _isRunning
+                          ? 'AI 正在思考...'
+                          : '输入你的问题...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
+                      filled: true,
+                      fillColor: theme
+                          .colorScheme.surfaceContainerHighest,
+                    ),
+                    textInputAction: TextInputAction.send,
+                    onSubmitted:
+                        _isRunning ? null : (_) => _sendMessage(),
+                    minLines: 1,
+                    maxLines: 4,
+                  ),
+                ),
+                // 附件状态
+                if (_attachedFileOcrText != null)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: Tooltip(
+                      message: _attachedFileName ?? '文件',
+                      child: Chip(
+                        avatar: const Icon(
+                            Icons.insert_drive_file,
+                            size: 16),
+                        label: Text(
+                          (_attachedFileName ?? '文件').length > 12
+                              ? '...${(_attachedFileName ?? '文件').substring((_attachedFileName ?? '文件').length - 12)}'
+                              : _attachedFileName ?? '文件',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        onDeleted: () {
+                          setState(() {
+                            _attachedFilePath = null;
+                            _attachedFileName = null;
+                            _attachedFileOcrText = null;
+                          });
+                        },
+                        deleteIcon: const Icon(Icons.close,
+                            size: 14),
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 4),
+                      ),
+                    ),
+                  ),
+                if (_attaching)
+                  const Padding(
+                    padding: EdgeInsets.only(right: 8),
+                    child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2)),
+                  )
+                else
+                  IconButton(
+                    icon: Icon(Icons.attach_file,
+                        size: 20,
+                        color: theme.colorScheme.onSurfaceVariant),
+                    tooltip: '上传文件',
+                    onPressed: _pickFile,
+                    visualDensity: VisualDensity.compact,
+                    constraints:
+                        const BoxConstraints(minWidth: 36, minHeight: 36),
+                  ),
+                const SizedBox(width: 4),
+                IconButton(
+                  icon: Icon(
+                    _isRunning ? Icons.stop : Icons.send,
+                    size: 22,
+                    color: theme.colorScheme.primary,
+                  ),
+                  tooltip: _isRunning ? '停止' : '发送',
+                  onPressed: _isRunning
+                      ? () => _embeddedCtrl?.cancel()
+                      : () => _sendMessage(),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -1,16 +1,29 @@
 /// 树形视图槽位——从 [ComponentDescriptor.config] 读取 root 递归渲染。
+/// 支持 M2 dataSource 注入：拉取到的数据合并进 config['root']（Map 逐项覆盖）。
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
+import 'package:evergreen_base/renderer/data/data_source_slot.dart';
 
 /// 树形视图——`tree` 组件。
-class TreeSlot extends StatelessWidget {
-  final ComponentDescriptor config;
-
-  const TreeSlot({super.key, required this.config});
+class TreeSlot extends DataSourceSlot {
+  const TreeSlot({super.key, required super.config});
 
   @override
-  Widget build(BuildContext context) {
-    final cfg = config.config;
+  DataSourceSlotState<TreeSlot> createState() => _TreeSlotState();
+}
+
+class _TreeSlotState extends DataSourceSlotState<TreeSlot> {
+  @override
+  Map<String, dynamic> mergeData(Map<String, dynamic> base, dynamic resolved) {
+    final merged = <String, dynamic>{...base};
+    // 拉取到的树数据本身就是 root 节点（Map 或标量/List），整体赋给 config['root']
+    merged['root'] = resolved;
+    return merged;
+  }
+
+  @override
+  Widget buildStatic(Map<String, dynamic> cfg) {
     final root = cfg['root'] as Map<String, dynamic>?;
     final title = cfg['title'] as String? ?? '树形视图';
 
@@ -20,8 +33,10 @@ class TreeSlot extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.all(12),
           child: Text(title,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600)),
+              style: Theme.of(context)
+                  .textTheme
+                  .titleSmall
+                  ?.copyWith(fontWeight: FontWeight.w600)),
         ),
         if (root == null)
           Expanded(child: _emptyState(context))

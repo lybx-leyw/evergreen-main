@@ -175,9 +175,9 @@ class _ChatViewState extends ConsumerState<ChatView> {
     if (text.isEmpty) return;
     if (ref.read(controllerStateProvider) == ControllerState.running) return;
 
-    // ✅ 自动创建会话：当 activeSessionId 为 null 时，先 await 创建再发送
+    // ✅ 自动创建会话：当 activeSessionId 为 null 时，先创建再发送
     if (ref.read(activeSessionIdProvider) == null) {
-      await ref.read(createSessionProvider)(null);
+      ref.read(createSessionProvider)(null);
     }
 
     final notifier = ref.read(_embeddedChatProvider.notifier);

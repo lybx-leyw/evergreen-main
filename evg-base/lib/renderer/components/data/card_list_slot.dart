@@ -2,7 +2,9 @@
 ///
 /// 同时保留 [DefaultView] 作为模块级兜底视图。
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
+import 'package:evergreen_base/renderer/data/data_source_slot.dart';
 import '../shared/widgets/data_table.dart';
 import '../shared/widgets/data_list.dart';
 import '../shared/widgets/data_card_grid.dart';
@@ -10,15 +12,29 @@ import '../shared/widgets/empty_state.dart';
 
 // ═══════ CardListSlot — slot 级组件（从 config 读数据）═══════
 
-/// CardList 组件——直接读取 config 中的 title 和 cards。
-class CardListSlot extends StatelessWidget {
-  final ComponentDescriptor config;
-
-  const CardListSlot({super.key, required this.config});
+/// CardList 组件——读取 config 中的 title 和 cards。
+/// 支持 M2 dataSource 注入：拉取到的数据合并进 config['cards']。
+class CardListSlot extends DataSourceSlot {
+  const CardListSlot({super.key, required super.config});
 
   @override
-  Widget build(BuildContext context) {
-    final cfg = config.config;
+  DataSourceSlotState<CardListSlot> createState() => _CardListSlotState();
+}
+
+class _CardListSlotState extends DataSourceSlotState<CardListSlot> {
+  @override
+  Map<String, dynamic> mergeData(Map<String, dynamic> base, dynamic resolved) {
+    final merged = <String, dynamic>{...base};
+    if (resolved is List) {
+      merged['cards'] = resolved; // 行列表直接作为 cards
+    } else if (resolved is Map<String, dynamic>) {
+      merged.addAll(resolved);
+    }
+    return merged;
+  }
+
+  @override
+  Widget buildStatic(Map<String, dynamic> cfg) {
     final title = cfg['title'] as String? ?? '';
     final cards = (cfg['cards'] as List<dynamic>?) ?? [];
 
@@ -28,7 +44,11 @@ class CardListSlot extends StatelessWidget {
         if (title.isNotEmpty)
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-            child: Text(title, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+            child: Text(title,
+                style: Theme.of(context)
+                    .textTheme
+                    .titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w600)),
           ),
         Expanded(
           child: cards.isEmpty
@@ -46,7 +66,9 @@ class CardListSlot extends StatelessWidget {
                     final card = cards[index] as Map<String, dynamic>;
                     return _CardItem(
                       title: card['title'] as String? ?? '',
-                      body: card['body'] as String? ?? card['description'] as String? ?? '',
+                      body: card['body'] as String? ??
+                          card['description'] as String? ??
+                          '',
                     );
                   },
                 ),
@@ -61,10 +83,15 @@ class CardListSlot extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.dashboard_customize, size: 48, color: Theme.of(context).colorScheme.onSurfaceVariant),
+          Icon(Icons.dashboard_customize,
+              size: 48,
+              color: Theme.of(context).colorScheme.onSurfaceVariant),
           const SizedBox(height: 8),
-          Text('暂无卡片数据', style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          Text('暂无卡片数据',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
         ],
       ),
     );
@@ -87,7 +114,9 @@ class _CardItem extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+            Text(title,
+                style: theme.textTheme.titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w600)),
             const SizedBox(height: 4),
             Expanded(
               child: Text(
@@ -106,7 +135,7 @@ class _CardItem extends StatelessWidget {
   }
 }
 
-// ═══════ DefaultView — 模块级兜底视图（从 descriptor.dataBindings 读数据）═══════
+// ═══════ DefaultView — 模块级兜底视图（从 descriptor.dataBindings 读数据）══════
 
 /// 默认通用视图。
 ///
@@ -174,7 +203,7 @@ class DefaultView extends StatelessWidget {
           actions: descriptor.actions,
           items: data,
         ),
-      _ => DataList( // 'list' + 'raw' + 未知
+      _ => DataList(
           binding: binding,
           actions: descriptor.actions,
           items: data,

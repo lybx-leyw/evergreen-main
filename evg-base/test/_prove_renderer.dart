@@ -41,8 +41,8 @@ const _multiJson = '''
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('timetable 渲染真实 sessions', () {
-    final html = HtmlRenderer.render(jsonDecode(_timetableJson));
+  test('timetable 渲染真实 sessions', () async {
+    final html = await HtmlRenderer.render(jsonDecode(_timetableJson));
     expect(html, contains('高等数学'));
     expect(html, contains('张三'));
     expect(html, contains('东1-201'));
@@ -51,8 +51,8 @@ void main() {
     print('[PROOF] timetable 字段适配 OK');
   });
 
-  test('flashcards/quiz/settings/button/nav-button 渲染真实字段', () {
-    final html = HtmlRenderer.render(jsonDecode(_multiJson));
+  test('flashcards/quiz/settings/button/nav-button 渲染真实字段', () async {
+    final html = await HtmlRenderer.render(jsonDecode(_multiJson));
     expect(html, contains('课程'));
     expect(html, contains('课表视图'));
     expect(html, contains('abandon'));

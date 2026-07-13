@@ -1,16 +1,32 @@
 /// Timeline 槽位——从 [ComponentDescriptor.config] 读取时间线数据渲染。
+/// 支持 M2 dataSource 注入：拉取到的数据合并进 config['items']。
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
+import 'package:evergreen_base/renderer/data/data_source_slot.dart';
 
 /// Timeline 时间线组件。
-class TimelineSlot extends StatelessWidget {
-  final ComponentDescriptor config;
-
-  const TimelineSlot({super.key, required this.config});
+class TimelineSlot extends DataSourceSlot {
+  const TimelineSlot({super.key, required super.config});
 
   @override
-  Widget build(BuildContext context) {
-    final cfg = config.config;
+  DataSourceSlotState<TimelineSlot> createState() => _TimelineSlotState();
+}
+
+class _TimelineSlotState extends DataSourceSlotState<TimelineSlot> {
+  @override
+  Map<String, dynamic> mergeData(Map<String, dynamic> base, dynamic resolved) {
+    final merged = <String, dynamic>{...base};
+    if (resolved is List) {
+      merged['items'] = resolved;
+    } else if (resolved is Map<String, dynamic>) {
+      merged.addAll(resolved);
+    }
+    return merged;
+  }
+
+  @override
+  Widget buildStatic(Map<String, dynamic> cfg) {
     final title = cfg['title'] as String? ?? '时间线';
     final items = (cfg['items'] as List<dynamic>?) ?? [];
 
@@ -20,7 +36,11 @@ class TimelineSlot extends StatelessWidget {
         if (title.isNotEmpty)
           Padding(
             padding: const EdgeInsets.all(12),
-            child: Text(title, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+            child: Text(title,
+                style: Theme.of(context)
+                    .textTheme
+                    .titleSmall
+                    ?.copyWith(fontWeight: FontWeight.w600)),
           ),
         Expanded(
           child: items.isEmpty
@@ -31,9 +51,14 @@ class TimelineSlot extends StatelessWidget {
                   itemBuilder: (context, index) {
                     final item = items[index] as Map<String, dynamic>;
                     return _TimelineEntry(
-                      date: item['time'] as String? ?? item['date'] as String? ?? '',
-                      title: item['label'] as String? ?? item['title'] as String? ?? '',
-                      subtitle: item['description'] as String? ?? item['subtitle'] as String?,
+                      date: item['time'] as String? ??
+                          item['date'] as String? ??
+                          '',
+                      title: item['label'] as String? ??
+                          item['title'] as String? ??
+                          '',
+                      subtitle: item['description'] as String? ??
+                          item['subtitle'] as String?,
                       isLast: index == items.length - 1,
                     );
                   },
@@ -49,10 +74,16 @@ class TimelineSlot extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.timeline, size: 48, color: Theme.of(context).colorScheme.onSurfaceVariant),
+          Icon(Icons.timeline,
+              size: 48,
+              color: Theme.of(context).colorScheme.onSurfaceVariant),
           const SizedBox(height: 8),
-          Text('暂无时间线数据', style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          Text('暂无时间线数据',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodyMedium
+                  ?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant)),
         ],
       ),
     );
@@ -122,9 +153,10 @@ class _TimelineEntry extends StatelessWidget {
                       Text(title, style: theme.textTheme.titleSmall),
                       if (subtitle != null) ...[
                         const SizedBox(height: 4),
-                        Text(subtitle!, style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        )),
+                        Text(subtitle!,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            )),
                       ],
                     ],
                   ),

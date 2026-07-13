@@ -1,24 +1,33 @@
-/// HTML render: renderDocument
-import 'dart:convert';
-import '../shared/html_helpers.dart';
+/// HTML render: renderDocument — 模板引擎渲染，读取 config.document/exportFormats。
+library;
 
-String renderDocument(Map<String, dynamic> comp) {
-  final cfg = (comp['config'] as Map<String, dynamic>? ?? {})['document'] as Map<String, dynamic>? ?? {};
-  final exportFormats = (cfg['exportFormats'] as List<dynamic>? ?? ['pdf', 'docx', 'md', 'html', 'txt'])
-      .map((f) => '<span class="evg-doc-tag">$f</span>')
-      .join('');
+import '../shared/template_engine.dart';
 
-  return '''
+const _tpl = '''
 <div class="evg-comp evg-comp-doc">
   <div class="evg-doc-toolbar">
     <span class="evg-doc-logo">📝 文档编辑器</span>
-    <div class="evg-doc-actions">$exportFormats</div>
+    <div class="evg-doc-actions">
+      {% for f in config.exportFormats %}<span class="evg-doc-tag">{{ f }}</span>{% endfor %}
+    </div>
   </div>
   <div class="evg-doc-content">
-    <h2>文档标题</h2>
-    <p>这是一段示例文档内容。支持<strong>粗体</strong>、<em>斜体</em>、<u>下划线</u>、<s>删除线</s>等格式。</p>
-    <blockquote>这是引用块——用于强调重要内容。</blockquote>
-    <p>支持多种导出格式，包括 PDF、Word、Markdown 等。</p>
+    {% if config.document.title %}<h2>{{ config.document.title }}</h2>{% endif %}
+    {% if config.document.content %}<p>{{ config.document.content }}</p>{% endif %}
+    {% if config.content %}<p>{{ config.content }}</p>{% endif %}
+    {% if config.paragraphs %}{% for p in config.paragraphs %}<p>{{ p }}</p>{% endfor %}{% endif %}
   </div>
-</div>''';
+</div>
+''';
+
+String renderDocument(Map<String, dynamic> comp) {
+  final cfg = comp['config'] as Map<String, dynamic>? ?? {};
+  final doc = cfg['document'] as Map<String, dynamic>? ?? {};
+  final formats = (cfg['exportFormats'] as List<dynamic>? ??
+          doc['exportFormats'] as List<dynamic>? ??
+          const ['pdf', 'docx', 'md', 'html', 'txt'])
+      .map((f) => f.toString())
+      .toList();
+  final ctx = <String, dynamic>{...comp, 'formats': formats};
+  return renderTemplate(_tpl, ctx);
 }

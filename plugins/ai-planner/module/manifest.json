@@ -1,0 +1,50 @@
+{
+  "schemaVersion": "2.0",
+  "renderMode": "dart",
+  "type": "module",
+  "id": "ai-planner",
+  "name": "AI 辅助规划",
+  "description": "AI 驱动的技术规划编辑器 — Markdown 协作编辑 + AI 技术调研 + Diff 改写对比，支持双轨交互（无声幽灵文本辅助 + 深度 @ai 对话）",
+  "icon": "smart_toy",
+  "route": "/ai-planner",
+  "ui": "composite",
+  "version": "1.0.0",
+  "dependencies": [],
+  "activateSkills": ["tech-analysis", "tech-complete", "tech-revise", "tech-polish"],
+  "nav": {
+    "sidebar": {
+      "section": "工具",
+      "sectionOrder": 300,
+      "order": 15
+    }
+  },
+    "pages": [
+    {
+      "id": "main",
+      "label": "技术规划",
+      "default": true,
+      "hideTab": true,
+      "layout": {
+        "type": "fullscreen",
+        "slots": {
+          "tech-planner-slot": {
+            "component": {
+              "type": "tech-planner",
+              "config": {
+                "title": "AI 辅助技术规划",
+                "showAiPanel": true,
+                "content": "# 新规划\n\n在此编写你的技术规划，输入 `@ai` 触发 AI 调研辅助。\n",
+                "repoPath": "",
+                "autosave": {
+                  "enabled": true,
+                  "debounceMs": 2000,
+                  "periodicSec": 30
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -37,7 +37,7 @@ class _HtmlRenderViewState extends ConsumerState<HtmlRenderView> {
       await _controller.initialize();
 
       // 始终从 manifest JSON 生成 HTML（与 Dart CompositeView 同源）
-      await _controller.loadStringContent(_buildHtml());
+      await _controller.loadStringContent(await _buildHtml());
 
       if (mounted) setState(() => _loading = false);
     } catch (e) {
@@ -46,12 +46,17 @@ class _HtmlRenderViewState extends ConsumerState<HtmlRenderView> {
     }
   }
 
-  String _buildHtml() {
+  Future<String> _buildHtml() async {
     final rawJson = ref.read(v2ManifestProvider)[widget.moduleId];
     if (rawJson == null || rawJson.isEmpty) {
       return '<html><body style="background:#0d1117;color:#c9d1d9;display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif"><p>模块 "${widget.moduleId}" 无 manifest 数据</p></body></html>';
     }
-    return HtmlRenderer.render(rawJson, embedded: true);
+    // M2 P3-2：注入数据源（与 Dart 端等价）
+    return HtmlRenderer.renderWithData(
+      rawJson,
+      ref.read(dataOrchestratorProvider),
+      embedded: true,
+    );
   }
 
   @override

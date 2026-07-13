@@ -35,7 +35,7 @@ lib/renderer/
 
 | 条件 | → 视图 | 说明 |
 |------|--------|------|
-| `descriptor.pages` 非空 | `CompositeView` | 多页 Tab + SlotDispatch（53 种组件） |
+| `descriptor.pages` 非空 | `CompositeView` | 多页 Tab + SlotDispatch（65 种组件：45 具名 + 20 placeholder-01~20） |
 | `descriptor.workspace.enabled` | `EditorView` | 代码/文本编辑器 |
 | 其他 | `DefaultView` | 数据绑定兜底（不崩溃） |
 

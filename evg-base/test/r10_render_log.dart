@@ -33,12 +33,13 @@ const Set<String> _supported = <String>{
   'audio-player', 'image-gallery', 'notepad', 'whiteboard', 'diff-viewer',
   'terminal', 'crossword', 'pronunciation', 'prompt-builder', 'custom',
   'webview', 'settings', 'form', 'lottery-wheel',
+  'pdf-viewer', 'scanner', 'tech-planner', 'scraper-generator',
 };
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('R10 HTML 渲染日志（真实 Flutter 渲染器 + 真实数据）', () {
+  test('R10 HTML 渲染日志（真实 Flutter 渲染器 + 真实数据）', () async {
     // flutter test 在 evg-base 目录内运行，cwd 即 evg-base；项目根为其父目录。
     final root = Platform.environment['R10_ROOT'] ??
         Directory.current.parent.path;
@@ -67,7 +68,7 @@ void main() {
       if (skip.contains(id)) continue;
       final manifestPath = File('${ent.path}/module/manifest.json');
       if (!manifestPath.existsSync()) continue;
-      final ok = render(id, root);
+      final ok = await render(id, root);
       ran.add(id);
       if (!ok) failures.add(id);
     }
@@ -80,7 +81,7 @@ void main() {
   });
 }
 
-bool render(String pluginId, String root) {
+Future<bool> render(String pluginId, String root) async {
   final manifestPath = File('$root/plugins/$pluginId/module/manifest.json');
   final manifest =
       jsonDecode(manifestPath.readAsStringSync()) as Map<String, dynamic>;
@@ -229,7 +230,7 @@ bool render(String pluginId, String root) {
   }
 
   // 真实 Flutter 渲染器参与
-  final html = HtmlRenderer.render(manifest);
+  final html = await HtmlRenderer.render(manifest);
   File('$root/plugins/$pluginId/render_log.html').writeAsStringSync(html);
 
   final checks = <String, bool>{};

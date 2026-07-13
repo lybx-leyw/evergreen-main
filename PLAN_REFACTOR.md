@@ -15,7 +15,7 @@ lib/renderer/
 ├── page/          页面层 —— CompositeView、布局引擎、独立页面
 │   └── service/   页面级服务（EventBus、进程管理）
 ├── slot/          Slot层 —— SlotDispatch、SlotScale、SlotCard
-├── components/    组件层 —— 43 具名组件 + 20 placeholder，按功能域分组
+├── components/    组件层 —— 45 具名组件 + 20 placeholder（全仓库共 65 种），按功能域分组
 │   ├── shared/    跨组件共享原子
 │   ├── document/  文档与媒体 (12)
 │   ├── data/      数据驱动 (11)

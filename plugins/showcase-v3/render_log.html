@@ -479,207 +479,144 @@ body {
 </div>
   <div class="evg-main">
     <div class="evg-tabs">
-      <button class="evg-tab" data-page="page_0" onclick="switchPage('page_0')">智能交互</button><button class="evg-tab" data-page="page_1" onclick="switchPage('page_1')">数据展示</button><button class="evg-tab" data-page="page_2" onclick="switchPage('page_2')">文档与媒体</button><button class="evg-tab" data-page="page_3" onclick="switchPage('page_3')">创作与工具</button><button class="evg-tab" data-page="page_4" onclick="switchPage('page_4')">学习专用</button><button class="evg-tab" data-page="page_5" onclick="switchPage('page_5')">特殊与扩展</button>
+      <button class="evg-tab" data-page="page_0" onclick="switchPage('page_0')">封面</button><button class="evg-tab" data-page="page_1" onclick="switchPage('page_1')">📊 数据仪表盘</button><button class="evg-tab" data-page="page_2" onclick="switchPage('page_2')">✍️ 创作工坊</button><button class="evg-tab" data-page="page_3" onclick="switchPage('page_3')">📝 文档与编辑器</button><button class="evg-tab" data-page="page_4" onclick="switchPage('page_4')">🤖 智能交互</button><button class="evg-tab" data-page="page_5" onclick="switchPage('page_5')">🎬 媒体展示</button><button class="evg-tab" data-page="page_6" onclick="switchPage('page_6')">📚 学习实验室</button><button class="evg-tab" data-page="page_7" onclick="switchPage('page_7')">🧰 扩展工具箱</button>
     </div>
     <div class="evg-pages">
       <div class="evg-page" id="page-page_0" style="display:none">
-  <div class="evg-layout evg-layout-grid" style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto; gap: 12px; width: 100%; height: 100%; overflow: auto">
+  <div class="evg-layout evg-layout-dock" style="display: grid; grid-template-rows: 120px 1fr 220px; grid-template-columns: 1fr; width: 100%; height: 100%; overflow: hidden">
     <div class="evg-slot" style="padding: 12px">
   <div class="evg-slot-header">
-    <span class="evg-slot-name">📌 form</span>
-    <span class="evg-slot-type">form</span>
+    <span class="evg-slot-name">📌 top</span>
+    <span class="evg-slot-type">markdown</span>
     
   </div>
   <div class="evg-slot-body">
-    <div class="evg-comp evg-comp-form">
-  <div class="evg-comp-title">📋 表单</div>
-  
-  <button class="evg-form-submit">提交</button>
+    <div class="evg-comp evg-comp-md">
+  <div class="evg-comp-title">📄 Markdown</div>
+  <div class="evg-md-content" style="white-space:pre-wrap;line-height:1.8;padding:12px"># EVERGREEN
+*Flutter 桌面微工具平台*</div>
 </div>
   </div>
 </div>
 <div class="evg-slot" style="padding: 12px">
   <div class="evg-slot-header">
-    <span class="evg-slot-name">📌 settings</span>
-    <span class="evg-slot-type">settings</span>
+    <span class="evg-slot-name">📌 center</span>
+    <span class="evg-slot-type">video-player</span>
     
   </div>
   <div class="evg-slot-body">
-    <div class="evg-comp evg-comp-settings">
-  <div class="evg-comp-title">⚙️ 设置</div>
-  <div class="evg-set-list"><div class="evg-set-row">
-  <div class="evg-set-label">用户名 </div>
-  <div class="evg-set-ctrl"><input type="text" value="" /></div>
-</div><div class="evg-set-row">
-  <div class="evg-set-label">主题 </div>
-  <div class="evg-set-ctrl"><select><option selected>dark</option><option >light</option></select></div>
-</div><div class="evg-set-row">
-  <div class="evg-set-label">自动启动 </div>
-  <div class="evg-set-ctrl"><input type="checkbox" checked /></div>
-</div></div>
-</div>
-  </div>
-</div>
-<div class="evg-slot" style="padding: 12px">
-  <div class="evg-slot-header">
-    <span class="evg-slot-name">📌 data-dashboard</span>
-    <span class="evg-slot-type">data-dashboard</span>
-    
-  </div>
-  <div class="evg-slot-body">
-    <div class="evg-comp evg-comp-dashboard">
-  <div class="evg-comp-title">📊 Evergreen 数据中枢</div>
-  <div class="evg-card-grid"><div class="evg-card">
-  <div class="evg-cl-body">
-    <div class="evg-cl-text">具名组件</div>
-    <div class="evg-stat-value">43</div>
-    
-  </div>
-</div><div class="evg-card">
-  <div class="evg-cl-body">
-    <div class="evg-cl-text">HTML 适配</div>
-    <div class="evg-stat-value">38/38</div>
-    
-  </div>
-</div><div class="evg-card">
-  <div class="evg-cl-body">
-    <div class="evg-cl-text">复刻模块</div>
-    <div class="evg-stat-value">28</div>
-    
-  </div>
-</div><div class="evg-card">
-  <div class="evg-cl-body">
-    <div class="evg-cl-text">HttpServer</div>
-    <div class="evg-stat-value">6</div>
-    
-  </div>
-</div><div class="evg-card">
-  <div class="evg-cl-body">
-    <div class="evg-cl-text">HTTP 端点</div>
-    <div class="evg-stat-value">59</div>
-    
-  </div>
-</div><div class="evg-card">
-  <div class="evg-cl-body">
-    <div class="evg-cl-text">M1 新增 Dart Slot</div>
-    <div class="evg-stat-value">12</div>
-    
-  </div>
-</div></div>
-</div>
-  </div>
-</div>
-<div class="evg-slot" style="padding: 12px">
-  <div class="evg-slot-header">
-    <span class="evg-slot-name">📌 code-editor</span>
-    <span class="evg-slot-type">code-editor</span>
-    
-  </div>
-  <div class="evg-slot-body">
-    <div class="evg-comp evg-comp-code">
-  <div class="evg-code-header">
-    <span>📄 main.dart</span>
-    <span class="evg-code-lang">dart</span>
-  </div>
-  <div class="evg-code-body">
-    <div class="evg-code-lines">1<br>2<br>3<br>4<br>5<br>6<br>7<br>8<br>9<br>10<br>11<br>12<br>13<br>14<br>15<br>16<br>17<br>18<br>19<br>20<br>21<br>22<br>23<br>24<br>25<br>26<br>27<br>28<br>29<br>30<br>31<br>32<br>33<br>34<br>35<br>36<br>37<br>38<br>39<br>40<br>41<br>42<br>43<br>44<br>45<br>46<br>47<br>48</div>
-    <pre class="evg-code-pre">/// 记事本槽位——从 [ComponentDescriptor.config] 读取 content/placeholder 渲染。
-import 'package:flutter/material.dart';
-import 'package:evergreen_base/core/module/module_descriptor.dart';
-
-/// 记事本——`notepad` 组件。
-class NotepadSlot extends StatelessWidget {
-  final ComponentDescriptor config;
-
-  const NotepadSlot({super.key, required this.config});
-
-  @override
-  Widget build(BuildContext context) {
-    final cfg = config.config;
-    final content = cfg['content'] as String? ?? '';
-    final placeholder = cfg['placeholder'] as String? ?? '输入内容…';
-    final title = cfg['title'] as String? ?? '记事本';
-    final readOnly = cfg['readOnly'] as bool? ?? false;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(12),
-          child: Text(title,
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600)),
-        ),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            child: TextField(
-              controller: TextEditingController(text: content),
-              readOnly: readOnly,
-              maxLines: null,
-              expands: true,
-              textAlignVertical: TextAlignVertical.top,
-              decoration: InputDecoration(
-                hintText: placeholder,
-                border: const OutlineInputBorder(),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-</pre>
+    <div class="evg-comp evg-comp-video">
+  <div class="evg-video-placeholder">
+    <video src="assets/video/evergreen_title.mp4" controls style="max-width:100%;border-radius:8px"></video>
   </div>
 </div>
   </div>
 </div>
 <div class="evg-slot" style="padding: 12px">
   <div class="evg-slot-header">
-    <span class="evg-slot-name">📌 prompt-builder</span>
-    <span class="evg-slot-type">prompt-builder</span>
+    <span class="evg-slot-name">📌 bottom</span>
+    <span class="evg-slot-type">button</span>
     
   </div>
   <div class="evg-slot-body">
-    <div class="evg-comp evg-comp-prompt-builder">
-  <div class="evg-comp-title">🔧 Prompt 构建器</div>
-  <div class="evg-pb-template">
-    <div class="evg-pb-label">模板:</div>
-    <pre class="evg-pb-pre">你是一个{role}，请帮我{action}。</pre>
-  </div>
-  <div class="evg-pb-vars">
-    <div class="evg-pb-label">变量:</div>
-    <div class="evg-pb-field">
-  <label>role</label>
-  <input type="text" value="Python 专家" placeholder="role" />
-</div><div class="evg-pb-field">
-  <label>action</label>
-  <input type="text" value="审查代码" placeholder="action" />
-</div>
-  </div>
-  <button class="evg-pb-generate">✨ 生成 Prompt</button>
+    <div class="evg-comp evg-comp-button">
+  <div class="evg-btn-bar" style="justify-content:flex-start"><button class="evg-btn evg-btn-card" data-event="slot:switch_page:page_1">📊 数据仪表盘</button><button class="evg-btn evg-btn-card" data-event="slot:switch_page:page_2">🎨 创作工坊</button><button class="evg-btn evg-btn-card" data-event="slot:switch_page:page_5">🎬 媒体展示</button></div>
 </div>
   </div>
 </div>
   </div>
 </div><div class="evg-page" id="page-page_1" style="display:none">
-  <div class="evg-layout evg-layout-grid" style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto; gap: 12px; width: 100%; height: 100%; overflow: auto">
+  <div class="evg-layout evg-layout-grid" style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto; gap: 16px; width: 100%; height: 100%; overflow: auto">
     <div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 stat-tile-1</span>
+    <span class="evg-slot-type">stat-tile</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-stat-tile">
+  <div class="evg-stat-header">
+    
+    <span class="evg-stat-title">具名组件</span>
+  </div>
+  <div class="evg-stat-value">43</div>
+  <span class="evg-stat-trend up">▲ 完成</span>
+  <div class="evg-stat-subtitle">M1 全量补齐</div>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 stat-tile-2</span>
+    <span class="evg-slot-type">stat-tile</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-stat-tile">
+  <div class="evg-stat-header">
+    
+    <span class="evg-stat-title">复刻模块</span>
+  </div>
+  <div class="evg-stat-value">28</div>
+  <span class="evg-stat-trend up">▲ 完成</span>
+  <div class="evg-stat-subtitle">去内置化重构</div>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 stat-tile-3</span>
+    <span class="evg-slot-type">stat-tile</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-stat-tile">
+  <div class="evg-stat-header">
+    
+    <span class="evg-stat-title">HttpServer</span>
+  </div>
+  <div class="evg-stat-value">6</div>
+  <span class="evg-stat-trend up">▲ 稳定</span>
+  <div class="evg-stat-subtitle">Agent/Config/Data/Module/Theme/Core</div>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 stat-tile-4</span>
+    <span class="evg-slot-type">stat-tile</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-stat-tile">
+  <div class="evg-stat-header">
+    
+    <span class="evg-stat-title">HTTP 端点</span>
+  </div>
+  <div class="evg-stat-value">59</div>
+  <span class="evg-stat-trend up">▲ 稳定</span>
+  <div class="evg-stat-subtitle">全服务覆盖</div>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 chart</span>
+    <span class="evg-slot-type">chart</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-chart"><div class="evg-placeholder">暂无数据</div></div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
   <div class="evg-slot-header">
     <span class="evg-slot-name">📌 data-table</span>
     <span class="evg-slot-type">data-table</span>
     
   </div>
   <div class="evg-slot-body">
-    <div class="evg-comp evg-comp-table">
-  <div class="evg-comp-title">插件清单（节选）</div>
-  
-  <table class="evg-table">
-    <thead><tr><th>名称</th><th>类型</th></tr></thead>
-    <tbody><tr><td>ai-assistant</td><td>module</td></tr><tr><td>python-runner</td><td>agent</td></tr><tr><td>dark</td><td>theme</td></tr></tbody>
-  </table>
-</div>
+    <div class="evg-comp"><div class="evg-comp-title">插件清单（节选）</div><table class="evg-dt"><thead><tr><th>名称</th><th>类型</th></tr></thead><tbody><tr><td>ai-assistant</td><td>module</td></tr><tr><td>python-runner</td><td>agent</td></tr><tr><td>showcase</td><td>theme</td></tr><tr><td>showcase-v3</td><td>module</td></tr></tbody></table></div>
   </div>
 </div>
 <div class="evg-slot" style="padding: 12px">
@@ -712,38 +649,14 @@ class NotepadSlot extends StatelessWidget {
     <div class="evg-cl-text">专注计时</div>
   </div>
   
+</div><div class="evg-cl-card">
+  
+  <div class="evg-cl-body">
+    <div class="evg-cl-title">Pintia</div>
+    <div class="evg-cl-text">拼题A 刷题与 OJ 训练</div>
+  </div>
+  
 </div></div>
-</div>
-  </div>
-</div>
-<div class="evg-slot" style="padding: 12px">
-  <div class="evg-slot-header">
-    <span class="evg-slot-name">📌 chart</span>
-    <span class="evg-slot-type">chart</span>
-    
-  </div>
-  <div class="evg-slot-body">
-    <div class="evg-comp evg-comp-empty">
-  <div class="evg-empty-icon">📭</div>
-  <div class="evg-empty-hint">暂无图表数据（运行时加载）</div>
-</div>
-  </div>
-</div>
-<div class="evg-slot" style="padding: 12px">
-  <div class="evg-slot-header">
-    <span class="evg-slot-name">📌 stat-tile</span>
-    <span class="evg-slot-type">stat-tile</span>
-    
-  </div>
-  <div class="evg-slot-body">
-    <div class="evg-comp evg-comp-stat-tile">
-  <div class="evg-stat-header">
-    
-    <span class="evg-stat-title">HttpServer</span>
-  </div>
-  <div class="evg-stat-value">6</div>
-  <span class="evg-stat-trend up">▲ 稳定</span>
-  <div class="evg-stat-subtitle">Agent/Config/Data/Module/Theme/Core</div>
 </div>
   </div>
 </div>
@@ -755,35 +668,60 @@ class NotepadSlot extends StatelessWidget {
   </div>
   <div class="evg-slot-body">
     <div class="evg-comp evg-comp-kanban">
-  <div class="evg-kb-board"><div class="evg-kb-column">
-  <div class="evg-kb-col-header">
-    <span>规划中</span>
-    <span class="evg-kb-count">51</span>
-  </div>
-  <div class="evg-kb-col-body"><div class="evg-kb-card">
-  <span></span>
   
-</div></div>
-</div><div class="evg-kb-column">
-  <div class="evg-kb-col-header">
-    <span>进行中</span>
-    <span class="evg-kb-count">51</span>
+  <div class="evg-kb-board">
+    
+    <div class="evg-kb-column">
+      <div class="evg-kb-col-header">
+        <span>规划中</span>
+        <span class="evg-kb-count"></span>
+      </div>
+      <div class="evg-kb-col-body">
+        
+        <div class="evg-kb-card">
+          <span></span>
+          
+        </div>
+        
+      </div>
+    </div>
+    
+    <div class="evg-kb-column">
+      <div class="evg-kb-col-header">
+        <span>进行中</span>
+        <span class="evg-kb-count"></span>
+      </div>
+      <div class="evg-kb-col-body">
+        
+        <div class="evg-kb-card">
+          <span></span>
+          
+        </div>
+        
+      </div>
+    </div>
+    
+    <div class="evg-kb-column">
+      <div class="evg-kb-col-header">
+        <span>完成</span>
+        <span class="evg-kb-count"></span>
+      </div>
+      <div class="evg-kb-col-body">
+        
+        <div class="evg-kb-card">
+          <span></span>
+          
+        </div>
+        
+      </div>
+    </div>
+    
   </div>
-  <div class="evg-kb-col-body"><div class="evg-kb-card">
-  <span></span>
   
-</div></div>
-</div><div class="evg-kb-column">
-  <div class="evg-kb-col-header">
-    <span>完成</span>
-    <span class="evg-kb-count">51</span>
-  </div>
-  <div class="evg-kb-col-body"><div class="evg-kb-card">
-  <span></span>
+  <div class="evg-empty">暂无看板数据（config.columns）</div>
   
-</div></div>
-</div></div>
 </div>
+
   </div>
 </div>
 <div class="evg-slot" style="padding: 12px">
@@ -870,14 +808,6 @@ class NotepadSlot extends StatelessWidget {
   <div class="evg-tl-marker"></div>
   <div class="evg-tl-line"></div>
   <div class="evg-tl-content">
-    <div class="evg-tl-time">2026-07-06</div>
-    <div class="evg-tl-label">标题视频生成</div>
-    <div class="evg-tl-desc">evergreen_title.mp4</div>
-  </div>
-</div><div class="evg-tl-item">
-  <div class="evg-tl-marker"></div>
-  <div class="evg-tl-line"></div>
-  <div class="evg-tl-content">
     <div class="evg-tl-time">2026-07-08</div>
     <div class="evg-tl-label">组件复刻完成</div>
     <div class="evg-tl-desc">29 模块全量复刻</div>
@@ -894,32 +824,120 @@ class NotepadSlot extends StatelessWidget {
 </div>
   </div>
 </div>
-<div class="evg-slot" style="padding: 12px">
+  </div>
+</div><div class="evg-page" id="page-page_2" style="display:none">
+  <div class="evg-layout evg-layout-dock" style="display: grid; grid-template-rows: 48px 1fr 160px; grid-template-columns: 200px 1fr 200px; width: 100%; height: 100%; overflow: hidden">
+    <div class="evg-slot" style="padding: 12px">
   <div class="evg-slot-header">
-    <span class="evg-slot-name">📌 map</span>
-    <span class="evg-slot-type">map</span>
+    <span class="evg-slot-name">📌 top</span>
+    <span class="evg-slot-type">button</span>
     
   </div>
   <div class="evg-slot-body">
-    <div class="evg-comp evg-comp-map">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <div id="evg-map-778154225" style="height:320px;width:100%;border-radius:8px"></div>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script>
-    (function(){
-      var map = L.map('evg-map-778154225').setView([30.27, 120.12], 13);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19, attribution: '© OpenStreetMap'
-      }).addTo(map);
-      L.marker([30.27, 120.12]).addTo(map).bindPopup('杭州研发中心');
-L.marker([39.9, 116.4]).addTo(map).bindPopup('北京');
-    })();
-  </script>
+    <div class="evg-comp evg-comp-button">
+  <div class="evg-btn-bar" style="justify-content:center"><button class="evg-btn evg-btn-tonal" data-event="save">💾 保存</button><button class="evg-btn evg-btn-tonal" data-event="export">📤 导出</button><button class="evg-btn evg-btn-outlined" data-event="clear">🗑️ 清空</button></div>
 </div>
   </div>
 </div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 left</span>
+    <span class="evg-slot-type">spreadsheet</span>
+    
   </div>
-</div><div class="evg-page" id="page-page_2" style="display:none">
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-sheet">
+  <div class="evg-sheet-header">
+    <span>📊 电子表格</span>
+    <span style="font-size:11px;color:var(--evg-text-secondary)">列 × 行</span>
+  </div>
+  <div class="evg-sheet-table">
+    <table>
+      <thead><tr><th></th></tr></thead>
+      <tbody>
+        
+      </tbody>
+    </table>
+  </div>
+</div>
+
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 center</span>
+    <span class="evg-slot-type">mindmap</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-mindmap">
+  <div class="evg-comp-title">🧠 思维导图</div>
+  <div class="evg-mindmap-node" style="text-align:center;padding:20px">
+    <div class="evg-mm-root">核心主题</div>
+    
+  </div>
+</div>
+
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 right</span>
+    <span class="evg-slot-type">whiteboard</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-whiteboard">
+  <div class="evg-wb-toolbar">
+    <button class="evg-wb-tool" title="工具">✏️</button><button class="evg-wb-tool" title="工具">🧹</button><button class="evg-wb-tool" title="工具">⬜</button>
+    <span style="flex:1"></span>
+    <button class="evg-wb-tool" title="撤销">↩️</button>
+    <button class="evg-wb-tool" title="重做">↪️</button>
+    <button class="evg-wb-tool" title="清空">🗑️</button>
+  </div>
+  <div class="evg-wb-canvas">
+    <div class="evg-wb-placeholder">
+      <span style="font-size:48px;opacity:.3">🎨</span>
+      <span style="font-size:14px;color:var(--evg-text-secondary)">白板画布 — 线宽 3</span>
+    </div>
+  </div>
+</div>
+
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 bottom</span>
+    <span class="evg-slot-type">terminal</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-terminal">
+  <div class="evg-term-header">
+    <span class="evg-term-dot" style="background:#ff5f56"></span>
+    <span class="evg-term-dot" style="background:#ffbd2e"></span>
+    <span class="evg-term-dot" style="background:#27c93f"></span>
+    <span class="evg-term-title">~/evergreen — bash</span>
+  </div>
+  <div class="evg-term-body">
+    
+    <div class="evg-term-line"><span style="color:#c9d1d9"></span></div>
+    
+    <div class="evg-term-line"><span style="color:#c9d1d9"></span></div>
+    
+    <div class="evg-term-line"><span style="color:#c9d1d9"></span></div>
+    
+    <div class="evg-term-line"><span style="color:#c9d1d9"></span></div>
+    
+    <div class="evg-term-line"><span style="color:#c9d1d9"></span></div>
+    
+  </div>
+</div>
+
+  </div>
+</div>
+  </div>
+</div><div class="evg-page" id="page-page_3" style="display:none">
   <div class="evg-layout evg-layout-grid" style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto; gap: 12px; width: 100%; height: 100%; overflow: auto">
     <div class="evg-slot" style="padding: 12px">
   <div class="evg-slot-header">
@@ -931,12 +949,18 @@ L.marker([39.9, 116.4]).addTo(map).bindPopup('北京');
     <div class="evg-comp evg-comp-doc">
   <div class="evg-doc-toolbar">
     <span class="evg-doc-logo">📝 文档编辑器</span>
-    <div class="evg-doc-actions"><span class="evg-doc-tag">pdf</span><span class="evg-doc-tag">docx</span></div>
+    <div class="evg-doc-actions">
+      
+    </div>
   </div>
   <div class="evg-doc-content">
+    
     <p>Evergreen 是 Flutter 桌面微工具平台，无账号、本地优先、AI 原生，支持 Agent/Module/Theme/Data/Config/Skill 六维插件生态。</p>
+    
+    
   </div>
 </div>
+
   </div>
 </div>
 <div class="evg-slot" style="padding: 12px">
@@ -949,12 +973,18 @@ L.marker([39.9, 116.4]).addTo(map).bindPopup('北京');
     <div class="evg-comp evg-comp-doc">
   <div class="evg-doc-toolbar">
     <span class="evg-doc-logo">📝 文档编辑器</span>
-    <div class="evg-doc-actions"><span class="evg-doc-tag">pdf</span><span class="evg-doc-tag">docx</span></div>
+    <div class="evg-doc-actions">
+      
+    </div>
   </div>
   <div class="evg-doc-content">
+    
     <p>Evergreen 文档编辑器：真实渲染 manifest 中的 document 内容。</p>
+    
+    
   </div>
 </div>
+
   </div>
 </div>
 <div class="evg-slot" style="padding: 12px">
@@ -967,15 +997,259 @@ L.marker([39.9, 116.4]).addTo(map).bindPopup('北京');
     <div class="evg-comp evg-comp-doc">
   <div class="evg-doc-toolbar">
     <span class="evg-doc-logo">📝 文档编辑器</span>
-    <div class="evg-doc-actions"><span class="evg-doc-tag">pdf</span><span class="evg-doc-tag">docx</span></div>
+    <div class="evg-doc-actions">
+      
+    </div>
   </div>
   <div class="evg-doc-content">
+    
     <p>Evergreen 是 Flutter 桌面微工具平台。</p>
+    
+    
   </div>
+</div>
+
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 markdown</span>
+    <span class="evg-slot-type">markdown</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-md">
+  <div class="evg-comp-title">📄 Markdown</div>
+  <div class="evg-md-content" style="white-space:pre-wrap;line-height:1.8;padding:12px"># Evergreen
+
+- 无账号、本地优先
+- 六维插件生态
+- 43 组件双端实现</div>
 </div>
   </div>
 </div>
 <div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 code-editor</span>
+    <span class="evg-slot-type">code-editor</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-code">
+  <div class="evg-code-header">
+    <span>📄 main.dart</span>
+    <span class="evg-code-lang">dart</span>
+  </div>
+  <div class="evg-code-body">
+    <div class="evg-code-lines">1<br>2<br>3<br>4<br>5<br>6<br>7<br></div>
+    <pre class="evg-code-pre">/// Evergreen 渲染引擎核心
+class CompositeView extends StatefulWidget {
+  final ModuleDescriptor descriptor;
+  const CompositeView({required this.descriptor});
+  @override
+  State&lt;CompositeView&gt; createState() =&gt; _CompositeViewState();
+}</pre>
+  </div>
+</div>
+
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 notepad</span>
+    <span class="evg-slot-type">notepad</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-notepad">
+  <div class="evg-np-toolbar">
+    <span>📝 记事本</span>
+    <span class="evg-np-status">已保存</span>
+  </div>
+  <textarea class="evg-np-editor" placeholder="输入内容">Evergreen 项目笔记：六维插件生态，本地优先。</textarea>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 diff-viewer</span>
+    <span class="evg-slot-type">diff-viewer</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-diff">
+  <div class="evg-diff-header">
+    <span class="evg-diff-label left">📄 M0 基线</span>
+    <span class="evg-diff-label right">📄 M1 补齐</span>
+  </div>
+  <div class="evg-diff-body">
+    <div class="evg-diff-line evg-diff-del"><code>❌ 15 组件未实现</code></div><div class="evg-diff-line evg-diff-add"><code>✅ 43 组件全量就绪</code></div><div class="evg-diff-line evg-diff-add"><code>✅ 自适应 SlotScale 缩放</code></div><div class="evg-diff-line evg-diff-del"><code>❌ 字体硬编码</code></div><div class="evg-diff-line evg-diff-add"><code>✅ 样式随 slot 等比缩放</code></div>
+  </div>
+</div>
+
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 presentation</span>
+    <span class="evg-slot-type">presentation</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-pres">
+  
+  
+  <div class="evg-pres-slide">
+    <div class="evg-pres-title">Evergreen 是什么</div>
+    <div class="evg-pres-content"><p></p></div>
+    <div class="evg-pres-page">0 / </div>
+  </div>
+  
+  <div class="evg-pres-slide">
+    <div class="evg-pres-title">六维插件</div>
+    <div class="evg-pres-content"><p></p></div>
+    <div class="evg-pres-page">1 / </div>
+  </div>
+  
+  <div class="evg-pres-slide">
+    <div class="evg-pres-title">M1 成果</div>
+    <div class="evg-pres-content"><p></p></div>
+    <div class="evg-pres-page">2 / </div>
+  </div>
+  
+  <div class="evg-pres-slide">
+    <div class="evg-pres-title">无账号 · 本地优先</div>
+    <div class="evg-pres-content"><p></p></div>
+    <div class="evg-pres-page">3 / </div>
+  </div>
+  
+  
+  <div class="evg-pres-slide">
+    <div class="evg-pres-title">幻灯片演示</div>
+    <div class="evg-pres-content"><p>暂无幻灯片内容</p></div>
+  </div>
+  
+  <div class="evg-pres-nav">
+    <button>◀ 上一页</button>
+    <button>下一页 ▶</button>
+  </div>
+</div>
+
+  </div>
+</div>
+  </div>
+</div><div class="evg-page" id="page-page_4" style="display:none">
+  <div class="evg-layout evg-layout-grid" style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto; gap: 12px; width: 100%; height: 100%; overflow: auto">
+    <div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 form</span>
+    <span class="evg-slot-type">form</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-form">
+  <div class="evg-comp-title">📋 表单</div>
+  
+  <button class="evg-form-submit">提交</button>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 settings</span>
+    <span class="evg-slot-type">settings</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-settings">
+  <div class="evg-comp-title">⚙️ 设置</div>
+  <div class="evg-set-list"><div class="evg-set-row">
+  <div class="evg-set-label">用户名 </div>
+  <div class="evg-set-ctrl"><input type="text" value="" /></div>
+</div><div class="evg-set-row">
+  <div class="evg-set-label">主题 </div>
+  <div class="evg-set-ctrl"><select><option selected>dark</option><option >light</option></select></div>
+</div><div class="evg-set-row">
+  <div class="evg-set-label">自动启动 </div>
+  <div class="evg-set-ctrl"><input type="checkbox" checked /></div>
+</div></div>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 data-dashboard</span>
+    <span class="evg-slot-type">data-dashboard</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-data-dashboard">
+  <div class="evg-comp-title">📊 Evergreen 数据中枢</div>
+  <div class="evg-dd-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px"><div class="evg-dd-card" style="padding:10px 12px;border:1px solid var(--evg-border,#3334);border-radius:8px">
+  <div class="evg-dd-name" style="font-size:12px;opacity:.7">具名组件</div>
+  <div class="evg-dd-value" style="font-size:20px;font-weight:700">43</div>
+</div><div class="evg-dd-card" style="padding:10px 12px;border:1px solid var(--evg-border,#3334);border-radius:8px">
+  <div class="evg-dd-name" style="font-size:12px;opacity:.7">HTML 适配</div>
+  <div class="evg-dd-value" style="font-size:20px;font-weight:700">38/38</div>
+</div><div class="evg-dd-card" style="padding:10px 12px;border:1px solid var(--evg-border,#3334);border-radius:8px">
+  <div class="evg-dd-name" style="font-size:12px;opacity:.7">复刻模块</div>
+  <div class="evg-dd-value" style="font-size:20px;font-weight:700">28</div>
+</div><div class="evg-dd-card" style="padding:10px 12px;border:1px solid var(--evg-border,#3334);border-radius:8px">
+  <div class="evg-dd-name" style="font-size:12px;opacity:.7">HttpServer</div>
+  <div class="evg-dd-value" style="font-size:20px;font-weight:700">6</div>
+</div><div class="evg-dd-card" style="padding:10px 12px;border:1px solid var(--evg-border,#3334);border-radius:8px">
+  <div class="evg-dd-name" style="font-size:12px;opacity:.7">HTTP 端点</div>
+  <div class="evg-dd-value" style="font-size:20px;font-weight:700">59</div>
+</div><div class="evg-dd-card" style="padding:10px 12px;border:1px solid var(--evg-border,#3334);border-radius:8px">
+  <div class="evg-dd-name" style="font-size:12px;opacity:.7">M1 新增 Slot</div>
+  <div class="evg-dd-value" style="font-size:20px;font-weight:700">12</div>
+</div></div>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 prompt-builder</span>
+    <span class="evg-slot-type">prompt-builder</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-prompt-builder">
+  <div class="evg-comp-title">🔧 Prompt 构建器</div>
+  <div class="evg-pb-template">
+    <div class="evg-pb-label">模板:</div>
+    <pre class="evg-pb-pre">你是一个{role}，请帮我{action}。</pre>
+  </div>
+  <div class="evg-pb-vars">
+    <div class="evg-pb-label">变量:</div>
+    <div class="evg-pb-field">
+  <label>role</label>
+  <input type="text" value="Python 专家" placeholder="role" />
+</div><div class="evg-pb-field">
+  <label>action</label>
+  <input type="text" value="审查代码" placeholder="action" />
+</div>
+  </div>
+  <button class="evg-pb-generate">✨ 生成 Prompt</button>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 custom</span>
+    <span class="evg-slot-type">custom</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-custom">
+  <div style='padding:12px;border:1px solid #2ECC71;border-radius:8px;color:#2ECC71;font-size:14px'>Evergreen 自定义卡片：真实项目信息展示</div>
+</div>
+  </div>
+</div>
+  </div>
+</div><div class="evg-page" id="page-page_5" style="display:none">
+  <div class="evg-layout evg-layout-flex" style="display: flex; flex-direction: column; flex-wrap: nowrap; gap: 12px; justify-content: flex-start; align-items: stretch; width: 100%; height: 100%; overflow: auto">
+    <div class="evg-slot" style="padding: 12px">
   <div class="evg-slot-header">
     <span class="evg-slot-name">📌 video-player</span>
     <span class="evg-slot-type">video-player</span>
@@ -1035,6 +1309,11 @@ L.marker([39.9, 116.4]).addTo(map).bindPopup('北京');
     <div class="evg-gal-overlay">🔍</div>
   </div>
   <div class="evg-gal-caption">架构分层图</div>
+</div><div class="evg-gal-item">
+  <div class="evg-gal-thumb" style="background-image:url(module/arch.png)">
+    <div class="evg-gal-overlay">🔍</div>
+  </div>
+  <div class="evg-gal-caption">三角通讯链架构图</div>
 </div></div>
 </div>
   </div>
@@ -1047,182 +1326,42 @@ L.marker([39.9, 116.4]).addTo(map).bindPopup('北京');
   </div>
   <div class="evg-slot-body">
     <div class="evg-comp evg-comp-pres">
+  
+  
   <div class="evg-pres-slide">
     <div class="evg-pres-title">Evergreen 是什么</div>
     <div class="evg-pres-content"><p></p></div>
-    <div class="evg-pres-page">1 / 3</div>
+    <div class="evg-pres-page">0 / </div>
   </div>
+  
+  <div class="evg-pres-slide">
+    <div class="evg-pres-title">六维插件</div>
+    <div class="evg-pres-content"><p></p></div>
+    <div class="evg-pres-page">1 / </div>
+  </div>
+  
+  <div class="evg-pres-slide">
+    <div class="evg-pres-title">M1 成果</div>
+    <div class="evg-pres-content"><p></p></div>
+    <div class="evg-pres-page">2 / </div>
+  </div>
+  
+  
+  <div class="evg-pres-slide">
+    <div class="evg-pres-title">幻灯片演示</div>
+    <div class="evg-pres-content"><p>暂无幻灯片内容</p></div>
+  </div>
+  
   <div class="evg-pres-nav">
     <button>◀ 上一页</button>
     <button>下一页 ▶</button>
   </div>
 </div>
-  </div>
-</div>
-<div class="evg-slot" style="padding: 12px">
-  <div class="evg-slot-header">
-    <span class="evg-slot-name">📌 nav-button</span>
-    <span class="evg-slot-type">nav-button</span>
-    
-  </div>
-  <div class="evg-slot-body">
-    <div class="evg-comp evg-comp-navbtn">
-  <a class="evg-navbtn" href="/courses">
-    <span class="evg-navbtn-icon">📚</span>
-    <span class="evg-navbtn-label">打开课程</span>
-  </a>
-</div>
-  </div>
-</div>
-<div class="evg-slot" style="padding: 12px">
-  <div class="evg-slot-header">
-    <span class="evg-slot-name">📌 button</span>
-    <span class="evg-slot-type">button</span>
-    
-  </div>
-  <div class="evg-slot-body">
-    <div class="evg-comp evg-comp-button">
-  <div class="evg-btn-bar" style="justify-content:center"><button class="evg-btn evg-btn-filled" data-event="export">📤 导出</button></div>
-</div>
-  </div>
-</div>
-<div class="evg-slot" style="padding: 12px">
-  <div class="evg-slot-header">
-    <span class="evg-slot-name">📌 timetable</span>
-    <span class="evg-slot-type">timetable</span>
-    
-  </div>
-  <div class="evg-slot-body">
-    <div class="evg-comp evg-comp-timetable">
-  <div class="evg-comp-title">📅 周课表（1 节课次）</div>
-  <table class="evg-tt-table">
-    <thead><tr><th></th><th>周一</th><th>周二</th><th>周三</th><th>周四</th><th>周五</th><th>周六</th><th>周日</th></tr></thead>
-    <tbody><tr><th class="evg-tt-period">第1节</th><td class="evg-tt-cell evg-tt-filled"><div class="evg-tt-session"><div class="evg-tt-name">编译原理</div><div class="evg-tt-teacher">张教授</div><div class="evg-tt-loc">教7-201</div></div></td><td class="evg-tt-cell"></td><td class="evg-tt-cell"></td><td class="evg-tt-cell"></td><td class="evg-tt-cell"></td><td class="evg-tt-cell"></td><td class="evg-tt-cell"></td></tr><tr><th class="evg-tt-period">第2节</th><td class="evg-tt-cell evg-tt-filled"><div class="evg-tt-session"><div class="evg-tt-name">编译原理</div><div class="evg-tt-teacher">张教授</div><div class="evg-tt-loc">教7-201</div></div></td><td class="evg-tt-cell"></td><td class="evg-tt-cell"></td><td class="evg-tt-cell"></td><td class="evg-tt-cell"></td><td class="evg-tt-cell"></td><td class="evg-tt-cell"></td></tr></tbody>
-  </table>
-</div>
-  </div>
-</div>
-<div class="evg-slot" style="padding: 12px">
-  <div class="evg-slot-header">
-    <span class="evg-slot-name">📌 markdown</span>
-    <span class="evg-slot-type">markdown</span>
-    
-  </div>
-  <div class="evg-slot-body">
-    <div class="evg-comp evg-comp-md">
-  <div class="evg-comp-title">📄 Markdown</div>
-  <div class="evg-md-content" style="white-space:pre-wrap;line-height:1.8;padding:12px"># Evergreen
 
-- 无账号、本地优先
-- 六维插件生态
-- 43 组件双端实现</div>
-</div>
   </div>
 </div>
   </div>
-</div><div class="evg-page" id="page-page_3" style="display:none">
-  <div class="evg-layout evg-layout-grid" style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto; gap: 12px; width: 100%; height: 100%; overflow: auto">
-    <div class="evg-slot" style="padding: 12px">
-  <div class="evg-slot-header">
-    <span class="evg-slot-name">📌 spreadsheet</span>
-    <span class="evg-slot-type">spreadsheet</span>
-    
-  </div>
-  <div class="evg-slot-body">
-    <div class="evg-comp evg-comp-empty">
-  <div class="evg-empty-icon">📭</div>
-  <div class="evg-empty-hint">暂无表格数据（运行时加载）</div>
-</div>
-  </div>
-</div>
-<div class="evg-slot" style="padding: 12px">
-  <div class="evg-slot-header">
-    <span class="evg-slot-name">📌 notepad</span>
-    <span class="evg-slot-type">notepad</span>
-    
-  </div>
-  <div class="evg-slot-body">
-    <div class="evg-comp evg-comp-notepad">
-  <div class="evg-np-toolbar">
-    <span>📝 记事本</span>
-    <span class="evg-np-status">已保存</span>
-  </div>
-  <textarea class="evg-np-editor" placeholder="输入内容">Evergreen 项目笔记：六维插件生态，本地优先。</textarea>
-</div>
-  </div>
-</div>
-<div class="evg-slot" style="padding: 12px">
-  <div class="evg-slot-header">
-    <span class="evg-slot-name">📌 whiteboard</span>
-    <span class="evg-slot-type">whiteboard</span>
-    
-  </div>
-  <div class="evg-slot-body">
-    <div class="evg-comp evg-comp-whiteboard">
-  <div class="evg-wb-toolbar">
-    <button class="evg-wb-tool" title="pen">✏️</button><button class="evg-wb-tool" title="eraser">🧹</button><button class="evg-wb-tool" title="shape">⬜</button>
-    <span style="flex:1"></span>
-    <span class="evg-wb-colors"><span class="evg-wb-color" style="background:#2ECC71"></span><span class="evg-wb-color" style="background:#3498DB"></span></span>
-    <span class="evg-wb-width">线宽 3px</span>
-  </div>
-  <div class="evg-wb-canvas">
-    <div class="evg-wb-placeholder">
-      <span style="font-size:48px;opacity:.3">🎨</span>
-      <span style="font-size:14px;color:var(--evg-text-secondary)">白板画布 — 在此区域绘图</span>
-    </div>
-  </div>
-</div>
-  </div>
-</div>
-<div class="evg-slot" style="padding: 12px">
-  <div class="evg-slot-header">
-    <span class="evg-slot-name">📌 mindmap</span>
-    <span class="evg-slot-type">mindmap</span>
-    
-  </div>
-  <div class="evg-slot-body">
-    <div class="evg-comp evg-comp-empty">
-  <div class="evg-empty-icon">📭</div>
-  <div class="evg-empty-hint">暂无导图数据（运行时加载）</div>
-</div>
-  </div>
-</div>
-<div class="evg-slot" style="padding: 12px">
-  <div class="evg-slot-header">
-    <span class="evg-slot-name">📌 diff-viewer</span>
-    <span class="evg-slot-type">diff-viewer</span>
-    
-  </div>
-  <div class="evg-slot-body">
-    <div class="evg-comp evg-comp-diff">
-  <div class="evg-diff-header">
-    <span class="evg-diff-label left">📄 旧版</span>
-    <span class="evg-diff-label right">📄 新版</span>
-  </div>
-  <div class="evg-diff-body"><div class="evg-diff-line evg-diff-del"><span class="evg-diff-sign">-</span><code>❌ 未实现</code></div><div class="evg-diff-line evg-diff-add"><span class="evg-diff-sign">+</span><code>✅ 已补齐</code></div></div>
-</div>
-  </div>
-</div>
-<div class="evg-slot" style="padding: 12px">
-  <div class="evg-slot-header">
-    <span class="evg-slot-name">📌 terminal</span>
-    <span class="evg-slot-type">terminal</span>
-    
-  </div>
-  <div class="evg-slot-body">
-    <div class="evg-comp evg-comp-terminal">
-  <div class="evg-term-header">
-    <span class="evg-term-dot" style="background:#ff5f56"></span>
-    <span class="evg-term-dot" style="background:#ffbd2e"></span>
-    <span class="evg-term-dot" style="background:#27c93f"></span>
-    <span class="evg-term-title">~/evergreen — bash</span>
-  </div>
-  <div class="evg-term-body"></div>
-</div>
-  </div>
-</div>
-  </div>
-</div><div class="evg-page" id="page-page_4" style="display:none">
+</div><div class="evg-page" id="page-page_6" style="display:none">
   <div class="evg-layout evg-layout-grid" style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto; gap: 12px; width: 100%; height: 100%; overflow: auto">
     <div class="evg-slot" style="padding: 12px">
   <div class="evg-slot-header">
@@ -1231,10 +1370,18 @@ L.marker([39.9, 116.4]).addTo(map).bindPopup('北京');
     
   </div>
   <div class="evg-slot-body">
-    <div class="evg-comp evg-comp-empty">
-  <div class="evg-empty-icon">📭</div>
-  <div class="evg-empty-hint">暂无题目（运行时加载词库）</div>
+    <div class="evg-comp evg-comp-typecheck">
+  <div class="evg-comp-title">✅ 类型检查</div>
+  <div class="evg-tc-question">
+    <span class="evg-tc-q-number">Q1.</span>
+    <span class="evg-tc-q-text">请回答问题</span>
+  </div>
+  <div class="evg-tc-options">
+    
+  </div>
+  <div class="evg-tc-score">得分: <span style="color:var(--evg-state-success)">0/</span> | 尝试: 1</div>
 </div>
+
   </div>
 </div>
 <div class="evg-slot" style="padding: 12px">
@@ -1244,10 +1391,7 @@ L.marker([39.9, 116.4]).addTo(map).bindPopup('北京');
     
   </div>
   <div class="evg-slot-body">
-    <div class="evg-comp evg-comp-empty">
-  <div class="evg-empty-icon">📭</div>
-  <div class="evg-empty-hint">暂无词卡（运行时加载词库）</div>
-</div>
+    <div class="evg-placeholder evg-empty"><span class="evg-placeholder-icon">📇</span><span class="evg-placeholder-text">暂无词卡（运行时加载词库）</span></div>
   </div>
 </div>
 <div class="evg-slot" style="padding: 12px">
@@ -1257,10 +1401,7 @@ L.marker([39.9, 116.4]).addTo(map).bindPopup('北京');
     
   </div>
   <div class="evg-slot-body">
-    <div class="evg-comp evg-comp-empty">
-  <div class="evg-empty-icon">📭</div>
-  <div class="evg-empty-hint">暂无题目（运行时加载词库）</div>
-</div>
+    <div class="evg-placeholder evg-empty"><span class="evg-placeholder-icon">❓</span><span class="evg-placeholder-text">暂无题目（运行时加载词库）</span></div>
   </div>
 </div>
 <div class="evg-slot" style="padding: 12px">
@@ -1272,9 +1413,33 @@ L.marker([39.9, 116.4]).addTo(map).bindPopup('北京');
   <div class="evg-slot-body">
     <div class="evg-comp evg-comp-crossword">
   <div class="evg-comp-title">🔤 组件填字</div>
-  <div class="evg-cw-grid"><div class="evg-cw-row"><div class="evg-cw-cell filled">E</div><div class="evg-cw-cell filled">V</div><div class="evg-cw-cell filled">E</div><div class="evg-cw-cell filled">R</div></div><div class="evg-cw-row"><div class="evg-cw-cell filled">V</div><div class="evg-cw-cell filled">I</div><div class="evg-cw-cell filled">D</div><div class="evg-cw-cell filled">E</div></div><div class="evg-cw-row"><div class="evg-cw-cell filled">E</div><div class="evg-cw-cell filled">R</div><div class="evg-cw-cell filled">G</div><div class="evg-cw-cell filled">O</div></div><div class="evg-cw-row"><div class="evg-cw-cell filled">R</div><div class="evg-cw-cell filled">E</div><div class="evg-cw-cell filled">E</div><div class="evg-cw-cell filled">N</div></div></div>
-  <div class="evg-cw-clues"><div class="evg-cw-clue-title">横向:</div><div class="evg-cw-clue">Evergreen 首字母 E-V-E-R</div><div class="evg-cw-clue">视频组件 video</div><div class="evg-cw-clue-title" style="margin-top:8px">纵向:</div><div class="evg-cw-clue">渲染层 renderer</div><div class="evg-cw-clue">绿色 green</div></div>
+  <div class="evg-cw-grid">
+    
+    <div class="evg-cw-row">
+      <div class="evg-cw-cell filled">E</div><div class="evg-cw-cell filled">V</div><div class="evg-cw-cell filled">E</div><div class="evg-cw-cell filled">R</div>
+    </div>
+    
+    <div class="evg-cw-row">
+      <div class="evg-cw-cell filled">V</div><div class="evg-cw-cell filled">I</div><div class="evg-cw-cell filled">D</div><div class="evg-cw-cell filled">E</div>
+    </div>
+    
+    <div class="evg-cw-row">
+      <div class="evg-cw-cell filled">E</div><div class="evg-cw-cell filled">R</div><div class="evg-cw-cell filled">G</div><div class="evg-cw-cell filled">O</div>
+    </div>
+    
+    <div class="evg-cw-row">
+      <div class="evg-cw-cell filled">R</div><div class="evg-cw-cell filled">E</div><div class="evg-cw-cell filled">E</div><div class="evg-cw-cell filled">N</div>
+    </div>
+    
+  </div>
+  <div class="evg-cw-clues">
+    <div class="evg-cw-clue-title">横向:</div>
+    <div class="evg-cw-clue">1. Evergreen 首字母 E-V-E-R</div><div class="evg-cw-clue">1. 视频组件 video</div>
+    <div class="evg-cw-clue-title" style="margin-top:8px">纵向:</div>
+    <div class="evg-cw-clue">1. 渲染层 renderer</div><div class="evg-cw-clue">1. 绿色 green</div>
+  </div>
 </div>
+
   </div>
 </div>
 <div class="evg-slot" style="padding: 12px">
@@ -1299,21 +1464,59 @@ L.marker([39.9, 116.4]).addTo(map).bindPopup('北京');
     <span style="color:var(--evg-text-secondary)">/100</span>
   </div>
 </div>
+
   </div>
 </div>
   </div>
-</div><div class="evg-page" id="page-page_5" style="display:none">
-  <div class="evg-layout evg-layout-grid" style="display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto; gap: 12px; width: 100%; height: 100%; overflow: auto">
+</div><div class="evg-page" id="page-page_7" style="display:none">
+  <div class="evg-layout evg-layout-flex" style="display: flex; flex-direction: row; flex-wrap: wrap; gap: 12px; justify-content: flex-start; align-items: stretch; width: 100%; height: 100%; overflow: auto">
     <div class="evg-slot" style="padding: 12px">
   <div class="evg-slot-header">
-    <span class="evg-slot-name">📌 custom</span>
-    <span class="evg-slot-type">custom</span>
+    <span class="evg-slot-name">📌 calendar</span>
+    <span class="evg-slot-type">calendar</span>
     
   </div>
   <div class="evg-slot-body">
-    <div class="evg-comp evg-comp-custom">
-  <div style='padding:12px;border:1px solid #2ECC71;border-radius:8px;color:#2ECC71'>Evergreen 自定义卡片：真实项目信息展示（无绝对定位）</div>
+    <div class="evg-comp evg-comp-cal">
+  <div class="evg-cal-header">
+    <button>◀</button>
+    <span>2026年 7月</span>
+    <button>▶</button>
+  </div>
+  <div class="evg-cal-grid">
+    <div class="evg-cal-dh">一</div><div class="evg-cal-dh">二</div><div class="evg-cal-dh">三</div><div class="evg-cal-dh">四</div><div class="evg-cal-dh">五</div><div class="evg-cal-dh">六</div><div class="evg-cal-dh">日</div>
+    <div class="evg-cal-day active">1</div><div class="evg-cal-day">2</div><div class="evg-cal-day">3</div><div class="evg-cal-day active">4</div><div class="evg-cal-day">5</div><div class="evg-cal-day">6</div><div class="evg-cal-day">7</div><div class="evg-cal-day active">8</div><div class="evg-cal-day active">9</div><div class="evg-cal-day">10</div><div class="evg-cal-day">11</div><div class="evg-cal-day">12</div><div class="evg-cal-day">13</div><div class="evg-cal-day">14</div><div class="evg-cal-day">15</div><div class="evg-cal-day">16</div><div class="evg-cal-day">17</div><div class="evg-cal-day">18</div><div class="evg-cal-day">19</div><div class="evg-cal-day">20</div><div class="evg-cal-day">21</div><div class="evg-cal-day">22</div><div class="evg-cal-day">23</div><div class="evg-cal-day">24</div><div class="evg-cal-day">25</div><div class="evg-cal-day">26</div><div class="evg-cal-day">27</div><div class="evg-cal-day">28</div><div class="evg-cal-day">29</div><div class="evg-cal-day">30</div><div class="evg-cal-day">31</div>
+  </div>
+  
+  <div class="evg-cal-events">
+    <div class="evg-cal-event">📌 M1 组件补齐完成（2026-07-09）</div><div class="evg-cal-event">📌 29 模块复刻完成（2026-07-08）</div><div class="evg-cal-event">📌 多会话架构落地（2026-07-04）</div><div class="evg-cal-event">📌 M1 计划启动（2026-07-01）</div>
+  </div>
+  
 </div>
+
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 lottery-wheel</span>
+    <span class="evg-slot-type">lottery-wheel</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-lottery">
+  <div class="evg-lottery-header">
+    <div class="evg-comp-title">🎰 幸运抽奖</div>
+    <div class="evg-lottery-sub">展示大厅专属</div>
+  </div>
+  <div class="evg-lottery-wheel-container">
+    <canvas class="evg-lottery-canvas" width="200" height="200"></canvas>
+    <button class="evg-lottery-btn">🎯 开始</button>
+  </div>
+  <div class="evg-lottery-history">
+    <span style="font-size:11px;color:var(--evg-text-secondary)">📜 奖项: {&quot;label&quot;:&quot;🎁 大礼包&quot;,&quot;color&quot;:&quot;#2ECC71&quot;} / {&quot;label&quot;:&quot;🏆 M1勋章&quot;,&quot;color&quot;:&quot;#3498DB&quot;} / {&quot;label&quot;:&quot;🎯 定制主题&quot;,&quot;color&quot;:&quot;#9B59B6&quot;} / {&quot;label&quot;:&quot;📦 插件模板&quot;,&quot;color&quot;:&quot;#E74C3C&quot;}</span>
+  </div>
+</div>
+
   </div>
 </div>
 <div class="evg-slot" style="padding: 12px">
@@ -1338,53 +1541,109 @@ L.marker([39.9, 116.4]).addTo(map).bindPopup('北京');
 </div>
 <div class="evg-slot" style="padding: 12px">
   <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 map</span>
+    <span class="evg-slot-type">map</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-map">
+  <div class="evg-map-placeholder">
+    <div class="evg-map-pin">📍</div>
+    <div class="evg-map-coords">30.27, 120.12</div>
+    
+    <div class="evg-map-markers">
+      
+      <div class="evg-map-marker">📌 杭州研发中心</div>
+      
+      <div class="evg-map-marker">📌 北京</div>
+      
+    </div>
+    
+    <div class="evg-map-zoom">
+      <button>+</button><button>−</button>
+    </div>
+  </div>
+</div>
+
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 timetable</span>
+    <span class="evg-slot-type">timetable</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-timetable">
+  <div class="evg-comp-title">📅 周课表（1 节课次）</div>
+  <table class="evg-tt-table">
+    <thead><tr><th></th><th>周一</th><th>周二</th><th>周三</th><th>周四</th><th>周五</th><th>周六</th><th>周日</th></tr></thead>
+    <tbody><tr><th class="evg-tt-period">第1节</th><td class="evg-tt-cell evg-tt-filled"><div class="evg-tt-session"><div class="evg-tt-name">编译原理</div><div class="evg-tt-teacher">张教授</div><div class="evg-tt-loc">教7-201</div></div></td><td class="evg-tt-cell"></td><td class="evg-tt-cell"></td><td class="evg-tt-cell"></td><td class="evg-tt-cell"></td><td class="evg-tt-cell"></td><td class="evg-tt-cell"></td></tr><tr><th class="evg-tt-period">第2节</th><td class="evg-tt-cell evg-tt-filled"><div class="evg-tt-session"><div class="evg-tt-name">编译原理</div><div class="evg-tt-teacher">张教授</div><div class="evg-tt-loc">教7-201</div></div></td><td class="evg-tt-cell"></td><td class="evg-tt-cell"></td><td class="evg-tt-cell"></td><td class="evg-tt-cell"></td><td class="evg-tt-cell"></td><td class="evg-tt-cell"></td></tr></tbody>
+  </table>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 nav-button-home</span>
+    <span class="evg-slot-type">nav-button</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-navbtn">
+  <a class="evg-navbtn" href="page_0">
+    <span class="evg-navbtn-icon">🏠</span>
+    <span class="evg-navbtn-label">回到首页</span>
+  </a>
+</div>
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
     <span class="evg-slot-name">📌 divider</span>
     <span class="evg-slot-type">divider</span>
     
   </div>
   <div class="evg-slot-body">
-    <div class="evg-comp evg-comp-divider">
-  <hr style="border-top:1px dashed var(--evg-border-default);margin:8.0px 0.0px" />
+    <div class="evg-comp evg-comp-divider"><hr style="border-top-style:dashed" /></div>
+
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 divider-2</span>
+    <span class="evg-slot-type">divider</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-divider"><hr style="border-top-style:solid" /></div>
+
+  </div>
+</div>
+<div class="evg-slot" style="padding: 12px">
+  <div class="evg-slot-header">
+    <span class="evg-slot-name">📌 custom-card</span>
+    <span class="evg-slot-type">custom</span>
+    
+  </div>
+  <div class="evg-slot-body">
+    <div class="evg-comp evg-comp-custom">
+  <div style='padding:12px;border:1px solid #2ECC71;border-radius:8px;color:#2ECC71'>Evergreen v2.0 · 43 组件 · 8 页展示大厅</div>
 </div>
   </div>
 </div>
 <div class="evg-slot" style="padding: 12px">
   <div class="evg-slot-header">
-    <span class="evg-slot-name">📌 lottery-wheel</span>
-    <span class="evg-slot-type">lottery-wheel</span>
+    <span class="evg-slot-name">📌 nav-button-dashboard</span>
+    <span class="evg-slot-type">nav-button</span>
     
   </div>
   <div class="evg-slot-body">
-    <div class="evg-comp evg-comp-lottery">
-  <div class="evg-lottery-header">
-    <div class="evg-comp-title">🎰 幸运抽奖</div>
-    <div class="evg-lottery-sub">展示大厅专属</div>
-  </div>
-  <div class="evg-lottery-wheel-container">
-    <canvas class="evg-lottery-canvas" width="200" height="200"></canvas>
-    <button class="evg-lottery-btn">🎯 开始</button>
-  </div>
-  <div class="evg-lottery-segs"><span class="evg-lottery-seg">🎁 组件大礼包</span><span class="evg-lottery-seg">🏆 M1 勋章</span></div>
-</div>
-  </div>
-</div>
-<div class="evg-slot" style="padding: 12px">
-  <div class="evg-slot-header">
-    <span class="evg-slot-name">📌 calendar</span>
-    <span class="evg-slot-type">calendar</span>
-    
-  </div>
-  <div class="evg-slot-body">
-    <div class="evg-comp evg-comp-cal">
-  <div class="evg-cal-header">
-    <button>◀</button>
-    <span>2026年 7月</span>
-    <button>▶</button>
-  </div>
-  <div class="evg-cal-grid">
-    <div class="evg-cal-dh">一</div><div class="evg-cal-dh">二</div><div class="evg-cal-dh">三</div><div class="evg-cal-dh">四</div><div class="evg-cal-dh">五</div><div class="evg-cal-dh">六</div><div class="evg-cal-dh">日</div>
-    <div class="evg-cal-day"></div><div class="evg-cal-day"></div><div class="evg-cal-day">1</div><div class="evg-cal-day">2</div><div class="evg-cal-day">3</div><div class="evg-cal-day">4</div><div class="evg-cal-day">5</div><div class="evg-cal-day">6</div><div class="evg-cal-day">7</div><div class="evg-cal-day has-event" title="29 模块复刻完成">8<div class="evg-cal-events"><span class="evg-cal-ev">29 模块复刻完成</span></div></div><div class="evg-cal-day has-event" title="M1 组件补齐完成">9<div class="evg-cal-events"><span class="evg-cal-ev">M1 组件补齐完成</span></div></div><div class="evg-cal-day">10</div><div class="evg-cal-day">11</div><div class="evg-cal-day">12</div><div class="evg-cal-day">13</div><div class="evg-cal-day">14</div><div class="evg-cal-day">15</div><div class="evg-cal-day">16</div><div class="evg-cal-day">17</div><div class="evg-cal-day">18</div><div class="evg-cal-day">19</div><div class="evg-cal-day">20</div><div class="evg-cal-day">21</div><div class="evg-cal-day">22</div><div class="evg-cal-day">23</div><div class="evg-cal-day">24</div><div class="evg-cal-day">25</div><div class="evg-cal-day">26</div><div class="evg-cal-day">27</div><div class="evg-cal-day">28</div><div class="evg-cal-day">29</div><div class="evg-cal-day">30</div><div class="evg-cal-day">31</div><div class="evg-cal-day"></div><div class="evg-cal-day"></div>
-  </div>
+    <div class="evg-comp evg-comp-navbtn">
+  <a class="evg-navbtn" href="page_1">
+    <span class="evg-navbtn-icon">📊</span>
+    <span class="evg-navbtn-label">数据仪表盘</span>
+  </a>
 </div>
   </div>
 </div>
@@ -1430,7 +1689,7 @@ function switchPage(pageId) {
 
 // 默认激活第一个页面
 (function() {
-  const pages = [{"id":"page_0","label":"智能交互","default":true,"layout":null},{"id":"page_1","label":"数据展示","default":false,"layout":null},{"id":"page_2","label":"文档与媒体","default":false,"layout":null},{"id":"page_3","label":"创作与工具","default":false,"layout":null},{"id":"page_4","label":"学习专用","default":false,"layout":null},{"id":"page_5","label":"特殊与扩展","default":false,"layout":null}];
+  const pages = [{"id":"page_0","label":"封面","default":true,"hideTab":true,"layout":null},{"id":"page_1","label":"📊 数据仪表盘","default":false,"layout":null},{"id":"page_2","label":"✍️ 创作工坊","default":false,"layout":null},{"id":"page_3","label":"📝 文档与编辑器","default":false,"layout":null},{"id":"page_4","label":"🤖 智能交互","default":false,"layout":null},{"id":"page_5","label":"🎬 媒体展示","default":false,"layout":null},{"id":"page_6","label":"📚 学习实验室","default":false,"layout":null},{"id":"page_7","label":"🧰 扩展工具箱","default":false,"layout":null}];
   if (pages.length > 0) {
     const firstPage = pages.find(p => p.default === true) || pages[0];
     switchPage(firstPage.id);
