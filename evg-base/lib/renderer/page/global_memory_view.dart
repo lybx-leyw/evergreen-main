@@ -1,6 +1,14 @@
 /// 全局记忆页面——按 Allport 特质理论分类展示 AI 记忆。
 ///
-/// 记忆类型：user（身份）| feedback（反馈）| project（项目）| reference（引用）
+/// 分类（记忆的 priority 维度）：
+/// - cardinal    👑 首要特质（决定整体行为方式的核心形容词）
+/// - central     🏷️ 中心特质（5-10 个核心形容词，人格主干）
+/// - secondary   💬 次要特质（特定情境下显现的偏好/风格）
+/// - requirement 📝 用户需求（希望 AI 始终遵循的要求）
+/// - key_fact    📌 关键事实（客观、带时间锚定的硬事实，priority 存为 high/medium/low）
+///
+/// 该分类与 [core/agent] 的存储层（write_global_memory）及
+/// .reference/agent_from/screens/global_memory_screen.dart 完全一致。
 ///
 /// 公开类：[GlobalMemoryView]
 library;
@@ -12,9 +20,82 @@ import 'package:evergreen_base/core/agent/memory/memory.dart' as mem;
 import '../components/shared/widgets/markdown_renderer.dart';
 import 'package:evergreen_base/renderer/app/service/theme/theme_provider.dart';
 
+/// Allport 特质分类（UI 维度的"类型"），对应记忆的 [mem.Memory.priority]。
+const List<String> _allportTraits = [
+  'cardinal',
+  'central',
+  'secondary',
+  'requirement',
+  'key_fact',
+];
+
+String _allportLabel(String trait) {
+  switch (trait) {
+    case 'cardinal':
+      return '👑 首要特质';
+    case 'central':
+      return '🏷️ 中心特质';
+    case 'secondary':
+      return '💬 次要特质';
+    case 'requirement':
+      return '📝 用户需求';
+    default:
+      return '📌 关键事实';
+  }
+}
+
+/// Allport 分类 → 记忆 priority 的映射（与 write_global_memory / 参考实现一致）。
+/// key_fact 在存储层以 high 优先级记录（关键事实默认高优先级）。
+String _allportPriority(String trait) {
+  switch (trait) {
+    case 'cardinal':
+      return 'cardinal';
+    case 'central':
+      return 'central';
+    case 'secondary':
+      return 'secondary';
+    case 'requirement':
+      return 'requirement';
+    default:
+      return 'high';
+  }
+}
+
+String _allportDescription(String trait) {
+  switch (trait) {
+    case 'cardinal':
+      return '首要特质';
+    case 'central':
+      return '中心特质';
+    case 'secondary':
+      return '次要特质';
+    case 'requirement':
+      return '用户需求';
+    default:
+      return '关键事实';
+  }
+}
+
+/// 将一条记忆映射回 Allport 分类（用于编辑对话框初值）。
+String _allportTraitFromMemory(mem.Memory? m) {
+  if (m == null) return 'key_fact';
+  switch (m.priority) {
+    case 'cardinal':
+      return 'cardinal';
+    case 'central':
+      return 'central';
+    case 'secondary':
+      return 'secondary';
+    case 'requirement':
+      return 'requirement';
+    default:
+      return 'key_fact';
+  }
+}
+
 /// 全局记忆页面。
 ///
-/// 读取 [memoryStoreProvider] 获取所有记忆，按 [MemoryType] 分组展示。
+/// 读取 [memoryStoreProvider] 获取所有记忆，按 Allport 特质 priority 分组展示。
 class GlobalMemoryView extends ConsumerStatefulWidget {
   const GlobalMemoryView({super.key});
 
@@ -72,7 +153,10 @@ class _GlobalMemoryViewState extends ConsumerState<GlobalMemoryView> {
       _loadMemories();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('记忆已保存'), duration: Duration(seconds: 1)),
+          const SnackBar(
+            content: Text('记忆已保存'),
+            duration: Duration(seconds: 1),
+          ),
         );
       }
     } catch (e) {
@@ -90,8 +174,8 @@ class _GlobalMemoryViewState extends ConsumerState<GlobalMemoryView> {
     final titleCtrl = TextEditingController(text: memory?.title ?? '');
     final descCtrl = TextEditingController(text: memory?.description ?? '');
     final bodyCtrl = TextEditingController(text: memory?.body ?? '');
-    var selectedType = memory?.type ?? mem.MemoryType.project;
-    var selectedPriority = memory?.priority ?? 'medium';
+    // Allport 特质分类（与 core/agent 存储层、.reference/agent_from 一致）
+    var selectedTrait = _allportTraitFromMemory(memory);
 
     final result = await showDialog<bool>(
       context: context,
@@ -101,10 +185,8 @@ class _GlobalMemoryViewState extends ConsumerState<GlobalMemoryView> {
         titleCtrl: titleCtrl,
         descCtrl: descCtrl,
         bodyCtrl: bodyCtrl,
-        selectedType: selectedType,
-        selectedPriority: selectedPriority,
-        onTypeChanged: (t) => selectedType = t,
-        onPriorityChanged: (p) => selectedPriority = p,
+        selectedTrait: selectedTrait,
+        onTraitChanged: (t) => selectedTrait = t,
       ),
     );
 
@@ -121,13 +203,17 @@ class _GlobalMemoryViewState extends ConsumerState<GlobalMemoryView> {
       final effectiveName = name.isNotEmpty
           ? name.replaceAll(RegExp(r'[\s]+'), '-').toLowerCase()
           : title.replaceAll(RegExp(r'[\s]+'), '-').toLowerCase();
+      // Allport 分类 → priority 映射（与 write_global_memory / 参考实现一致）
+      final priority = _allportPriority(selectedTrait);
+      // 新建记忆默认归入用户维度；编辑时保留原有 type
+      final type = memory?.type ?? mem.MemoryType.user;
       _saveMemory(mem.Memory(
         name: effectiveName,
         title: title.isNotEmpty ? title : effectiveName,
-        description: descCtrl.text.trim(),
-        type: selectedType,
+        description: _allportDescription(selectedTrait),
+        type: type,
         body: bodyCtrl.text.trim(),
-        priority: selectedPriority,
+        priority: priority,
       ));
     }
 
@@ -192,7 +278,7 @@ class _GlobalMemoryViewState extends ConsumerState<GlobalMemoryView> {
                     ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
             const SizedBox(height: 8),
             Text(
-              'AI 助手会在对话中自动记录重要信息',
+              'AI 助手会在对话中按奥尔波特特质理论自动记录你的特质与关键事实',
               style: theme.textTheme.bodyMedium
                   ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             ),
@@ -201,21 +287,26 @@ class _GlobalMemoryViewState extends ConsumerState<GlobalMemoryView> {
       );
     }
 
-    // 按类型分组
-    final grouped = <mem.MemoryType, List<mem.Memory>>{};
-    for (final m in _memories) {
-      grouped.putIfAbsent(m.type, () => []).add(m);
-    }
+    // 按奥尔波特特质理论分组（与 core/agent 存储层、.reference/agent_from 一致）
+    final grouped = mem.groupMemoriesByAllport(_memories);
+    final cardinals = grouped['cardinal']!;
+    final centrals = grouped['central']!;
+    final secondaries = grouped['secondary']!;
+    final requirements = grouped['requirement']!;
+    final facts = grouped['key_fact']!;
 
-    final categories = [
-      (_Category('用户身份', Icons.person, mem.MemoryType.user,
-          '关于您的角色、偏好和专长')),
-      (_Category('反馈指导', Icons.feedback, mem.MemoryType.feedback,
-          '工作方式指导（含原因 + 应用方法）')),
-      (_Category('项目上下文', Icons.work, mem.MemoryType.project,
-          '当前工作、目标和约束')),
-      (_Category('外部引用', Icons.link, mem.MemoryType.reference,
-          '外部资源指针（URL、工单等）')),
+    final sections = <_AllportSection>[
+      _AllportSection(_allportLabel('cardinal'), Icons.star_rounded, cardinals,
+          '决定用户整体行为方式的核心特质'),
+      _AllportSection(_allportLabel('central'), Icons.sell_outlined, centrals,
+          '5-10 个核心形容词，构成用户人格主干',
+          isCentral: true),
+      _AllportSection(_allportLabel('secondary'), Icons.chat_bubble_outline,
+          secondaries, '特定情境下显现的偏好与风格'),
+      _AllportSection(_allportLabel('requirement'), Icons.assignment_outlined,
+          requirements, '用户希望 AI 始终遵循的要求'),
+      _AllportSection(_allportLabel('key_fact'), Icons.push_pin_outlined, facts,
+          '客观、带时间锚定的硬事实'),
     ];
 
     return ListView(
@@ -224,30 +315,34 @@ class _GlobalMemoryViewState extends ConsumerState<GlobalMemoryView> {
         // 概览卡片
         _MemoryOverviewCard(memories: _memories, theme: theme),
         const SizedBox(height: 20),
-        // 按类型分组
-        for (final cat in categories)
-          if (grouped.containsKey(cat.type) &&
-              grouped[cat.type]!.isNotEmpty) ...[
-            _CategorySection(
-              category: cat,
-              memories: grouped[cat.type]!,
+        // 按 Allport 特质分组
+        for (final sec in sections)
+          if (sec.memories.isNotEmpty)
+            _AllportSectionView(
+              section: sec,
               onDelete: _deleteMemory,
               onTap: (m) => _showEditDialog(memory: m),
             ),
-          ],
       ],
     );
   }
 }
 
-// ═══════ _Category ═══════
+// ═══════ _AllportSection ═══════
 
-class _Category {
+class _AllportSection {
   final String label;
   final IconData icon;
-  final mem.MemoryType type;
+  final List<mem.Memory> memories;
   final String description;
-  const _Category(this.label, this.icon, this.type, this.description);
+  final bool isCentral;
+  const _AllportSection(
+    this.label,
+    this.icon,
+    this.memories,
+    this.description, {
+    this.isCentral = false,
+  });
 }
 
 // ═══════ _MemoryOverviewCard ═══════
@@ -260,7 +355,10 @@ class _MemoryOverviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final highCount = memories.where((m) => m.priority == 'high').length;
+    int count(String p) => memories.where((m) => m.priority == p).length;
+    final traits =
+        count('cardinal') + count('central') + count('secondary') + count('requirement');
+    final facts = memories.length - traits;
 
     return Card(
       child: Padding(
@@ -290,9 +388,9 @@ class _MemoryOverviewCard extends StatelessWidget {
                     style: theme.textTheme.bodyMedium
                         ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                   ),
-                  if (highCount > 0)
+                  if (traits > 0 || facts > 0)
                     Text(
-                      '$highCount 条高优先级 • ${memories.length - highCount} 条常规',
+                      '$traits 条特质/需求 • $facts 条关键事实',
                       style: theme.textTheme.labelSmall
                           ?.copyWith(color: theme.colorScheme.primary),
                     ),
@@ -306,80 +404,101 @@ class _MemoryOverviewCard extends StatelessWidget {
   }
 }
 
-// ═══════ _CategorySection ═══════
+// ═══════ _AllportSectionView ═══════
 
-class _CategorySection extends StatefulWidget {
-  final _Category category;
-  final List<mem.Memory> memories;
+class _AllportSectionView extends StatelessWidget {
+  final _AllportSection section;
   final void Function(String name) onDelete;
   final void Function(mem.Memory) onTap;
 
-  const _CategorySection({
-    required this.category,
-    required this.memories,
+  const _AllportSectionView({
+    required this.section,
     required this.onDelete,
     required this.onTap,
   });
 
   @override
-  State<_CategorySection> createState() => _CategorySectionState();
-}
-
-class _CategorySectionState extends State<_CategorySection> {
-  bool _expanded = true;
-
-  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        InkWell(
-          onTap: () => setState(() => _expanded = !_expanded),
-          borderRadius: BorderRadius.circular(8),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Row(
-              children: [
-                Icon(widget.category.icon,
-                    size: 20, color: theme.colorScheme.primary),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.category.label,
-                        style: theme.textTheme.titleSmall
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      Text(
-                        '${widget.memories.length} 条 • ${widget.category.description}',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant),
-                      ),
-                    ],
-                  ),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            children: [
+              Icon(section.icon, size: 20, color: theme.colorScheme.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      section.label,
+                      style: theme.textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      '${section.memories.length} 条 • ${section.description}',
+                      style: theme.textTheme.labelSmall
+                          ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                    ),
+                  ],
                 ),
-                Icon(
-                  _expanded ? Icons.expand_less : Icons.expand_more,
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
-        if (_expanded) ...[
+        if (section.isCentral)
+          _CentralsChipBar(
+            memories: section.memories,
+            onEdit: onTap,
+            onDelete: onDelete,
+          )
+        else ...[
           const SizedBox(height: 4),
-          ...widget.memories.map((m) => _MemoryCard(
+          ...section.memories.map((m) => _MemoryCard(
                 memory: m,
-                onDelete: () => widget.onDelete(m.name),
-                onTap: () => widget.onTap(m),
+                onDelete: () => onDelete(m.name),
+                onTap: () => onTap(m),
               )),
-          const SizedBox(height: 12),
         ],
+        const SizedBox(height: 12),
       ],
+    );
+  }
+}
+
+// ═══════ _CentralsChipBar ═══════
+
+class _CentralsChipBar extends StatelessWidget {
+  final List<mem.Memory> memories;
+  final void Function(mem.Memory) onEdit;
+  final void Function(String name) onDelete;
+
+  const _CentralsChipBar({
+    required this.memories,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: memories.map((m) {
+          final label = m.title.isNotEmpty ? m.title : m.name;
+          return InputChip(
+            label: Text(label),
+            deleteIcon: const Icon(Icons.close, size: 16),
+            onDeleted: () => onDelete(m.name),
+            onPressed: () => onEdit(m),
+          );
+        }).toList(),
+      ),
     );
   }
 }
@@ -397,10 +516,24 @@ class _MemoryCard extends StatelessWidget {
     required this.onTap,
   });
 
+  String get _icon {
+    switch (memory.priority) {
+      case 'cardinal':
+        return '👑';
+      case 'central':
+        return '🏷️';
+      case 'secondary':
+        return '💬';
+      case 'requirement':
+        return '📝';
+      default:
+        return '📌';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isHigh = memory.priority == 'high';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 6),
@@ -414,6 +547,8 @@ class _MemoryCard extends StatelessWidget {
             children: [
               Row(
                 children: [
+                  Text(_icon, style: const TextStyle(fontSize: 16)),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       memory.title.isNotEmpty ? memory.title : memory.name,
@@ -421,19 +556,6 @@ class _MemoryCard extends StatelessWidget {
                           ?.copyWith(fontWeight: FontWeight.w600),
                     ),
                   ),
-                  if (isHigh)
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.errorContainer,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text('高优先级',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                              color: theme.colorScheme.onErrorContainer,
-                              fontSize: 10)),
-                    ),
                   const SizedBox(width: 4),
                   PopupMenuButton<String>(
                     icon: Icon(Icons.more_vert,
@@ -492,10 +614,8 @@ class _MemoryEditDialog extends StatefulWidget {
   final TextEditingController titleCtrl;
   final TextEditingController descCtrl;
   final TextEditingController bodyCtrl;
-  final mem.MemoryType selectedType;
-  final String selectedPriority;
-  final void Function(mem.MemoryType) onTypeChanged;
-  final void Function(String) onPriorityChanged;
+  final String selectedTrait;
+  final void Function(String) onTraitChanged;
 
   const _MemoryEditDialog({
     required this.isNew,
@@ -503,10 +623,8 @@ class _MemoryEditDialog extends StatefulWidget {
     required this.titleCtrl,
     required this.descCtrl,
     required this.bodyCtrl,
-    required this.selectedType,
-    required this.selectedPriority,
-    required this.onTypeChanged,
-    required this.onPriorityChanged,
+    required this.selectedTrait,
+    required this.onTraitChanged,
   });
 
   @override
@@ -514,14 +632,12 @@ class _MemoryEditDialog extends StatefulWidget {
 }
 
 class _MemoryEditDialogState extends State<_MemoryEditDialog> {
-  late mem.MemoryType _type;
-  late String _priority;
+  late String _trait;
 
   @override
   void initState() {
     super.initState();
-    _type = widget.selectedType;
-    _priority = widget.selectedPriority;
+    _trait = widget.selectedTrait;
   }
 
   @override
@@ -557,41 +673,23 @@ class _MemoryEditDialogState extends State<_MemoryEditDialog> {
                 ),
               ),
               const SizedBox(height: 12),
-              DropdownButtonFormField<mem.MemoryType>(
-                value: _type,
-                decoration: const InputDecoration(
-                  labelText: '类型',
-                  border: OutlineInputBorder(),
-                ),
-                items: const [
-                  DropdownMenuItem(value: mem.MemoryType.user, child: Text('👤 用户身份')),
-                  DropdownMenuItem(value: mem.MemoryType.feedback, child: Text('💬 反馈指导')),
-                  DropdownMenuItem(value: mem.MemoryType.project, child: Text('📁 项目上下文')),
-                  DropdownMenuItem(value: mem.MemoryType.reference, child: Text('🔗 外部引用')),
-                ],
-                onChanged: (v) {
-                  if (v != null) {
-                    setState(() => _type = v);
-                    widget.onTypeChanged(v);
-                  }
-                },
-              ),
-              const SizedBox(height: 12),
               DropdownButtonFormField<String>(
-                value: _priority,
+                value: _trait,
                 decoration: const InputDecoration(
-                  labelText: '优先级',
+                  labelText: '奥尔波特分类',
                   border: OutlineInputBorder(),
                 ),
                 items: const [
-                  DropdownMenuItem(value: 'low', child: Text('🟢 低')),
-                  DropdownMenuItem(value: 'medium', child: Text('🟡 中')),
-                  DropdownMenuItem(value: 'high', child: Text('🔴 高')),
+                  DropdownMenuItem(value: 'cardinal', child: Text('👑 首要特质')),
+                  DropdownMenuItem(value: 'central', child: Text('🏷️ 中心特质')),
+                  DropdownMenuItem(value: 'secondary', child: Text('💬 次要特质')),
+                  DropdownMenuItem(value: 'requirement', child: Text('📝 用户需求')),
+                  DropdownMenuItem(value: 'key_fact', child: Text('📌 关键事实')),
                 ],
                 onChanged: (v) {
                   if (v != null) {
-                    setState(() => _priority = v);
-                    widget.onPriorityChanged(v);
+                    setState(() => _trait = v);
+                    widget.onTraitChanged(v);
                   }
                 },
               ),

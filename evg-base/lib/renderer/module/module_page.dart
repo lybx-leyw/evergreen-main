@@ -12,18 +12,19 @@ import 'module_dispatch.dart';
 ///
 /// [workingDirectory] 为模块插件目录（如 `plugins/vocab-tutor/`），
 /// 透传给 composite 模式的 [CompositeView] 用于进程管理。
-///
-/// HTML 模块不经过此页面 — 侧边栏直接 url_launcher 打开外置浏览器。
 class EvergreenModulePage extends StatelessWidget {
   final ModuleDescriptor descriptor;
   final String? workingDirectory;
   final String renderMode;
+  /// 来自路由 query 的 AI 预填 prompt（classroom-modle 的 AI 笔记按钮带入）。
+  final String? initialPrompt;
 
   const EvergreenModulePage({
     super.key,
     required this.descriptor,
     this.workingDirectory,
     this.renderMode = 'dart',
+    this.initialPrompt,
   });
 
   @override
@@ -32,6 +33,7 @@ class EvergreenModulePage extends StatelessWidget {
       descriptor: descriptor,
       workingDirectory: workingDirectory,
       renderMode: renderMode,
+      initialPrompt: initialPrompt,
     );
   }
 }

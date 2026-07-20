@@ -1,0 +1,14 @@
+{
+  "type": "data-source",
+  "script": "scraper.exe",
+  "dataTypes": [
+    {
+      "name": "classroom",
+      "typeArg": "classroom",
+      "ttl": "30m",
+      "persistentKey": "custom-classroom:classroom",
+      "category": "courses",
+      "displayName": "智云课堂课程数据"
+    }
+  ]
+}

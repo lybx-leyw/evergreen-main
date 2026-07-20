@@ -24,7 +24,11 @@
 /// | [AgentAssembly] | 组装结果，提供 Controller + Session + EventSink |
 library;
 
+import 'dart:io';
+
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:path/path.dart' as p;
 
 import 'package:evergreen_base/core/agent/agent.dart' as agent;
 import 'package:evergreen_base/core/agent/memory/facade.dart';
@@ -32,8 +36,20 @@ import 'package:evergreen_base/core/agent/memory/router.dart';
 import 'package:evergreen_base/core/agent/memory/in_memory_store.dart';
 import 'package:evergreen_base/core/agent/memory/file_memory_store.dart';
 import 'package:evergreen_base/core/agent/memory/memory_agent.dart';
+import 'package:evergreen_base/core/agent/provider.dart';
 import 'package:evergreen_base/core/agent/tool.dart';
 import 'package:evergreen_base/core/agent/skill/skill.dart';
+import 'package:evergreen_base/core/agent/tools/data_query.dart';
+import 'package:evergreen_base/core/agent/tools/plugin_bridge.dart';
+import 'package:evergreen_base/core/agent/tools/python_runner_tool.dart';
+import 'package:evergreen_base/core/agent/tools/read_file.dart';
+import 'package:evergreen_base/core/agent/tools/read_global_memory.dart';
+import 'package:evergreen_base/core/agent/tools/run_skill.dart';
+import 'package:evergreen_base/core/agent/tools/user_info.dart';
+import 'package:evergreen_base/core/agent/tools/web_search.dart';
+import 'package:evergreen_base/core/agent/tools/write_file.dart';
+import 'package:evergreen_base/core/agent/tools/write_global_memory.dart';
+import 'package:evergreen_base/core/data/orchestrator.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
 
 /// AgentAssembly —— 为特定模块创建的隔离 Agent 实例。
@@ -158,6 +174,59 @@ class AgentAssembly {
     }
 
     return merged;
+  }
+
+  // ═══════ 标准工具集 ═══════
+
+  /// 构建标准工具集——与全局 [agentRuntimeProvider] 注册的工具**完全一致**。
+  ///
+  /// 供渲染层（如 [ChatControllerView] 的嵌入模式）创建隔离 [AgentAssembly] 时
+  /// 作为 `seedTools` 传入。隔离 Agent 再按 preset 的 `tools` 策略（all/specific/none）
+  /// 对这份候选集做白名单过滤，因此这里只负责"提供完整候选"。
+  ///
+  /// 此方法是标准工具集的唯一权威来源；[agentRuntimeProvider] 亦应保持一致。
+  /// 新增全局工具时，请同步此处与 `agent_runtime.dart` 的注册逻辑。
+  static List<Tool> buildStandardTools({
+    required FileMemoryStore globalStore,
+    required Provider provider,
+    required SkillIndex skillIndex,
+    DataOrchestrator? orchestrator,
+  }) {
+    final loader = SkillLoader([greenixSkillsDir, resolvePluginsRoot()]);
+    final registry = Registry();
+    for (final t in [
+      GetUserInfoTool(),
+      ReadGlobalMemoryTool(globalStore),
+      WriteGlobalMemoryTool(globalStore),
+      ReadFileTool(workspaceDir: greenixWorkspaceDir('ai-assistant')),
+      WriteFileTool(workspaceDir: greenixWorkspaceDir('ai-assistant')),
+      RunSkillTool(loader, skillIndex, provider, registry),
+      ListSkillsTool(loader, skillIndex),
+      WebSearchTool(Dio()),
+      WebFetchTool(Dio()),
+      DataQueryTool(orchestrator: orchestrator),
+    ]) {
+      if (!registry.has(t.name)) registry.register(t);
+    }
+
+    // 注册 Python Runner —— 同步检测 Greenix 嵌入版 Python
+    final bundledPython = p.join(greenixPythonDir, 'python.exe');
+    if (File(bundledPython).existsSync()) {
+      if (!registry.has('python_runner')) {
+        registry.register(PythonRunnerTool(
+          pythonExePath: bundledPython,
+          pythonWorkDir: greenixPythonDir,
+          workspaceDir: greenixWorkspaceDir('ai-assistant'),
+        ));
+      }
+    }
+
+    // 插件嫁接桥 —— 自动扫描 plugins/<name>/.exe 并注册
+    final pluginsDirObj = Directory(resolvePluginsRoot());
+    if (!pluginsDirObj.existsSync()) pluginsDirObj.createSync(recursive: true);
+    PluginBridge.registerAll(registry, pluginsDirObj);
+
+    return registry.all();
   }
 
   // ═══════ 工厂 ═══════

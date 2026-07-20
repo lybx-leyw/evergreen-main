@@ -8,6 +8,17 @@ import 'package:path_provider/path_provider.dart';
 /// 日志级别。
 enum LogLevel { debug, info, warn, error }
 
+/// 日志条目（供 UIOperationLog 捕获）。
+class LogEntry {
+  final LogLevel level;
+  final String msg;
+  final Map<String, dynamic>? data;
+  final DateTime timestamp;
+
+  LogEntry(this.level, this.msg, {this.data})
+      : timestamp = DateTime.now();
+}
+
 /// 应用日志单例。
 ///
 /// - Debug 模式：输出到 `stderr`（同步，不丢日志）
@@ -33,6 +44,10 @@ class Log {
   int _currentFileSize = 0;
   final List<String> _recentBuffer = [];
   static const int _recentBufferMax = 500;
+
+  /// 日志流（UIOperationLog 订阅以捕获操作期间的日志）。
+  final _logStreamController = StreamController<LogEntry>.broadcast();
+  Stream<LogEntry> get logStream => _logStreamController.stream;
 
   /// 初始化日志目录（首次写日志时延迟初始化）。
   Future<String> _getLogDir() async {
@@ -145,17 +160,20 @@ class Log {
 
   /// 信息日志。
   void info(String message, {Object? data}) {
+    _logStreamController.add(LogEntry(LogLevel.info, message));
     _write('INFO', message, data: data);
   }
 
   /// 警告日志。
   void warn(String message, {Object? data, Object? error}) {
+    _logStreamController.add(LogEntry(LogLevel.warn, message));
     _write('WARN', message, data: data, error: error);
   }
 
   /// 错误日志 —— 记录错误 + 调用栈。
   void error(String message,
       {Object? data, Object? error, StackTrace? stack}) {
+    _logStreamController.add(LogEntry(LogLevel.error, message));
     _write('ERROR', message,
         data: data, error: error, stack: stack ?? StackTrace.current);
   }

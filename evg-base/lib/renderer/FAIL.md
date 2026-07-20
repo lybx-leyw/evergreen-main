@@ -74,3 +74,28 @@
 - **问题**：用脚本 `s.replace('⚪待启动', '✅完成')` 批量翻转 M1 状态，结果 `count` 报 32 而非预期 31。排查发现多出的 1 处是**状态图例行**（`状态图例：\`✅完成\` \`🔧进行中\` \`⚪待启动\` \`⛔阻塞\``）里的 `⚪待启动` 也被一并替换，导致图例变成 `✅完成 🔧进行中 ✅完成 ⛔阻塞`，丢失"待启动"色块。
 - **根因**：状态 token 同时出现在任务行状态列**和**文档图例中；blind 全文替换不分语境。
 - **教训**：批量替换状态/标记类 token 时，(1) 先 `count` 并与预期逐项对账，差值往往来自图例/说明/重复行；(2) 优先用带语境的定点 `replace_in_file` 或正则限定列位置，避免误伤；(3) 替换后通读图例与统计行。本例由 `/Intro`→`/iloop` 自评暴露。
+
+## 13. `PluginPreloader`(目录监听) / `GoRouter` 与 `flutter_test` 泵机制不兼容
+
+- **问题**：在 A-P3 写 `PluginDesignerView` 的 widget 测试（D5a "安装并打开" 按钮）时，任何 `pump` / `pumpWidget` / `tester.tap`（内部调用 `pumpAndSettle`）都**挂起 10 分钟超时**。
+- **根因**：
+  1. `PluginDesignerView.initState` 启动 `PluginPreloader`，后者创建 `DirectoryWatcher`（Windows 轮询定时器，常驻）。`flutter_test` 的 `FakeAsync` 要求所有定时器在 `pumpAndSettle` 内收敛，但常驻轮询定时器永远不结束 → 永不收敛。
+  2. 即便绕开 watcher，用 `router.go(path)` + `pumpAndSettle()` 做 GoRouter 导航断言也会挂起——路由转场动画在测试 binding 下保持 pending。
+- **正确做法**：
+  - 含 `PluginPreloader` / 常驻定时器的视图**不要**写 widget 集成测试。改用**静态审查**确认按钮 wiring（如 `plugin_designer_view.dart` 的 `IconButton → _installAndOpen`），并用**非 widget 单元测试**覆盖其背后的数据闭环（export → `registry.reloadModule` → `findByRoute` 命中）。
+  - 需要断言 "点击触发导出+reload+导航" 时，把 `PluginPreloader` 与 `GoRouter` 从待测 widget 上摘掉，或把导航断言降级为"reloadModule 后 findByRoute 命中"的纯逻辑断言。
+- **教训**：写 widget 测试前先确认视图 `initState` 是否启动目录监听/常驻轮询/动画转场；这类常驻副作用会与 `FakeAsync` 泵冲突，必须改用单元/静态手段覆盖，不要硬 `pumpAndSettle`。
+
+## 14. data/manifest.json 的 `script` 字段相对 `data/` 解析 → scraper.py 必须放在 data/ 下
+
+- **问题**：节点1-2对照规划A审计时发现，`_generateAll()` 通过 `exportAsPython` 将 `scraper.py` 写到 `outputDir/scraper.py`（插件根目录），但 `register_data_source.dart:44-46` 中 `script` 字段解析为 `p.join(dataDir, script)`（相对 `data/` 目录）。运行时注册时 `File(data/scraper.py).existsSync()` 返回 false → 数据源注册失败。
+- **根因**：生成链路中 `exportAsPython` → 插件根目录 与 `_scanAndRegisterDataSources` → `data/` 目录 的路径约定不一致。
+- **修复**：在 `_generateAll()` 中 export 完成后立即 `File.copySync` 将 `scraper.py`（及 `.exe`）从根目录复制到 `data/` 子目录。不修改 `exportAsPython`/`exportAsExe` 的 API 契约（它们继续写根目录），由 wizard 层做路径桥接。
+- **教训**：跨模块文件路径约定必须端到端跟踪——从生成器 → manifest 声明 → 运行时注册 → CLI fetcher 执行，整个链路的路径解析规则必须一致。单独看每一段都对，连起来可能全错。
+
+## 15. ScraperWorkflow.onChanged 被覆盖导致 ScraperGeneratorView 失去响应
+
+- **问题**：wizard `_buildStep2` 通过 `addPostFrameCallback` 直接赋值 `scraper.workflow.onChanged = ...`，覆盖了 `ScraperGeneratorViewState.initState` 中设置的 `_workflow.onChanged`。结果是 ScraperGeneratorView 不再响应 workflow 状态变更（日志数、阶段指示器等不再更新）。
+- **根因**：`ScraperWorkflow.onChanged` 是单回调（void Function()?），不支持多订阅者。wizard 作为外部消费者直接赋值覆盖了组件内部的回调。
+- **修复**：`ScraperWorkflow` 已提供 `addListener`/`removeListener` 多订阅者机制（内部维护 `_listeners` 列表），wizard 改用 `addListener(_onWorkflowChanged)` 并在 `dispose` 中 `removeListener`，保留 ScraperGeneratorViewState 自己的 `onChanged`。
+- **教训**：访问外部对象的单回调属性时要先检查是否有 `addListener` 等多订阅者接口。直接赋值覆盖会静默破坏其他订阅者。

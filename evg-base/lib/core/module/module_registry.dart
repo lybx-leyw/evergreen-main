@@ -292,6 +292,49 @@ class ModuleRegistry {
           'ModuleRegistry 尚未锁定。请在注册所有模块后调用 seal()。');
     }
   }
+
+  // ═══════ 运行时重载（A-P3：插件设计器热重载/安装） ═══════
+
+  /// 运行时重载（[seal] 后仍可用）：反注册旧模块（若存在）并注册新描述符。
+  ///
+  /// 用于插件设计器"安装 / 热重载"——设计变更后无需重启即可让运行态模块
+  /// 与最新 manifest 对齐。返回是否成功。
+  ///
+  /// 依赖缺失时返回 `false` 且**不修改任何状态**（保护现有运行态不被破坏）。
+  bool reloadModule(ModuleDescriptor descriptor) {
+    // 依赖校验（在修改状态前完成，避免部分写入导致不一致）
+    final ids = <String>{..._modules.map((m) => m.id), descriptor.id};
+    for (final dep in descriptor.dependencies) {
+      if (!ids.contains(dep)) {
+        Log().warn('reloadModule 依赖缺失，放弃重载',
+            data: {'id': descriptor.id, 'missing': dep});
+        return false;
+      }
+    }
+
+    // 移除旧（同 id），再追加新描述符
+    _modules.removeWhere((m) => m.id == descriptor.id);
+    _capabilities.remove(descriptor.id);
+    _modules.add(descriptor);
+
+    Log().info('ModuleRegistry reloaded: ${descriptor.id} '
+        '（seal=$_sealed，当前模块数 ${_modules.length}）');
+    return true;
+  }
+
+  /// 反注册模块（[seal] 后仍可用）。返回是否成功移除。
+  ///
+  /// 供插件卸载 / 重载前置清理使用。
+  bool unregister(String id) {
+    final before = _modules.length;
+    _modules.removeWhere((m) => m.id == id);
+    _capabilities.remove(id);
+    final removed = _modules.length < before;
+    if (removed) {
+      Log().info('ModuleRegistry unregistered: $id');
+    }
+    return removed;
+  }
 }
 
 // ═══════ NavEntry ═══════

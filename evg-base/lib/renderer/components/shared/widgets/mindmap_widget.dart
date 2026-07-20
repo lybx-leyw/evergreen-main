@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../slot/service/slot_scale.dart';
+import 'package:evergreen_base/renderer/components/shared/slot_scale.dart';
 
 /// 轻量级思维导图组件。
 ///

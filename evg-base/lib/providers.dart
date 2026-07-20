@@ -16,9 +16,15 @@ import 'package:evergreen_base/core/agent/skill/skill.dart';
 import 'package:evergreen_base/core/agent/controller/controller.dart' show ControllerState;
 import 'package:evergreen_base/core/agent/tool.dart' show Registry;
 import 'package:evergreen_base/core/data/orchestrator.dart' show DataOrchestrator;
+import 'package:evergreen_base/core/config/config_http_server.dart' show ConfigHttpServer;
 
 /// 全局模块注册中心——在 main() 中创建、填充、密封后通过 ProviderScope.overrides 注入。
-final moduleRegistryProvider = Provider<ModuleRegistry>((ref) {
+///
+/// A-P3 C4：改为 [StateProvider]，使插件设计器在 [ModuleRegistry.reloadModule]
+/// 后可通过 `ref.read(moduleRegistryProvider.notifier).state = registry`
+/// 触发监听方（侧边栏 [app_shell]、路由表 [app.dart]）实时刷新，
+/// 实现"安装/热重载后无需重启即生效"。
+final moduleRegistryProvider = StateProvider<ModuleRegistry>((ref) {
   throw UnimplementedError(
     'moduleRegistryProvider 未注入——请在 main() 的 ProviderScope.overrides 中提供已密封的 ModuleRegistry。',
   );
@@ -148,5 +154,14 @@ final themeStoreProvider = ChangeNotifierProvider<ThemeStore>((ref) {
 final dataOrchestratorProvider = Provider<DataOrchestrator>((ref) {
   throw UnimplementedError(
     'dataOrchestratorProvider 未注入——请在 main() 的 ProviderScope.overrides 中提供 DataOrchestrator 实例。',
+  );
+});
+
+// ═══════ 配置层 ═══════
+
+/// 全局 ConfigHttpServer——由 main() 注入，供渲染层热注册配置项。
+final configHttpServerProvider = Provider<ConfigHttpServer>((ref) {
+  throw UnimplementedError(
+    'configHttpServerProvider 未注入——请在 main() 的 ProviderScope.overrides 中提供 ConfigHttpServer 实例。',
   );
 });

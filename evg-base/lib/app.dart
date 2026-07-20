@@ -19,7 +19,6 @@ import 'package:path/path.dart' as p;
 
 import 'package:evergreen_base/core/module/module_registry.dart';
 import 'package:evergreen_base/core/theme/theme_descriptor.dart';
-import 'package:evergreen_base/core/core_text_app.dart' as text_app;
 import 'package:evergreen_base/main.dart' show textModeServerPorts;
 import 'package:evergreen_base/providers.dart';
 import 'package:evergreen_base/renderer/app/app_shell.dart';
@@ -27,10 +26,8 @@ import 'package:evergreen_base/renderer/app/command_palette.dart';
 import 'package:evergreen_base/renderer/app/service/providers/renderer_providers.dart';
 import 'package:evergreen_base/renderer/app/service/theme/theme_provider.dart';
 import 'package:evergreen_base/renderer/module/module_page.dart';
+import 'package:evergreen_base/core/feedback/screenshot.dart';
 
-
-/// 文本模式编译常量。
-const _textMode = bool.hasEnvironment('EVERGREEN_TEXT_MODE');
 
 // ═══════ 导航键 ═══════
 
@@ -104,17 +101,18 @@ List<GoRoute> _buildModuleRoutes(
 
     final workingDir = p.join(pluginsDir, m.id) + p.separator;
 
-    Widget modulePage() => EvergreenModulePage(
+    Widget modulePage(GoRouterState state) => EvergreenModulePage(
       descriptor: m,
       workingDirectory: workingDir,
       renderMode: renderMode,
+      initialPrompt: state.uri.queryParameters['prompt'],
     );
 
     // 主路由
     if (m.route != null && m.route!.isNotEmpty && seen.add(m.route!)) {
       routes.add(GoRoute(
         path: m.route!,
-        pageBuilder: (context, state) => _fadePage(modulePage(), state),
+        pageBuilder: (context, state) => _fadePage(modulePage(state), state),
       ));
     }
     // V2: secondary nav 路由（扁平，子路径）
@@ -122,7 +120,7 @@ List<GoRoute> _buildModuleRoutes(
       if (seen.add(s.routePath)) {
         routes.add(GoRoute(
           path: s.routePath,
-          pageBuilder: (context, state) => _fadePage(modulePage(), state),
+          pageBuilder: (context, state) => _fadePage(modulePage(state), state),
         ));
       }
     }
@@ -133,7 +131,7 @@ List<GoRoute> _buildModuleRoutes(
         if (seen.add(pagePath)) {
           routes.add(GoRoute(
             path: pagePath,
-            pageBuilder: (context, state) => _fadePage(modulePage(), state),
+            pageBuilder: (context, state) => _fadePage(modulePage(state), state),
           ));
         }
       }
@@ -199,12 +197,6 @@ class _EvergreenAppState extends ConsumerState<EvergreenApp> {
 
   @override
   Widget build(BuildContext context) {
-    // ── 文本模式：Core 自证，不启动 Widget 渲染 ──
-    if (_textMode) {
-      stderr.writeln('[app] 文本模式启动，端口: $textModeServerPorts');
-      return text_app.EvergreenTextApp(serverPorts: textModeServerPorts);
-    }
-
     final router = ref.watch(routerProvider);
     final theme = ref.watch(lightThemeProvider);
     final darkTheme = ref.watch(darkThemeProvider);
@@ -233,13 +225,16 @@ class _EvergreenAppState extends ConsumerState<EvergreenApp> {
             },
           ),
         },
-        child: MaterialApp.router(
-          title: 'Evergreen 多工具集成版',
-          debugShowCheckedModeBanner: false,
-          theme: theme,
-          darkTheme: darkTheme,
-          themeMode: themeMode,
-          routerConfig: router,
+        child: RepaintBoundary(
+          key: screenshotKey,
+          child: MaterialApp.router(
+            title: 'Evergreen 多工具集成版',
+            debugShowCheckedModeBanner: false,
+            theme: theme,
+            darkTheme: darkTheme,
+            themeMode: themeMode,
+            routerConfig: router,
+          ),
         ),
       ),
     );

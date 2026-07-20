@@ -199,9 +199,177 @@ class DataOrchestrator {
     }
   }
 
+  /// 按名称查找已注册的 [DataType]（无类型参数版本）。供 Agent Tool 等通过字符串名称查询。
+  DataType? typeByName(String name) => _types[name];
+
+  /// 按名称获取数据——等价于 [get] 但通过字符串名称查找 [DataType]。
+  /// 供 Agent Tool 等通过字符串名称调用。
+  Future<dynamic> getByName(String name) async {
+    final t = _types[name];
+    if (t == null) throw DataTypeNotRegisteredException(name);
+    return get<dynamic>(t);
+  }
+
+  /// 按名称强制刷新数据——等价于 [refresh] 但通过字符串名称查找 [DataType]。
+  Future<dynamic> refreshByName(String name) async {
+    final t = _types[name];
+    if (t == null) throw DataTypeNotRegisteredException(name);
+    return refresh<dynamic>(t);
+  }
+
   /// 清除指定类型的缓存（异步完成文件删除）。
   Future<void> invalidate(DataType type) async {
     await _cache?.evict(type.name);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 格式打印
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /// 打印指定数据源缓存数据的格式。
+  ///
+  /// 不触发生成拉取，只读缓存。返回树状结构描述：
+  /// - 顶层类型 + 键/元素数量
+  /// - 每一层的键名、值类型、示例值（截断至 60 字符）
+  /// - 数组最多展开前 3 元素，超长显示 `… 还有 N 项`
+  ///
+  /// 缓存不存在时返回 null。
+  String? dumpDataFormat(String name) {
+    final entry = _cache?.read(name);
+    if (entry == null) {
+      Log().info('DataOrchestrator: 格式打印失败（无缓存）',
+          data: {'name': name});
+      return null;
+    }
+    try {
+      final decoded = jsonDecode(entry.$1);
+      final buf = StringBuffer();
+      _formatValue(buf, decoded, depth: 0, label: 'orch://$name');
+      return buf.toString();
+    } catch (e) {
+      Log().warn('DataOrchestrator: 格式打印异常',
+          data: {'name': name, 'error': e.toString()});
+      return '(无法解析的数据)';
+    }
+  }
+
+  /// 递归格式化某个值的结构到 [buf]。
+  void _formatValue(StringBuffer buf, dynamic val,
+      {required int depth, String? label}) {
+    const indent = '  ';
+
+    void w(String s, {int extra = 0}) {
+      buf.write(indent * (depth + extra));
+      buf.writeln(s);
+    }
+
+    void typeHint(dynamic v) {
+      if (v == null) return;
+      if (v is String) {
+        final s = v.length > 60 ? '${v.substring(0, 57)}…' : v;
+        buf.write(' = "$s"');
+      } else if (v is num || v is bool) {
+        buf.write(' = $v');
+      }
+    }
+
+    if (val == null) {
+      buf.write(label ?? '(null)');
+      buf.writeln(': null');
+      return;
+    }
+    if (val is Map) {
+      buf.write(label ?? '(Map)');
+      buf.writeln(': Map (${val.length} 键)');
+      for (final key in val.keys) {
+        final v = val[key];
+        final keyLabel = '$key';
+        if (v is Map) {
+          w('$keyLabel:');
+          _formatValue(buf, v, depth: depth + 1);
+        } else if (v is List) {
+          buf.write(indent * (depth + 1));
+          buf.write('$keyLabel: ');
+          buf.write('List (${v.length} 项)');
+          typeHint(v.isEmpty ? null : v.first is Map ? null : v);
+          buf.writeln();
+          _expandListItems(buf, v, depth: depth + 1);
+        } else {
+          buf.write(indent * (depth + 1));
+          buf.write('$keyLabel: ${_typeName(v)}');
+          typeHint(v);
+          buf.writeln();
+        }
+      }
+    } else if (val is List) {
+      buf.write(label ?? '(List)');
+      buf.writeln(': List (${val.length} 项)');
+      _expandListItems(buf, val, depth: depth);
+    } else {
+      buf.write(label ?? '(${_typeName(val)})');
+      buf.write(': ${_typeName(val)}');
+      typeHint(val);
+      buf.writeln();
+    }
+  }
+
+  void _expandListItems(StringBuffer buf, List list, {required int depth}) {
+    const indent = '  ';
+
+    void w(String s, {int extra = 0}) {
+      buf.write(indent * (depth + 1 + extra));
+      buf.writeln(s);
+    }
+
+    final maxExpand = 3;
+    for (var i = 0; i < list.length && i < maxExpand; i++) {
+      final item = list[i];
+      if (item is Map) {
+        buf.write(indent * (depth + 1));
+        buf.writeln('[$i]: Map (${item.length} 键)');
+        // 对 Map 元素只展开第一层键名
+        for (final k in item.keys) {
+          final v = item[k];
+          buf.write(indent * (depth + 2));
+          buf.write('$k: ${_typeName(v)}');
+          if (v is String) {
+            final s = v.length > 30 ? '${v.substring(0, 27)}…' : v;
+            buf.write(' = "$s"');
+          } else if (v is num || v is bool) {
+            buf.write(' = $v');
+          }
+          buf.writeln();
+        }
+      } else if (item is List) {
+        buf.write(indent * (depth + 1));
+        buf.writeln('[$i]: List (${item.length} 项)');
+      } else {
+        buf.write(indent * (depth + 1));
+        buf.write('[$i]: ${_typeName(item)}');
+        if (item is String) {
+          final s = item.length > 40 ? '${item.substring(0, 37)}…' : item;
+          buf.write(' = "$s"');
+        } else if (item is num || item is bool) {
+          buf.write(' = $item');
+        }
+        buf.writeln();
+      }
+    }
+    if (list.length > maxExpand) {
+      w('… 还有 ${list.length - maxExpand} 项');
+    }
+  }
+
+  String _typeName(dynamic v) {
+    if (v == null) return 'null';
+    if (v is String) return 'String';
+    if (v is int) return 'int';
+    if (v is double) return 'double';
+    if (v is num) return 'num';
+    if (v is bool) return 'bool';
+    if (v is Map) return 'Map';
+    if (v is List) return 'List';
+    return v.runtimeType.toString();
   }
 
   // ═══════════════════════════════════════════════════════════════════════

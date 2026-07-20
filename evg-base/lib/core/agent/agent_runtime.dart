@@ -3,6 +3,7 @@ library;
 
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
@@ -21,8 +22,10 @@ import 'package:evergreen_base/core/agent/tools/user_info.dart';
 import 'package:evergreen_base/core/agent/tools/read_file.dart';
 import 'package:evergreen_base/core/agent/tools/write_file.dart';
 import 'package:evergreen_base/core/agent/tools/write_global_memory.dart';
+import 'package:evergreen_base/core/agent/tools/python_runner_tool.dart';
 import 'package:evergreen_base/core/agent/skill/skill.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
+import 'package:evergreen_base/core/utils/python_env.dart';
 import 'package:evergreen_base/providers.dart';
 
 // ═══════ AgentRuntime ═══════
@@ -65,9 +68,10 @@ final agentRuntimeProvider = Provider<AgentRuntime>((ref) {
     }
   }
   final skillIndex = SkillIndex();
+  final pluginsDir = resolvePluginsRoot();
   final loader = SkillLoader([
     skillDir,          // .greenix/skills/ — 全局 skill
-    'plugins/',        // plugins/<name>/skill/*.md — 插件专用 skill
+    pluginsDir,        // plugins/<name>/skill/*.md — 插件专用 skill（统一路径）
   ]);
   skillIndex.addAll(loader.loadAll());
   BuiltinSkills.loadInto(skillIndex);
@@ -87,10 +91,22 @@ final agentRuntimeProvider = Provider<AgentRuntime>((ref) {
     if (!registry.has(t.name)) registry.register(t);
   }
 
+  // 注册 Python Runner — 同步检测 Greenix 嵌入版 Python
+  final bundledPython = p.join(greenixPythonDir, 'python.exe');
+  if (File(bundledPython).existsSync()) {
+    if (!registry.has('python_runner')) {
+      registry.register(PythonRunnerTool(
+        pythonExePath: bundledPython,
+        pythonWorkDir: greenixPythonDir,
+        workspaceDir: greenixWorkspaceDir('ai-assistant'),
+      ));
+    }
+  }
+
   // 插件嫁接桥——自动扫描 plugins/<name>/.exe 并注册
-  final pluginsDir = Directory('plugins');
-  if (!pluginsDir.existsSync()) pluginsDir.createSync(recursive: true);
-  PluginBridge.registerAll(registry, pluginsDir);
+  final pluginsDirObj = Directory(pluginsDir);
+  if (!pluginsDirObj.existsSync()) pluginsDirObj.createSync(recursive: true);
+  PluginBridge.registerAll(registry, pluginsDirObj);
 
   final eventSink = agent.StreamEventSink();
   final session = agent.Session();

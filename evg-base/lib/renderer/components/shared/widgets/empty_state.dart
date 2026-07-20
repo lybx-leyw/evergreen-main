@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../slot/service/slot_scale.dart';
+import 'package:evergreen_base/renderer/components/shared/slot_scale.dart';
 
 /// Empty state widget — shown when there's no data to display.
 ///

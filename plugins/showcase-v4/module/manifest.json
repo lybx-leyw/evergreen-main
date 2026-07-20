@@ -439,7 +439,7 @@
     },
     {
       "id": "page_9",
-      "label": "影音媒体",
+      "label": "视频播放",
       "default": false,
       "layout": {
         "type": "grid",
@@ -465,7 +465,21 @@
                 "title": "Evergreen 标题视频"
               }
             }
-          },
+          }
+        }
+      }
+    },
+    {
+      "id": "page_10",
+      "label": "音频图库",
+      "default": false,
+      "layout": {
+        "type": "grid",
+        "preset": {
+          "columns": 2,
+          "gap": 12
+        },
+        "slots": {
           "audio-player": {
             "component": {
               "type": "audio-player",
@@ -492,7 +506,17 @@
                 ]
               }
             }
-          },
+          }
+        }
+      }
+    },
+    {
+      "id": "page_11",
+      "label": "演示文稿",
+      "default": false,
+      "layout": {
+        "type": "fullscreen",
+        "slots": {
           "presentation": {
             "component": {
               "type": "presentation",
@@ -518,7 +542,7 @@
       }
     },
     {
-      "id": "page_10",
+      "id": "page_12",
       "label": "数据图表",
       "default": false,
       "layout": {
@@ -621,7 +645,7 @@
       }
     },
     {
-      "id": "page_11",
+      "id": "page_13",
       "label": "架构可视化",
       "default": false,
       "layout": {
@@ -720,7 +744,7 @@
       }
     },
     {
-      "id": "page_12",
+      "id": "page_14",
       "label": "开发工具",
       "default": false,
       "layout": {
@@ -734,10 +758,9 @@
             "component": {
               "type": "code-editor",
               "config": {
-                "language": "dart",
-                "readonly": true,
+                "language": "python",
                 "lineNumbers": true,
-                "content": "// (源码读取失败)"
+                "path": "assets/code/showcase_module.py"
               }
             }
           },
@@ -758,7 +781,7 @@
       }
     },
     {
-      "id": "page_13",
+      "id": "page_15",
       "label": "学习测验",
       "default": false,
       "layout": {
@@ -774,7 +797,48 @@
               "config": {
                 "mode": "chinese-to-english",
                 "shuffle": true,
-                "wordList": "words.json"
+                "wordList": [
+                  {
+                    "word": "Evergreen",
+                    "meaning": "常青的；永葆青春的"
+                  },
+                  {
+                    "word": "orchestrator",
+                    "meaning": "编排器；协调器"
+                  },
+                  {
+                    "word": "renderer",
+                    "meaning": "渲染器"
+                  },
+                  {
+                    "word": "manifest",
+                    "meaning": "清单；声明文件"
+                  },
+                  {
+                    "word": "composite",
+                    "meaning": "复合的；合成的"
+                  },
+                  {
+                    "word": "plugin",
+                    "meaning": "插件"
+                  },
+                  {
+                    "word": "widget",
+                    "meaning": "小部件；组件"
+                  },
+                  {
+                    "word": "agent",
+                    "meaning": "代理；智能体"
+                  },
+                  {
+                    "word": "sandbox",
+                    "meaning": "沙箱"
+                  },
+                  {
+                    "word": "scraper",
+                    "meaning": "爬虫；抓取器"
+                  }
+                ]
               }
             }
           },
@@ -787,7 +851,40 @@
                   "fill-blank"
                 ],
                 "passScore": 80,
-                "wordList": "words.json"
+                "wordList": [
+                  {
+                    "word": "Evergreen",
+                    "meaning": "常青的"
+                  },
+                  {
+                    "word": "orchestrator",
+                    "meaning": "编排器"
+                  },
+                  {
+                    "word": "renderer",
+                    "meaning": "渲染器"
+                  },
+                  {
+                    "word": "manifest",
+                    "meaning": "清单"
+                  },
+                  {
+                    "word": "composite",
+                    "meaning": "复合的"
+                  },
+                  {
+                    "word": "plugin",
+                    "meaning": "插件"
+                  },
+                  {
+                    "word": "widget",
+                    "meaning": "组件"
+                  },
+                  {
+                    "word": "agent",
+                    "meaning": "智能体"
+                  }
+                ]
               }
             }
           },
@@ -839,7 +936,7 @@
       }
     },
     {
-      "id": "page_14",
+      "id": "page_16",
       "label": "记忆与课程",
       "default": false,
       "layout": {
@@ -853,7 +950,48 @@
             "component": {
               "type": "flashcards",
               "config": {
-                "wordList": "words.json"
+                "wordList": [
+                  {
+                    "word": "Evergreen",
+                    "meaning": "常青的；永葆青春的"
+                  },
+                  {
+                    "word": "orchestrator",
+                    "meaning": "编排器；协调器"
+                  },
+                  {
+                    "word": "renderer",
+                    "meaning": "渲染器"
+                  },
+                  {
+                    "word": "manifest",
+                    "meaning": "清单；声明文件"
+                  },
+                  {
+                    "word": "composite",
+                    "meaning": "复合的；合成的"
+                  },
+                  {
+                    "word": "plugin",
+                    "meaning": "插件"
+                  },
+                  {
+                    "word": "widget",
+                    "meaning": "小部件；组件"
+                  },
+                  {
+                    "word": "agent",
+                    "meaning": "代理；智能体"
+                  },
+                  {
+                    "word": "sandbox",
+                    "meaning": "沙箱"
+                  },
+                  {
+                    "word": "scraper",
+                    "meaning": "爬虫；抓取器"
+                  }
+                ]
               }
             }
           },
@@ -890,7 +1028,7 @@
       }
     },
     {
-      "id": "page_15",
+      "id": "page_17",
       "label": "设置与工具",
       "default": false,
       "layout": {
@@ -982,7 +1120,7 @@
       }
     },
     {
-      "id": "page_16",
+      "id": "page_18",
       "label": "扩展工具",
       "default": false,
       "layout": {
@@ -992,19 +1130,12 @@
           "gap": 12
         },
         "slots": {
-          "scraper-generator": {
-            "component": {
-              "type": "scraper-generator",
-              "config": {
-                "initialUrl": "https://www.baidu.com"
-              }
-            }
-          },
           "webview": {
             "component": {
               "type": "webview",
               "config": {
-                "url": "https://flutter.dev"
+                "url": "架构示意图.html",
+                "allowScripts": true
               }
             }
           },
@@ -1013,7 +1144,8 @@
               "type": "scanner",
               "config": {
                 "mode": "qr",
-                "hint": "扫码访问 Evergreen 项目仓库（本地优先 · 无账号）"
+                "hint": "扫码访问 Evergreen 项目仓库（本地优先 · 无账号）",
+                "emitEvent": "code_scanned"
               }
             }
           },
@@ -1022,20 +1154,128 @@
               "type": "lottery-wheel",
               "config": {
                 "lottery": {
-                  "title": "幸运抽奖",
-                  "subtitle": "展示大厅专属",
-                  "buttonText": "开始",
+                  "title": "Evergreen 里程碑抽奖",
+                  "subtitle": "共 67 个组件 · 47 个具名 · 6 HttpServer",
+                  "buttonText": "抽奖",
                   "segments": [
                     {
-                      "label": "🎁 组件大礼包",
-                      "color": "#2ECC71"
+                      "label": "🏆 M4 展示大厅",
+                      "color": "#E53935"
                     },
                     {
-                      "label": "🏆 M3勋章",
-                      "color": "#3498DB"
+                      "label": "📊 M3 扩展",
+                      "color": "#1E88E5"
+                    },
+                    {
+                      "label": "🔧 M1 补齐",
+                      "color": "#43A047"
+                    },
+                    {
+                      "label": "⭐ M0 基线",
+                      "color": "#FB8C00"
+                    },
+                    {
+                      "label": "🧩 六维插件",
+                      "color": "#8E24AA"
+                    },
+                    {
+                      "label": "🚀 Agent 运行时",
+                      "color": "#00ACC1"
+                    },
+                    {
+                      "label": "⚡ 59 端点",
+                      "color": "#F4511E"
+                    },
+                    {
+                      "label": "🎄 常青生态",
+                      "color": "#3949AB"
                     }
                   ]
                 }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "page_19",
+      "label": "爬虫",
+      "default": false,
+      "layout": {
+        "type": "fullscreen",
+        "slots": {
+          "scraper-generator": {
+            "component": {
+              "type": "scraper-generator",
+              "config": {
+                "initialUrl": "https://www.baidu.com"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "page_20",
+      "label": "数据列表",
+      "default": false,
+      "layout": {
+        "type": "grid",
+        "columns": 2,
+        "rowHeight": 360,
+        "slots": {
+          "courses": {
+            "component": {
+              "type": "data-list",
+              "config": {
+                "title": "课程列表（数据驱动 ListView.separated）",
+                "searchable": true,
+                "searchPlaceholder": "搜索课程名/教师/代码...",
+                "searchFields": ["name", "teacherName", "courseCode"],
+                "item": {
+                  "titleField": "name",
+                  "subtitle": {
+                    "fields": ["teacherName", "courseTypeName", "statusLabel"],
+                    "separator": " · "
+                  },
+                  "trailingActions": [
+                    {"icon": "person_search", "tooltip": "查老师评分", "action": "navigate", "target": "/teachers"},
+                    {"icon": "info", "tooltip": "课程详情", "action": "switch_page", "target": "page_1"},
+                    {"icon": "grade", "tooltip": "添加到收藏", "action": "custom", "target": "add_favorite/{courseCode}"}
+                  ]
+                },
+                "separator": {
+                  "type": "divider",
+                  "height": 1
+                },
+                "emptyState": {
+                  "icon": "school",
+                  "message": "暂无课程数据"
+                },
+                "items": [
+                  {"name": "高等数学", "teacherName": "张教授", "courseCode": "MATH1001", "courseTypeName": "必修", "statusLabel": "进行中"},
+                  {"name": "线性代数", "teacherName": "李副教授", "courseCode": "MATH1002", "courseTypeName": "必修", "statusLabel": "进行中"},
+                  {"name": "大学物理", "teacherName": "王教授", "courseCode": "PHYS2001", "courseTypeName": "必修", "statusLabel": "进行中"},
+                  {"name": "C 程序设计", "teacherName": "赵讲师", "courseCode": "CS1001", "courseTypeName": "必修", "statusLabel": "已结束"},
+                  {"name": "数据结构", "teacherName": "陈教授", "courseCode": "CS2001", "courseTypeName": "必修", "statusLabel": "进行中"},
+                  {"name": "操作系统", "teacherName": "刘副教授", "courseCode": "CS3001", "courseTypeName": "必修", "statusLabel": "未开始"},
+                  {"name": "计算机网络", "teacherName": "周教授", "courseCode": "CS3002", "courseTypeName": "必修", "statusLabel": "进行中"},
+                  {"name": "数据库原理", "teacherName": "吴讲师", "courseCode": "CS3003", "courseTypeName": "选修", "statusLabel": "进行中"},
+                  {"name": "软件工程", "teacherName": "郑副教授", "courseCode": "SE3001", "courseTypeName": "必修", "statusLabel": "未开始"},
+                  {"name": "人工智能导论", "teacherName": "孙教授", "courseCode": "AI4001", "courseTypeName": "选修", "statusLabel": "进行中"},
+                  {"name": "编译原理", "teacherName": "马教授", "courseCode": "CS4001", "courseTypeName": "必修", "statusLabel": "已结束"},
+                  {"name": "计算机图形学", "teacherName": "黄副教授", "courseCode": "CS4002", "courseTypeName": "选修", "statusLabel": "进行中"}
+                ]
+              }
+            }
+          },
+          "info": {
+            "component": {
+              "type": "markdown",
+              "config": {
+                "content": "## 📋 data-list 组件\n\n### 与 card-list 的区别\n\n| 特性 | card-list | data-list |\n|------|-----------|------------|\n| 布局 | 2 列 GridView | **ListView.separated** 线性列表 |\n| 数量 | 固定数量 | **数据驱动**：条目数与数据量一致 |\n| 卡片 | title + body | **ListTile**：title/subtitle/leading/trailing |\n| 搜索 | ❌ | ✅ 多字段搜索过滤 |\n| 操作 | ❌ | ✅ 尾部 IconButton 按钮 |\n\n### 尾部按钮 action 类型\n\n| action | 行为 | target 含义 |\n|--------|------|------------|\n| `navigate` | PageEventBus 路由事件 | 路由路径 |\n| `link` | 外置浏览器打开 | 完整 URL |\n| `switch_page` | 切换 Tab 页 | 目标 page_id |\n| `custom` | 自定义事件 | 事件名（含占位符） |\n\n### Manifest 关键字段\n\n```json\n{\n  \"type\": \"data-list\",\n  \"trailingActions\": [\n    {\"icon\": \"person_search\", \"tooltip\": \"查老师\", \"action\": \"navigate\", \"target\": \"/teachers\"},\n    {\"icon\": \"download\", \"tooltip\": \"下载\", \"action\": \"link\", \"target\": \"https://example.com\"},\n    {\"icon\": \"grade\", \"tooltip\": \"收藏\", \"action\": \"custom\", \"target\": \"fav/{id}\"}\n  ]\n}\n```\n\n> 数据越多，列表越长——真正意义上的「数据驱动」。",
+                "showHeader": false
               }
             }
           }

@@ -30,6 +30,7 @@ import 'package:evergreen_base/core/data/orchestrator.dart';
 import 'package:evergreen_base/core/data/type.dart';
 import 'package:evergreen_base/core/log.dart';
 import 'package:evergreen_base/core/data/data_http_server.dart';
+import 'package:evergreen_base/core/data/register_data_source.dart';
 import 'package:evergreen_base/core/theme/theme_loader.dart';
 import 'package:evergreen_base/core/theme/theme_store.dart';
 import 'package:evergreen_base/core/theme/theme_http_server.dart';
@@ -43,6 +44,7 @@ import 'package:evergreen_base/core/agent/tools/plugin_bridge.dart';
 import 'package:evergreen_base/core/agent/tools/read_global_memory.dart';
 import 'package:evergreen_base/core/agent/tools/write_global_memory.dart';
 import 'package:evergreen_base/core/agent/tools/web_search.dart';
+import 'package:evergreen_base/core/agent/tools/data_query.dart';
 import 'package:evergreen_base/core/agent/tools/read_file.dart';
 import 'package:evergreen_base/core/agent/tools/write_file.dart';
 import 'package:evergreen_base/core/agent/tools/python_runner_tool.dart';
@@ -99,135 +101,23 @@ final textModeServerPorts = <String, int>{};
 /// 结果存入 [out] map，key 为模块 id。
 /// 扫描 data 插件 manifest.json，注册 DataType（CLI fetcher）。
 /// 在模块加载前调用，避免组件渲染时数据源尚未注册的时序问题。
+///
+/// 注册逻辑委托给 [registerDataSourcesFromManifest]（与运行期热注册同一份契约，
+/// 见 register_data_source.dart），避免双实现漂移。
 void _scanAndRegisterDataSources(String pluginsDir, DataOrchestrator orch) {
   final dir = Directory(pluginsDir);
   if (!dir.existsSync()) return;
 
   for (final entity in dir.listSync()) {
     if (entity is! Directory) continue;
-    final pluginId = p.basename(entity.path);
-    final manifestFile = File(p.join(entity.path, 'data', 'manifest.json'));
-    if (!manifestFile.existsSync()) continue;
-
-    try {
-      final json = jsonDecode(manifestFile.readAsStringSync()) as Map<String, dynamic>;
-      if (json['type'] != 'data-source') continue;
-
-      final script = json['script'] as String?;
-      final dataTypes = (json['dataTypes'] as List<dynamic>?) ?? [];
-      if (script == null || dataTypes.isEmpty) continue;
-
-      // script 路径相对于 manifest.json 所在目录（data/）
-      final dataDir = p.join(entity.path, 'data');
-      final exePath = p.join(dataDir, script);
-      final exeExists = File(exePath).existsSync();
-      if (!exeExists) {
-        Log().warn('DataSource 扫描: 数据脚本不存在，仍注册（运行时将失败）',
-            data: {'plugin': pluginId, 'script': script, 'exe': exePath});
-      }
-
-      final names = <String>[];
-      for (final dt in dataTypes) {
-        if (dt is! Map<String, dynamic>) continue;
-        final name = dt['name'] as String? ?? '';
-        final typeArg = dt['typeArg'] as String? ?? name;
-        final ttlStr = dt['ttl'] as String? ?? '5m';
-        final persistentKey = dt['persistentKey'] as String?;
-        if (name.isEmpty) continue;
-        names.add('$name(typeArg=$typeArg)');
-
-        var ttl = const Duration(minutes: 5);
-        final ttlMatch = RegExp(r'^(\d+)(s|m|h)$').firstMatch(ttlStr);
-        if (ttlMatch != null) {
-          final v = int.tryParse(ttlMatch.group(1)!) ?? 5;
-          switch (ttlMatch.group(2)) {
-            case 's': ttl = Duration(seconds: v);
-            case 'h': ttl = Duration(hours: v);
-            default: ttl = Duration(minutes: v);
-          }
-        }
-
-        final type = DataType<Map<String, dynamic>>(
-          name: name,
-          category: dt['category'] as String? ?? '',
-          displayName: dt['displayName'] as String? ?? name,
-          ttl: ttl,
-          persistentKey: persistentKey,
-        );
-
-        // CLI fetcher: Process.run → stdout JSON
-        orch.register(type, () async {
-          final sw = Stopwatch()..start();
-          Log().info('数据源拉取开始',
-              data: {'plugin': pluginId, 'name': name, 'exe': exePath,
-                'args': ['--type', typeArg, '--project-root', _projectRoot]});
-          ProcessResult result;
-          try {
-            result = await Process.run(
-              exePath,
-              ['--type', typeArg, '--project-root', _projectRoot],
-              workingDirectory: dataDir,
-            );
-          } on ProcessException catch (e) {
-            Log().error('数据源拉取失败（无法启动脚本）',
-                data: {'plugin': pluginId, 'name': name, 'script': script, 'error': e.message});
-            throw Exception('无法启动数据脚本 "$script": ${e.message}');
-          }
-          final elapsedMs = sw.elapsedMilliseconds;
-          final stdoutRaw = result.stdout as String;
-          final stderrRaw = (result.stderr as String).trim();
-          if (result.exitCode != 0) {
-            // 如果 stdout 有 JSON 错误消息，优先使用
-            String errMsg = stderrRaw.isNotEmpty
-                ? stderrRaw
-                : '$script 异常退出 (code ${result.exitCode})';
-            try {
-              final stdoutJson = jsonDecode(stdoutRaw) as Map<String, dynamic>;
-              if (stdoutJson.containsKey('error')) {
-                errMsg = stdoutJson['error'] as String? ?? errMsg;
-              }
-            } catch (_) {}
-            Log().error('数据源拉取失败（exitCode != 0）',
-                data: {
-                  'plugin': pluginId,
-                  'name': name,
-                  'exitCode': result.exitCode,
-                  'elapsedMs': elapsedMs,
-                  'stderr': stderrRaw.length > 800 ? '${stderrRaw.substring(0, 800)}…' : stderrRaw,
-                  'stdoutTail': stdoutRaw.length > 300
-                      ? stdoutRaw.substring(0, 300)
-                      : stdoutRaw,
-                });
-            throw Exception(errMsg);
-          }
-          final parsed = jsonDecode(stdoutRaw) as Map<String, dynamic>;
-          // 防御：脚本 exit code 0 但返回了错误 JSON
-          if (parsed.containsKey('error')) {
-            final err = parsed['error'] as String? ?? '$script 返回了错误';
-            Log().error('数据源拉取失败（脚本返回 error JSON）',
-                data: {'plugin': pluginId, 'name': name, 'elapsedMs': elapsedMs, 'error': err});
-            throw Exception(err);
-          }
-          Log().info('数据源拉取成功',
-              data: {
-                'plugin': pluginId,
-                'name': name,
-                'elapsedMs': elapsedMs,
-                'stdoutBytes': stdoutRaw.length,
-                'keys': parsed.keys.toList(),
-              });
-          return parsed;
-        });
-
-        Log().info('DataSource 注册',
-            data: {'plugin': pluginId, 'name': name, 'script': script,
-              'typeArg': typeArg, 'exeExists': exeExists, 'ttl': ttlStr,
-              'persistentKey': persistentKey});
-      }
+    final names = registerDataSourcesFromManifest(
+      orch: orch,
+      pluginDir: entity.path,
+      projectRoot: _projectRoot,
+    );
+    if (names.isNotEmpty) {
       Log().info('DataSource 扫描完成',
-          data: {'plugin': pluginId, 'count': names.length, 'types': names});
-    } catch (e) {
-      Log().error('数据源扫描失败', data: {'plugin': pluginId, 'path': entity.path, 'error': e.toString()});
+          data: {'plugin': p.basename(entity.path), 'count': names.length, 'types': names});
     }
   }
 }
@@ -375,6 +265,7 @@ void main() async {
   toolRegistry.register(WebSearchTool(dioAgent));
   toolRegistry.register(ReadFileTool(workspaceDir: aiWorkspace));
   toolRegistry.register(WriteFileTool(workspaceDir: aiWorkspace));
+  toolRegistry.register(DataQueryTool(orchestrator: orchestrator));
   // 注册嵌入式 Python 解释器工具——多级回退发现
   // ① .greenix/python/python.exe（同学打包的嵌入式 Python，最高优先级）
   // ② scripts/python/python.exe（安装包自带）
@@ -506,48 +397,7 @@ void main() async {
     themeStore.activeTheme = defaultTheme;
   }
 
-  // ── 判断运行模式：全 HTML vs 混合 ──
-  final allHtml = registry.modules.isNotEmpty &&
-      registry.modules.every((m) {
-        final v2 = v2Manifests[m.id];
-        return v2 != null && v2['renderMode'] == 'html';
-      });
-
-  if (allHtml) {
-    // ═══════ 全 HTML 模式：不启动 Flutter 窗口，Dart 进程只做后端 ═══════
-    stderr.writeln('[main] === 全 HTML 模式：Dart 后端已就绪，Flutter 窗口不启动 ===');
-    stderr.writeln('[main] 模块端口: ${textModeServerPorts.entries.where((e) => !['Core','Config','Data','Theme','Agent','Module'].contains(e.key)).map((e) => '${e.key}:${e.value}').toList()}');
-
-    // 打印各模块 URL
-    for (final m in registry.modules) {
-      final port = textModeServerPorts[m.id];
-      if (port != null && port != 0) {
-        stderr.writeln('[main] ${m.name} → http://127.0.0.1:$port');
-      }
-    }
-
-    // 打开浏览器到 showase 展示大厅（优先），否则第一个可用模块
-    final firstModule = registry.modules.firstWhere(
-      (m) => m.id == 'showcase' && textModeServerPorts[m.id] != null && textModeServerPorts[m.id] != 0,
-      orElse: () => registry.modules.firstWhere(
-        (m) => textModeServerPorts[m.id] != null && textModeServerPorts[m.id] != 0,
-        orElse: () => registry.modules.first,
-      ),
-    );
-    final firstPort = textModeServerPorts[firstModule.id];
-    if (firstPort != null && firstPort != 0) {
-      final url = 'http://127.0.0.1:$firstPort';
-      stderr.writeln('[main] 打开浏览器 → $url');
-      Process.run('cmd', ['/c', 'start', url]);
-    }
-
-    // 保持进程存活，等待退出信号
-    stderr.writeln('[main] 后端运行中，按 Ctrl+C 退出...');
-    await Future.delayed(const Duration(days: 365));
-    return;
-  }
-
-  // ── 混合模式（有 Dart 模块）：启动 Flutter 窗口 ──
+  // ── 启动 Flutter 窗口（纯 Dart 渲染）──
   runApp(
     ProviderScope(
       overrides: [
@@ -559,6 +409,9 @@ void main() async {
 
         // 数据谱仪器
         dataOrchestratorProvider.overrideWith((ref) => orchestrator),
+
+        // 配置层 HTTP 服务器（供热注册配置项）
+        configHttpServerProvider.overrideWith((ref) => configServer),
 
         // 插件目录（供渲染层构造模块工作目录）
         pluginsDirProvider.overrideWith((ref) => _pluginsDir),

@@ -48,9 +48,10 @@ dependencies:
   flutter_markdown: ^0.7.6
   flutter_math_fork: ^0.7.0
   markdown: ^7.0.0
-  flutter_widget_from_html_core: ^0.15.0
+  flutter_widget_from_html: ^0.15.0
   flutter_highlight: ^0.7.0
   flutter_mermaid: ^0.1.0
+  flutter_svg: ^2.0.17
   google_fonts: ^6.2.1
   file_picker: ^8.0.0
   re_editor: ^0.10.0

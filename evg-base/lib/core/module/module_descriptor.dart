@@ -98,6 +98,10 @@ bool _parseFlag(dynamic raw) {
   return false;
 }
 
+/// 不可解析（名称不在 `_iconMap` 且非合法 codePoint hex）的 icon 统一兜底为此默认值，
+/// 避免 `"movie"` 这类未知名称导致图标为空或渲染异常。
+const int kDefaultIcon = 0xe873; // Icons.description
+
 int? _parseIcon(dynamic raw) {
   if (raw == null) return null;
   if (raw is int) return raw;
@@ -106,7 +110,8 @@ int? _parseIcon(dynamic raw) {
     if (mapped != null) return mapped;
     final i = int.tryParse(raw);
     if (i != null) return i;
-    return null;
+    // 名称无法解析 → 兜底默认值（仍视为有 icon，hasSidebar 等逻辑可正常成立）
+    return kDefaultIcon;
   }
   return null;
 }
@@ -622,12 +627,28 @@ class DataSourceDescriptor {
   /// 自动刷新间隔（秒），0 = 不自动刷新。
   final int refreshInterval;
 
+  /// 字段绑定：语义键 → 目标数据的 JSON 键路径（v5P 模板用）。
+  ///
+  /// 例如 classroom-modle 在 manifest 中声明：
+  /// ```jsonc
+  /// "bindings": {
+  ///   "courses":     "courses",
+  ///   "course.title":"title",
+  ///   "video.videoUrl":"videoUrl",
+  ///   "slide.imageUrl":"imageUrl"
+  /// }
+  /// ```
+  /// 模板经原子层拉取数据后，按这些键路径用 [json_path.extractPath] 提取
+  /// 每个字段，组装为模型并驱动 UI。缺省 null（模板用自身默认绑定）。
+  final Map<String, String>? bindings;
+
   const DataSourceDescriptor({
     this.endpoint,
     this.method = 'GET',
     this.dataPath,
     this.transform,
     this.refreshInterval = 0,
+    this.bindings,
   });
 
   factory DataSourceDescriptor.fromJson(Map<String, dynamic>? json) {
@@ -638,6 +659,9 @@ class DataSourceDescriptor {
       dataPath: json['dataPath'] as String?,
       transform: json['transform'] as String?,
       refreshInterval: json['refreshInterval'] as int? ?? 0,
+      bindings: (json['bindings'] as Map?)?.map(
+        (k, v) => MapEntry(k.toString(), v.toString()),
+      ),
     );
   }
 
@@ -648,6 +672,9 @@ class DataSourceDescriptor {
     if (dataPath != null) m['dataPath'] = dataPath;
     if (transform != null) m['transform'] = transform;
     if (refreshInterval != 0) m['refreshInterval'] = refreshInterval;
+    if (bindings != null && bindings!.isNotEmpty) {
+      m['bindings'] = bindings;
+    }
     return m;
   }
 }
@@ -1216,10 +1243,13 @@ class LayoutDescriptor {
 
 // ═══════ SlotDescriptor ═══════
 
-/// 插槽描述符（V2）——style / process / events / component。
+/// 插槽描述符（V2）——region / style / process / events / component。
 ///
 /// Slot 不能嵌套 Slot，只能包含 Component。
 class SlotDescriptor {
+  /// dock/absolute 布局的区域标识（top / left / center / right / bottom）。
+  final String? region;
+
   /// 插槽级样式。
   final StyleDescriptor style;
 
@@ -1237,6 +1267,7 @@ class SlotDescriptor {
   final Map<String, Map<String, String>>? theme;
 
   const SlotDescriptor({
+    this.region,
     this.style = const StyleDescriptor(),
     this.process = const [],
     this.events = const EventDescriptor(),
@@ -1247,6 +1278,7 @@ class SlotDescriptor {
   factory SlotDescriptor.fromJson(Map<String, dynamic>? json) {
     if (json == null) return const SlotDescriptor();
     return SlotDescriptor(
+      region: json['region'] as String?,
       style: StyleDescriptor.fromJson(
           json['style'] as Map<String, dynamic>?),
       process: _parseProcessList(json['process']),
@@ -1262,6 +1294,7 @@ class SlotDescriptor {
 
   Map<String, dynamic> toJson() {
     final m = <String, dynamic>{};
+    if (region != null) m['region'] = region;
     final s = style.toJson();
     if (s.isNotEmpty) m['style'] = s;
     if (process.isNotEmpty) {
@@ -1366,6 +1399,18 @@ Map<String, SlotDescriptor> _parseSlots(dynamic raw) {
     result[entry.key] = SlotDescriptor.fromJson(entry.value);
   }
   return result;
+}
+
+/// 解析模块级多数据源声明（v5P）：命名 source → DataSourceDescriptor。
+Map<String, DataSourceDescriptor>? _parseModuleDataSources(dynamic raw) {
+  if (raw == null || raw is! Map) return null;
+  final out = <String, DataSourceDescriptor>{};
+  for (final entry in (raw as Map).entries) {
+    out[entry.key.toString()] = DataSourceDescriptor.fromJson(
+      entry.value is Map ? (entry.value as Map).cast<String, dynamic>() : null,
+    );
+  }
+  return out.isEmpty ? null : out;
 }
 
 // ═══════ NavDescriptor ═══════
@@ -2340,10 +2385,16 @@ class MapDescriptor {
       centerLat: (json['center'] as Map<String, dynamic>?)?['lat'] as double?,
       centerLng: (json['center'] as Map<String, dynamic>?)?['lng'] as double?,
       zoom: json['zoom'] as int? ?? 15,
-      markers: json['markers'] as bool? ?? true,
+      markers: _parseMarkersFlag(json['markers']),
       search: json['search'] as bool? ?? false,
       route: json['route'] as bool? ?? false,
     );
+  }
+
+  static bool _parseMarkersFlag(dynamic value) {
+    if (value is bool) return value;
+    if (value is List) return value.isNotEmpty;
+    return true;
   }
 
   Map<String, dynamic> toJson() {
@@ -2542,6 +2593,23 @@ class ModuleDescriptor {
   /// 部分覆盖 theme.json 中 module 层的颜色。
   final Map<String, Map<String, String>>? theme;
 
+  /// 渲染模板类型（v5P）——决定由哪个 modle 渲染本模块。
+  /// 缺省 'v4'，兼容现有全部 pages 模块；新模板（如 classroom）声明 'template': 'classroom'。
+  final String template;
+
+  /// 模块级数据源（v5P）——新模板（如 classroom）经 `orch://<type>` 拉取数据。
+  /// 缺省 null（兼容现有全部模块）；v4 等仍走组件级/页面级数据源。
+  final DataSourceDescriptor? dataSource;
+
+  /// 模板路由子选择（v5P）——消费方模块经 `modle_route` 选择 modle 内的某套子 UI。
+  /// 例如 zdbk-modle 支持 'score' | 'courses' | 'notifications'，留空回退 'score'。
+  final String? modleRoute;
+
+  /// 模块级多数据源（v5P）——声明式多数据源：命名 source → 数据源描述。
+  /// 用于需要多个 `orch://<type>` 的 modle（如 zdbk）。键为 modle 契约约定的
+  /// 语义名（如 'transcript' / 'timetable'）；模板按 [modleRoute] 取用对应子集。
+  final Map<String, DataSourceDescriptor>? dataSources;
+
   const ModuleDescriptor({
     this.schemaVersion = '2.0',
     required this.id,
@@ -2561,6 +2629,10 @@ class ModuleDescriptor {
     this.workspace,
     this.pages = const [],
     this.theme,
+    this.template = 'v4',
+    this.dataSource,
+    this.modleRoute,
+    this.dataSources,
   });
 
   // ═══ 便捷查询 ═══
@@ -2634,6 +2706,11 @@ class ModuleDescriptor {
         (p) => PageDescriptor.fromJson(p as Map<String, dynamic>),
       ),
       theme: _parseThemeOverride(json['theme']),
+      template: json['template'] as String? ?? 'v4',
+      dataSource: DataSourceDescriptor.fromJson(
+          json['dataSource'] as Map<String, dynamic>?),
+      modleRoute: json['modle_route'] as String?,
+      dataSources: _parseModuleDataSources(json['dataSources']),
     );
   }
 
@@ -2689,6 +2766,16 @@ class ModuleDescriptor {
 
     if (pages.isNotEmpty) {
       m['pages'] = pages.map((p) => p.toJson()).toList();
+    }
+
+    if (template != 'v4') m['template'] = template;
+
+    if (dataSource != null) m['dataSource'] = dataSource!.toJson();
+
+    if (modleRoute != null) m['modle_route'] = modleRoute;
+    if (dataSources != null && dataSources!.isNotEmpty) {
+      m['dataSources'] =
+          dataSources!.map((k, v) => MapEntry(k, v.toJson()));
     }
 
     return m;

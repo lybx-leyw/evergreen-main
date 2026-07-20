@@ -75,12 +75,33 @@ class Memory {
   String toString() => 'Memory($name: $description)';
 }
 
-/// 将短横线分隔的标识转为标题（如 "my-fact" → "My Fact"）。
+  /// 将短横线分隔的标识转为标题（如 "my-fact" → "My Fact"）。
 String _deKebab(String s) {
   return s.split(RegExp(r'[-_]')).map((w) {
     if (w.isEmpty) return w;
     return w[0].toUpperCase() + w.substring(1);
   }).join(' ');
+}
+
+/// 按奥尔波特特质理论对记忆分组（纯函数，UI 与测试共用）。
+///
+/// 分组键为 Allport priority：cardinal / central / secondary / requirement /
+/// key_fact。凡不属前四者的 priority（如 high/medium/low，以及旧的
+/// MemoryType 维度 feedback/project/reference 等）一律归入 [key_fact]。
+///
+/// **注意**：此函数刻意不按 [Memory.type]（用户身份/反馈指导/项目上下文/
+/// 外部引用）分组——那正是"全局记忆私自撤销奥尔波特设计"的回归点。
+Map<String, List<Memory>> groupMemoriesByAllport(List<Memory> memories) {
+  const traits = ['cardinal', 'central', 'secondary', 'requirement', 'key_fact'];
+  final map = <String, List<Memory>>{
+    for (final t in traits) t: <Memory>[],
+  };
+  const known = {'cardinal', 'central', 'secondary', 'requirement'};
+  for (final m in memories) {
+    final key = known.contains(m.priority) ? m.priority : 'key_fact';
+    map[key]!.add(m);
+  }
+  return map;
 }
 
 // ═══════ MemoryStore ═══════

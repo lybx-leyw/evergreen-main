@@ -1,0 +1,37 @@
+{
+  "type": "module",
+  "id": "classroom-demo",
+  "name": "智云课堂",
+  "description": "classroom-modle 模板演示——数据来自 orch://courses（数据中心）",
+  "icon": "videocam",
+  "route": "/classroom-demo",
+  "version": "1.0.0",
+  "template": "classroom",
+  "dataSource": {
+    "endpoint": "orch://classroom",
+    "bindings": {
+      "courses": "courses",
+      "course.id": "id",
+      "course.title": "title",
+      "course.teachers": "teachers",
+      "course.videos": "videos",
+      "video.id": "subId",
+      "video.title": "title",
+      "video.videoUrl": "videoUrl",
+      "video.slides": "slides",
+      "video.subtitles": "subtitles",
+      "slide.page": "page",
+      "slide.imageUrl": "imageUrl",
+      "slide.text": "text",
+      "subtitle.startMs": "startMs",
+      "subtitle.endMs": "endMs",
+      "subtitle.text": "text"
+    }
+  },
+  "nav": {
+    "sidebar": {
+      "section": "学习",
+      "order": 50
+    }
+  }
+}

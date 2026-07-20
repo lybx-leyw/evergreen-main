@@ -1,6 +1,14 @@
 # Project-level configuration.
 cmake_minimum_required(VERSION 3.14)
+
+# 强制指定 VS 2022 实例路径（D:/soft/VS/root 不是有效 VS 安装）
+set(CMAKE_GENERATOR_INSTANCE "C:/Program Files/Microsoft Visual Studio/2022/Community"
+    CACHE PATH "Visual Studio installation path" FORCE)
+
 project(evergreen_multi_tools LANGUAGES CXX)
+
+# CMake 4.0+ 移除了对 <3.5 的兼容，pdfium 等下载依赖可能声明旧版本
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 
 # 启用 Windows 长路径支持（避免 media_kit 等插件构建产物路径 >260 字符）
 # CMake 3.14+ 支持 CMAKE_OBJECT_PATH_MAX
@@ -41,6 +49,10 @@ add_definitions(-DUNICODE -D_UNICODE)
 
 # Suppress deprecated <experimental/coroutine> errors with modern MSVC
 add_compile_definitions(_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
+
+# Fix C1041: 并行编译时多个 cl.exe 争写同一 .pdb 文件
+# /FS 强制同步写入 PDB，避免 url_launcher_windows / webview_windows 等插件编译失败
+add_compile_options(/FS)
 
 # Compilation settings that should be applied to most targets.
 #

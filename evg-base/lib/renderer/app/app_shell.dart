@@ -8,7 +8,10 @@ import 'package:evergreen_base/core/module/modules.dart';
 import 'package:evergreen_base/generated/plugin_imports.g.dart';
 import 'package:evergreen_base/renderer/app/service/theme/theme_provider.dart';
 import 'package:evergreen_base/renderer/app/service/providers/renderer_providers.dart';
+import 'package:evergreen_base/core/feedback/feedback_bar.dart';
 import '../../providers.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/marketplace/nav_filter.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/marketplace/plugin_state_provider.dart';
 
 /// 应用侧边栏——模块导航。
 ///
@@ -105,22 +108,27 @@ class _DesktopShellState extends ConsumerState<_DesktopShell>
         final sidebarWidth = collapsed ? _collapsedWidth : _expandedWidth;
 
         return Scaffold(
-          body: Row(
+          body: Stack(
             children: [
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 250),
-                curve: Curves.easeInOut,
-                width: sidebarWidth,
-                child: collapsed
-                    ? _CollapsedSidebar(
-                        onExpand: () => _setCollapsed(false),
-                      )
-                    : _ExpandedSidebar(
-                        onCollapse: () => _setCollapsed(true),
-                      ),
+              Row(
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    curve: Curves.easeInOut,
+                    width: sidebarWidth,
+                    child: collapsed
+                        ? _CollapsedSidebar(
+                            onExpand: () => _setCollapsed(false),
+                          )
+                        : _ExpandedSidebar(
+                            onCollapse: () => _setCollapsed(true),
+                          ),
+                  ),
+                  const VerticalDivider(width: 1),
+                  Expanded(child: widget.child),
+                ],
               ),
-              const VerticalDivider(width: 1),
-              Expanded(child: widget.child),
+              const FeedbackFab(),
             ],
           ),
         );
@@ -140,7 +148,8 @@ class _CollapsedSidebar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final registry = ref.watch(moduleRegistryProvider);
-    final navFlat = registry.navFlat;
+    final states = ref.watch(pluginStateProvider);
+    final navFlat = filterNavFlatByPluginState(registry.navFlat, states);
     final location = GoRouterState.of(context).uri.path;
 
     return Material(
@@ -281,6 +290,8 @@ class _MobileDrawer extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final registry = ref.watch(moduleRegistryProvider);
+    final states = ref.watch(pluginStateProvider);
+    final groups = filterNavByPluginState(registry.navGroups, states);
 
     return Drawer(
       child: SafeArea(
@@ -289,8 +300,8 @@ class _MobileDrawer extends ConsumerWidget {
           children: [
             _DrawerHeader(),
             const Divider(),
-            // 按 section 生成
-            for (final (section, entries) in registry.navGroups) ...[
+            // 按 section 生成（已按插件状态过滤）
+            for (final (section, entries) in groups) ...[
               _SectionHeader(title: section.label),
               for (final entry in entries)
                 _DrawerItem(
@@ -380,7 +391,10 @@ class _ExpandedSidebar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final registry = ref.watch(moduleRegistryProvider);
+    final states = ref.watch(pluginStateProvider);
     final location = GoRouterState.of(context).uri.path;
+    // 按插件状态（启用/侧栏可见）过滤导航
+    final groups = filterNavByPluginState(registry.navGroups, states);
 
     return Material(
       color: context.componentColor('sidebar', 'bg') ??
@@ -421,8 +435,8 @@ class _ExpandedSidebar extends ConsumerWidget {
                   ),
                 ),
                 const Divider(),
-                // 按 section 生成导航项
-                for (final (section, entries) in registry.navGroups) ...[
+                // 按 section 生成导航项（已按插件状态过滤）
+                for (final (section, entries) in groups) ...[
                   _SectionHeader(title: section.label),
                   for (final entry in entries)
                     _buildNavItem(context, ref, entry, location),
@@ -467,9 +481,11 @@ class _MobileNavBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final registry = ref.watch(moduleRegistryProvider);
+    final states = ref.watch(pluginStateProvider);
     final location = GoRouterState.of(context).uri.path;
-    // 取前 5 个导航项作为底部导航
-    final topItems = registry.navFlat.take(5).toList();
+    // 取前 5 个导航项作为底部导航（已按插件状态过滤）
+    final topItems =
+        filterNavFlatByPluginState(registry.navFlat, states).take(5).toList();
 
     return NavigationBar(
       selectedIndex: _getMobileIndex(topItems, location),
