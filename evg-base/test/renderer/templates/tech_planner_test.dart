@@ -181,7 +181,7 @@ void main() {
     test('generates prompt with document content injected', () {
       const docContent = '# 测试\n使用 WebSocket';
       final prompt = techAnalysisSkillBody(docContent);
-      expect(prompt, contains('技术设计师'));
+      expect(prompt, contains('技术评审专家'));
       expect(prompt, contains('先相信意图'));
       expect(prompt, contains('"understanding"'));
       expect(prompt, contains('"evidence"'));
@@ -1071,7 +1071,7 @@ Docker vs Kubernetes 入门
       const repoPath = r'D:\projects\my-app';
       final prompt = techAnalysisSkillBodyWithRepo(docContent, repoPath);
 
-      expect(prompt, contains('技术设计师'));
+      expect(prompt, contains('技术评审专家'));
       expect(prompt, contains('先相信意图'));
       expect(prompt, contains(repoPath));
       expect(prompt, contains('先读仓库'));

@@ -54,6 +54,7 @@ class FakeManifestFacade extends ScraperFlowFacade {
     required String pluginName,
     required String outputDir,
     String pythonCode = '',
+    String? dataTypeName,
   }) async {
     final dataDir = Directory(p.join(outputDir, 'data'))..createSync(recursive: true);
     File(p.join(dataDir.path, 'manifest.json')).writeAsStringSync('''

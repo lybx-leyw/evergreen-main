@@ -26,7 +26,11 @@ Future<void> _pump(WidgetTester tester, Widget slot) async {
   await tester.pumpWidget(
     ProviderScope(child: MaterialApp(home: Scaffold(body: slot))),
   );
-  await tester.pumpAndSettle();
+  // HtmlWidget/动画页面 pumpAndSettle 永不收敛（见 FAIL.md 2026-07-15），
+  // 改用有限次 pump 驱动帧。
+  for (var i = 0; i < 10; i++) {
+    await tester.pump(const Duration(milliseconds: 50));
+  }
 }
 
 void main() {

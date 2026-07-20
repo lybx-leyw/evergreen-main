@@ -38,7 +38,7 @@ void main() {
       expect(json['type'], 'module');
       final d = ModuleDescriptor.fromJson(json);
       expect(d.id, 'plugin-designer');
-      expect(d.name, contains('全流程插件创作'));
+      expect(d.name, contains('插件设计器'));
       expect(d.icon, isNotNull);
       expect(d.nav.sidebar, isNotNull);
       expect(d.nav.sidebar!.section, '系统');

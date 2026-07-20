@@ -1,12 +1,11 @@
-/// M3 P3 `scanner` 测试：Dart 原子组件 + slot 事件 + HTML 渲染。
+/// M3 P3 `scanner` 测试：Dart 原子组件 + slot 事件。
 ///
 /// 重点（R5/R9）：Windows 桌面无摄像头 → 必须渲染"手动输入"占位且不崩溃；
 /// 手动提交应经 onScan → pageEventBus.emit 链路。
 ///
-/// 运行：cd evg-base && flutter test test/renderer/scanner_test.dart
+/// 运行：cd evg-base && flutter test test/renderer/slots/scanner_test.dart
 import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'package:evergreen_base/core/module/page_event_bus.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/renderScanner.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/scanner_slot.dart';
 import 'package:evergreen_base/renderer/components/shared/widgets/scanner.dart';
 import 'package:flutter/material.dart';
@@ -114,23 +113,4 @@ void main() {
     });
   });
 
-  group('renderScanner (HTML)', () {
-    test('输出含提示 + 手动输入框 + emit 事件名', () {
-      final html = renderScanner({
-        'config': {
-          'hint': '扫描教室码',
-          'mode': 'qr',
-          'emitEvent': 'room_scanned',
-        }
-      });
-      expect(html, contains('扫描教室码'));
-      expect(html, contains('evg-scanner-input'));
-      expect(html, contains('room_scanned'));
-    });
-    test('空 config → 仍有手动输入框（不崩/不写死）', () {
-      final html = renderScanner({'config': {}});
-      expect(html, contains('evg-scanner-input'));
-      expect(html, contains('code_scanned')); // 默认事件名
-    });
-  });
 }

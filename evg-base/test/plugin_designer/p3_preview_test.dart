@@ -23,6 +23,9 @@ Widget _wrap(Widget child) => ProviderScope(
         // 真实渲染管线（LayerThemeScope）读取 dataOrchestratorProvider，
         // 测试环境需注入一个空实例（与 m2_module_binding_test 同模式）。
         dataOrchestratorProvider.overrideWith((ref) => DataOrchestrator()),
+        // SlotDispatch 读取 pluginsDirProvider 解析插件资源路径，
+        // 测试环境注入一个占位目录（真实值由 main() 在 ProviderScope.overrides 提供）。
+        pluginsDirProvider.overrideWith((ref) => 'test_plugins/'),
       ],
       child: MaterialApp(home: Scaffold(body: child)),
     );
@@ -100,7 +103,7 @@ void main() {
           DesignPage(
             id: 'page_0',
             label: '首页',
-            layoutPreset: LayoutPreset.grid,
+            layoutPreset: DesignPageLayout.grid,
             slots: [
               DesignSlot(
                 id: 'slot_0',

@@ -766,7 +766,10 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            pluginsDirProvider.overrideWith((ref) => 'test_plugins/'),
+          ],
           child: MaterialApp(home: CompositeView(descriptor: descriptor)),
         ),
       );
@@ -797,7 +800,10 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            pluginsDirProvider.overrideWith((ref) => 'test_plugins/'),
+          ],
           child: MaterialApp(home: CompositeView(descriptor: descriptor)),
         ),
       );
@@ -837,7 +843,10 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(prefs),
+            pluginsDirProvider.overrideWith((ref) => 'test_plugins/'),
+          ],
           child: MaterialApp(home: CompositeView(descriptor: descriptor)),
         ),
       );

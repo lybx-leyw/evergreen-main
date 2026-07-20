@@ -74,7 +74,7 @@ void main() {
 
     test('composite_view.dart ai-assistant slot 走全屏 Scaffold + AgentAssembly 会话隔离', () {
       final src = File(
-        'lib/renderer/page/composite_view.dart',
+        'lib/renderer/templates/v4_modle/composite_view.dart',
       ).readAsStringSync();
 
       // 未引入 chat_view.dart

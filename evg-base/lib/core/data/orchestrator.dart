@@ -146,17 +146,22 @@ class DataOrchestrator {
   // ═══════════════════════════════════════════════════════════════════════
 
   /// 缓存优先获取数据。有缓存就返回（过期也返回），无缓存则拉取。
+  ///
+  /// 仅当 [DataType.persistentKey] 非 null 才走缓存（见 [DataType] 文档：
+  /// “不设则不缓存”）。persistentKey 为 null 时每次都重新拉取。
   Future<T?> get<T>(DataType<T> type) async {
     _requireRegistered(type);
 
-    final entry = _cache?.read(type.name);
-    if (entry != null) {
-      final (data, cachedAt) = entry;
-      _updateStatus(type.name, connected: true, fetchedAt: cachedAt);
-      Log().info('DataOrchestrator: 缓存命中（跳过拉取）',
-          data: {'name': type.name, 'cachedAt': cachedAt.toIso8601String(),
-            'bytes': data.length});
-      return _decode<T>(data);
+    if (type.persistentKey != null) {
+      final entry = _cache?.read(type.name);
+      if (entry != null) {
+        final (data, cachedAt) = entry;
+        _updateStatus(type.name, connected: true, fetchedAt: cachedAt);
+        Log().info('DataOrchestrator: 缓存命中（跳过拉取）',
+            data: {'name': type.name, 'cachedAt': cachedAt.toIso8601String(),
+              'bytes': data.length});
+        return _decode<T>(data);
+      }
     }
 
     return _fetchAndCache(type);
@@ -476,9 +481,11 @@ class DataOrchestrator {
 
       final now = DateTime.now();
       final encoded = _encode(data);
-      await _cache?.write(type.name, encoded);
-      Log().info('DataOrchestrator: 缓存写入',
-          data: {'name': type.name, 'bytes': encoded.length});
+      if (type.persistentKey != null) {
+        await _cache?.write(type.name, encoded);
+        Log().info('DataOrchestrator: 缓存写入',
+            data: {'name': type.name, 'bytes': encoded.length});
+      }
       _updateStatus(type.name, connected: true, fetchedAt: now);
       return data;
     } catch (e) {
@@ -493,6 +500,8 @@ class DataOrchestrator {
 
   T _decode<T>(String raw) {
     if (T == String) return raw as T;
-    return jsonDecode(raw) as T;
+    // jsonDecode 返回 List<dynamic>/Map<String,dynamic>，无法直接 as 具体泛型
+    // （如 List<String>），否则运行期抛 TypeError。直接以 dynamic 返回，由调用方按 T 使用。
+    return jsonDecode(raw);
   }
 }

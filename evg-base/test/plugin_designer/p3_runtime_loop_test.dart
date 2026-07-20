@@ -28,10 +28,12 @@ import 'package:evergreen_base/renderer/templates/v4_modle/components/document/p
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/widgets/composite_preview_frame.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/composite_view.dart';
 
-/// 渲染脚手架：真实渲染管线（LayerThemeScope）依赖 dataOrchestratorProvider。
+/// 渲染脚手架：真实渲染管线（LayerThemeScope）依赖 dataOrchestratorProvider；
+/// SlotDispatch 依赖 pluginsDirProvider 解析插件资源路径。
 Widget _wrap(Widget child) => ProviderScope(
       overrides: [
         dataOrchestratorProvider.overrideWith((ref) => DataOrchestrator()),
+        pluginsDirProvider.overrideWith((ref) => 'test_plugins/'),
       ],
       child: MaterialApp(home: Scaffold(body: child)),
     );

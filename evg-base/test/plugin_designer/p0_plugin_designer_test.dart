@@ -53,7 +53,7 @@ void main() {
       final page = DesignPage(
         id: 'page_0',
         label: '首页',
-        layoutPreset: LayoutPreset.grid,
+        layoutPreset: DesignPageLayout.grid,
       );
       page.addSlot(DesignSlot(id: 'slot_0', region: SlotRegion.top));
 
@@ -146,7 +146,7 @@ void main() {
       final page = DesignPage(
         id: 'page_0',
         label: '主页面',
-        layoutPreset: LayoutPreset.fullscreen,
+        layoutPreset: DesignPageLayout.fullscreen,
       );
       page.addSlot(DesignSlot(
         id: 'slot_0',

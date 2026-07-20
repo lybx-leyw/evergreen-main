@@ -36,6 +36,7 @@ class FakeScraperFlowFacade extends ScraperFlowFacade {
     required String pluginName,
     required String outputDir,
     String pythonCode = '',
+    String? dataTypeName,
   }) async {
     return ExportResult(success: true, message: 'ok');
   }

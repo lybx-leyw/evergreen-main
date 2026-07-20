@@ -168,7 +168,7 @@ void main() {
       final gen = AiDesignGenerator(_FakeProvider(_validJson));
       final revised = await gen.generate('把首页改成网格', base: base);
       expect(revised.pages.length, 2);
-      expect(revised.pages.first.layoutPreset, LayoutPreset.grid);
+      expect(revised.pages.first.layoutPreset, DesignPageLayout.grid);
       expect(() => DesignToManifest.compile(revised), returnsNormally);
     });
   });

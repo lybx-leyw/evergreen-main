@@ -92,7 +92,7 @@ void main() {
 
       await tester.pumpWidget(_wrap(PropertyPanel(
         selectedSlot: slot,
-        onSlotPropChanged: ({label, region}) {
+        onSlotPropChanged: ({label, region, rect}) {
           changedLabel = label;
         },
       )));
@@ -195,18 +195,18 @@ void main() {
 
     test('布局预设切换', () {
       final page = DesignPage(id: 'p0', label: '首页');
-      expect(page.layoutPreset, LayoutPreset.grid);
+      expect(page.layoutPreset, DesignPageLayout.grid);
 
-      page.layoutPreset = LayoutPreset.fullscreen;
-      expect(page.layoutPreset, LayoutPreset.fullscreen);
+      page.layoutPreset = DesignPageLayout.fullscreen;
+      expect(page.layoutPreset, DesignPageLayout.fullscreen);
 
-      page.layoutPreset = LayoutPreset.dock;
-      expect(page.layoutPreset, LayoutPreset.dock);
+      page.layoutPreset = DesignPageLayout.dock;
+      expect(page.layoutPreset, DesignPageLayout.dock);
     });
   });
 
   group('P2 DesignToManifest 编译器', () {
-    DesignDocument _buildDoc(LayoutPreset layout) {
+    DesignDocument _buildDoc(DesignPageLayout layout) {
       final doc = DesignDocument(
         pluginId: 'demo',
         pluginName: '演示',
@@ -243,9 +243,9 @@ void main() {
 
     test('dock/grid/flex 布局均输出完整 manifest V2 字段', () {
       for (final layout in [
-        LayoutPreset.dock,
-        LayoutPreset.grid,
-        LayoutPreset.flex,
+        DesignPageLayout.dock,
+        DesignPageLayout.grid,
+        DesignPageLayout.flex,
       ]) {
         final json = DesignToManifest.compile(_buildDoc(layout));
         expect(json['schemaVersion'], '2.0');
@@ -275,7 +275,7 @@ void main() {
     });
 
     test('compile 输出可被 ModuleDescriptor.fromJson 解析', () {
-      final doc = _buildDoc(LayoutPreset.grid);
+      final doc = _buildDoc(DesignPageLayout.grid);
       final json = DesignToManifest.compile(doc);
       final descriptor = ModuleDescriptor.fromJson(json);
       expect(descriptor.id, 'demo');
