@@ -19,26 +19,11 @@ import 'dart:io';
 
 import 'package:evergreen_base/app_bootstrap.dart';
 import 'package:evergreen_base/core/log.dart';
-import 'package:evergreen_base/core/utils/greenix_path.dart';
 import 'package:flutter/foundation.dart'
     show FlutterError, FlutterErrorDetails, kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as p;
-
-// ═══════ 项目根 ═══════
-
-/// 项目根目录（由 [resolveProjectRoot] 解析，带缓存）。
-/// 安卓端不存在可执行文件上级的项目根，回退到插件释放目录的上级。
-final String _projectRoot =
-    Platform.isAndroid ? p.dirname(androidPluginsDir) : (resolveProjectRoot() ?? Directory.current.path);
 
 // ═══════ 路径常量 ═══════
-
-/// 插件目录（统一存放所有模块/主题/设置）。
-/// - 桌面端：项目根下的 `plugins/`（见 [resolvePluginsRoot]）。
-/// - 安卓端：启动期释放到设备可写区的插件目录
-///   （见 [releasePluginsAssetsIfNeeded]）。
-String get _pluginsDir => resolvePluginsRoot();
 
 /// 文本模式下各 HttpServer 实际端口（AppBootstrap 填充，app.dart 读取）。
 final textModeServerPorts = <String, int>{};
@@ -103,9 +88,9 @@ void main() {
 
     // ── 23 个启动步骤（AppBootstrap）──
     // 每步输出 [BOOT] N/23 进度；失败输出 ❌ + errorId；结束输出总览一行。
+    // 项目根/插件目录在 bootstrap 的 greenix-paths 步骤内解析（安卓必须先
+    // initGreenixPaths 再 resolvePluginsRoot，否则相对路径写只读文件系统）。
     final bootstrap = AppBootstrap(
-      projectRoot: _projectRoot,
-      pluginsDir: _pluginsDir,
       ports: textModeServerPorts,
     );
     final report = await bootstrap.run();

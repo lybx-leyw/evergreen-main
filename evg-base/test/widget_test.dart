@@ -6,8 +6,6 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('AppBootstrap 步骤契约完整', () {
     final b = AppBootstrap(
-      projectRoot: '.',
-      pluginsDir: '.',
       ports: <String, int>{},
     );
     final steps = b.stepsForTest;

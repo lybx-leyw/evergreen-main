@@ -175,6 +175,11 @@ class Log {
     } else {
       // Debug 模式：直接输出到 stderr
       stderr.write(line);
+      // 安卓上 dart:io stderr 不进 logcat（华为等设备 flutter run 也不转发），
+      // 镜像到 debugPrint 保证 logcat 可见（debugPrint 在 release 为空操作）。
+      if (Platform.isAndroid) {
+        debugPrint(line.trimRight());
+      }
     }
 
     // 维护内存中的最近日志缓冲区（供 exportRecent 使用）

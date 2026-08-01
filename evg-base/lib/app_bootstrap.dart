@@ -129,21 +129,22 @@ class BootReport {
 /// if (report.fatalFailed != null) exit(1);
 /// ```
 class AppBootstrap {
-  /// 注入项目根/插件目录/端口发现表。
+  /// 注入端口发现表。
   AppBootstrap({
-    required this.projectRoot,
-    required this.pluginsDir,
     required this.ports,
   });
 
-  /// 项目根目录（端口发现文件、模块加载等使用）。
-  final String projectRoot;
-
-  /// 插件目录（模块/主题/数据插件统一存放处）。
-  final String pluginsDir;
-
   /// 端口发现表（main.dart 顶层持有，供 app.dart 读取）。
   final Map<String, int> ports;
+
+  /// 项目根目录（greenix-paths 步骤后初始化，端口文件/模块加载使用）。
+  ///
+  /// ⚠️ 必须延迟：安卓上 `androidPluginsDir` 依赖 `initGreenixPaths()` 先执行
+  /// （否则 `_greenixBaseDir` 为相对路径 `.greenix`，只读文件系统抛错）。
+  late final String projectRoot;
+
+  /// 插件目录（greenix-paths 步骤后初始化）。
+  late final String pluginsDir;
 
   // ═══════════ 步骤间共享状态 ═══════════
 
@@ -316,6 +317,11 @@ class AppBootstrap {
   /// Greenix 路径初始化（致命：后续所有步骤依赖路径）。
   Future<Result<void>> _stepGreenixPaths() async {
     await initGreenixPaths();
+    // 路径必须在 initGreenixPaths 之后解析（安卓：可写目录；桌面：项目根）
+    projectRoot = Platform.isAndroid
+        ? p.dirname(androidPluginsDir)
+        : (resolveProjectRoot() ?? Directory.current.path);
+    pluginsDir = resolvePluginsRoot();
     Log().info('[BOOT] 🗺️ initGreenixPaths 完成');
     Log().info('[BOOT]   greenixConfigPath=$greenixConfigPath');
     Log().info('[BOOT]   pluginsDir=$pluginsDir');
@@ -347,8 +353,9 @@ class AppBootstrap {
     return _ok();
   }
 
-  /// WebView2 CDP 远程调试端口（爬虫网络捕获）。
+  /// WebView2 CDP 远程调试端口（爬虫网络捕获，仅 Windows 桌面有意义）。
   Future<Result<void>> _stepWebView2() async {
+    if (!Platform.isWindows) return _ok(); // 安卓/iOS/其他：不调用 Windows 专属插件
     try {
       await WebviewController.initializeEnvironment(
         additionalArguments: '--remote-debugging-port=9222',

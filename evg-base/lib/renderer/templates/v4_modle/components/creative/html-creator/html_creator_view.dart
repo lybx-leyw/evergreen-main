@@ -130,8 +130,9 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
   @override
   void dispose() {
     _autoSaveTimer?.cancel();
-    // dispose 期间禁止 setState（框架已进入卸载阶段）
-    _saveCanvasToDisk(notify: false); // 最后保存一次
+    // dispose 期间禁止 setState / 触碰 context（mounted 此时仍为 true，
+    // ScaffoldMessenger.of 会抛 "deactivated widget's ancestor"）
+    _saveCanvasToDisk(notify: false, silent: true); // 最后保存一次
     _htmlController.dispose();
     _cssController.dispose();
     _jsController.dispose();
