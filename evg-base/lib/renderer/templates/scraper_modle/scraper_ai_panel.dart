@@ -742,60 +742,15 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
   ///
   /// 返回数据名称字符串，或 null（用户取消，不应发生因为 barrierDismissible: false）。
   Future<String?> _showNameDialog() async {
-    final ctrl = TextEditingController(text: _dataName ?? '');
-
-    final result = await showDialog<String>(
+    // ⚠️ controller 生命周期交给 _NameDialog 的 State 管理：
+    // await showDialog 返回时弹窗仍在退出动画，此时 dispose 会让 TextField
+    // 在动画期间访问已销毁的 controller（"used after being disposed" →
+    // wrong build scope → 组件渲染失败）。
+    return showDialog<String>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text('🔧 命名数据源'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                '请为本次爬虫数据命名。后续插件目录、manifest 均以此为基准自动生成。',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: ctrl,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  labelText: '数据名称',
-                  hintText: '例如: courses, zju_grades',
-                  helperText: '→ 插件目录: plugins/data-{名称}/\n→ manifest name: {名称}',
-                  helperMaxLines: 2,
-                  border: OutlineInputBorder(),
-                ),
-                onSubmitted: (v) {
-                  final name = v.trim();
-                  if (name.isNotEmpty) Navigator.pop(ctx, name);
-                },
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('跳过'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final name = ctrl.text.trim();
-              if (name.isEmpty) return;
-              Navigator.pop(ctx, name);
-            },
-            child: const Text('确认'),
-          ),
-        ],
-      ),
+      builder: (_) => _NameDialog(initialName: _dataName ?? ''),
     );
-
-    ctrl.dispose();
-    return result;
   }
 
   /// 分析前强制会话选择对话框。
@@ -803,108 +758,16 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
   /// 列出所有已有会话（高亮当前），提供"创建新会话"入口。
   /// 返回选中会话的索引；null 表示用户取消。
   Future<int?> _showSessionPicker() async {
-    final sessions = List<_ScraperSession>.from(_sessions);
-    final currentIdx = _currentIdx;
-    final newNameCtrl = TextEditingController();
-
-    // 返回值：null=取消, int=已有会话索引, String=新会话名称
-    Object? result;
-
-    await showDialog<void>(
+    // ⚠️ 同 _showNameDialog：controller 生命周期交给弹窗 State 管理
+    final result = await showDialog<Object?>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) {
-        final theme = Theme.of(ctx);
-        return AlertDialog(
-          title: const Text('📋 选择分析会话'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('请选择本次分析使用的数据会话', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                const SizedBox(height: 12),
-                if (sessions.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 8),
-                    child: Text('暂无会话，请在下方创建新会话', style: TextStyle(color: Colors.grey)),
-                  )
-                else
-                  Flexible(
-                    child: SingleChildScrollView(
-                      child: Column(
-                        children: List.generate(sessions.length, (i) {
-                          final s = sessions[i];
-                          final isCurrent = i == currentIdx;
-                          return ListTile(
-                            dense: true,
-                            leading: Icon(
-                              isCurrent ? Icons.circle : Icons.circle_outlined,
-                              size: isCurrent ? 16 : 18,
-                              color: isCurrent ? theme.colorScheme.primary : null,
-                            ),
-                            title: Text(s.name,
-                              style: TextStyle(fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal)),
-                            subtitle: Text('${s.messages.length} 条消息 · ${_formatTime(s.createdAt)}'),
-                            onTap: () {
-                              result = i;
-                              Navigator.pop(ctx);
-                            },
-                          );
-                        }),
-                      ),
-                    ),
-                  ),
-                const Divider(height: 24),
-                const Text('或创建新会话：', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: newNameCtrl,
-                        decoration: const InputDecoration(
-                          hintText: '新数据名称（如 courses）',
-                          border: OutlineInputBorder(),
-                          isDense: true,
-                        ),
-                        onSubmitted: (v) {
-                          final name = v.trim();
-                          if (name.isNotEmpty) {
-                            result = name;
-                            Navigator.pop(ctx);
-                          }
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    TextButton(
-                      onPressed: () {
-                        final name = newNameCtrl.text.trim();
-                        if (name.isNotEmpty) {
-                          result = name;
-                          Navigator.pop(ctx);
-                        }
-                      },
-                      child: const Text('创建'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('取消'),
-            ),
-          ],
-        );
-      },
+      builder: (_) => _SessionPickerDialog(
+        sessions: List<_ScraperSession>.from(_sessions),
+        currentIdx: _currentIdx,
+        formatTime: _formatTime,
+      ),
     );
-
-    newNameCtrl.dispose();
 
     if (result == null) return null;   // 取消
     if (result is int) return result as int;  // 已有会话
@@ -1603,4 +1466,194 @@ class _ScraperSession {
         'createdAt': createdAt.toIso8601String(),
         if (agentSessionJson != null) 'agentSession': agentSessionJson,
       };
+}
+
+/// 数据命名弹窗（StatefulWidget 管理 controller 生命周期）。
+///
+/// ⚠️ 不能在 `await showDialog` 返回后立即 dispose controller：弹窗仍在
+/// 退出动画中，TextField 的 didUpdateWidget 会访问已销毁的 controller →
+/// "used after being disposed" → wrong build scope → 组件渲染失败。
+/// State.dispose 在 route 完全移除（动画结束）后才调用，天然安全。
+class _NameDialog extends StatefulWidget {
+  const _NameDialog({required this.initialName});
+
+  final String initialName;
+
+  @override
+  State<_NameDialog> createState() => _NameDialogState();
+}
+
+class _NameDialogState extends State<_NameDialog> {
+  late final TextEditingController _ctrl =
+      TextEditingController(text: widget.initialName);
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('🔧 命名数据源'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '请为本次爬虫数据命名。后续插件目录、manifest 均以此为基准自动生成。',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _ctrl,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: '数据名称',
+                hintText: '例如: courses, zju_grades',
+                helperText: '→ 插件目录: plugins/data-{名称}/\n→ manifest name: {名称}',
+                helperMaxLines: 2,
+                border: OutlineInputBorder(),
+              ),
+              onSubmitted: (v) {
+                final name = v.trim();
+                if (name.isNotEmpty) Navigator.pop(context, name);
+              },
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('跳过'),
+        ),
+        FilledButton(
+          onPressed: () {
+            final name = _ctrl.text.trim();
+            if (name.isEmpty) return;
+            Navigator.pop(context, name);
+          },
+          child: const Text('确认'),
+        ),
+      ],
+    );
+  }
+}
+
+/// 分析会话选择弹窗（controller 生命周期由 State 管理，见 _NameDialog 说明）。
+class _SessionPickerDialog extends StatefulWidget {
+  const _SessionPickerDialog({
+    required this.sessions,
+    required this.currentIdx,
+    required this.formatTime,
+  });
+
+  final List<_ScraperSession> sessions;
+  final int currentIdx;
+  final String Function(DateTime) formatTime;
+
+  @override
+  State<_SessionPickerDialog> createState() => _SessionPickerDialogState();
+}
+
+class _SessionPickerDialogState extends State<_SessionPickerDialog> {
+  final TextEditingController _newNameCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _newNameCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final sessions = widget.sessions;
+    return AlertDialog(
+      title: const Text('📋 选择分析会话'),
+      content: SizedBox(
+        width: double.maxFinite,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('请选择本次分析使用的数据会话',
+                style: TextStyle(fontSize: 12, color: Colors.grey)),
+            const SizedBox(height: 12),
+            if (sessions.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Text('暂无会话，请在下方创建新会话',
+                    style: TextStyle(color: Colors.grey)),
+              )
+            else
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: List.generate(sessions.length, (i) {
+                      final s = sessions[i];
+                      final isCurrent = i == widget.currentIdx;
+                      return ListTile(
+                        dense: true,
+                        leading: Icon(
+                          isCurrent ? Icons.circle : Icons.circle_outlined,
+                          size: isCurrent ? 16 : 18,
+                          color: isCurrent ? theme.colorScheme.primary : null,
+                        ),
+                        title: Text(s.name,
+                            style: TextStyle(
+                                fontWeight:
+                                    isCurrent ? FontWeight.bold : FontWeight.normal)),
+                        subtitle: Text(
+                            '${s.messages.length} 条消息 · ${widget.formatTime(s.createdAt)}'),
+                        onTap: () => Navigator.pop(context, i),
+                      );
+                    }),
+                  ),
+                ),
+              ),
+            const Divider(height: 24),
+            const Text('或创建新会话：',
+                style: TextStyle(fontSize: 12, color: Colors.grey)),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _newNameCtrl,
+                    decoration: const InputDecoration(
+                      hintText: '新数据名称（如 courses）',
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                    onSubmitted: (v) {
+                      final name = v.trim();
+                      if (name.isNotEmpty) Navigator.pop(context, name);
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                TextButton(
+                  onPressed: () {
+                    final name = _newNameCtrl.text.trim();
+                    if (name.isNotEmpty) Navigator.pop(context, name);
+                  },
+                  child: const Text('创建'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+      ],
+    );
+  }
 }
