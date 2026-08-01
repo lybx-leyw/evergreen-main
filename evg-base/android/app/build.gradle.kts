@@ -59,12 +59,14 @@ flutter {
 chaquopy {
     defaultConfig {
         version = "3.11"
+        // 本机 buildPython（chaquopy 用它把 src/main/python 编译成 .pyc 打包进 APK）。
+        // ⚠️ 缺失时 chaquopy 警告 "Couldn't find Python 3.11" 并整体跳过源打包
+        // （2026-08-02 事故：pdf_translate.py 等未进 APK，运行时 getAssetPath 找不到）。
+        buildPython = listOf("C:/Users/19389/AppData/Local/Programs/Python/Python311/python.exe")
         // pip 依赖已通过手动方式放入 src/main/python/（避免 buildPython 需求）。
         // pip {
         //     install("requests")
         // }
-        // buildPython 仅在需要从源码编译 C 扩展 wheel 时设置（标准库已预编译，无需）。
-        // buildPython = "C:/Python311/python.exe"
     }
     // Python 源目录默认 src/main/python（动态插件由 MethodChannel 从设备路径按需加载，无需打包进 APK）。
 }
