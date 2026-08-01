@@ -9,21 +9,15 @@ import 'package:evergreen_base/renderer/templates/v4_modle/slot/data_source_slot
 class KanbanSlot extends DataSourceSlot {
   const KanbanSlot({super.key, required super.config});
 
+  // Phase 2: 声明式数据绑定
+  @override
+  DataMapping get dataMapping => const DataMapping(targetKey: 'columns');
+
   @override
   DataSourceSlotState<KanbanSlot> createState() => _KanbanSlotState();
 }
 
 class _KanbanSlotState extends DataSourceSlotState<KanbanSlot> {
-  @override
-  Map<String, dynamic> mergeData(Map<String, dynamic> base, dynamic resolved) {
-    final merged = <String, dynamic>{...base};
-    if (resolved is List) {
-      merged['columns'] = resolved;
-    } else if (resolved is Map<String, dynamic>) {
-      merged.addAll(resolved);
-    }
-    return merged;
-  }
 
   @override
   Widget buildStatic(Map<String, dynamic> cfg) {
@@ -154,3 +148,5 @@ class _KanbanColumn extends StatelessWidget {
     );
   }
 }
+
+

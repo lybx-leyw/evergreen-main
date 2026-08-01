@@ -6,14 +6,13 @@ library;
 
 import 'dart:io';
 
+import 'package:evergreen_base/core/data/orchestrator.dart';
+import 'package:evergreen_base/core/data/register_data_source.dart';
+import 'package:evergreen_base/core/data/type.dart';
+import 'package:evergreen_base/core/module/module_descriptor.dart';
+import 'package:evergreen_base/renderer/atomic/data_source_resolver.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
-
-import 'package:evergreen_base/core/data/orchestrator.dart';
-import 'package:evergreen_base/core/data/type.dart';
-import 'package:evergreen_base/core/data/register_data_source.dart';
-import 'package:evergreen_base/renderer/atomic/data_source_resolver.dart';
-import 'package:evergreen_base/core/module/module_descriptor.dart';
 
 void main() {
   group('registerDataSourcesFromManifest', () {
@@ -39,7 +38,7 @@ void main() {
       );
 
       expect(registered, equals(['weather']));
-      expect(orch.isRegistered(DataType(name: 'weather')), isTrue);
+      expect(orch.isRegistered(const DataType(name: 'weather')), isTrue);
 
       // 同一份契约：typeArg 透传给 CLI fetcher（缺脚本 → 调用时优雅失败，但注册成功）
       dir.deleteSync(recursive: true);
@@ -69,8 +68,8 @@ void main() {
       );
 
       expect(registered, equals(['b']));
-      expect(orch.isRegistered(DataType(name: 'b')), isTrue);
-      expect(orch.isRegistered(DataType(name: 'a')), isFalse);
+      expect(orch.isRegistered(const DataType(name: 'b')), isTrue);
+      expect(orch.isRegistered(const DataType(name: 'a')), isFalse);
 
       dir.deleteSync(recursive: true);
     });
@@ -93,7 +92,7 @@ void main() {
     test('fake fetcher 注册后 orch://courses 可解析出真实数据', () async {
       final orch = DataOrchestrator();
       orch.register<Map<String, dynamic>>(
-        DataType<Map<String, dynamic>>(name: 'courses'),
+        const DataType<Map<String, dynamic>>(name: 'courses'),
         () async => {
           'source': 'evergreen',
           'items': [
@@ -103,7 +102,7 @@ void main() {
         },
       );
 
-      final ds = DataSourceDescriptor(endpoint: 'orch://courses');
+      const ds = DataSourceDescriptor(endpoint: 'orch://courses');
       final data = await resolveDataSource(ds: ds, orch: orch);
 
       expect(data, isNotNull);
@@ -113,7 +112,7 @@ void main() {
 
     test('未注册类型 → resolveDataSource 返回 null（优雅降级）', () async {
       final orch = DataOrchestrator();
-      final ds = DataSourceDescriptor(endpoint: 'orch://unknown');
+      const ds = DataSourceDescriptor(endpoint: 'orch://unknown');
       final data = await resolveDataSource(ds: ds, orch: orch);
       expect(data, isNull);
     });

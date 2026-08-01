@@ -4,21 +4,21 @@
 /// `dataSource`（orch://）拉取，不再内嵌 static config。
 library;
 
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
 import 'package:evergreen_base/core/data/orchestrator.dart';
 import 'package:evergreen_base/core/data/type.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'package:evergreen_base/providers.dart';
-import 'package:evergreen_base/renderer/templates/classroom_modle/classroom_view.dart';
-import 'package:evergreen_base/renderer/templates/classroom_modle/classroom_models.dart';
+import 'package:evergreen_base/renderer/templates/zju_modle/classroom/classroom_models.dart';
+import 'package:evergreen_base/renderer/templates/zju_modle/classroom/classroom_view.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 /// 假数据中枢：返回整份预置文档（与真实 orch://<type> 的 fetcher 返回形态一致，
 /// 即 {courses:[...]} 这类带顶层键的文档），绕过注册/拉取。
 class _FakeOrch extends DataOrchestrator {
-  final Map<String, dynamic> _data;
   _FakeOrch(this._data);
+  final Map<String, dynamic> _data;
 
   @override
   Future<T?> get<T>(DataType<T> type) async => _data as T?;

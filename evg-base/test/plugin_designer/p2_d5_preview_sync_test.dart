@@ -1,11 +1,12 @@
 /// P2 PreviewSyncService 防抖同步测试 (D5)。
+library;
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
-import 'package:path/path.dart' as p;
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_document.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_page.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/preview_sync_service.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 
 void main() {
   group('P2 PreviewSyncService 防抖 (D5)', () {

@@ -171,17 +171,17 @@ class EditorViewState extends State<EditorView> {
                 _buildTabBar(context),
                 SizedBox(
                   height: editH.clamp(80.0 * s, 500.0 * s),
-                  child: SingleChildScrollView(
-                    child: _tabs.isNotEmpty && _activeTab >= 0
-                        ? _buildEditor()
-                        : Padding(
-                            padding: EdgeInsets.all(16 * s),
-                            child: EmptyState(
-                              icon: Icons.code,
-                              title: '打开文件以开始编辑',
-                            ),
+                  // 去掉 SCSV：re_editor 有内置滚动控制器，外置 SCSV 会
+                  // 给子组件无限宽度 → _CodeField 缺显式宽度报错。
+                  child: _tabs.isNotEmpty && _activeTab >= 0
+                      ? _buildEditor()
+                      : Padding(
+                          padding: EdgeInsets.all(16 * s),
+                          child: EmptyState(
+                            icon: Icons.code,
+                            title: '打开文件以开始编辑',
                           ),
-                  ),
+                        ),
                 ),
                 _buildStatusBar(context, language),
               ],

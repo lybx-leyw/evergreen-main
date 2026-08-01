@@ -3,7 +3,6 @@
 /// 公开类：[ThinkingBlock]
 import 'package:flutter/material.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
-import 'package:evergreen_base/renderer/app/service/theme/theme_provider.dart';
 
 /// AI 思考过程展示组件。
 ///
@@ -31,13 +30,12 @@ class _ThinkingBlockState extends State<ThinkingBlock> {
 
   @override
   Widget build(BuildContext context) {
-    final tokenBg = context.componentColor('thinking', 'bg');
     final surface =
         Theme.of(context).colorScheme.surfaceContainerHighest;
 
     final bgColor = widget.options.transparent
         ? Colors.transparent
-        : (tokenBg ?? surface);
+        : surface;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),

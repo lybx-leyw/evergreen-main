@@ -2,12 +2,13 @@
 ///
 /// 前置条件：plugins/*/agent/ 下需要有编译好的 .exe 文件。
 /// 如果 .exe 不存在，测试会跳过（skip）而非失败。
+library;
 import 'dart:io';
 
 import 'package:evergreen_base/core/agent/tool.dart';
 import 'package:evergreen_base/core/agent/tools/plugin_bridge.dart';
-import 'package:path/path.dart' as p;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 
 void main() {
   late String projectRoot;

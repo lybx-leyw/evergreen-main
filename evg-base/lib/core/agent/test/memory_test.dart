@@ -6,7 +6,6 @@ import 'dart:io';
 import 'package:test/test.dart';
 
 import '../memory/memory.dart';
-import '../memory/store_interface.dart';
 import '../memory/in_memory_store.dart';
 import '../memory/file_memory_store.dart';
 import '../memory/scope.dart';

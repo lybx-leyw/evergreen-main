@@ -10,11 +10,14 @@ Future<String> _currentVersion() async {
     // 尝试 package_info_plus（Flutter 环境可用）
     final pi = await _packageInfoFromPlatform();
     return pi.version;
-  } catch (_) {
+  } catch (e) {
     // 模块独立测试：回退 .version 文件或默认值
+    Log().warn('UpdateService: package_info_plus 不可用，回退 .version 文件: $e',
+        error: e);
     try {
       return File('.version').readAsStringSync().trim();
-    } catch (_) {
+    } catch (e2) {
+      Log().debug('UpdateService: .version 文件也不可用，使用默认 1.0.0: $e2');
       return '1.0.0';
     }
   }

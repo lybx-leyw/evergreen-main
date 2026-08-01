@@ -7,22 +7,11 @@
 /// - TechPlannerView Widget 冒烟测试
 ///
 /// 运行：cd evg-base && flutter test test/tech_planner_test.dart
+library;
 
+import 'package:evergreen_base/renderer/templates/v4_modle/components/document/tech_planner/tech_planner.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/tech_planner/tech_planner.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/tech_planner/models/tech_document.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/tech_planner/models/tech_version.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/tech_planner/models/trace_record.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/tech_planner/ai/ai_diff_proposer.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/tech_planner/ai/ai_tech_skill.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/tech_planner/ai/ai_web_research.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/tech_planner/services/doc_trace_service.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/tech_planner/services/doc_export_service.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/tech_planner/services/doc_autosave_service.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/tech_planner/services/repo_config_service.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/tech_planner/renderTechPlanner.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/tech_planner/view/ghost_text_overlay.dart';
 
 void main() {
   // TechDocument
@@ -137,10 +126,10 @@ void main() {
   group('AiDiffProposer', () {
     test('proposeRevision appends appendix', () {
       const original = '# 技术规划\n使用 Flutter';
-      final report = TechAnalysisReport(
+      const report = TechAnalysisReport(
         understanding: '用户想做跨平台应用',
         evidence: [
-          const TechEvidence(
+          TechEvidence(
             source: 'Flutter 官方',
             content: 'Flutter 支持多平台',
           ),
@@ -165,7 +154,7 @@ void main() {
 
     test('proposeRevision skips empty sections', () {
       const original = '只有一行';
-      final report = TechAnalysisReport(understanding: '简单规划');
+      const report = TechAnalysisReport(understanding: '简单规划');
       final result = AiDiffProposer.proposeRevision(original, report);
       expect(result, contains(original));
       expect(result, contains('## 技术调研附录'));
@@ -266,13 +255,13 @@ Docker vs Kubernetes 入门
     });
 
     test('WebResearchItem.hasUrl returns false for empty url', () {
-      final item = WebResearchItem(title: 'test', snippet: 's', url: '');
+      const item = WebResearchItem(title: 'test', snippet: 's', url: '');
       expect(item.hasUrl, isFalse);
       expect(item.toEvidence().url, isNull);
     });
 
     test('WebResearchItem.hasUrl returns true for valid url', () {
-      final item = WebResearchItem(title: 'test', snippet: 's', url: 'https://example.com');
+      const item = WebResearchItem(title: 'test', snippet: 's', url: 'https://example.com');
       expect(item.hasUrl, isTrue);
       expect(item.toEvidence().url, equals('https://example.com'));
     });
@@ -394,7 +383,7 @@ Docker vs Kubernetes 入门
 
     testWidgets('AiAssistPanel shows empty state with hint', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: AiAssistPanel(
             currentMode: AiMode.analyze,
             report: null,
@@ -412,7 +401,7 @@ Docker vs Kubernetes 入门
 
     testWidgets('AiAssistPanel shows loading state', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: AiAssistPanel(
             currentMode: AiMode.analyze,
             report: null,
@@ -430,7 +419,7 @@ Docker vs Kubernetes 入门
 
     testWidgets('AiAssistPanel shows error state', (tester) async {
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: AiAssistPanel(
             report: null,
             isLoading: false,
@@ -444,10 +433,10 @@ Docker vs Kubernetes 入门
     });
 
     testWidgets('AiAssistPanel shows report sections', (tester) async {
-      final report = TechAnalysisReport(
+      const report = TechAnalysisReport(
         understanding: '用户想搭建一个后端API',
         evidence: [
-          const TechEvidence(
+          TechEvidence(
             source: 'dart.dev',
             content: 'Dart Shelf 是一个轻量 Web 框架',
           ),
@@ -457,7 +446,7 @@ Docker vs Kubernetes 入门
         risks: [],
       );
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: AiAssistPanel(
             currentMode: AiMode.analyze,
             report: report,
@@ -684,7 +673,7 @@ Docker vs Kubernetes 入门
   // ═══════ Phase 2: DocExportService ═══════
 
   group('DocExportService', () {
-    factoryDoc() => TechDocument(
+    TechDocument factoryDoc() => TechDocument(
           id: 'export-test',
           title: 'WebSocket 技术方案',
           content: '# 架构设计\n\n使用 Flutter + WebSocket 实现实时通信。\n\n## 技术选型\n- dart:io WebSocket',
@@ -763,7 +752,7 @@ Docker vs Kubernetes 入门
   // ═══════ Phase 2: RenderTechPlanner ═══════
 
   group('RenderTechPlanner', () {
-    factoryDoc() => TechDocument(
+    TechDocument factoryDoc() => TechDocument(
           id: 'render-test',
           title: 'Flutter App 架构',
           content: '# 系统概述\n\n基于 **Flutter** 的跨平台应用。\n\n- 前端：Flutter\n- 状态管理：Riverpod',
@@ -897,18 +886,18 @@ Docker vs Kubernetes 入门
     });
 
     test('hasValidConfig returns true only when valid+path', () {
-      final valid = RepoConfig(
+      const valid = RepoConfig(
         localPath: '/path',
         validationStatus: RepoValidationStatus.valid,
       );
       expect(valid.hasValidConfig, isTrue);
 
-      final noPath = RepoConfig(
+      const noPath = RepoConfig(
         validationStatus: RepoValidationStatus.valid,
       );
       expect(noPath.hasValidConfig, isFalse);
 
-      final invalid = RepoConfig(
+      const invalid = RepoConfig(
         localPath: '/path',
         validationStatus: RepoValidationStatus.invalid,
       );
@@ -916,7 +905,7 @@ Docker vs Kubernetes 入门
     });
 
     test('copyWith updates fields correctly', () {
-      final original = RepoConfig(localPath: '/old');
+      const original = RepoConfig(localPath: '/old');
       final updated = original.copyWith(localPath: '/new');
       expect(updated.localPath, equals('/new'));
       // original unchanged
@@ -924,7 +913,7 @@ Docker vs Kubernetes 入门
     });
 
     test('copyWith clearLocalPath clears the field', () {
-      final original = RepoConfig(localPath: '/some/path');
+      const original = RepoConfig(localPath: '/some/path');
       final cleared = original.copyWith(clearLocalPath: true);
       expect(cleared.localPath, isNull);
     });
@@ -956,12 +945,12 @@ Docker vs Kubernetes 入门
     });
 
     testWidgets('shows pre-filled path from initialConfig', (tester) async {
-      final config = RepoConfig(
+      const config = RepoConfig(
         localPath: r'D:\existing-project',
         validationStatus: RepoValidationStatus.valid,
       );
       await tester.pumpWidget(
-        MaterialApp(
+        const MaterialApp(
           home: Scaffold(
             body: RepoConfigPanel(
               moduleId: 'test-module',

@@ -17,29 +17,26 @@ import 'package:evergreen_base/renderer/components/shared/widgets/empty_state.da
 class CardListSlot extends DataSourceSlot {
   const CardListSlot({super.key, required super.config});
 
+  // Phase 2: 声明式数据绑定
+  @override
+  DataMapping get dataMapping => const DataMapping(targetKey: 'cards');
+
   @override
   DataSourceSlotState<CardListSlot> createState() => _CardListSlotState();
 }
 
 class _CardListSlotState extends DataSourceSlotState<CardListSlot> {
-  @override
-  Map<String, dynamic> mergeData(Map<String, dynamic> base, dynamic resolved) {
-    final merged = <String, dynamic>{...base};
-    if (resolved is List) {
-      merged['cards'] = resolved; // 行列表直接作为 cards
-    } else if (resolved is Map<String, dynamic>) {
-      merged.addAll(resolved);
-    }
-    return merged;
-  }
 
   @override
   Widget buildStatic(Map<String, dynamic> cfg) {
     final title = cfg['title'] as String? ?? '';
     final cards = (cfg['cards'] as List<dynamic>?) ?? [];
 
+    // 去掉 Expanded：外层 _buildSlotCard 已用 Expanded+SCSV 处理滚动，
+    // 这里用 shrinkWrap: true 让 GridView 取内容自然高度，避免嵌套 flex 底溢出。
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
         if (title.isNotEmpty)
           Padding(
@@ -50,29 +47,30 @@ class _CardListSlotState extends DataSourceSlotState<CardListSlot> {
                     .titleSmall
                     ?.copyWith(fontWeight: FontWeight.w600)),
           ),
-        Expanded(
-          child: cards.isEmpty
-              ? _emptyState(context)
-              : GridView.builder(
-                  padding: const EdgeInsets.all(12),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 8,
-                    crossAxisSpacing: 8,
-                    childAspectRatio: 1.5,
-                  ),
-                  itemCount: cards.length,
-                  itemBuilder: (context, index) {
-                    final card = cards[index] as Map<String, dynamic>;
-                    return _CardItem(
-                      title: card['title'] as String? ?? '',
-                      body: card['body'] as String? ??
-                          card['description'] as String? ??
-                          '',
-                    );
-                  },
-                ),
-        ),
+        if (cards.isEmpty)
+          _emptyState(context)
+        else
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(12),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+              childAspectRatio: 1.5,
+            ),
+            itemCount: cards.length,
+            itemBuilder: (context, index) {
+              final card = cards[index] as Map<String, dynamic>;
+              return _CardItem(
+                title: card['title'] as String? ?? '',
+                body: card['body'] as String? ??
+                    card['description'] as String? ??
+                    '',
+              );
+            },
+          ),
       ],
     );
   }
@@ -221,3 +219,5 @@ class DefaultView extends StatelessWidget {
     return keys.toList();
   }
 }
+
+

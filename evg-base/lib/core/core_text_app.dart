@@ -36,7 +36,7 @@ Future<Map<String, dynamic>> _get(int port, String path) async {
     final body = await resp.transform(utf8.decoder).join();
     stderr.writeln('[TextApp] GET $url → ${resp.statusCode} (${body.length}B)');
     return jsonDecode(body) as Map<String, dynamic>;
-  } catch (e, st) {
+  } catch (e) {
     stderr.writeln('[TextApp] GET http://127.0.0.1:$port$path ❌ $e');
     rethrow;
   } finally { client.close(); }
@@ -56,7 +56,7 @@ Future<Map<String, dynamic>> _post(int port, String path, Map<String, dynamic> b
     final respBody = await resp.transform(utf8.decoder).join();
     stderr.writeln('[TextApp] POST $url → ${resp.statusCode}');
     return jsonDecode(respBody) as Map<String, dynamic>;
-  } catch (e, st) {
+  } catch (e) {
     stderr.writeln('[TextApp] POST http://127.0.0.1:$port$path ❌ $e');
     rethrow;
   } finally { client.close(); }
@@ -308,7 +308,7 @@ class _ChatPageState extends State<ChatPage> {
       // 通过模块 .exe 中间层（如存在），否则 fallback 到 AgentHttpServer 直连
       final pluginPort = chatModuleId != null ? _ports[chatModuleId] : null;
       final usePlugin = pluginPort != null && pluginPort > 0;
-      final chatPort = usePlugin ? pluginPort! : _ports['Agent']!;
+      final chatPort = usePlugin ? pluginPort : _ports['Agent']!;
       final chatPath = usePlugin ? '/chat' : '/agent/chat/stream';
       stderr.writeln('[TextApp] Chat route: ${usePlugin ? "$chatModuleId .exe" : "AgentHttpServer 直连"} → $chatPath');
       // 流式对话：先添加一个空占位气泡，随 SSE 事件逐步更新

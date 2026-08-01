@@ -10,23 +10,19 @@
 /// | `EvergreenApp()` | 根 Widget，根据编译常量选择模式 |
 library;
 
-import 'dart:io';
-import 'package:flutter/services.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import 'package:path/path.dart' as p;
-
+import 'package:evergreen_base/core/feedback/screenshot.dart';
 import 'package:evergreen_base/core/module/module_registry.dart';
-import 'package:evergreen_base/core/theme/theme_descriptor.dart';
-import 'package:evergreen_base/main.dart' show textModeServerPorts;
 import 'package:evergreen_base/providers.dart';
 import 'package:evergreen_base/renderer/app/app_shell.dart';
 import 'package:evergreen_base/renderer/app/command_palette.dart';
 import 'package:evergreen_base/renderer/app/service/providers/renderer_providers.dart';
 import 'package:evergreen_base/renderer/app/service/theme/theme_provider.dart';
 import 'package:evergreen_base/renderer/module/module_page.dart';
-import 'package:evergreen_base/core/feedback/screenshot.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:path/path.dart' as p;
 
 
 // ═══════ 导航键 ═══════
@@ -201,6 +197,9 @@ class _EvergreenAppState extends ConsumerState<EvergreenApp> {
     final theme = ref.watch(lightThemeProvider);
     final darkTheme = ref.watch(darkThemeProvider);
     final themeMode = ref.watch(themeModeProvider);
+    // 激活 RenderTokens 响应链：主题切换时执行 applyTheme，
+    // 让所有消费 RenderTokens.colors 的组件随主题换色（此前无人 watch，静态色板永不更新）。
+    ref.watch(renderTokensProvider);
 
     return Shortcuts(
       shortcuts: <ShortcutActivator, Intent>{

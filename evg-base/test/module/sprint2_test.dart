@@ -10,23 +10,23 @@
 /// - compositions/workspace_page.dart
 library;
 
-import 'package:evergreen_base/renderer/components/shared/widgets/models.dart';
-import 'package:evergreen_base/renderer/components/shared/widgets/ability_tag.dart';
-import 'package:evergreen_base/renderer/components/shared/widgets/install_progress.dart';
-import 'package:evergreen_base/renderer/components/shared/widgets/notification_card.dart';
-import 'package:evergreen_base/renderer/page/market_view.dart';
-import 'package:evergreen_base/renderer/page/plugin_detail_view.dart';
-import 'package:evergreen_base/renderer/page/my_plugins_view.dart';
-import 'package:evergreen_base/renderer/page/settings_view.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/composite_view.dart';
-import 'package:evergreen_base/renderer/page/permission_management_view.dart';
 // workspace_page removed in renderer refactor
 import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'package:evergreen_base/providers.dart';
+import 'package:evergreen_base/renderer/components/shared/widgets/ability_tag.dart';
+import 'package:evergreen_base/renderer/components/shared/widgets/install_progress.dart';
+import 'package:evergreen_base/renderer/components/shared/widgets/models.dart';
+import 'package:evergreen_base/renderer/components/shared/widgets/notification_card.dart';
+import 'package:evergreen_base/renderer/page/market_view.dart';
+import 'package:evergreen_base/renderer/page/my_plugins_view.dart';
+import 'package:evergreen_base/renderer/page/permission_management_view.dart';
+import 'package:evergreen_base/renderer/page/plugin_detail_view.dart';
+import 'package:evergreen_base/renderer/page/settings_view.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/composite_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // ── Helper: 构建测试用 PluginDescriptor ──
 
@@ -212,11 +212,11 @@ void main() {
     });
 
     test('SettingsGroup', () {
-      final group = SettingsGroup(
+      const group = SettingsGroup(
         title: '外观',
         items: [
-          const SettingsItem(label: '深色模式', type: SettingsItemType.toggle),
-          const SettingsItem(label: '版本', type: SettingsItemType.info),
+          SettingsItem(label: '深色模式', type: SettingsItemType.toggle),
+          SettingsItem(label: '版本', type: SettingsItemType.info),
         ],
       );
       expect(group.title, '外观');
@@ -247,7 +247,7 @@ void main() {
 
     testWidgets('compact 模式仅显示缩写', (tester) async {
       await tester.pumpWidget(_materialApp(
-        AbilityTag(dim: AbilityDim.agent, compact: true),
+        const AbilityTag(dim: AbilityDim.agent, compact: true),
       ));
       expect(find.text('Agent'), findsOneWidget);
       expect(find.text('智能体'), findsNothing);
@@ -257,7 +257,7 @@ void main() {
   group('AbilityTagRow', () {
     testWidgets('渲染多个标签', (tester) async {
       await tester.pumpWidget(_materialApp(
-        AbilityTagRow(dims: const [AbilityDim.agent, AbilityDim.ui, AbilityDim.data]),
+        const AbilityTagRow(dims: [AbilityDim.agent, AbilityDim.ui, AbilityDim.data]),
       ));
       expect(find.text('智能体'), findsOneWidget);
       expect(find.text('界面'), findsOneWidget);
@@ -587,14 +587,14 @@ void main() {
 
   group('SettingsView', () {
     testWidgets('渲染设置视图（ProviderScope + 端口注入）', (tester) async {
-      final descriptor = ModuleDescriptor(id: 'settings', name: 'Settings');
+      const descriptor = ModuleDescriptor(id: 'settings', name: 'Settings');
       final prefs = await SharedPreferences.getInstance();
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
             sharedPreferencesProvider.overrideWithValue(prefs),
           ],
-          child: MaterialApp(
+          child: const MaterialApp(
             home: Scaffold(body: SettingsView(descriptor: descriptor)),
           ),
         ),
@@ -610,21 +610,21 @@ void main() {
   // ═══════════════════════════════════════════════════════════════
 
   group('PermissionManagementView', () {
-    PluginPermissionSnapshot _testSnapshot() {
-      return PluginPermissionSnapshot(
+    PluginPermissionSnapshot testSnapshot() {
+      return const PluginPermissionSnapshot(
         pluginId: 'test-plugin',
         pluginName: '测试插件',
         permissions: [
-          const PluginPermission(name: '读取文件', level: PermissionLevel.safe, granted: true),
-          const PluginPermission(name: '联网访问', level: PermissionLevel.warning, granted: true),
-          const PluginPermission(name: '执行系统命令', level: PermissionLevel.danger, granted: false),
+          PluginPermission(name: '读取文件', level: PermissionLevel.safe, granted: true),
+          PluginPermission(name: '联网访问', level: PermissionLevel.warning, granted: true),
+          PluginPermission(name: '执行系统命令', level: PermissionLevel.danger, granted: false),
         ],
       );
     }
 
     testWidgets('渲染权限管理页面', (tester) async {
       await tester.pumpWidget(_materialApp(
-        PermissionManagementView(snapshots: [_testSnapshot()]),
+        PermissionManagementView(snapshots: [testSnapshot()]),
       ));
       expect(find.text('测试插件'), findsOneWidget);
       expect(find.text('读取文件'), findsOneWidget);
@@ -642,7 +642,7 @@ void main() {
 
     testWidgets('高危权限显示警告条', (tester) async {
       await tester.pumpWidget(_materialApp(
-        PermissionManagementView(snapshots: [_testSnapshot()]),
+        PermissionManagementView(snapshots: [testSnapshot()]),
       ));
       expect(find.textContaining('此插件含'), findsOneWidget);
       expect(find.textContaining('高危权限'), findsOneWidget);
@@ -655,7 +655,7 @@ void main() {
 
       await tester.pumpWidget(_materialApp(
         PermissionManagementView(
-          snapshots: [_testSnapshot()],
+          snapshots: [testSnapshot()],
           onToggle: (pluginId, name, granted) {
             toggledPluginId = pluginId;
             toggledPermName = name;
@@ -677,11 +677,11 @@ void main() {
     testWidgets('多插件渲染', (tester) async {
       await tester.pumpWidget(_materialApp(
         PermissionManagementView(snapshots: [
-          _testSnapshot(),
-          PluginPermissionSnapshot(
+          testSnapshot(),
+          const PluginPermissionSnapshot(
             pluginId: 'plugin-2',
             pluginName: '插件二',
-            permissions: const [
+            permissions: [
               PluginPermission(name: '访问剪贴板', level: PermissionLevel.safe),
             ],
           ),
@@ -720,7 +720,7 @@ void main() {
     });
 
     testWidgets('SettingsView 需要 ProviderScope', (tester) async {
-      final descriptor = ModuleDescriptor(id: 'settings', name: 'Settings');
+      const descriptor = ModuleDescriptor(id: 'settings', name: 'Settings');
       final prefs = await SharedPreferences.getInstance();
       await tester.pumpWidget(
         ProviderScope(
@@ -730,7 +730,7 @@ void main() {
           child: MaterialApp(
             theme: ThemeData(brightness: Brightness.light),
             darkTheme: ThemeData(brightness: Brightness.dark),
-            home: Scaffold(body: SettingsView(descriptor: descriptor)),
+            home: const Scaffold(body: SettingsView(descriptor: descriptor)),
           ),
         ),
       );
@@ -741,7 +741,7 @@ void main() {
 
   group('Chrome slot / 工具栏分离', () {
     testWidgets('chrome 内容 slot 留在内容区，无 Card 壳', (tester) async {
-      final descriptor = ModuleDescriptor(
+      const descriptor = ModuleDescriptor(
         id: 'test-chrome',
         name: 'Test Chrome',
         pages: [
@@ -750,7 +750,7 @@ void main() {
             label: 'Main',
             layout: LayoutDescriptor(
               type: 'grid',
-              preset: const LayoutPreset(columns: 1),
+              preset: LayoutPreset(columns: 1),
               slots: {
                 'content': SlotDescriptor(
                   component: ComponentDescriptor(
@@ -770,7 +770,7 @@ void main() {
             sharedPreferencesProvider.overrideWithValue(prefs),
             pluginsDirProvider.overrideWith((ref) => 'test_plugins/'),
           ],
-          child: MaterialApp(home: CompositeView(descriptor: descriptor)),
+          child: const MaterialApp(home: CompositeView(descriptor: descriptor)),
         ),
       );
       expect(find.byType(CompositeView), findsOneWidget);
@@ -778,7 +778,7 @@ void main() {
     });
 
     testWidgets('非 chrome slot 保留 Card 壳', (tester) async {
-      final descriptor = ModuleDescriptor(
+      const descriptor = ModuleDescriptor(
         id: 'test-card',
         name: 'Test Card',
         pages: [
@@ -787,7 +787,7 @@ void main() {
             label: 'Main',
             layout: LayoutDescriptor(
               type: 'grid',
-              preset: const LayoutPreset(columns: 1),
+              preset: LayoutPreset(columns: 1),
               slots: {
                 'card': SlotDescriptor(
                   component: ComponentDescriptor(type: 'divider'),
@@ -804,7 +804,7 @@ void main() {
             sharedPreferencesProvider.overrideWithValue(prefs),
             pluginsDirProvider.overrideWith((ref) => 'test_plugins/'),
           ],
-          child: MaterialApp(home: CompositeView(descriptor: descriptor)),
+          child: const MaterialApp(home: CompositeView(descriptor: descriptor)),
         ),
       );
       expect(find.byType(CompositeView), findsOneWidget);
@@ -812,7 +812,7 @@ void main() {
     });
 
     testWidgets('align 字段 → 工具栏分离，不崩', (tester) async {
-      final descriptor = ModuleDescriptor(
+      const descriptor = ModuleDescriptor(
         id: 'test-toolbar',
         name: 'Test Toolbar',
         pages: [
@@ -821,7 +821,7 @@ void main() {
             label: 'Main',
             layout: LayoutDescriptor(
               type: 'grid',
-              preset: const LayoutPreset(columns: 1, gap: 8),
+              preset: LayoutPreset(columns: 1, gap: 8),
               slots: {
                 'tools': SlotDescriptor(
                   component: ComponentDescriptor(
@@ -847,7 +847,7 @@ void main() {
             sharedPreferencesProvider.overrideWithValue(prefs),
             pluginsDirProvider.overrideWith((ref) => 'test_plugins/'),
           ],
-          child: MaterialApp(home: CompositeView(descriptor: descriptor)),
+          child: const MaterialApp(home: CompositeView(descriptor: descriptor)),
         ),
       );
       expect(find.byType(CompositeView), findsOneWidget);

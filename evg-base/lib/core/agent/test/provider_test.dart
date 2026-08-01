@@ -1,7 +1,6 @@
 /// AiUnavailableException + MockEventStream + Provider 测试。
 library;
 
-import 'dart:async';
 
 import 'package:test/test.dart';
 
@@ -158,8 +157,8 @@ void main() {
       }
       expect(dispatch, isNotNull);
       expect(dispatch!.id, isNotEmpty);
-      expect(dispatch!.name, isNotEmpty);
-      expect(dispatch!.arguments, isNotEmpty);
+      expect(dispatch.name, isNotEmpty);
+      expect(dispatch.arguments, isNotEmpty);
     });
 
     test('toolResult with error has isError=true', () async {

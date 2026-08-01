@@ -10,21 +10,15 @@ import 'package:evergreen_base/renderer/components/shared/widgets/dashboard_card
 class StatTileSlot extends DataSourceSlot {
   const StatTileSlot({super.key, required super.config});
 
+  // Phase 2: 声明式数据绑定 — 标量值注入 value
+  @override
+  DataMapping get dataMapping => const DataMapping(targetKey: 'value');
+
   @override
   DataSourceSlotState<StatTileSlot> createState() => _StatTileSlotState();
 }
 
 class _StatTileSlotState extends DataSourceSlotState<StatTileSlot> {
-  @override
-  Map<String, dynamic> mergeData(Map<String, dynamic> base, dynamic resolved) {
-    final merged = <String, dynamic>{...base};
-    if (resolved is Map<String, dynamic>) {
-      merged.addAll(resolved);
-    } else if (resolved != null) {
-      merged['value'] = resolved; // 标量数据源（如单个指标值）
-    }
-    return merged;
-  }
 
   @override
   Widget buildStatic(Map<String, dynamic> cfg) {
@@ -65,3 +59,5 @@ class _StatTileSlotState extends DataSourceSlotState<StatTileSlot> {
     return DashboardCardTheme.teal;
   }
 }
+
+

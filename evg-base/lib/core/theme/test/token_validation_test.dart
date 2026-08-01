@@ -1,4 +1,4 @@
-/// Token 完整性 + 内置主题 验证测试。
+/// 扁平语义色板 验证测试（主题扁平化改造后）。
 library;
 
 import 'dart:convert';
@@ -6,123 +6,92 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
-import '../src/tokens.dart';
+import '../theme_descriptor.dart';
 import '../src/color.dart';
 
 // ═══════ helpers ═══════
 
-String _themePath(String name) =>
-    p.join(Directory.current.path, 'builtins', name, 'theme', 'theme.json');
+const _requiredKeys = <String>[
+  'background',
+  'surface',
+  'border',
+  'text',
+  'textSecondary',
+  'accent',
+  'error',
+  'others',
+];
+
+/// 各示例主题相对仓库根的路径（my_theme 与 ocean_theme 分处不同目录）。
+const _themePaths = <String, List<String>>{
+  'my_theme': [
+    'lib',
+    'core',
+    'theme',
+    'example',
+    'plugins',
+    'my_theme',
+    'theme',
+    'theme.json',
+  ],
+  'ocean_theme': [
+    'lib',
+    'core',
+    'example',
+    'plugins',
+    'ocean_theme',
+    'theme',
+    'theme.json',
+  ],
+};
+
+String _exampleThemePath(String plugin) =>
+    p.joinAll([Directory.current.path, ..._themePaths[plugin]!]);
 
 Map<String, dynamic> _loadJson(String path) {
   final raw = File(path).readAsStringSync();
   return jsonDecode(raw) as Map<String, dynamic>;
 }
 
-/// 递归检查五层 JSON 中所有 hex 值。
-void _checkAllHex(Map<String, dynamic> json, String label) {
-  // 遍历 app/module/page/slot/components 五层
-  for (final layerKey in ['app', 'module', 'page', 'slot', 'components']) {
-    final layer = json[layerKey];
-    if (layer is! Map<String, dynamic>) continue;
-    for (final comp in layer.entries) {
-      if (comp.value is Map) {
-        for (final tok in (comp.value as Map).entries) {
-          final val = tok.value.toString();
-          // 跳过非颜色 token（thickness、width、数组等）
-          if (_isNonColorToken(comp.key.toString(), tok.key.toString())) continue;
-          expect(isValidHexColor(val), isTrue,
-              reason: '$label $layerKey.${comp.key}.${tok.key} 颜色格式非法: $val');
-        }
-      }
-    }
-  }
-}
-
-bool _isNonColorToken(String component, String subToken) {
-  const nonColor = <String, Set<String>>{
-    'divider': {'thickness', 'width'},
-    'border': {'width'},
-    'chart': {'colors'},
-  };
-  return nonColor[component]?.contains(subToken) ?? false;
-}
+bool _isValidHex(String val) => ThemeDescriptor.parseHex(val) != null;
 
 // ═══════ tests ═══════
 
 void main() {
-  group('token 完整性', () {
-    test('AppTokens.allowedKeys 包含 5 个 key', () {
-      expect(AppTokens.count, 5);
-      expect(AppTokens.allowedKeys, hasLength(5));
-    });
+  group('扁平主题 — 内置示例色板', () {
+    for (final plugin in ['my_theme', 'ocean_theme']) {
+      test('$plugin theme.json — 8 个必填语义色齐全', () {
+        final json = _loadJson(_exampleThemePath(plugin));
+        final colors = (json['colors'] as Map<String, dynamic>?);
+        expect(colors, isNotNull, reason: '$plugin 缺少 colors 字段');
+        for (final key in _requiredKeys) {
+          expect(colors!.containsKey(key), isTrue,
+              reason: '$plugin 缺少必填语义色: $key');
+        }
+        // 不应出现非约定的额外语义色
+        for (final extra in colors!.keys) {
+          expect(_requiredKeys.contains(extra), isTrue,
+              reason: '$plugin 含未约定语义色: $extra');
+        }
+      });
 
-    test('ComponentTokens.allowedKeys 包含 54 个 key', () {
-      expect(ComponentTokens.count, 54);
-      expect(ComponentTokens.allowedKeys, hasLength(54));
-    });
+      test('$plugin theme.json — 所有颜色值合法 hex', () {
+        final json = _loadJson(_exampleThemePath(plugin));
+        final colors = json['colors'] as Map<String, dynamic>;
+        for (final e in colors.entries) {
+          expect(_isValidHex(e.value.toString()), isTrue,
+              reason: '$plugin colors.${e.key} 颜色格式非法: ${e.value}');
+        }
+      });
 
-    test('App token 无重复', () {
-      expect(
-        AppTokens.allowedKeys.length,
-        AppTokens.allowedKeys.toSet().length,
-      );
-    });
-
-    test('组件 token 无重复', () {
-      expect(
-        ComponentTokens.allowedKeys.length,
-        ComponentTokens.allowedKeys.toSet().length,
-      );
-    });
-
-    test('ComponentTokens.subTokens 覆盖全部 54 组件', () {
-      for (final key in ComponentTokens.allowedKeys) {
-        final subs = ComponentTokens.subTokensFor(key);
-        expect(subs, isNotEmpty,
-            reason: '组件 "$key" 缺少子 token 定义');
-      }
-    });
-  });
-
-  group('内置主题', () {
-    test('light.json — App 层完整', () {
-      final json = _loadJson(_themePath('light'));
-      final app = json['app'] as Map<String, dynamic>;
-      for (final expected in AppTokens.allowedKeys) {
-        expect(app.containsKey(expected), isTrue,
-            reason: 'light.json app 层缺少组件: $expected');
-      }
-    });
-
-    test('dark.json — App 层完整', () {
-      final json = _loadJson(_themePath('dark'));
-      final app = json['app'] as Map<String, dynamic>;
-      for (final expected in AppTokens.allowedKeys) {
-        expect(app.containsKey(expected), isTrue,
-            reason: 'dark.json app 层缺少组件: $expected');
-      }
-    });
-
-    test('light.json — 所有颜色值合法 hex', () {
-      final json = _loadJson(_themePath('light'));
-      _checkAllHex(json, 'light.json');
-    });
-
-    test('dark.json — 所有颜色值合法 hex', () {
-      final json = _loadJson(_themePath('dark'));
-      _checkAllHex(json, 'dark.json');
-    });
-
-    test('light.json — type=theme', () {
-      final json = _loadJson(_themePath('light'));
-      expect(json['type'], 'theme');
-    });
-
-    test('dark.json — type=theme', () {
-      final json = _loadJson(_themePath('dark'));
-      expect(json['type'], 'theme');
-    });
+      test('$plugin theme.json — 可经 ThemeDescriptor.fromJson 解析', () {
+        final json = _loadJson(_exampleThemePath(plugin));
+        final theme = ThemeDescriptor.fromJson(json);
+        expect(theme.id, isNotEmpty);
+        expect(theme.colors.length, _requiredKeys.length);
+        expect(theme.color('accent'), isNotNull);
+      });
+    }
   });
 
   group('ThemeColor hex 往返', () {
@@ -140,6 +109,11 @@ void main() {
         final c = ThemeColor.fromHex(hex);
         expect(c.toHex(), hex.toUpperCase());
       }
+    });
+
+    test('tryParse 对非法格式返回 null', () {
+      expect(ThemeColor.tryParse('nope'), isNull);
+      expect(ThemeColor.tryParse(''), isNull);
     });
   });
 }

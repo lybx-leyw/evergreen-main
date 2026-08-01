@@ -49,6 +49,8 @@ import 'package:evergreen_base/core/agent/tools/user_info.dart';
 import 'package:evergreen_base/core/agent/tools/web_search.dart';
 import 'package:evergreen_base/core/agent/tools/write_file.dart';
 import 'package:evergreen_base/core/agent/tools/write_global_memory.dart';
+import 'package:evergreen_base/core/agent/tools/head_tail.dart';
+import 'package:evergreen_base/core/agent/tools/file_info.dart';
 import 'package:evergreen_base/core/data/orchestrator.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
 
@@ -200,6 +202,9 @@ class AgentAssembly {
       WriteGlobalMemoryTool(globalStore),
       ReadFileTool(workspaceDir: greenixWorkspaceDir('ai-assistant')),
       WriteFileTool(workspaceDir: greenixWorkspaceDir('ai-assistant')),
+      ReadHeadTool(workspaceDir: greenixWorkspaceDir('ai-assistant')),
+      ReadTailTool(workspaceDir: greenixWorkspaceDir('ai-assistant')),
+      FileInfoTool(workspaceDir: greenixWorkspaceDir('ai-assistant')),
       RunSkillTool(loader, skillIndex, provider, registry),
       ListSkillsTool(loader, skillIndex),
       WebSearchTool(Dio()),

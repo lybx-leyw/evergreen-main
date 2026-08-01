@@ -5,9 +5,10 @@
 /// - 模块级多数据源 `dataSources`（命名 source → DataSourceDescriptor）
 /// - `dataSources.*.bindings`（字段→键路径，v5P 数据解耦核心）
 /// 以及 zdbk 各独立模块 manifest 的真实契约形状 + [ZdbkData] 的 bindings 驱动解析。
+library;
 import 'dart:convert';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
-import 'package:evergreen_base/renderer/templates/zdbk_modle/models.dart';
+import 'package:evergreen_base/renderer/templates/zju_modle/zdbk/models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const _scoresManifestJson = '''

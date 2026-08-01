@@ -9,6 +9,7 @@
 *.bak
 *.class
 *.log
+*.err
 *.pyc
 *.swp
 *.[Cc]ache
@@ -158,6 +159,7 @@ evg-base/scripts/python/
 
 # 内部文件
 evg-base/.history_docs
+PRODUCT_DESIGN_DOCUMENT.md
 evg-base/愿景.md
 DEVELOPER_GUIDE.md
 愿景.md
@@ -186,6 +188,14 @@ evg-base/lib/core/example/plugins/*/*/__pycache__/
 
 # 插件运行时状态（不可提交）
 .plugin_states.json
+
+# 插件目录（旧平级路径 + 新 evg-base/plugins 路径）
+# 含凭证 config / 运行时状态 / 下载缓存，一律不进版本库
+plugins/
+evg-base/plugins/
+
+# 安卓打包副本（tool/bundle_plugins.dart 从 evg-base/plugins/ 生成）
+evg-base/assets/plugins_bundle/
 
 # evg-base — 运行时 debug / 临时输出文件（含绝对路径，严禁提交）
 **/._debug.txt

@@ -98,7 +98,7 @@ List<CapabilityDimension> discoverCapabilities(
   }
 
   // process (.exe 后端)
-  if (descriptor != null && descriptor.process != null) {
+  if (descriptor != null) {
     dims.add(CapabilityDimension.process);
   }
 

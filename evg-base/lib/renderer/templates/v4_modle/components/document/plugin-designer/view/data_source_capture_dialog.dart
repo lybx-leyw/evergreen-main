@@ -9,10 +9,10 @@
 library;
 
 import 'package:flutter/material.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/scraper/scraper_webview.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/scraper/request_log_panel.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/scraper/scraper_workflow.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/scraper/scraper_flow_facade.dart';
+import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_webview.dart';
+import 'package:evergreen_base/renderer/templates/scraper_modle/request_log_panel.dart';
+import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_workflow.dart';
+import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_flow_facade.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_document.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_slot.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/auto_data_source_service.dart';

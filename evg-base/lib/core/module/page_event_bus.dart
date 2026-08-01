@@ -1,44 +1,29 @@
-/// 页级事件总线 —— 单页内跨栏实时通信。
-///
-/// 对应 PLAN_NOW 第九节。零外部依赖，纯 Dart Stream 实现。
+/// 页级事件总线 —— 单页内跨栏实时通信。v5P Phase 4 升级。
 ///
 /// ## 生命周期
-///
 /// - 创建：页面激活时（[CompositeView] 中每个 Tab 页建一个实例）
 /// - 销毁：页面切走时 dispose
 /// - 不持久化、不跨页面、不跨模块
 ///
-/// ## 用法
-///
-/// ```dart
-/// final bus = PageEventBus(pageId: 'learn');
-///
-/// // 订阅事件
-/// final sub = bus.on('word_completed').listen((e) {
-///   print('收到来自 ${e.sourceSlot} 的 word_completed: ${e.data}');
-/// });
-///
-/// // 发出事件
-/// bus.emit('word_completed', sourceSlot: 'left',
-///   data: {'word': 'apple', 'correct': true});
-///
-/// // 释放
-/// bus.dispose();
-/// ```
+/// ## 标准事件类型（`domain:action` 格式）
+/// | 类型 | 语义 |
+/// |------|------|
+/// | `data:selected` | 数据行被选中 |
+/// | `data:changed`  | 数据被编辑 |
+/// | `ui:refresh`    | 请求刷新数据 |
+/// | `ui:toggle`     | 折叠/展开 slot |
+/// | `nav:go`        | 页面跳转 |
+/// | `form:submit`   | 表单提交 |
 library;
 
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 /// 页级事件总线 —— 单页内所有 slot 共享。
-///
-/// 每个 slot 声明 `events: {emit: [...], subscribe: [...]}` 来定义
-/// 自己产生和关注的事件。总线根据声明自动路由事件到订阅方。
 class PageEventBus {
-  /// 页面标识（如 `"learn"`）。
   final String pageId;
-
   final StreamController<SlotEvent> _controller;
 
   PageEventBus({required this.pageId})
@@ -46,13 +31,7 @@ class PageEventBus {
     debugPrint('[PageEventBus:$pageId] 已创建');
   }
 
-  // ═══════ 发出事件 ═══════
-
-  /// 从指定 slot 发出事件。
-  ///
-  /// [event] — 事件名（如 `"word_completed"`），需匹配 manifest 中的 emit 声明。
-  /// [sourceSlot] — 发出事件的栏（如 `"left"`、`"right"`）。
-  /// [data] — 附带数据。
+  /// 发出事件（兼容旧 API）。
   void emit(String event, {required String sourceSlot, Map<String, dynamic>? data}) {
     final evt = SlotEvent(
       event: event,
@@ -60,59 +39,42 @@ class PageEventBus {
       data: data ?? const {},
       timestamp: DateTime.now(),
     );
-    debugPrint('[PageEventBus:$pageId] $sourceSlot → $event${data != null ? " $data" : ""}');
+    debugPrint('[PageEventBus:$pageId] $sourceSlot → $event');
     _controller.add(evt);
   }
 
-  // ═══════ 订阅 ═══════
+  /// 按事件类型过滤订阅。
+  Stream<SlotEvent> on(String event) =>
+      _controller.stream.where((e) => e.event == event);
 
-  /// 订阅指定事件名的流。
-  ///
-  /// 返回的 Stream 只发送匹配的事件。调用方应在 dispose 时 cancel 订阅。
-  Stream<SlotEvent> on(String event) {
-    return _controller.stream.where((e) => e.event == event);
-  }
-
-  /// 订阅所有事件（调试用）。
+  /// 所有事件的流。
   Stream<SlotEvent> get all => _controller.stream;
 
-  // ═══════ 排泄声明 ═══════
-
-  /// 从 manifest 的 events 声明中提取 emit 列表。
+  /// 提取 emit 声明。
   static List<String> extractEmits(Map<String, dynamic>? eventsConfig) {
     final arr = eventsConfig?['emit'] as List?;
     if (arr == null) return [];
     return arr.map((e) => e.toString()).toList();
   }
 
-  /// 从 manifest 的 events 声明中提取 subscribe 列表。
+  /// 提取 subscribe 声明。
   static List<String> extractSubscribes(Map<String, dynamic>? eventsConfig) {
     final arr = eventsConfig?['subscribe'] as List?;
     if (arr == null) return [];
     return arr.map((e) => e.toString()).toList();
   }
 
-  // ═══════ 生命周期 ═══════
-
-  /// 释放总线。
   void dispose() {
     debugPrint('[PageEventBus:$pageId] 已释放');
     _controller.close();
   }
 }
 
-/// 单个栏间事件。
+/// 栏间事件。
 class SlotEvent {
-  /// 事件名。
   final String event;
-
-  /// 发出该事件的栏标识（如 `"left"`、`"right"`）。
   final String sourceSlot;
-
-  /// 附带数据。
   final Map<String, dynamic> data;
-
-  /// 时间戳。
   final DateTime timestamp;
 
   const SlotEvent({
@@ -122,7 +84,22 @@ class SlotEvent {
     required this.timestamp,
   });
 
-  @override
-  String toString() =>
-      'SlotEvent(event: $event, source: $sourceSlot, data: $data)';
+  @override String toString() => 'SlotEvent(event: $event, source: $sourceSlot, data: $data)';
+}
+
+// ═══════ InheritedWidget 注入 ═══════
+
+/// 将 [PageEventBus] 注入 widget 树，供任意深度的 slot 访问。
+class PageEventBusScope extends InheritedWidget {
+  final PageEventBus bus;
+
+  const PageEventBusScope({super.key, required this.bus, required super.child});
+
+  static PageEventBus of(BuildContext context) {
+    final scope = context.dependOnInheritedWidgetOfExactType<PageEventBusScope>();
+    assert(scope != null, 'PageEventBusScope 未在 widget 树中找到');
+    return scope!.bus;
+  }
+
+  @override bool updateShouldNotify(PageEventBusScope old) => bus != old.bus;
 }

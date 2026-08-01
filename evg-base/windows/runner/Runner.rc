@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "evergreen_multi_tools" "\0"
+            VALUE "FileDescription", "evergreen_base" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "evergreen_multi_tools" "\0"
+            VALUE "InternalName", "evergreen_base" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "evergreen_multi_tools.exe" "\0"
-            VALUE "ProductName", "evergreen_multi_tools" "\0"
+            VALUE "OriginalFilename", "evergreen_base.exe" "\0"
+            VALUE "ProductName", "evergreen_base" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

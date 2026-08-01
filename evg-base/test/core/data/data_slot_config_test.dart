@@ -8,7 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   testWidgets('TreeSlot 渲染静态 root 配置', (tester) async {
     await tester.pumpWidget(
-      ProviderScope(
+      const ProviderScope(
         child: MaterialApp(
           home: Scaffold(
             body: TreeSlot(
@@ -38,7 +38,7 @@ void main() {
 
   testWidgets('MapSlot 解析嵌套 map 配置', (tester) async {
     await tester.pumpWidget(
-      ProviderScope(
+      const ProviderScope(
         child: MaterialApp(
           home: Scaffold(
             body: MapSlot(

@@ -249,7 +249,7 @@ class AgentHttpServer {
     } catch (_) {
       // 客户端断开
     } finally {
-      await sub?.cancel();
+      await sub.cancel();
       await req.response.close();
     }
   }
@@ -282,7 +282,7 @@ class AgentHttpServer {
       await completer.future.timeout(const Duration(minutes: 5));
     } catch (_) {}
 
-    await sub?.cancel();
+    await sub.cancel();
     _json(req.response, 200, {'events': events});
   }
 

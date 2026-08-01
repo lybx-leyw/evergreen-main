@@ -9,9 +9,9 @@
 /// 修复方法：ScaledSlot 增加可选 `constrain: true` 参数。
 library;
 
+import 'package:evergreen_base/renderer/components/shared/slot_scale.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:evergreen_base/renderer/components/shared/slot_scale.dart';
 
 void main() {
   testWidgets('ScaledSlot(constrain: true) 用 SizedBox 强制 tight 约束', (tester) async {

@@ -39,7 +39,7 @@ import 'package:evergreen_base/core/agent/session_manager.dart';
 import 'package:evergreen_base/renderer/components/shared/widgets/models.dart';
 import 'package:evergreen_base/renderer/components/shared/widgets/mindmap_widget.dart';
 import 'package:evergreen_base/renderer/components/shared/widgets/workspace_drawer.dart';
-import 'package:evergreen_base/renderer/app/service/theme/theme_provider.dart';
+
 import 'package:evergreen_base/renderer/page/file_viewer.dart';
 import 'package:evergreen_base/renderer/page/global_memory_view.dart';
 import 'package:evergreen_base/renderer/page/skill_management_view.dart';
@@ -2006,8 +2006,12 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
   // ── AgentAssembly 全屏模式：输入栏 ──
 
   Widget _buildAssemblyInputBar(ThemeData theme) {
+    // 竖版（手机窄屏）：输入栏紧凑化，减少竖向占用。
+    final compact = MediaQuery.sizeOf(context).width < 600;
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: compact
+          ? const EdgeInsets.fromLTRB(12, 8, 12, 8)
+          : const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         border: Border(
@@ -2020,11 +2024,14 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // 模式切换按钮行
+            // 模式切换按钮行（窄屏可水平滚动，避免右侧溢出）
             Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
+              padding: EdgeInsets.only(bottom: compact ? 4 : 8),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                   if (widget.descriptor.workspace != null) ...[
                     _ToggleChip(
                       icon: Icons.folder_outlined,
@@ -2061,7 +2068,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                     onChanged: (_) => _showToolsPopup(context),
                     activeColor: const Color(0xFF2E7D32),
                   ),
-                  const Spacer(),
+                  const SizedBox(width: 6),
                   IconButton(
                     icon: const Icon(Icons.auto_fix_high, size: 18),
                     tooltip: '技能管理',
@@ -2079,7 +2086,8 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                     onPressed: _newAssemblySession,
                     visualDensity: VisualDensity.compact,
                   ),
-                ],
+                  ],
+                ),
               ),
             ),
             // 输入行
@@ -2097,9 +2105,9 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(24),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: compact ? 14 : 20,
+                        vertical: compact ? 8 : 12,
                       ),
                       filled: true,
                       fillColor: theme
@@ -2415,11 +2423,14 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
       animation: _pulseAnim,
       builder: (context, _) {
         final opacity = 0.4 + _pulseAnim.value * 0.6;
+        // 竖版（手机窄屏）：状态条紧凑化。
+        final compact = MediaQuery.sizeOf(context).width < 600;
         return Container(
           width: double.infinity,
-          margin: const EdgeInsets.only(bottom: 6),
-          padding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          margin: EdgeInsets.only(bottom: compact ? 2 : 6),
+          padding: EdgeInsets.symmetric(
+              horizontal: compact ? 10 : 12,
+              vertical: compact ? 4 : 6),
           decoration: BoxDecoration(
             color: Colors.blue.withValues(alpha: opacity * 0.15),
             borderRadius: BorderRadius.circular(8),
@@ -2456,9 +2467,13 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     final webSearch = ref.watch(webSearchEnabledProvider);
     final effort = ref.watch(reasoningEffortProvider);
     final hasWorkspace = widget.descriptor.workspace != null;
+    // 竖版（手机窄屏）：输入栏紧凑化，减少竖向占用。
+    final compact = MediaQuery.sizeOf(context).width < 600;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: compact
+          ? const EdgeInsets.fromLTRB(12, 8, 12, 8)
+          : const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: theme.colorScheme.surface,
         border: Border(
@@ -2471,69 +2486,73 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // 模式切换按钮行
+            // 模式切换按钮行（窄屏可水平滚动，避免右侧溢出）
             Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  if (hasWorkspace) ...[
+              padding: EdgeInsets.only(bottom: compact ? 4 : 8),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (hasWorkspace) ...[
+                      _ToggleChip(
+                        icon: Icons.folder_outlined,
+                        label: '工作区',
+                        value: false,
+                        onChanged: (_) =>
+                            _scaffoldKey.currentState?.openEndDrawer(),
+                        activeColor: const Color(0xFF1565C0),
+                      ),
+                      const SizedBox(width: 6),
+                    ],
                     _ToggleChip(
-                      icon: Icons.folder_outlined,
-                      label: '工作区',
-                      value: false,
-                      onChanged: (_) =>
-                          _scaffoldKey.currentState?.openEndDrawer(),
+                      icon: Icons.language,
+                      label: '联网搜索',
+                      value: webSearch,
+                      onChanged: (v) => _setWebSearchEnabled(v, ref),
                       activeColor: const Color(0xFF1565C0),
                     ),
                     const SizedBox(width: 6),
-                  ],
-                  _ToggleChip(
-                    icon: Icons.language,
-                    label: '联网搜索',
-                    value: webSearch,
-                    onChanged: (v) => _setWebSearchEnabled(v, ref),
-                    activeColor: const Color(0xFF1565C0),
-                  ),
-                  const SizedBox(width: 6),
-                  _EffortSelector(
-                    effort: effort,
-                    onChanged: (v) =>
-                        ref.read(reasoningEffortProvider.notifier).state = v,
-                  ),
-                  const SizedBox(width: 6),
-                  _ToggleChip(
-                    icon: Icons.handyman_outlined,
-                    label: '工具',
-                    value: false,
-                    onChanged: (_) => _showToolsPopup(context),
-                    activeColor: const Color(0xFF2E7D32),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    icon: const Icon(Icons.auto_fix_high, size: 18),
-                    tooltip: '技能管理',
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                          builder: (_) =>
-                              const SkillManagementView()),
+                    _EffortSelector(
+                      effort: effort,
+                      onChanged: (v) =>
+                          ref.read(reasoningEffortProvider.notifier).state = v,
                     ),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  IconButton(
-                    icon:
-                        const Icon(Icons.delete_outline, size: 18),
-                    tooltip: '清空对话',
-                    onPressed: () {
-                      ref
-                          .read(_chatMessagesProvider.notifier)
-                          .clear();
-                      ref
-                          .read(agentControllerProvider)
-                          .newSession();
-                    },
-                    visualDensity: VisualDensity.compact,
-                  ),
-                ],
+                    const SizedBox(width: 6),
+                    _ToggleChip(
+                      icon: Icons.handyman_outlined,
+                      label: '工具',
+                      value: false,
+                      onChanged: (_) => _showToolsPopup(context),
+                      activeColor: const Color(0xFF2E7D32),
+                    ),
+                    const SizedBox(width: 6),
+                    IconButton(
+                      icon: const Icon(Icons.auto_fix_high, size: 18),
+                      tooltip: '技能管理',
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                            builder: (_) =>
+                                const SkillManagementView()),
+                      ),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    IconButton(
+                      icon:
+                          const Icon(Icons.delete_outline, size: 18),
+                      tooltip: '清空对话',
+                      onPressed: () {
+                        ref
+                            .read(_chatMessagesProvider.notifier)
+                            .clear();
+                        ref
+                            .read(agentControllerProvider)
+                            .newSession();
+                      },
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
+                ),
               ),
             ),
             // 输入行
@@ -2551,9 +2570,9 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(24),
                       ),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                        vertical: 12,
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: compact ? 14 : 20,
+                        vertical: compact ? 8 : 12,
                       ),
                       filled: true,
                       fillColor: theme
@@ -2606,6 +2625,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                         )
                       : const Icon(Icons.attach_file),
                   tooltip: '上传文件',
+                  visualDensity: compact ? VisualDensity.compact : null,
                 ),
                 const SizedBox(width: 4),
                 IconButton.filled(
@@ -2622,6 +2642,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                     foregroundColor:
                         theme.colorScheme.onPrimary,
                   ),
+                  visualDensity: compact ? VisualDensity.compact : null,
                 ),
               ],
             ),
@@ -3984,10 +4005,14 @@ class _ToolTile extends StatelessWidget {
                       color: Colors.amber.shade700,
                       fontWeight: FontWeight.bold)),
             ],
-            Text(
-              name,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                  fontWeight: FontWeight.w600, fontSize: 13),
+            Expanded(
+              child: Text(
+                name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600, fontSize: 13),
+              ),
             ),
             if (isEssential) ...[
               const SizedBox(width: 4),

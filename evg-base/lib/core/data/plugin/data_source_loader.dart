@@ -17,9 +17,11 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:evergreen_base/core/log.dart';
+import 'package:evergreen_base/core/plugin/plugin_runner.dart';
 
 import '../orchestrator.dart';
 import '../type.dart';
+import '../../utils/greenix_path.dart';
 import 'data_source_manifest.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -30,6 +32,7 @@ import 'data_source_manifest.dart';
 class DataSourceLoader {
   final DataSourceManifest manifest;
   final String workingDirectory;
+  final String projectRoot;
 
   Process? _process;
   HttpClient? _client;
@@ -45,6 +48,7 @@ class DataSourceLoader {
   DataSourceLoader({
     required this.manifest,
     required this.workingDirectory,
+    required this.projectRoot,
   });
 
   bool get isRunning => _started && _healthy;
@@ -57,15 +61,24 @@ class DataSourceLoader {
   Future<void> start(DataOrchestrator orchestrator) async {
     if (_started) return;
 
+    final runner = await sharedPluginRunner;
     Log().info('DataSourceLoader: 启动 ${manifest.process} (${manifest.name})');
 
-    // preferredPort > 0 时作为 --port 参数传给插件进程
-    final args = manifest.preferredPort > 0
-        ? <String>['--port', '${manifest.preferredPort}']
-        : <String>[];
-    _process = await Process.start(
+    // preferredPort > 0 时作为 --port 参数传给插件进程。
+    // 同时传入 --project-root（用于策略2 HTTP: 找 .config_port）和
+    // --greenix-config（用于策略1 本地文件: 直接读 .greenix/config.json）。
+    // Android 侧 MainActivity.kt 从 args 提取并注入为 Python os.environ。
+    final args = <String>[
+      '--project-root', projectRoot,
+      '--greenix-config', greenixConfigPath,
+    ];
+    if (manifest.preferredPort > 0) {
+      args.addAll(['--port', '${manifest.preferredPort}']);
+    }
+    _process = await runner.startLong(
       _resolveExePath(), args,
       workingDirectory: workingDirectory,
+      runtime: manifest.runtime,
     );
     _listenStderr();
     _listenStdout();
@@ -223,6 +236,7 @@ class DataSourceLoader {
 Future<List<DataSourceLoader>> scanAndLoadDataSources({
   required String pluginsDir,
   required DataOrchestrator orchestrator,
+  required String projectRoot,
 }) async {
   final loaders = <DataSourceLoader>[];
   final dir = Directory(pluginsDir);
@@ -246,9 +260,20 @@ Future<List<DataSourceLoader>> scanAndLoadDataSources({
       if (json['type'] != 'data-source') continue;
 
       final manifest = DataSourceManifest.fromJson(json);
+
+      // 规划 §5.3 C 安全网：安卓不支持（androidSupport=false，如依赖 C 扩展
+      // 的 OCR/翻译/PDF/ML 插件）的 http 数据源直接跳过，避免崩溃。
+      if (!DataSourceManifest.isSupportedOn(manifest,
+          isAndroid: Platform.isAndroid)) {
+        Log().info('DataSourceLoader: 安卓不支持 ${manifest.id}，'
+            '跳过（androidSupport=false）');
+        continue;
+      }
+
       final loader = DataSourceLoader(
         manifest: manifest,
         workingDirectory: dataDir.path,
+        projectRoot: projectRoot,
       );
       await loader.start(orchestrator);
       loaders.add(loader);

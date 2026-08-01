@@ -8,6 +8,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:evergreen_base/core/log.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
 import 'package:evergreen_base/core/utils/python_env.dart';
@@ -83,6 +84,21 @@ class PdfTranslateService {
     final python = await _resolvePython();
     if (python == null) {
       throw Exception('未找到 Python，请安装 Python 3.10+');
+    }
+
+    // 安卓：Chaquopy 进程内执行（无子进程）。
+    if (Platform.isAndroid) {
+      return _translateAndroid(
+        inputPath: inputPath,
+        outputDir: outputDir,
+        apiKey: apiKey,
+        model: model,
+        thinking: thinking,
+        langIn: langIn,
+        langOut: langOut,
+        onProgress: onProgress,
+        onStage: onStage,
+      );
     }
 
     try {
@@ -208,8 +224,120 @@ class PdfTranslateService {
     }
   }
 
-  /// 检查翻译环境是否就绪。
+  /// 安卓：经 Chaquopy MethodChannel 在 app 进程内执行 pdf_translate.py。
   ///
+  /// runScript 一次性执行并回传 stdout/stderr（无流式），完成后解析
+  /// JSON Lines 事件并回放进度/阶段。
+  Future<PdfTranslateResult> _translateAndroid({
+    required String inputPath,
+    required String outputDir,
+    required String apiKey,
+    String model = 'deepseek-chat',
+    String? thinking,
+    String langIn = 'en',
+    String langOut = 'zh',
+    void Function(int current, int total, String message)? onProgress,
+    void Function(String stage, String message)? onStage,
+  }) async {
+    const ch = MethodChannel('evergreen/python');
+    final assetPath = await _resolveAndroidScriptPath();
+    if (assetPath.isEmpty) {
+      throw Exception(
+          'pdf_translate.py 未打包进 APK（android/app/src/main/python/），请重新构建');
+    }
+
+    final args = <String>[
+      '--input', inputPath,
+      '--output', outputDir,
+      '--api-key', apiKey,
+      '--model', model,
+      '--lang-in', langIn,
+      '--lang-out', langOut,
+    ];
+    if (thinking != null && thinking.isNotEmpty) {
+      args.addAll(['--thinking', thinking]);
+    }
+    Log().info('PdfTranslate: android chaquopy start',
+        data: {'script': assetPath, 'input': inputPath});
+
+    final resp = await ch.invokeMethod<Map<dynamic, dynamic>>('runScript', {
+      'entry': assetPath,
+      'args': args,
+    });
+
+    final stdout = resp?['stdout'] as String? ?? '';
+    final stderr = resp?['stderr'] as String? ?? '';
+    final code = (resp?['exitCode'] as num?)?.toInt() ?? -1;
+    Log().info('PdfTranslate: android done', data: {'exitCode': code});
+
+    // 解析 stdout JSON Lines 事件（progress/stage/finish/error）。
+    String? monoPdf;
+    String? dualPdf;
+    double totalSeconds = 0;
+    int totalTokens = 0;
+    String? errorMessage;
+
+    for (final line in const LineSplitter().convert(stdout)) {
+      if (line.trim().isEmpty) continue;
+      try {
+        final event = jsonDecode(line) as Map<String, dynamic>;
+        final type = event['type'] as String? ?? '';
+        switch (type) {
+          case 'stage':
+            final stage = event['stage'] as String? ?? '';
+            final msg = event['message'] as String? ?? '';
+            onStage?.call(stage, msg);
+            onProgress?.call(
+                (event['current'] as num?)?.toInt() ?? 0,
+                (event['total'] as num?)?.toInt() ?? 0,
+                msg);
+          case 'progress':
+            onProgress?.call(
+                (event['current'] as num?)?.toInt() ?? 0,
+                (event['total'] as num?)?.toInt() ?? 0,
+                event['message'] as String? ?? '');
+          case 'finish':
+            monoPdf = event['mono_pdf'] as String?;
+            dualPdf = event['dual_pdf'] as String?;
+            totalSeconds = (event['total_seconds'] as num?)?.toDouble() ?? 0;
+            final tokens = event['tokens'] as Map<String, dynamic>?;
+            totalTokens = (tokens?['total'] as num?)?.toInt() ?? 0;
+          case 'error':
+            errorMessage = event['message'] as String? ?? 'Unknown error';
+        }
+      } catch (e) {
+        Log().warn('PdfTranslate: 事件行解析异常: $e', error: e);
+      }
+    }
+
+    if (errorMessage != null) {
+      throw Exception('翻译失败: $errorMessage');
+    }
+    if (monoPdf == null && dualPdf == null) {
+      final hint = stderr.trim().isNotEmpty ? '\n$stderr' : '';
+      throw Exception('翻译未完成 (exit $code)$hint');
+    }
+    return PdfTranslateResult(
+      monoPdfPath: monoPdf,
+      dualPdfPath: dualPdf,
+      totalSeconds: totalSeconds,
+      totalTokens: totalTokens,
+    );
+  }
+
+  /// 安卓：解析 pdf_translate.py 在设备上的 chaquopy 资源路径。
+  Future<String> _resolveAndroidScriptPath() async {
+    try {
+      final assetPath = await const MethodChannel('evergreen/python')
+          .invokeMethod<String>('getAssetPath', {'name': 'pdf_translate.py'});
+      if (assetPath != null && assetPath.isNotEmpty) return assetPath;
+    } catch (e) {
+      Log().warn('PdfTranslate: getAssetPath failed', error: e);
+    }
+    return '';
+  }
+
+  /// 检查翻译环境是否就绪。  ///
   /// 返回 [EnvStatus.ready] / [EnvStatus.missingPython] / [EnvStatus.missingDeps]。
   Future<EnvStatus> checkEnvironment() async {
     try {

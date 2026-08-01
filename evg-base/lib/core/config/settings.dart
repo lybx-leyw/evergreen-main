@@ -135,16 +135,30 @@ SettingDecl _parseSetting(Map<String, dynamic> m) {
 
 Map<String, SettingDecl> _loadPlugins(List<String> dirs) {
   final decls = <String, SettingDecl>{};
+  stderr.writeln('[Config] _loadPlugins 开始，扫描根目录: $dirs');
   for (final dir in dirs) {
     final d = Directory(dir);
+    stderr.writeln('[Config]   扫描根: ${d.path} (exists=${d.existsSync()})');
     if (!d.existsSync()) continue;
     // 目录本身可能就是一个插件（config.json 直接在目录下）
     _tryLoad(d, decls);
     // 子目录各是一个插件
-    for (final entity in d.listSync()) {
-      if (entity is Directory) _tryLoad(entity, decls);
+    final children = d.listSync();
+    stderr.writeln('[Config]   子目录数: ${children.length}');
+    for (final entity in children) {
+      if (entity is Directory) {
+        final hasZju = entity.path.contains('zdbk');
+        if (hasZju) {
+          stderr.writeln('[Config-ZJU] 🔍 发现 zdbk 目录: ${entity.path}');
+        }
+        _tryLoad(entity, decls);
+      }
     }
   }
+  stderr.writeln('[Config] _loadPlugins 完成，共注册 ${decls.length} 个设置项: ${decls.keys.toList()}');
+  // 专项检查 ZJU key
+  stderr.writeln('[Config-ZJU] ZJU_USERNAME 已注册? ${decls.containsKey("ZJU_USERNAME")}');
+  stderr.writeln('[Config-ZJU] ZJU_PASSWORD 已注册? ${decls.containsKey("ZJU_PASSWORD")}');
   return decls;
 }
 
@@ -159,10 +173,14 @@ void _tryLoad(Directory dir, Map<String, SettingDecl> decls) {
   try {
     final json = jsonDecode(configFile.readAsStringSync()) as Map<String, dynamic>;
     final settingsList = json['settings'] as List<dynamic>? ?? [];
+    final keys = <String>[];
     for (final item in settingsList) {
       final sd = _parseSetting(item as Map<String, dynamic>);
       decls[sd.key] = sd;
+      keys.add(sd.key);
     }
+    // 诊断日志：帮助追踪 Android 上 config.json 扫描是否完整
+    stderr.writeln('[Config] ✓ ${configFile.path} → ${keys.length} 设置项: $keys');
 
     // 自动解析 permissions 字段并注册
     final permissionsList = json['permissions'] as List<dynamic>?;

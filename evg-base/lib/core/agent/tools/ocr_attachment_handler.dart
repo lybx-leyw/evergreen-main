@@ -10,7 +10,6 @@
 /// | `toContextString(List<OcrResult>)` | 将 OCR 结果格式化为 context 注入文本 |
 library;
 
-import 'dart:io';
 
 import '../event.dart';
 
@@ -56,8 +55,7 @@ class OcrAttachmentHandler {
   OcrAttachmentHandler({
     required Future<String?> Function(String filePath) recognize,
     EventSink? sink,
-  })  : assert(recognize != null, 'recognize callback must not be null'),
-        _recognize = recognize,
+  })  : _recognize = recognize,
         _sink = sink;
 
   /// 批量处理附件文件。

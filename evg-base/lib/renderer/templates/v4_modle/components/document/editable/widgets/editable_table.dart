@@ -251,8 +251,10 @@ class EditableTable extends StatelessWidget {
   Widget _buildActionCell(BuildContext context, int rowIndex) {
     final hasEdits = controller.hasRowEdits(rowIndex);
 
+    // Two IconButtons (48px each with default tap target) → need 96px
+    final buttonCount = (showSaveButton ? 1 : 0) + (showDeleteButton ? 1 : 0);
     return SizedBox(
-      width: 60,
+      width: buttonCount * 48.0,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -265,6 +267,7 @@ class EditableTable extends StatelessWidget {
                     ? Theme.of(context).colorScheme.primary
                     : Colors.grey,
               ),
+              visualDensity: VisualDensity.compact,
               tooltip: '保存行',
               onPressed: () => controller.saveRow(rowIndex),
               padding: EdgeInsets.zero,
@@ -277,6 +280,7 @@ class EditableTable extends StatelessWidget {
                 size: 16,
                 color: Theme.of(context).colorScheme.error,
               ),
+              visualDensity: VisualDensity.compact,
               tooltip: '删除行',
               onPressed: () => controller.removeRow(rowIndex),
               padding: EdgeInsets.zero,

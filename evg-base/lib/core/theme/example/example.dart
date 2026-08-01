@@ -1,8 +1,7 @@
 /// theme 模块全部对外接口使用示例。
 ///
 /// 覆盖 barrel (theme.dart) 导出的所有公开 API：
-///   ThemeDescriptor  — const 构造 / fromJson / fromJsonString / toJson /
-///                      tokenValue / tokenColor / parseHex
+///   ThemeDescriptor  — const 构造 / fromJson / fromJsonString / toJson / color / parseHex
 ///   ThemeStore       — register / all / findById / activeTheme / setActiveById / activeOrFirst
 ///   ThemeHttpServer  — start / stop / 6 端点
 ///   scanThemes / loadThemes / scanThemeFile
@@ -16,15 +15,20 @@ void main() {
   final store = ThemeStore();
   final rootDir = Directory.current.path;
 
-  // ── const 构造（五层正交架构）──
+  // ── const 构造（扁平语义色板）──
   const programmatic = ThemeDescriptor(
     id: 'programmatic',
     name: '程序化主题',
-    app: {'sidebar': {'active': '#9C27B0'}},
-    module: {},
-    page: {},
-    slot: {},
-    components: {'button': {'primary': '#9C27B0', 'text': '#FFFFFF'}},
+    colors: {
+      'background': '#0D1117',
+      'surface': '#161B22',
+      'border': '#30363D',
+      'text': '#C9D1D9',
+      'textSecondary': '#8B949E',
+      'accent': '#9C27B0',
+      'error': '#FF7B72',
+      'others': '#9C27B0',
+    },
   );
   store.register(programmatic);
 
@@ -76,11 +80,7 @@ void main() {
   fallback.register(const ThemeDescriptor(
     id: 'only',
     name: '唯一主题',
-    app: {},
-    module: {},
-    page: {},
-    slot: {},
-    components: {},
+    colors: {},
   ));
   print('   activeOrFirst (未设置): ${fallback.activeOrFirst?.name}');
 
@@ -88,24 +88,17 @@ void main() {
   print('\n═══ 颜色查询 ═══');
   final active = store.activeTheme!;
 
-  // tokenValue(layer, component, subToken) — 字符串查询
-  print('   tokenValue(app, "sidebar", "active") = ${active.tokenValue(active.app, 'sidebar', 'active')}');
-  print('   tokenValue(components, "button", "primary") = ${active.tokenValue(active.components, 'button', 'primary')}');
-
-  // tokenColor(layer, component, subToken) — ThemeColor 查询
-  final sc = active.tokenColor(active.app, 'sidebar', 'active');
-  print('   tokenColor(app, "sidebar", "active") = ${sc?.toHex()} (value=0x${sc?.value.toRadixString(16)})');
-
-  // 直接访问层数据
-  print('   app.sidebar = ${active.app["sidebar"]}');
-  print('   components.button = ${active.components["button"]}');
+  // color(key) — 语义字段查询
+  print('   color("accent") = ${active.color('accent')}');
+  print('   color("background") = ${active.color('background')}');
+  print('   color("text") = ${active.color('text')}');
 
   // parseHex — 静态方法
   final parsed = ThemeDescriptor.parseHex('#FF5722');
   print('   parseHex("#FF5722") = ${parsed?.toHex(withAlpha: false)}');
 
-  // 各层 token 数量
-  print('   各层: app=${active.app.length} module=${active.module.length} page=${active.page.length} slot=${active.slot.length} components=${active.components.length}');
+  // 各语义字段数量
+  print('   语义字段数: ${active.colors.length}');
 
   // ═══════ ThemeColor ═══════
   print('\n═══ ThemeColor ═══');
@@ -132,7 +125,7 @@ void main() {
     print('     GET  /theme/themes/:id');
     print('     GET  /theme/active');
     print('     POST /theme/active');
-    print('     GET  /theme/token?layer=&component=&token=');
+    print('     GET  /theme/token?key=<语义字段>');
     print('   按 Enter 停止服务器...');
 
     // 非阻塞等待后停止
@@ -153,8 +146,7 @@ void main() {
   print('   findById("nonexistent") = ${store.findById("nonexistent") ?? "null"}');
   final t = store.findById('light');
   if (t != null) {
-    print('   tokenValue(app, "sidebar", "nonexistent") = ${t.tokenValue(t.app, 'sidebar', 'nonexistent') ?? "null"}');
-    print('   tokenValue(components, "nonexistent", "bg") = ${t.tokenValue(t.components, 'nonexistent', 'bg') ?? "null"}');
+    print('   color("unknown_key") = ${t.color('unknown_key') ?? "null"}');
   }
   print('   setActiveById("ghost") = ${store.setActiveById("ghost")}');
 

@@ -9,20 +9,15 @@ import 'package:evergreen_base/renderer/templates/v4_modle/slot/data_source_slot
 class TreeSlot extends DataSourceSlot {
   const TreeSlot({super.key, required super.config});
 
+  // Phase 2: 声明式数据绑定 — 仅非 null 时覆盖 root
+  @override
+  DataMapping get dataMapping => const DataMapping(targetKey: 'root', skipIfNull: true);
+
   @override
   DataSourceSlotState<TreeSlot> createState() => _TreeSlotState();
 }
 
 class _TreeSlotState extends DataSourceSlotState<TreeSlot> {
-  @override
-  Map<String, dynamic> mergeData(Map<String, dynamic> base, dynamic resolved) {
-    final merged = <String, dynamic>{...base};
-    // 拉取到的树数据本身就是 root 节点；resolved 为 null 时保留静态配置
-    if (resolved != null) {
-      merged['root'] = resolved;
-    }
-    return merged;
-  }
 
   @override
   Widget buildStatic(Map<String, dynamic> cfg) {
@@ -133,3 +128,5 @@ class _TreeBranch extends StatelessWidget {
     );
   }
 }
+
+

@@ -1,8 +1,8 @@
 // 编译冒烟测试：强制编译 scraper_ai_panel.dart + scraper_tools.dart，
 // 验证 root cause B 修复（export_and_register_scraper 工具 + 回灌逻辑）编译通过。
 // 本环境 flutter analyze 报全局 false-error，编译裁定以 flutter test 为准。
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/scraper/scraper_tools.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/scraper/scraper_ai_panel.dart';
+import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_ai_panel.dart';
+import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_tools.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

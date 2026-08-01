@@ -65,7 +65,7 @@ import '../agent/session.dart'; // Session（消息历史 + token 统计 + 序�
 import '../output_style/style.dart'; // OutputStyle / BuiltinStyles / StyleManager
 import '../provider.dart'; // AiUnavailableException
 import '../tools/mock_event_stream.dart'; // MockEventStream
-import '../tools/ocr_attachment_handler.dart'; // OcrAttachmentHandler / OcrResult
+// OcrAttachmentHandler / OcrResult
 
 // ═══════ helpers ═══════
 // 以下辅助函数供 main() 和各个 Demo 共用。

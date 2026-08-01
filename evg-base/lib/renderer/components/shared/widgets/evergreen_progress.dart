@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:evergreen_base/renderer/app/service/theme/theme_provider.dart';
 
 /// 主题化进度条——统一替换 [LinearProgressIndicator]。
 ///
@@ -33,8 +32,8 @@ class EvergreenProgress extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final fillColor = context.componentColor('progressBar', 'fill') ?? theme.colorScheme.primary;
-    final trackColor = context.componentColor('progressBar', 'track') ?? theme.colorScheme.surfaceContainerHighest;
+    final fillColor = theme.colorScheme.primary;
+    final trackColor = theme.colorScheme.surfaceContainerHighest;
     final indicator = ClipRRect(
       borderRadius: BorderRadius.circular(2),
       child: LinearProgressIndicator(

@@ -1,27 +1,29 @@
 # Theme 模块 — AI 协作文档
 
-> Evergreen 主题系统——五层 token（App/Module/Page/Slot/Component），深色/浅色双主题，响应式切换。
+> Evergreen 主题系统——**扁平语义色板（8 色）**，主题即完整配色方案（明暗由色板决定），ChangeNotifier 响应式切换。
+> ⚠️ v1「五层 token（App/Module/Page/Slot/Component）」体系已废弃（`src/tokens.dart` 与 `builtins/` 已删除），本文档下方历史章节仅作参考，**实现以代码为准**。
 
 ---
 
 ## 一、模块架构
 
 ```
-ThemeDescriptor (数据模型) + ThemeColor (值对象)
+ThemeDescriptor (扁平 8 色模型) + ThemeColor (值对象)
         │
    ThemeStore (ChangeNotifier)
         │
-   ├── ThemeLoader → builtins/ + plugins/
+   ├── registerBuiltinThemes → 内置 dark/light/evergreen（代码注册）
+   ├── ThemeLoader → plugins/ 下的主题插件（theme.json）
    └── ThemeHttpServer (7 REST 端点)
 ```
 
 | 文件 | 职责 |
 |------|------|
 | `src/color.dart` | ThemeColor — ARGB 32 位，hex 解析/序列化 |
-| `src/tokens.dart` | 五层 token（App/Module/Page/Slot/Component）白名单常量 |
-| `theme_descriptor.dart` | 主题数据模型，fromJson/toJson，五层 token 查询 |
+| `theme_descriptor.dart` | 主题数据模型（扁平 8 色，8 键必填），fromJson/toJson |
 | `theme_store.dart` | 响应式容器，ChangeNotifier |
-| `theme_loader.dart` | 扫描目录/文件，加载 theme.json |
+| `theme_loader.dart` | 扫描目录/文件，加载 theme.json（失败输出 ❌ 日志） |
+| `builtin_themes.dart` | 内置主题（dark/light/evergreen，`registerBuiltinThemes`） |
 | `theme_http_server.dart` | 7 端点 HTTP API（含 CORS 预检） |
 | `render_rules.dart` | 像素级设计常量（间距/圆角/字号等） |
 | `theme.dart` | barrel 导出 |
@@ -33,31 +35,28 @@ ThemeDescriptor (数据模型) + ThemeColor (值对象)
 ```
 lib/core/theme/
 ├── CLAUDE.md                  # 本文件
-├── README.md                  # 面向人类的使用文档
+├── README.md                  # 面向人类的使用文档（扁平 8 色模型）
 ├── pubspec.yaml               # 包声明（依赖 flutter_stub + path）
 ├── dart_test.yaml             # 测试配置（concurrency:1, timeout:30s）
 ├── theme.dart                 # barrel 导出
-├── theme_descriptor.dart      # ThemeDescriptor 数据模型
+├── theme_descriptor.dart      # ThemeDescriptor 数据模型（扁平 8 色）
 ├── theme_store.dart           # ThemeStore 响应式存储器
 ├── theme_loader.dart          # scanThemes / loadThemes / scanThemeFile
+├── builtin_themes.dart        # 内置主题（dark/light/evergreen）
 ├── theme_http_server.dart     # HTTP 7 端点
 ├── render_rules.dart          # 像素级设计常量
 ├── src/
-│   ├── color.dart             # ThemeColor 值对象
-│   └── tokens.dart            # AppTokens / ModuleTokens / PageTokens / SlotTokens / ComponentTokens
-├── lib/
-│   └── flutter_stub/          # Flutter foundation 桩（提供 ChangeNotifier）
-│       └── lib/
-│           ├── foundation.dart
-│           └── widgets.dart
-├── builtins/                  # 10 个内置主题（JSON）
-│   ├── light/theme/theme.json
-│   ├── dark/theme/theme.json
-│   ├── default/theme/theme.json
-│   ├── evergreen/theme/theme.json
-│   ├── forest/theme/theme.json
-│   ├── high_contrast/theme/theme.json
-│   ├── liyu/theme/theme.json
+│   └── color.dart             # ThemeColor 值对象
+├── docs/
+│   ├── plugin-theme.md        # ★ 主题插件快速参考卡（8 色模型，插件作者必读）
+│   └── plugin-authoring-guide-theme.md  # ⚠️ 已废弃（v1 两层 token，历史参考）
+├── example/
+│   └── plugins/my_theme/      # 示例主题插件（ocean_blue，扁平 8 色）
+└── test/
+    ├── theme_test.dart        # ThemeDescriptor + ThemeStore + 扫描（扁平模型）
+    ├── theme_http_server_test.dart  # 7 端点测试
+    ├── token_validation_test.dart   # 示例主题 8 色校验
+    └── builtin_themes_test.dart     # 内置主题完整性
 │   ├── mono/theme/theme.json
 │   ├── sunset/theme/theme.json
 │   └── violet/theme/theme.json

@@ -6,13 +6,9 @@
 /// - D3 PreviewSync 写出文件可被真实 ModuleDescriptor.fromJson 解析（type==module / ui==composite）
 /// - D4 ModuleRegistry.reloadModule 在 seal 后仍可重载 + 依赖缺失保护旧模块
 /// - D5 安装→热重载→导航 闭环（D5b 数据闭环单元 + D5a 火箭按钮 widget 端到端）
+library;
 import 'dart:convert';
 import 'dart:io';
-
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:path/path.dart' as p;
 
 import 'package:evergreen_base/core/data/orchestrator.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
@@ -27,6 +23,10 @@ import 'package:evergreen_base/renderer/templates/v4_modle/components/document/p
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/preview_sync_service.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/widgets/composite_preview_frame.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/composite_view.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 
 /// 渲染脚手架：真实渲染管线（LayerThemeScope）依赖 dataOrchestratorProvider；
 /// SlotDispatch 依赖 pluginsDirProvider 解析插件资源路径。
@@ -229,7 +229,7 @@ void main() {
   group('D4 ModuleRegistry.reloadModule 运行时重载', () {
     test('seal 后重载同 id 模块，findByRoute 返回新描述符', () {
       final registry = ModuleRegistry();
-      final old =
+      const old =
           ModuleDescriptor(id: 'm', name: 'old', route: '/m');
       registry.register(old);
       registry.seal();
@@ -263,7 +263,7 @@ void main() {
 
     test('依赖缺失时 reloadModule 返回 false 并保留旧模块', () {
       final registry = ModuleRegistry();
-      registry.register(ModuleDescriptor(id: 'A', name: 'A', route: '/A'));
+      registry.register(const ModuleDescriptor(id: 'A', name: 'A', route: '/A'));
       registry.seal();
 
       final doc = DesignDocument(

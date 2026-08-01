@@ -11,7 +11,6 @@ library;
 import 'package:test/test.dart';
 
 import '../message.dart';
-import '../event.dart';
 import '../tool.dart';
 import '../agent/session.dart';
 import '../agent/agent.dart';

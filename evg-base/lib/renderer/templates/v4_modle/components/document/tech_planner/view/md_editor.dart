@@ -261,46 +261,58 @@ class _MdEditorState extends State<MdEditor> {
               color: isDark
                   ? const Color(0xFF1E1E1E)
                   : const Color(0xFFFAFAFA),
-              child: Stack(
-                children: [
-                  // 底层：CodeEditor
-                  re.CodeEditor(
-                    controller: _controller,
-                    focusNode: _focusNode,
-                    scrollController: _scrollController,
-                    style: re.CodeEditorStyle(
-                      fontSize: 15,
-                      fontHeight: 1.6,
-                      fontFamily:
-                          'Cascadia Code, Fira Code, JetBrains Mono, Consolas, monospace',
-                      cursorColor: colorScheme.primary,
-                      cursorLineColor:
-                          colorScheme.primary.withValues(alpha: 0.08),
-                      selectionColor:
-                          colorScheme.primary.withValues(alpha: 0.25),
-                      codeTheme: re.CodeHighlightTheme(
-                        languages: {
-                          'markdown': re.CodeHighlightThemeMode(
-                            mode: lang.langMarkdown,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  // re_editor 内部 CodeField 要求显式宽度约束；
+                  // 当键盘弹出/收起导致约束临时无界时，用屏幕宽度兜底。
+                  final effectiveWidth = constraints.hasBoundedWidth
+                      ? constraints.maxWidth
+                      : MediaQuery.of(context).size.width;
+                  return SizedBox(
+                    width: effectiveWidth,
+                    child: Stack(
+                      children: [
+                        // 底层：CodeEditor
+                        re.CodeEditor(
+                          controller: _controller,
+                          focusNode: _focusNode,
+                          scrollController: _scrollController,
+                          style: re.CodeEditorStyle(
+                            fontSize: 15,
+                            fontHeight: 1.6,
+                            fontFamily:
+                                'Cascadia Code, Fira Code, JetBrains Mono, Consolas, monospace',
+                            cursorColor: colorScheme.primary,
+                            cursorLineColor:
+                                colorScheme.primary.withValues(alpha: 0.08),
+                            selectionColor:
+                                colorScheme.primary.withValues(alpha: 0.25),
+                            codeTheme: re.CodeHighlightTheme(
+                              languages: {
+                                'markdown': re.CodeHighlightThemeMode(
+                                  mode: lang.langMarkdown,
+                                ),
+                              },
+                              theme: dark.atomOneDarkTheme,
+                            ),
                           ),
-                        },
-                        theme: dark.atomOneDarkTheme,
-                      ),
-                    ),
-                    indicatorBuilder: _buildIndicator,
-                  ),
-
-                  // 顶层：幽灵文本浮层（Phase 2）
-                  if (widget.ghostState != null)
-                    Positioned.fill(
-                      child: IgnorePointer(
-                        child: GhostTextOverlay(
-                          editingController: _controller,
-                          ghostState: widget.ghostState!,
+                          indicatorBuilder: _buildIndicator,
                         ),
-                      ),
+
+                        // 顶层：幽灵文本浮层（Phase 2）
+                        if (widget.ghostState != null)
+                          Positioned.fill(
+                            child: IgnorePointer(
+                              child: GhostTextOverlay(
+                                editingController: _controller,
+                                ghostState: widget.ghostState!,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
-                ],
+                  );
+                },
               ),
             ),
           ),

@@ -4,27 +4,20 @@
 /// 仅 import 轻量文件，不挂载 Provider/SharedPreferences/widget，确保绝不挂死。
 library;
 
-import 'package:flutter_test/flutter_test.dart';
-
 // 验证模型
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_component.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_document.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_page.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_slot.dart';
-
-// 验证视图（编译校验）
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/view/component_picker.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/view/property_panel.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/view/page_sorter.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/view/preview_panel.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/view/json_path_picker.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/plugin_designer_view.dart';
-
-// 验证 widgets
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/widgets/composite_preview_frame.dart';
-
 // 验证服务（核心服务）
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/design_to_manifest.dart';
+// 验证视图（编译校验）
+import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/view/component_picker.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/view/json_path_picker.dart';
+// 验证 widgets
+import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/widgets/composite_preview_frame.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   // ── 模型冒烟 ──
@@ -101,7 +94,7 @@ void main() {
     test('SlotPropChanged 不再包含 rect', () {
       // v3 的 SlotPropChanged typing 已移除 List<double>? rect 参数
       // 此处验证编译通过即可——若能 import 成功即证明签名正确
-      final bool slotPropChangedWorks = true; // import 成功 = 通过
+      const bool slotPropChangedWorks = true; // import 成功 = 通过
       expect(slotPropChangedWorks, isTrue);
     });
   });

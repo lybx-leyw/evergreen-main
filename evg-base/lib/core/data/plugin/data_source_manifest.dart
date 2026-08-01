@@ -25,15 +25,23 @@ class DataSourceManifest {
   final String id;
   final String name;
   final String process;
+  final String runtime;
   final int preferredPort;
   final List<DataSourceTypeDecl> dataTypes;
+
+  /// 安卓支持开关（规划 §5.3 C 安全网）。默认 true。
+  /// 设为 false 的数据源（如依赖 Pillow/pdf2image/onnxruntime/pytesseract
+  /// 等 arm64 缺失 wheel 的 C 扩展插件）在安卓自动跳过加载，避免崩溃。
+  final bool androidSupport;
 
   const DataSourceManifest({
     required this.id,
     required this.name,
     required this.process,
+    this.runtime = 'native',
     this.preferredPort = 0,
     required this.dataTypes,
+    this.androidSupport = true,
   });
 
   factory DataSourceManifest.fromJson(Map<String, dynamic> json) {
@@ -42,12 +50,19 @@ class DataSourceManifest {
       id: _require(json, 'id'),
       name: _require(json, 'name'),
       process: _require(json, 'process'),
+      runtime: json['runtime'] as String? ?? 'native',
       preferredPort: json['preferredPort'] as int? ?? 0,
       dataTypes: _requireList(json, 'dataTypes')
           .map((d) => DataSourceTypeDecl.fromJson(d as Map<String, dynamic>))
           .toList(),
+      androidSupport: json['androidSupport'] as bool? ?? true,
     );
   }
+
+  /// 安卓是否应加载该数据源（规划 §5.3 C 安全网）。
+  /// [isAndroid]=true 且 [androidSupport]=false 时返回 false（隐藏）。
+  static bool isSupportedOn(DataSourceManifest m, {required bool isAndroid}) =>
+      !(isAndroid && !m.androidSupport);
 
   factory DataSourceManifest.fromJsonString(String jsonString) =>
       DataSourceManifest.fromJson(
@@ -58,6 +73,8 @@ class DataSourceManifest {
         'id': id,
         'name': name,
         'process': process,
+        if (runtime != 'native') 'runtime': runtime,
+        if (!androidSupport) 'androidSupport': false,
         'preferredPort': preferredPort,
         'dataTypes': dataTypes.map((d) => d.toJson()).toList(),
       };

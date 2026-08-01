@@ -27,14 +27,13 @@ class DesignToManifest {
 
     return <String, dynamic>{
       'schemaVersion': '2.0',
-      'renderMode': 'dart',
       'type': 'module',
       'id': doc.pluginId,
       'name': doc.pluginName,
       if (doc.icon != null) 'icon': doc.icon,
       if (doc.description != null) 'description': doc.description,
       if (doc.route != null) 'route': doc.route,
-      'ui': 'composite',
+      'template': doc.template,
       'version': doc.version,
       'dependencies': doc.dependencies,
       'nav': <String, dynamic>{
@@ -47,7 +46,11 @@ class DesignToManifest {
       },
       'process':
           doc.process.map((p) => p.toJson()).toList(),
-      'pages': pages,
+      // HTML 模板不需要 pages 字段（插件自定义 HTML 渲染）
+      if (doc.template != 'html') 'pages': pages,
+      // 仅在 v4 模板时保留 renderMode 和 ui 兼容字段
+      if (doc.template != 'html') 'renderMode': 'dart',
+      if (doc.template != 'html') 'ui': 'composite',
       if (doc.metadata.isNotEmpty) 'metadata': doc.metadata,
     };
   }

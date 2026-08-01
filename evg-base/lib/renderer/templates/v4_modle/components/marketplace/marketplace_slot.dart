@@ -156,7 +156,8 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
               Navigator.pop(ctx);
               _doUninstall(plugin);
             },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            style: TextButton.styleFrom(
+                foregroundColor: Theme.of(ctx).colorScheme.error),
             child: const Text('卸载'),
           ),
         ],

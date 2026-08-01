@@ -14,11 +14,15 @@
 /// | `execute(args)` | `{'action': ..., 'type_name': ...}` | `Future<String>` | 执行查询 |
 library;
 
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import '../../data/orchestrator.dart';
 import '../../data/exceptions.dart';
+import '../../utils/greenix_path.dart';
 import '../tool.dart';
+import 'package:path/path.dart' as p;
 
 /// 数据中枢查询工具——让 AI 具备与 DataOrchestrator 交互的能力。
 ///
@@ -150,50 +154,93 @@ class DataQueryTool extends Tool {
     return buf.toString();
   }
 
-  /// 获取指定数据的缓存内容。
+  /// 内联返回的最大字符数：超过则截断预览，并将完整文档落盘工作区。
+  static const int _maxInlineChars = 4000;
+
+  /// 获取指定数据的缓存内容（缓存优先，无缓存则拉取）。带超时保护。
   Future<String> _getData(String typeName) async {
     if (typeName.isEmpty) {
       return '[data_query 错误] get 操作需要提供 type_name 参数。';
     }
 
     try {
-      final data = await _orch.getByName(typeName);
-      if (data == null) {
-        return '[data_query] 类型 "$typeName" 数据拉取返回空。可能是数据源暂时不可用，'
-            '请稍后重试或检查数据源连接状态。';
-      }
-
-      final encoded = const JsonEncoder.withIndent('  ').convert(data);
-      return '## $typeName — 数据内容\n\n```json\n$encoded\n```\n'
-          '_（共 ${encoded.length} 字符）_';
+      final data = await _orch.getByName(typeName).timeout(
+            const Duration(seconds: 30),
+            onTimeout: () => throw TimeoutException('拉取 "$typeName" 超时（30s）'),
+          );
+      return await _deliver(typeName, data, refreshed: false);
     } on DataTypeNotRegisteredException catch (e) {
       return '[data_query 错误] $e\n'
           '可用类型: ${_orch.registeredTypes.join(", ")}';
+    } on TimeoutException catch (e) {
+      return '[data_query 错误] $e';
     } catch (e) {
       return '[data_query 错误] 获取 "$typeName" 失败: $e';
     }
   }
 
-  /// 强制刷新指定数据。
+  /// 强制刷新指定数据（重新拉取）。带超时保护。
   Future<String> _refreshData(String typeName) async {
     if (typeName.isEmpty) {
       return '[data_query 错误] refresh 操作需要提供 type_name 参数。';
     }
 
     try {
-      final data = await _orch.refreshByName(typeName);
-      if (data == null) {
-        return '[data_query] 类型 "$typeName" 刷新失败——数据源不可用或返回无效数据。';
-      }
-
-      final encoded = const JsonEncoder.withIndent('  ').convert(data);
-      return '## $typeName — 刷新成功 ✓\n\n```json\n$encoded\n```\n'
-          '_（共 ${encoded.length} 字符）_';
+      final data = await _orch.refreshByName(typeName).timeout(
+            const Duration(seconds: 30),
+            onTimeout: () => throw TimeoutException('刷新 "$typeName" 超时（30s）'),
+          );
+      return await _deliver(typeName, data, refreshed: true);
     } on DataTypeNotRegisteredException catch (e) {
       return '[data_query 错误] $e\n'
           '可用类型: ${_orch.registeredTypes.join(", ")}';
+    } on TimeoutException catch (e) {
+      return '[data_query 错误] $e';
     } catch (e) {
       return '[data_query 错误] 刷新 "$typeName" 失败: $e';
+    }
+  }
+
+  /// 统一交付：短数据内联返回；超长数据截断预览并把完整文档落盘工作区。
+  Future<String> _deliver(String typeName, dynamic data,
+      {required bool refreshed}) async {
+    final title = refreshed ? '刷新成功 ✓' : '数据内容';
+    if (data == null) {
+      return refreshed
+          ? '[data_query] 类型 "$typeName" 刷新失败——数据源不可用或返回无效数据。'
+          : '[data_query] 类型 "$typeName" 数据拉取返回空。可能是数据源暂时不可用，'
+              '请稍后重试或检查数据源连接状态。';
+    }
+
+    final encoded = const JsonEncoder.withIndent('  ').convert(data);
+    if (encoded.length <= _maxInlineChars) {
+      return '## $typeName — $title\n\n```json\n$encoded\n```\n'
+          '_（共 ${encoded.length} 字符）_';
+    }
+
+    // 超长：截断内联预览，完整 JSON 落盘工作区供后续 read_file / 脚本处理。
+    final savedPath = await _saveFullDoc(typeName, encoded);
+    final preview = encoded.substring(0, _maxInlineChars);
+    final remaining = encoded.length - _maxInlineChars;
+    return '## $typeName — $title\n\n'
+        '⚠️ 数据过大（共 ${encoded.length} 字符），已截断内联预览（前 $_maxInlineChars 字符）。\n'
+        '完整数据已保存至工作区文件：\n\n'
+        '`$savedPath`\n\n'
+        '（可用 read_file 工具读取该路径获取完整数据，或交由脚本/工具处理）\n\n'
+        '```json\n$preview\n…（已截断，剩余 $remaining 字符）\n```\n';
+  }
+
+  /// 把完整 JSON 文档写入 ai-assistant 工作区，返回绝对路径（失败返回说明）。
+  Future<String> _saveFullDoc(String typeName, String encoded) async {
+    try {
+      final dir = Directory(greenixWorkspaceDir('ai-assistant'));
+      if (!dir.existsSync()) dir.createSync(recursive: true);
+      final safeName = typeName.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
+      final file = File(p.join(dir.path, 'data_$safeName.json'));
+      await file.writeAsString(encoded);
+      return file.path;
+    } catch (e) {
+      return '(保存完整文档失败: $e；仅返回截断预览)';
     }
   }
 

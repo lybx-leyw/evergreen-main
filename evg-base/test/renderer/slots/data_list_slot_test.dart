@@ -9,15 +9,15 @@
 /// 6. PageEventBus 事件分发
 library;
 
-import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'package:evergreen_base/core/module/page_event_bus.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/data/data_list_slot.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   // ─── 辅助：构造 ComponentDescriptor ───
-  ComponentDescriptor _desc(Map<String, dynamic> config) {
+  ComponentDescriptor desc0(Map<String, dynamic> config) {
     return ComponentDescriptor(
       type: 'data-list',
       config: config,
@@ -26,7 +26,7 @@ void main() {
 
   // ─── 测试 1：静态渲染 — 有 items 时显示 ListTile ───
   testWidgets('静态渲染 — 渲染 items 列表', (tester) async {
-    final desc = _desc({
+    final desc = desc0({
       'title': '测试列表',
       'items': [
         {'name': '课程A', 'teacherName': '张老师', 'type': '必修'},
@@ -58,7 +58,7 @@ void main() {
 
   // ─── 测试 2：搜索过滤 ───
   testWidgets('搜索过滤 — 按 titleField 过滤', (tester) async {
-    final desc = _desc({
+    final desc = desc0({
       'searchable': true,
       'searchPlaceholder': '搜索课程...',
       'items': [
@@ -97,7 +97,7 @@ void main() {
 
   // ─── 测试 3：尾部操作按钮 — 4 种 action 类型 ───
   testWidgets('尾部操作按钮 — 4 种 action 类型渲染', (tester) async {
-    final desc = _desc({
+    final desc = desc0({
       'items': [
         {'name': '课程A'},
       ],
@@ -132,7 +132,7 @@ void main() {
     final events = <String>[];
     bus.all.listen((e) => events.add(e.event));
 
-    final desc = _desc({
+    final desc = desc0({
       'items': [
         {'name': '课程A'},
       ],
@@ -169,7 +169,7 @@ void main() {
 
   // ─── 测试 5：空态 — items 为空 ───
   testWidgets('空态 — 无数据时显示空态提示', (tester) async {
-    final desc = _desc({
+    final desc = desc0({
       'title': '空列表',
       'items': <Map<String, dynamic>>[],
       'item': {'titleField': 'name'},
@@ -189,7 +189,7 @@ void main() {
 
   // ─── 测试 6：分隔线配置 ───
   testWidgets('分隔线 — 配置 type:none 不渲染分隔线', (tester) async {
-    final desc = _desc({
+    final desc = desc0({
       'items': [
         {'name': 'A'},
         {'name': 'B'},

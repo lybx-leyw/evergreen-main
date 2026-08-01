@@ -16,7 +16,7 @@ import 'package:evergreen_base/core/agent/agent_runtime.dart' show webSearchEnab
 import 'package:evergreen_base/core/agent/session_manager.dart' show activeSessionIdProvider, createSessionProvider;
 import 'package:evergreen_base/renderer/components/shared/widgets/models.dart';
 import 'package:evergreen_base/renderer/components/shared/widgets/markdown_renderer.dart';
-import 'package:evergreen_base/renderer/app/service/theme/theme_provider.dart';
+
 
 /// 嵌入式聊天视图的独立消息状态。
 final _embeddedChatProvider = StateProvider<List<ChatMessage>>((ref) => []);
@@ -248,7 +248,7 @@ class _ChatViewState extends ConsumerState<ChatView> {
         Container(
           padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
           decoration: BoxDecoration(
-            color: context.componentColor('input', 'bg') ?? theme.colorScheme.surface,
+            color: theme.colorScheme.surface,
             border: Border(top: BorderSide(color: theme.dividerColor, width: 0.5)),
           ),
           child: SafeArea(

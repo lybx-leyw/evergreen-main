@@ -1,20 +1,19 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:path/path.dart' as p;
 import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'package:evergreen_base/core/module/module_registry.dart';
 import 'package:evergreen_base/providers.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/marketplace/marketplace_slot.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 
 void main() {
   group('P5 — 侧边栏 manifest 解析测试', () {
     test('marketplace manifest 能被 ModuleDescriptor.fromJson 解析', () {
-      final f = File('../plugins/marketplace/module/manifest.json');
+      final f = File('plugins/marketplace/module/manifest.json');
       expect(f.existsSync(), isTrue, reason: 'marketplace manifest.json 文件不存在');
       final json = jsonDecode(f.readAsStringSync()) as Map<String, dynamic>;
       expect(json['type'], 'module');
@@ -32,7 +31,7 @@ void main() {
     });
 
     test('plugin-designer manifest 能被 ModuleDescriptor.fromJson 解析', () {
-      final f = File('../plugins/plugin-designer/module/manifest.json');
+      final f = File('plugins/plugin-designer/module/manifest.json');
       expect(f.existsSync(), isTrue, reason: 'plugin-designer manifest.json 文件不存在');
       final json = jsonDecode(f.readAsStringSync()) as Map<String, dynamic>;
       expect(json['type'], 'module');
@@ -47,7 +46,7 @@ void main() {
     });
 
     test('ModuleRegistry 注册 + seal 后 navGroups 包含 marketplace', () {
-      final f = File('../plugins/marketplace/module/manifest.json');
+      final f = File('plugins/marketplace/module/manifest.json');
       final json = jsonDecode(f.readAsStringSync()) as Map<String, dynamic>;
       final d = ModuleDescriptor.fromJson(json);
 
@@ -68,7 +67,7 @@ void main() {
     });
 
     test('ModuleRegistry navFlat 包含 marketplace', () {
-      final f = File('../plugins/marketplace/module/manifest.json');
+      final f = File('plugins/marketplace/module/manifest.json');
       final json = jsonDecode(f.readAsStringSync()) as Map<String, dynamic>;
       final d = ModuleDescriptor.fromJson(json);
 
@@ -81,10 +80,9 @@ void main() {
       expect(flat.first.moduleId, 'marketplace');
     });
 
-    test('P5+ — 插件市场能识别本地插件（与项目根 _findProjectRoot 一致）', () {
-      // 模拟 main.dart 的 _findProjectRoot 逻辑：plugins/ 位于项目根上级
-      // 项目根 = evg-base（pubspec.yaml 所在），所以 plugins/ = ../plugins
-      final pluginsDir = p.join(Directory.current.path, '..', 'plugins').replaceAll(r'\', '/');
+    test('P5+ — 插件市场能识别本地插件（与 resolveProjectRoot 一致）', () {
+      // 插件目录已收敛到项目根下（见 greenix_path.resolvePluginsRoot）
+      final pluginsDir = p.join(Directory.current.path, 'plugins').replaceAll(r'\', '/');
       debugPrint('[Test] 模拟扫描目录: $pluginsDir');
 
       final dir = Directory(pluginsDir);
@@ -121,7 +119,7 @@ void main() {
         (tester) async {
       // 关键：用户截图显示侧边栏已出现但 UI 仍为 0 个插件。
       // 此测试验证：当 pluginsDirProvider 注入正确路径时，MarketplaceSlot 能找到插件。
-      final pluginsDir = p.join(Directory.current.path, '..', 'plugins').replaceAll(r'\', '/');
+      final pluginsDir = p.join(Directory.current.path, 'plugins').replaceAll(r'\', '/');
       debugPrint('[Test] widget 测试注入 pluginsDir: $pluginsDir');
 
       await tester.pumpWidget(

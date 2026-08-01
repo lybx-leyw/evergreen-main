@@ -184,28 +184,39 @@ class ModuleRegistry {
   // ═══════ 侧边栏导航 ═══════
 
   /// 按 section 分组的导航条目。
+  ///
+  /// 分组身份只取决于 section 名（label）；sectionOrder 仅用于组间排序，
+  /// 不参与分组相等性——否则同名分组因 sectionOrder 不同会被拆成多组
+  /// （如「校园」分组的插件声明 sectionOrder:99 时与默认 50 的 zdbk 系分家）。
   List<(SidebarSection, List<NavEntry>)> get navGroups {
     _requireSealed();
-    final grouped = <SidebarSection, List<NavEntry>>{};
+    final grouped = <String, List<NavEntry>>{};
+    final sectionOrders = <String, int>{};
 
     for (final m in _modules) {
       if (!m.hasSidebar) continue;
 
-      final sidebar = m.nav.sidebar!;
-      final sec = SidebarSection(
-        sidebar.section,
-        order: sidebar.sectionOrder,
-      );
-      final route = m.route!;
+      final sidebar = m.nav.sidebar;
+      if (sidebar == null) continue; // 双保险（hasSidebar 已保证）
+      // 防御：有 sidebar 但无 route 的模块（旧版 manifest 残留/无导航入口）
+      // 跳过——`m.route!` 会 Null check 崩溃（如 route=null pages=1 的自定义插件）。
+      final route = m.route;
+      if (route == null) continue;
 
-      grouped.putIfAbsent(sec, () => []);
-      grouped[sec]!.add(NavEntry(
-        icon: m.icon!,
+      grouped.putIfAbsent(sidebar.section, () => []);
+      grouped[sidebar.section]!.add(NavEntry(
+        icon: m.icon ?? kDefaultIcon,
         label: m.name,
         routePath: route,
         order: sidebar.order,
         moduleId: m.id,
       ));
+
+      // 组排序权重取该分组内最小 sectionOrder（未声明时默认 50）
+      final cur = sectionOrders[sidebar.section];
+      if (cur == null || sidebar.sectionOrder < cur) {
+        sectionOrders[sidebar.section] = sidebar.sectionOrder;
+      }
 
       // V2: secondary nav 是模块内部页面导航，不作为顶级侧边栏条目。
       // 侧边栏每模块只显示 1 个图标；页面切换由 CompositeView 内部 Tab 处理。
@@ -216,10 +227,16 @@ class ModuleRegistry {
       list.sort((a, b) => a.order.compareTo(b.order));
     }
 
-    // Section 按 order 排序
+    // Section 按最小 sectionOrder 排序
     final sorted = grouped.entries.toList()
-      ..sort((a, b) => a.key.order.compareTo(b.key.order));
-    return sorted.map((e) => (e.key, e.value)).toList();
+      ..sort((a, b) =>
+          (sectionOrders[a.key] ?? 50).compareTo(sectionOrders[b.key] ?? 50));
+    return sorted
+        .map((e) => (
+              SidebarSection(e.key, order: sectionOrders[e.key] ?? 50),
+              e.value,
+            ))
+        .toList();
   }
 
   /// 所有导航条目（扁平列表，用于 collapsed 侧边栏）。
@@ -249,10 +266,13 @@ class ModuleRegistry {
     })>[];
     for (final m in _modules) {
       if (!m.hasSidebar) continue;
+      // 防御：有 sidebar 但无 route 的模块不进命令面板（与 navGroups 一致）。
+      final route = m.route;
+      if (route == null) continue;
       items.add((
         title: m.name,
-        subtitle: m.route!,
-        icon: m.icon!,
+        subtitle: route,
+        icon: m.icon ?? kDefaultIcon,
         route: m.route!,
         category: m.nav.sidebar!.section,
       ));

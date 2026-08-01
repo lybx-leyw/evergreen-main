@@ -1,18 +1,17 @@
 /// P2 插件编排器 Widget 测试 — v3 按钮式重构。
 library;
 
-import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:evergreen_base/core/module/module_descriptor.dart' hide LayoutPreset;
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_component.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_document.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/design_to_manifest.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_page.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_slot.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/design_to_manifest.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/view/component_picker.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/view/property_panel.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/view/page_sorter.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/view/property_panel.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 Widget _wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
 
@@ -206,7 +205,7 @@ void main() {
   });
 
   group('P2 DesignToManifest 编译器', () {
-    DesignDocument _buildDoc(DesignPageLayout layout) {
+    DesignDocument buildDoc(DesignPageLayout layout) {
       final doc = DesignDocument(
         pluginId: 'demo',
         pluginName: '演示',
@@ -247,7 +246,7 @@ void main() {
         DesignPageLayout.grid,
         DesignPageLayout.flex,
       ]) {
-        final json = DesignToManifest.compile(_buildDoc(layout));
+        final json = DesignToManifest.compile(buildDoc(layout));
         expect(json['schemaVersion'], '2.0');
         expect(json['renderMode'], 'dart');
         expect(json['type'], 'module');
@@ -275,7 +274,7 @@ void main() {
     });
 
     test('compile 输出可被 ModuleDescriptor.fromJson 解析', () {
-      final doc = _buildDoc(DesignPageLayout.grid);
+      final doc = buildDoc(DesignPageLayout.grid);
       final json = DesignToManifest.compile(doc);
       final descriptor = ModuleDescriptor.fromJson(json);
       expect(descriptor.id, 'demo');

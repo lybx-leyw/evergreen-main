@@ -1,4 +1,3 @@
-import 'package:flutter/widgets.dart';
 
 /// 侧边栏分类——支持内置 + 插件自定义。
 ///

@@ -9,10 +9,12 @@
 /// | `registerAll(entries)` | 批量注册 |
 /// | `isRegistered(type)` | 是否已注册 |
 /// | `unregister(type)` | 注销并清除缓存 |
-/// | `get(type)` | 缓存优先：有缓存就返回（过期也返回），无缓存则拉取 |
-/// | `refresh(type)` | 强制拉取，合法则覆写缓存，非法返回 null 不覆写 |
+/// | `get(type)` | 缓存优先：读磁盘→写内存→返回；无缓存则拉取 |
+/// | `fastRead(type)` | 快读：直接从内存返回，不碰磁盘 I/O；未命中 fallback get() |
+/// | `fastReadByName(name)` | 快读（字符串名称版） |
+/// | `refresh(type)` | 强制拉取，合法则覆写磁盘+内存缓存，非法返回 null 不覆写 |
 /// | `refreshAllStale({types})` | 批量刷新过期数据 |
-/// | `invalidate(type)` | 清缓存 |
+/// | `invalidate(type)` | 清缓存（内存+磁盘） |
 /// | `allStatuses` | 按分类+名称排序的 [DataSourceStatus] 列表 |
 /// | `status(name)` | 按名称查询 [DataSourceStatus] |
 /// | `statusByCategory(c)` | 按分类过滤 |
@@ -35,6 +37,7 @@ import 'dart:convert';
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:meta/meta.dart';
 import 'package:evergreen_base/core/log.dart';
 import 'type.dart';
@@ -91,11 +94,19 @@ class DataSourceStatus {
 // DataOrchestrator
 // ═══════════════════════════════════════════════════════════════════════════
 
+/// 内存缓存条目——保存已解码的数据与缓存时间戳，供 [fastRead] 零 I/O 读取。
+class _MemCacheEntry {
+  final dynamic data;
+  final DateTime cachedAt;
+  const _MemCacheEntry(this.data, this.cachedAt);
+}
+
 /// 数据谱仪器——持有数据类型、拉取方式、状态信息。
 class DataOrchestrator {
   final Map<String, DataType> _types = {};
   final Map<String, Future<dynamic> Function()> _fetchers = {};
   final Map<String, DataSourceStatus> _statuses = {};
+  final Map<String, _MemCacheEntry> _memCache = {};
   Cache? get _cache => Cache.instanceOrNull;
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -137,6 +148,7 @@ class DataOrchestrator {
     _types.remove(type.name);
     _fetchers.remove(type.name);
     _statuses.remove(type.name);
+    _memCache.remove(type.name);
     _cache?.evict(type.name);
     Log().info('DataOrchestrator: 注销 $type');
   }
@@ -149,6 +161,8 @@ class DataOrchestrator {
   ///
   /// 仅当 [DataType.persistentKey] 非 null 才走缓存（见 [DataType] 文档：
   /// “不设则不缓存”）。persistentKey 为 null 时每次都重新拉取。
+  ///
+  /// 磁盘命中后会同步写入内存缓存，使后续 [fastRead] 零 I/O 命中。
   Future<T?> get<T>(DataType<T> type) async {
     _requireRegistered(type);
 
@@ -156,14 +170,17 @@ class DataOrchestrator {
       final entry = _cache?.read(type.name);
       if (entry != null) {
         final (data, cachedAt) = entry;
+        final decoded = _decode<T>(data);
+        _memCache[type.name] = _MemCacheEntry(decoded, cachedAt);
         _updateStatus(type.name, connected: true, fetchedAt: cachedAt);
         Log().info('DataOrchestrator: 缓存命中（跳过拉取）',
             data: {'name': type.name, 'cachedAt': cachedAt.toIso8601String(),
               'bytes': data.length});
-        return _decode<T>(data);
+        return decoded;
       }
     }
 
+    debugPrint('[Orch] get: ${type.name} 无缓存，进入 _fetchAndCache');
     return _fetchAndCache(type);
   }
 
@@ -215,6 +232,32 @@ class DataOrchestrator {
     return get<dynamic>(t);
   }
 
+  /// 快读——直接从内存缓存返回，不走磁盘 I/O。
+  ///
+  /// 内存未命中时自动 fallback 到 [get]（读磁盘 + 写入内存）。
+  /// 供模块页面进入时快速获取已缓存数据，避免每次导航都触发磁盘读取。
+  Future<T?> fastRead<T>(DataType<T> type) async {
+    _requireRegistered(type);
+
+    final mem = _memCache[type.name];
+    if (mem != null) {
+      _updateStatus(type.name, connected: true, fetchedAt: mem.cachedAt);
+      Log().info('DataOrchestrator: 快读命中',
+          data: {'name': type.name});
+      return mem.data as T?;
+    }
+
+    debugPrint('[Orch] fastRead: ${type.name} 内存未命中，fallback get()');
+    return get(type);
+  }
+
+  /// 按名称快读——等价于 [fastRead] 但通过字符串名称查找 [DataType]。
+  Future<dynamic> fastReadByName(String name) async {
+    final t = _types[name];
+    if (t == null) throw DataTypeNotRegisteredException(name);
+    return fastRead<dynamic>(t);
+  }
+
   /// 按名称强制刷新数据——等价于 [refresh] 但通过字符串名称查找 [DataType]。
   Future<dynamic> refreshByName(String name) async {
     final t = _types[name];
@@ -222,8 +265,9 @@ class DataOrchestrator {
     return refresh<dynamic>(t);
   }
 
-  /// 清除指定类型的缓存（异步完成文件删除）。
+  /// 清除指定类型的缓存（异步完成文件删除，同步清除内存缓存）。
   Future<void> invalidate(DataType type) async {
+    _memCache.remove(type.name);
     await _cache?.evict(type.name);
   }
 
@@ -469,13 +513,16 @@ class DataOrchestrator {
 
   Future<T?> _fetchAndCache<T>(DataType<T> type) async {
     final fetcher = _fetchers[type.name]!;
+    debugPrint('[Orch] _fetchAndCache: 即将拉取 ${type.name}');
     Log().info('DataOrchestrator: 拉取 $type');
     try {
       final data = await fetcher();
+      debugPrint('[Orch] _fetchAndCache: ${type.name} fetcher 返回: ${data != null ? "有数据" : "NULL"}');
 
       if (data == null || data is! T) {
         _updateStatus(type.name, connected: false, error: '拉取返回无效数据');
         Log().warn('DataOrchestrator: 拉取返回无效数据 $type');
+        debugPrint('[Orch] _fetchAndCache: ${type.name} 返回无效数据(NULL或类型不匹配)');
         return null;
       }
 
@@ -486,12 +533,14 @@ class DataOrchestrator {
         Log().info('DataOrchestrator: 缓存写入',
             data: {'name': type.name, 'bytes': encoded.length});
       }
+      _memCache[type.name] = _MemCacheEntry(data, now);
       _updateStatus(type.name, connected: true, fetchedAt: now);
       return data;
-    } catch (e) {
+    } catch (e, st) {
       _updateStatus(type.name, connected: false, error: e.toString());
       Log().warn('DataOrchestrator: 拉取失败 $type',
           data: {'error': e.toString()});
+      debugPrint('[Orch] _fetchAndCache: ${type.name} 异常: $e\n$st');
       return null;
     }
   }

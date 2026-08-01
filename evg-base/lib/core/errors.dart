@@ -1,4 +1,7 @@
+import 'dart:convert';
 import 'dart:math';
+
+import 'package:crypto/crypto.dart';
 
 /// 应用层错误基类。
 ///
@@ -44,6 +47,52 @@ abstract class AppError implements Exception {
   set recoveryHint(String? hint) => _recoveryHint = hint;
 
   AppError();
+
+  /// 模块前缀（错误码表见 docs/错误排查契约-v1.md §4）。
+  ///
+  /// 用于 errorId 与日志检索：`EVG-<模块>-<8位hex>`。
+  String get moduleCode => switch (this) {
+        NetworkError() ||
+        AuthError() ||
+        TimeoutError() ||
+        AiModelError() ||
+        ContextExceededError() ||
+        FileError() ||
+        ValidationError() ||
+        UnknownError() =>
+          'SVC',
+        ParseError() || DataIntegrityError() || CacheError() => 'DATA',
+        ConfigError() => 'CONF',
+        MediaError() || RenderError() => 'REND',
+        _ => 'GEN',
+      };
+
+  String? _errorId;
+
+  /// 错误标识：`EVG-<模块>-<8位hex>`，由 (模块, 类型, 调试消息) 哈希生成。
+  ///
+  /// 同一错误在同一进程内稳定复用；传入 `Log().error(errorId: ...)`
+  /// 即可按此 id 检索整条错误链路。
+  String get errorId => _errorId ??= _generateErrorId();
+
+  String _generateErrorId() {
+    final digest = sha256
+        .convert(utf8.encode('$moduleCode|$runtimeType|$debugMessage'))
+        .toString();
+    return 'EVG-$moduleCode-${digest.substring(0, 8)}';
+  }
+
+  /// 统一日志序列化（错误中心 / tool/log_scan 共用）。
+  ///
+  /// 格式：`[模块] 类型: 调试消息 @文件:行 | cause: ... | hint: ...`
+  String toLogLine() {
+    final sb = StringBuffer()
+      ..write('[$moduleCode] $runtimeType: $debugMessage');
+    if (source != null) sb.write(' @$source');
+    if (cause != null) sb.write(' | cause: $cause');
+    if (recoveryHint != null) sb.write(' | hint: $recoveryHint');
+    return sb.toString();
+  }
 
   /// 捕获当前调用栈并提取文件名:行号。
   static String? _captureSource() {

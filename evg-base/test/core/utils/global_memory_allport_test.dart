@@ -9,6 +9,7 @@
 /// 因此不触发 SharedPreferences / MarkdownRenderer / Riverpod，编译与运行都很快。
 ///
 /// 运行：cd evg-base && flutter test test/global_memory_allport_test.dart
+library;
 import 'package:evergreen_base/core/agent/memory/memory.dart';
 import 'package:flutter_test/flutter_test.dart';
 

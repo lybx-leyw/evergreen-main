@@ -164,7 +164,8 @@ class OcrPipeline {
           allSucceeded = false;
           break;
         }
-      } catch (_) {
+      } catch (e) {
+        Log().warn('OcrPipeline: Level 1 页识别异常，跳过该页', error: e);
         allSucceeded = false;
         break;
       }
@@ -173,7 +174,9 @@ class OcrPipeline {
     // 3. Clean up temp images
     try {
       await Directory(outDir).delete(recursive: true);
-    } catch (_) {}
+    } catch (e) {
+      Log().warn('OcrPipeline: 临时图片目录清理失败: $e', error: e);
+    }
 
     if (!allSucceeded || buf.isEmpty) return null;
     return buf.toString().trim();
@@ -200,7 +203,11 @@ class OcrPipeline {
       final ocrService = DeepSeekOcrService(_dio, apiKey);
       return await ocrService.recognize(tmpFile);
     } finally {
-      try { await tmpFile.delete(); } catch (_) {}
+      try {
+        await tmpFile.delete();
+      } catch (e) {
+        Log().warn('OcrPipeline: 临时文件删除失败: $e', error: e);
+      }
     }
   }
 

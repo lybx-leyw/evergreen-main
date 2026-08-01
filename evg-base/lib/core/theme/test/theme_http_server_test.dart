@@ -16,50 +16,29 @@ ThemeStore _populatedStore() {
   store.register(const ThemeDescriptor(
     id: 'light',
     name: '浅色',
-    app: {
-      'sidebar': {'bg': '#F2F3F5', 'text': '#1A1D21', 'active': '#1677FF', 'hover': '#E8E8E8', 'divider': '#D0D5DD'},
-      'header': {'bg': '#FFF', 'text': '#1A1D21', 'border': '#D0D5DD'},
-      'footer': {'bg': '#FFF', 'text': '#1A1D21', 'border': '#D0D5DD'},
-      'blank': {'bg': '#FFFFFF'},
-      'commandPalette': {'bg': '#FFF', 'text': '#1A1D21', 'highlight': '#E8E8E8', 'border': '#D0D5DD'},
-    },
-    module: {'chrome': {'bg': '#FFF', 'border': '#D0D5DD'}},
-    page: {
-      'tabBar': {'bg': '#FFF', 'text': '#6B7280', 'active': '#1677FF', 'indicator': '#1677FF', 'hover': '#E8E8E8', 'border': '#D0D5DD'},
-      'background': {'color': '#F5F5F5'},
-    },
-    slot: {
-      'header': {'bg': '#FFF', 'text': '#1A1D21', 'border': '#D0D5DD'},
-      'background': {'color': '#FFF'},
-      'border': {'color': '#D0D5DD', 'width': '1'},
-    },
-    components: {
-      'sidebar': {'bg': '#F2F3F5', 'text': '#1A1D21', 'active': '#1677FF', 'hover': '#0958D9'},
-      'button': {'primary': '#1677FF', 'hover': '#0958D9', 'active': '#1677FF', 'disabled': '#D0D5DD', 'text': '#FFFFFF'},
+    colors: {
+      'background': '#F0F4F8',
+      'surface': '#FFFFFF',
+      'border': '#BBDEFB',
+      'text': '#1A2332',
+      'textSecondary': '#78909C',
+      'accent': '#0D47A1',
+      'error': '#E53935',
+      'others': '#42A5F5',
     },
   ));
   store.register(const ThemeDescriptor(
     id: 'dark',
     name: '深色',
-    app: {
-      'sidebar': {'bg': '#161B22', 'text': '#E6EDF3', 'active': '#4096FF', 'hover': '#30363D', 'divider': '#30363D'},
-      'header': {'bg': '#0D1117', 'text': '#E6EDF3', 'border': '#30363D'},
-      'footer': {'bg': '#0D1117', 'text': '#E6EDF3', 'border': '#30363D'},
-      'blank': {'bg': '#0D1117'},
-      'commandPalette': {'bg': '#161B22', 'text': '#E6EDF3', 'highlight': '#30363D', 'border': '#30363D'},
-    },
-    module: {'chrome': {'bg': '#0D1117', 'border': '#30363D'}},
-    page: {
-      'tabBar': {'bg': '#0D1117', 'text': '#8B949E', 'active': '#4096FF', 'indicator': '#4096FF', 'hover': '#30363D', 'border': '#30363D'},
-      'background': {'color': '#0D1117'},
-    },
-    slot: {
-      'header': {'bg': '#161B22', 'text': '#E6EDF3', 'border': '#30363D'},
-      'background': {'color': '#0D1117'},
-      'border': {'color': '#30363D', 'width': '1'},
-    },
-    components: {
-      'sidebar': {'bg': '#161B22', 'text': '#E6EDF3', 'active': '#4096FF', 'hover': '#30363D'},
+    colors: {
+      'background': '#0D1B2A',
+      'surface': '#1B2838',
+      'border': '#263850',
+      'text': '#E8EDF2',
+      'textSecondary': '#90A4AE',
+      'accent': '#1565C0',
+      'error': '#EF5350',
+      'others': '#42A5F5',
     },
   ));
   store.activeTheme = store.findById('light');
@@ -178,13 +157,11 @@ void main() {
     });
 
     // ── 6: token query ──
-    test('GET /theme/token?layer=app&component=sidebar&token=bg → 200', () async {
-      final r = await _get(client, port, '/theme/token?layer=app&component=sidebar&token=bg');
+    test('GET /theme/token?key=accent → 200', () async {
+      final r = await _get(client, port, '/theme/token?key=accent');
       expect(r['status'], 200);
-      expect(r['body']['color'], '#F2F3F5');
-      expect(r['body']['layer'], 'app');
-      expect(r['body']['component'], 'sidebar');
-      expect(r['body']['token'], 'bg');
+      expect(r['body']['color'], '#0D47A1');
+      expect(r['body']['key'], 'accent');
       expect(r['body']['themeId'], 'light');
     });
 
@@ -193,13 +170,8 @@ void main() {
       expect(r['status'], 400);
     });
 
-    test('GET /theme/token → 400 缺 component', () async {
-      final r = await _get(client, port, '/theme/token?layer=app&token=bg');
-      expect(r['status'], 400);
-    });
-
     test('GET /theme/token → 404 未找到', () async {
-      final r = await _get(client, port, '/theme/token?layer=app&component=sidebar&token=nonexistent');
+      final r = await _get(client, port, '/theme/token?key=nonexistent');
       expect(r['status'], 404);
     });
 

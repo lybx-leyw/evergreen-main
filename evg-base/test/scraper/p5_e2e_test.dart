@@ -13,23 +13,23 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter_test/flutter_test.dart';
-import 'package:path/path.dart' as p;
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/auto_data_source_service.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/design_to_manifest.dart';
+import 'package:evergreen_base/core/data/orchestrator.dart';
+import 'package:evergreen_base/core/data/register_data_source.dart';
+import 'package:evergreen_base/core/data/type.dart';
+import 'package:evergreen_base/core/module/module_descriptor.dart';
+import 'package:evergreen_base/renderer/atomic/data_source_resolver.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_component.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_document.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_page.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_slot.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_component.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/scraper/scraper_workflow.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/scraper/scraper_flow_facade.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/scraper/scraper_exporter.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/auto_data_source_service.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/data_pluginer.dart';
-import 'package:evergreen_base/core/data/orchestrator.dart';
-import 'package:evergreen_base/core/data/type.dart';
-import 'package:evergreen_base/core/data/register_data_source.dart';
-import 'package:evergreen_base/renderer/atomic/data_source_resolver.dart';
-import 'package:evergreen_base/core/module/module_descriptor.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/design_to_manifest.dart';
+import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_exporter.dart';
+import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_flow_facade.dart';
+import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_workflow.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 
 /// 假门面：analyzeSelection 保留收到的日志（含响应体样本，便于断言 C1 集成），
 /// generateAsDataPlugin 真实写出对齐 `_scanAndRegisterDataSources` 契约的 manifest。
@@ -149,7 +149,7 @@ void main() {
       // 注册 fake fetcher → resolve 非 null（闭环出数）
       final orch = DataOrchestrator();
       orch.register<Map<String, dynamic>>(
-        DataType<Map<String, dynamic>>(name: 'courses'),
+        const DataType<Map<String, dynamic>>(name: 'courses'),
         () async => {
           'source': 'evergreen',
           'items': [
@@ -159,7 +159,7 @@ void main() {
         },
       );
       final data = await resolveDataSource(
-        ds: DataSourceDescriptor(endpoint: 'orch://courses'),
+        ds: const DataSourceDescriptor(endpoint: 'orch://courses'),
         orch: orch,
       );
       expect(data, isNotNull);
@@ -180,7 +180,7 @@ void main() {
       );
 
       // 初始：未注册 + 被识别为缺失
-      expect(orch.isRegistered(DataType(name: 'courses')), isFalse);
+      expect(orch.isRegistered(const DataType(name: 'courses')), isFalse);
       expect(
         AutoDataSourceService.unregisteredOrchTypes(
           doc,
@@ -221,7 +221,7 @@ void main() {
         equals({'endpoint': 'orch://courses'}),
       );
       // 运行期注册已生效（CLI fetcher 注册成功，即便脚本不存在）
-      expect(orch.isRegistered(DataType(name: 'courses')), isTrue);
+      expect(orch.isRegistered(const DataType(name: 'courses')), isTrue);
       // 缺失列表现已清空
       expect(
         AutoDataSourceService.unregisteredOrchTypes(

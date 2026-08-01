@@ -18,6 +18,7 @@ import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'package:evergreen_base/providers.dart';
 import 'package:path/path.dart' as p;
 import 'package:evergreen_base/core/data/register_data_source.dart';
+import 'package:evergreen_base/core/utils/greenix_path.dart';
 
 import 'models/design_component.dart';
 import 'models/design_document.dart';
@@ -268,16 +269,7 @@ class _PluginDesignerViewState extends ConsumerState<PluginDesignerView> {
     }
   }
 
-  String _findProjectRoot() {
-    var dir = Directory.current;
-    while (true) {
-      if (File(p.join(dir.path, 'pubspec.yaml')).existsSync()) return dir.path;
-      final parent = dir.parent;
-      if (parent.path == dir.path) break;
-      dir = parent;
-    }
-    return Directory.current.path;
-  }
+  String _findProjectRoot() => resolveProjectRoot() ?? Directory.current.path;
 
   Future<void> _installAndOpen() async {
     if (_doc == null) return;
@@ -544,14 +536,28 @@ class _PluginDesignerViewState extends ConsumerState<PluginDesignerView> {
             onPageAdded: _addPage,
             onPageDeleted: _removePage,
           ),
-        // v3：两栏布局（左：操作面板，右：实时预览）
+        // v3：两栏布局（左：操作面板，右：实时预览）— 窄屏竖排
         Expanded(
-          child: Row(
-            children: [
-              _buildLeftPanel(),
-              const VerticalDivider(width: 1),
-              _buildPreviewPanel(),
-            ],
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isWide = constraints.maxWidth > 600;
+              if (isWide) {
+                return Row(
+                  children: [
+                    _buildLeftPanel(),
+                    const VerticalDivider(width: 1),
+                    Expanded(child: _buildPreviewPanel()),
+                  ],
+                );
+              }
+              return Column(
+                children: [
+                  Expanded(child: _buildLeftPanel()),
+                  const Divider(height: 1),
+                  Expanded(child: _buildPreviewPanel()),
+                ],
+              );
+            },
           ),
         ),
         _buildStatusBar(),
@@ -720,79 +726,83 @@ class _PluginDesignerViewState extends ConsumerState<PluginDesignerView> {
         color: theme.colorScheme.surfaceContainerHighest,
         border: Border(bottom: BorderSide(color: theme.dividerColor)),
       ),
-      child: Row(
-        children: [
-          InkWell(
-            onTap: _showMetadataDialog,
-            borderRadius: BorderRadius.circular(6),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(_doc!.pluginName,
-                    style: theme.textTheme.titleSmall
-                        ?.copyWith(fontWeight: FontWeight.w600)),
-                const SizedBox(width: 4),
-                Icon(Icons.edit, size: 14, color: theme.disabledColor),
-              ],
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            InkWell(
+              onTap: _showMetadataDialog,
+              borderRadius: BorderRadius.circular(6),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(_doc!.pluginName,
+                      style: theme.textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w600)),
+                  const SizedBox(width: 4),
+                  Icon(Icons.edit, size: 14, color: theme.disabledColor),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Text('${_doc!.pages.length} 页 · ${_doc!.slotCount} Slot',
-              style: theme.textTheme.labelSmall),
-          const Spacer(),
-          InkWell(
-            onTap: _showMetadataDialog,
-            borderRadius: BorderRadius.circular(8),
-            child: _PhaseChip(label: '① 模块', active: _phase1Module),
-          ),
-          const SizedBox(width: 4),
-          _PhaseChip(label: '② 页面', active: _phase2Pages),
-          const SizedBox(width: 4),
-          _PhaseChip(label: '③ Slot', active: _phase3Slots),
-          const SizedBox(width: 4),
-          _PhaseChip(label: '④ 组件', active: _phase4Components),
-          const Spacer(),
-          IconButton(
-            icon: const Icon(Icons.help_outline, size: 18),
-            tooltip: '使用引导',
-            onPressed: () => showOnboardingOverlay(context),
-          ),
-          IconButton(
-            icon: const Icon(Icons.save, size: 18),
-            tooltip: '保存设计文档',
-            onPressed: _saveDocument,
-          ),
-          IconButton(
-            icon: const Icon(Icons.play_arrow, size: 18),
-            tooltip: '同步到 manifest 并预览',
-            onPressed: _syncAndPreview,
-          ),
-          IconButton(
-            icon: const Icon(Icons.publish, size: 18),
-            tooltip: '发布插件（导出到 plugins/ 目录）',
-            onPressed: _publishPlugin,
-          ),
-          IconButton(
-            icon: const Icon(Icons.rocket_launch, size: 18),
-            tooltip: '安装到 Evergreen 并在应用中打开',
-            onPressed: _installAndOpen,
-          ),
-          IconButton(
-            icon: const Icon(Icons.auto_awesome, size: 18),
-            tooltip: '✨ AI 生成插件（自然语言描述）',
-            onPressed: _openAiGenerate,
-          ),
-          IconButton(
-            icon: const Icon(Icons.auto_fix_high, size: 18),
-            tooltip: '✨ AI 改稿（基于当前设计迭代）',
-            onPressed: () => _openAiGenerate(base: _doc),
-          ),
-          IconButton(
-            icon: const Icon(Icons.wifi_find_rounded, size: 18),
-            tooltip: '📡 采集数据',
-            onPressed: _openDataCollectionWizard,
-          ),
-        ],
+            const SizedBox(width: 8),
+            Text('${_doc!.pages.length} 页 · ${_doc!.slotCount} Slot',
+                style: theme.textTheme.labelSmall),
+            const SizedBox(width: 12),
+            InkWell(
+              onTap: _showMetadataDialog,
+              borderRadius: BorderRadius.circular(8),
+              child: _PhaseChip(label: '① 模块', active: _phase1Module),
+            ),
+            const SizedBox(width: 4),
+            _PhaseChip(label: '② 页面', active: _phase2Pages),
+            const SizedBox(width: 4),
+            _PhaseChip(label: '③ Slot', active: _phase3Slots),
+            const SizedBox(width: 4),
+            _PhaseChip(label: '④ 组件', active: _phase4Components),
+            const SizedBox(width: 12),
+            IconButton(
+              icon: const Icon(Icons.help_outline, size: 18),
+              tooltip: '使用引导',
+              onPressed: () => showOnboardingOverlay(context),
+            ),
+            IconButton(
+              icon: const Icon(Icons.save, size: 18),
+              tooltip: '保存设计文档',
+              onPressed: _saveDocument,
+            ),
+            IconButton(
+              icon: const Icon(Icons.play_arrow, size: 18),
+              tooltip: '同步到 manifest 并预览',
+              onPressed: _syncAndPreview,
+            ),
+            IconButton(
+              icon: const Icon(Icons.publish, size: 18),
+              tooltip: '发布插件（导出到 plugins/ 目录）',
+              onPressed: _publishPlugin,
+            ),
+            IconButton(
+              icon: const Icon(Icons.rocket_launch, size: 18),
+              tooltip: '安装到 Evergreen 并在应用中打开',
+              onPressed: _installAndOpen,
+            ),
+            IconButton(
+              icon: const Icon(Icons.auto_awesome, size: 18),
+              tooltip: '✨ AI 生成插件（自然语言描述）',
+              onPressed: _openAiGenerate,
+            ),
+            IconButton(
+              icon: const Icon(Icons.auto_fix_high, size: 18),
+              tooltip: '✨ AI 改稿（基于当前设计迭代）',
+              onPressed: () => _openAiGenerate(base: _doc),
+            ),
+            IconButton(
+              icon: const Icon(Icons.wifi_find_rounded, size: 18),
+              tooltip: '📡 采集数据',
+              onPressed: _openDataCollectionWizard,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -813,30 +823,38 @@ class _PluginDesignerViewState extends ConsumerState<PluginDesignerView> {
         decoration: BoxDecoration(
           border: Border(right: BorderSide(color: theme.dividerColor)),
         ),
-        child: Column(
-          children: [
-            // ── 页面操作区 ──
-            _buildPageOpsSection(theme),
-            const Divider(height: 1),
-            // ── 布局选择 ──
-            if (page != null) _buildLayoutSelector(page),
-            if (page != null) const Divider(height: 1),
-            // ── Slot 操作区 ──
-            if (page != null) _buildSlotOpsSection(theme, page),
-            if (page != null) const Divider(height: 1),
-            // ── 组件选择 + 属性编辑（有选中 Slot 时）──
-            Expanded(
-              child: _selectedSlot != null
-                  ? Column(
-                      children: [
-                        _buildComponentPickerSection(theme),
-                        const Divider(height: 1),
-                        Expanded(child: _buildPropertySection()),
-                      ],
-                    )
-                  : _buildSlotEmptyHint(),
-            ),
-          ],
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // ── 页面操作区 ──
+              _buildPageOpsSection(theme),
+              const Divider(height: 1),
+              // ── 布局选择 ──
+              if (page != null) _buildLayoutSelector(page),
+              if (page != null) const Divider(height: 1),
+              // ── Slot 操作区 ──
+              if (page != null) _buildSlotOpsSection(theme, page),
+              if (page != null) const Divider(height: 1),
+              // ── 组件选择 + 属性编辑（有选中 Slot 时）──
+              ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 120),
+                child: _selectedSlot != null
+                    ? Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _buildComponentPickerSection(theme),
+                          const Divider(height: 1),
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(minHeight: 150),
+                            child: _buildPropertySection(),
+                          ),
+                        ],
+                      )
+                    : _buildSlotEmptyHint(),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1290,16 +1308,18 @@ class _PluginDesignerViewState extends ConsumerState<PluginDesignerView> {
   }
 
   Widget _buildSlotEmptyHint() {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.add_circle_outline, size: 36, color: Colors.grey.shade300),
-          const SizedBox(height: 8),
-          const Text('点击 "+" 添加 Slot\n然后选择组件类型',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey, fontSize: 12)),
-        ],
+    return SingleChildScrollView(
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.add_circle_outline, size: 36, color: Colors.grey.shade300),
+            const SizedBox(height: 8),
+            const Text('点击 "+" 添加 Slot\n然后选择组件类型',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey, fontSize: 12)),
+          ],
+        ),
       ),
     );
   }
@@ -1479,10 +1499,9 @@ class _PluginDesignerViewState extends ConsumerState<PluginDesignerView> {
   // ═══════════════════════════════════════════════════════════
 
   Widget _buildPreviewPanel() {
-    return Expanded(
-      child: Container(
-        color: Theme.of(context).colorScheme.surface,
-        child: Column(
+    return Container(
+      color: Theme.of(context).colorScheme.surface,
+      child: Column(
           children: [
             // 预览标题栏
             Container(
@@ -1493,26 +1512,30 @@ class _PluginDesignerViewState extends ConsumerState<PluginDesignerView> {
                   bottom: BorderSide(color: Theme.of(context).dividerColor),
                 ),
               ),
-              child: Row(
-                children: [
-                  Icon(Icons.visibility, size: 16,
-                      color: Theme.of(context).colorScheme.primary),
-                  const SizedBox(width: 6),
-                  Text('实时预览',
-                      style: Theme.of(context).textTheme.labelMedium),
-                  if (_isSyncing) ...[
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.visibility, size: 16,
+                        color: Theme.of(context).colorScheme.primary),
+                    const SizedBox(width: 6),
+                    Text('实时预览',
+                        style: Theme.of(context).textTheme.labelMedium),
+                    if (_isSyncing) ...[
+                      const SizedBox(width: 8),
+                      const SizedBox(
+                        width: 12, height: 12,
+                        child: CircularProgressIndicator(strokeWidth: 1.5),
+                      ),
+                    ],
                     const SizedBox(width: 8),
-                    const SizedBox(
-                      width: 12, height: 12,
-                      child: CircularProgressIndicator(strokeWidth: 1.5),
+                    Text(
+                      _doc != null ? 'Dart 渲染 · ${_doc!.pages.length} 页' : '',
+                      style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
                     ),
                   ],
-                  const Spacer(),
-                  Text(
-                    _doc != null ? 'Dart 渲染 · ${_doc!.pages.length} 页' : '',
-                    style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
-                  ),
-                ],
+                ),
               ),
             ),
             // 真实 CompositeView 渲染预览
@@ -1521,7 +1544,6 @@ class _PluginDesignerViewState extends ConsumerState<PluginDesignerView> {
             ),
           ],
         ),
-      ),
     );
   }
 

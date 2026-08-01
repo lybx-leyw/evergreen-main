@@ -4,7 +4,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:evergreen_base/core/module/module_descriptor.dart';
-import 'package:evergreen_base/renderer/app/service/theme/theme_provider.dart';
 import 'models.dart';
 import 'thinking_block.dart';
 import 'tool_call_card.dart';
@@ -87,10 +86,6 @@ class _MessageBubbleState extends State<MessageBubble> {
         ? Theme.of(context).colorScheme.surfaceContainerHighest
         : Theme.of(context).colorScheme.surfaceContainerHighest;
 
-    // 获取组件 token 覆盖（key 与 theme.json 一致）
-    final tokenBg = context.componentColor('bubble', isUser ? 'user' : 'assistant');
-    final tokenText = context.componentColor('bubble', 'text');
-
     // 气泡圆角
     final r = switch (_bubble.style) {
       'rounded' => 16.0,
@@ -166,7 +161,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                             vertical: isUser ? 6 : 10,
                           ),
                           decoration: BoxDecoration(
-                            color: tokenBg ?? bgColor,
+                            color: bgColor,
                             borderRadius: BorderRadius.only(
                               topLeft: Radius.circular(r),
                               topRight: Radius.circular(r),

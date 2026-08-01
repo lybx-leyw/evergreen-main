@@ -1,7 +1,10 @@
 # Theme 主题插件撰写指南
 
-> 面向插件开发者：从零开始为 Evergreen 平台编写主题配色方案。
-> 快速参考 → `docs/plugin-theme.md`
+> ⚠️ **已废弃**：本文档描述 v1「两层 token（20 语义 + 54 组件）」模型。
+> 当前实现为**扁平 8 色**模型（`ThemeDescriptor.colors`，8 键必填），
+> 按本文撰写主题 JSON 会解析失败。
+> **请使用** → `docs/plugin-theme.md`（快速参考卡）与 `README.md`（完整模型）。
+> 本文仅保留供历史参考。
 
 ---
 

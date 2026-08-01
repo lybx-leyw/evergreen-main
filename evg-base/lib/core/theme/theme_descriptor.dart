@@ -1,52 +1,88 @@
-/// 主题描述符——五层画布架构。
+/// 主题描述符——扁平语义色板（8 字段）。
 ///
-/// # [ThemeDescriptor] —— 主题声明（V2 五层模型）
+/// # [ThemeDescriptor] —— 主题声明（扁平语义色板）
 ///
 /// | 工厂 / 方法 | 输入 | 输出 | 说明 |
 /// |---|---|---|---|
-/// | `ThemeDescriptor(...)` | 各字段 | `ThemeDescriptor` | const 构造 |
-/// | `ThemeDescriptor.fromJson(json)` | `Map<String,dynamic>` | `ThemeDescriptor` | theme.json 解析；校验 `type=="theme"` |
+/// | `ThemeDescriptor(...)` | `id`, `name`, `colors` | `ThemeDescriptor` | const 构造 |
+/// | `ThemeDescriptor.fromJson(json)` | `Map<String,dynamic>` | `ThemeDescriptor` | 解析；校验 `type=="theme"` 与 8 必填色 |
 /// | `ThemeDescriptor.fromJsonString(str)` | `String` | `ThemeDescriptor` | JSON 字符串解析 |
 /// | `toJson()` | — | `Map<String,dynamic>` | 序列化回 JSON |
 ///
-/// # 五层画布
+/// # 8 个语义字段
 ///
-/// | 层 | JSON key | 说明 |
-/// |----|----------|------|
-/// | App 壳 | `"app"` | sidebar, header, footer, blank, commandPalette |
-/// | Module 壳 | `"module"` | chrome |
-/// | Page 级 | `"page"` | tabBar, background |
-/// | Slot 框 | `"slot"` | header, background, border |
-/// | 组件 | `"components"` | 54 组件 |
+/// | 字段 | 含义 | 映射到 ColorScheme |
+/// |------|------|---------------------|
+/// | `background`    | 页面主背景（scaffold） | scaffoldBackgroundColor |
+/// | `surface`       | 卡片/面板底色 | surface |
+/// | `border`        | 默认边框/分隔线 | outline |
+/// | `text`          | 主文字 | onSurface |
+/// | `textSecondary` | 次级/弱化文字 | onSurfaceVariant |
+/// | `accent`        | 强调/品牌色 | primary |
+/// | `error`         | 错误态 | error |
+/// | `others`        | 其余所有非共用组件杂色 | secondary |
 ///
-/// # 层 Token 数据
-///
-/// 所有层数据统一为 `Map<String, Map<String, String>>` 结构：
-/// - 外层 key = 组件名（如 `"sidebar"`, `"button"`）
-/// - 内层 key = 子 token（如 `"bg"`, `"text"`）
-/// - 值 = hex 颜色字符串（如 `"#1677FF"`）
+/// 字段范围由真实共享组件（57 个 `components/shared`）颜色消费文件覆盖数决定；
+/// `secondary`/`tertiary`/`inverseSurface` 等无人消费的色统一归入 `others`。
 library;
 
 import 'dart:convert';
-import 'dart:io' show stderr;
 import 'src/color.dart';
-import 'src/tokens.dart' as t;
 
-// ═══════ 层 Token 类型 ═══════
+// ═══════ 语义色板字段 ═══════
 
-/// 层 Token Map：组件名 → 子 token Map。
-typedef LayerTokens = Map<String, Map<String, String>>;
+/// 扁平语义色板的字段名集合与兼容别名。
+class ThemeColorKeys {
+  ThemeColorKeys._();
+
+  /// 页面主背景（scaffold）。
+  static const background = 'background';
+
+  /// 卡片/面板底色。
+  static const surface = 'surface';
+
+  /// 默认边框/分隔线。
+  static const border = 'border';
+
+  /// 主文字。
+  static const text = 'text';
+
+  /// 次级/弱化文字。
+  static const textSecondary = 'textSecondary';
+
+  /// 强调/品牌色。
+  static const accent = 'accent';
+
+  /// 错误态。
+  static const error = 'error';
+
+  /// 其余所有非共用组件杂色（单一字段渲染其余所有）。
+  static const others = 'others';
+
+  /// 全部必填字段。
+  static const required = <String>{
+    background,
+    surface,
+    border,
+    text,
+    textSecondary,
+    accent,
+    error,
+    others,
+  };
+
+  /// 旧 theme.json 键名 → 新语义字段的兼容别名。
+  static const alias = <String, String>{
+    'primary': accent,
+    'secondary': others,
+  };
+}
 
 // ═══════ ThemeDescriptor ═══════
 
-/// 主题描述符——五层画布配色方案。
+/// 主题描述符——扁平语义色板（8 字段）。
 ///
-/// 每层独立声明自己画布区域的颜色。各层正交，互不覆盖：
-/// - App 层画 sidebar/header/footer/blank/commandPalette
-/// - Module 层画模块 chrome
-/// - Page 层画 tabBar/background
-/// - Slot 层画 slot 框 header/background/border
-/// - Components 层画 54 个组件内部内容
+/// 单一 `colors` Map 描述整套配色，无五层/组件级嵌套。
 class ThemeDescriptor {
   /// 唯一标识，如 `"dark"`。
   final String id;
@@ -54,46 +90,19 @@ class ThemeDescriptor {
   /// 展示名称，如 `"深色"`。
   final String name;
 
-  // ═══ 五层画布 ═══
-
-  /// App 壳层 Token。
-  final LayerTokens app;
-
-  /// Module 壳层 Token。
-  final LayerTokens module;
-
-  /// Page 层 Token。
-  final LayerTokens page;
-
-  /// Slot 框层 Token。
-  final LayerTokens slot;
-
-  /// 54 组件 Token。
-  final LayerTokens components;
+  /// 扁平语义色板：8 个固定 key → hex 颜色字符串。
+  final Map<String, String> colors;
 
   const ThemeDescriptor({
     required this.id,
     required this.name,
-    required this.app,
-    required this.module,
-    required this.page,
-    required this.slot,
-    required this.components,
+    required this.colors,
   });
 
   // ═══════ 查询 ═══════
 
-  /// 获取某层某组件的子 token hex 值。未找到返回 null。
-  String? tokenValue(LayerTokens layer, String component, String subToken) {
-    return layer[component]?[subToken];
-  }
-
-  /// 获取某层某组件的子 token [ThemeColor]。未找到返回 null。
-  ThemeColor? tokenColor(LayerTokens layer, String component, String subToken) {
-    final hex = tokenValue(layer, component, subToken);
-    if (hex == null) return null;
-    return ThemeColor.tryParse(hex);
-  }
+  /// 获取某语义字段的 hex 值。未找到返回 null。
+  String? color(String key) => colors[key];
 
   /// hex 字符串 → [ThemeColor]。
   static ThemeColor? parseHex(String hex) => ThemeColor.tryParse(hex);
@@ -101,155 +110,61 @@ class ThemeDescriptor {
   // ═══════ JSON ═══════
 
   factory ThemeDescriptor.fromJson(Map<String, dynamic> json) {
-    final t_ = json['type'] as String?;
-    if (t_ != 'theme') {
-      throw FormatException('type 必须为 "theme"，实际 "$t_"');
+    final type = json['type'] as String?;
+    if (type != 'theme') {
+      throw FormatException('type 必须为 "theme"，实际 "$type"');
     }
-
-    final app = _parseLayer(json, 'app', t.AppTokens.allowedKeys);
-    final module = _parseLayer(json, 'module', t.ModuleTokens.allowedKeys);
-    final page = _parseLayer(json, 'page', t.PageTokens.allowedKeys);
-    final slot = _parseLayer(json, 'slot', t.SlotTokens.allowedKeys);
-    final components = _parseLayer(json, 'components', t.ComponentTokens.allowedKeys);
 
     final id = json['id'] as String? ?? '';
     final name = json['name'] as String? ?? '';
 
-    // 校验：每层必须完整声明
-    _validateLayer(app, 'app', t.AppTokens.subTokens, id);
-    _validateLayer(module, 'module', t.ModuleTokens.subTokens, id);
-    _validateLayer(page, 'page', t.PageTokens.subTokens, id);
-    _validateLayer(slot, 'slot', t.SlotTokens.subTokens, id);
-    _validateLayer(components, 'components', t.ComponentTokens.subTokens, id);
+    final raw = json['colors'];
+    if (raw is! Map<String, dynamic>) {
+      throw FormatException('缺少必填字段 "colors"（应为扁平颜色 Map）');
+    }
 
-    return ThemeDescriptor(
-      id: id,
-      name: name,
-      app: app,
-      module: module,
-      page: page,
-      slot: slot,
-      components: components,
-    );
+    final colors = <String, String>{};
+    for (final key in ThemeColorKeys.required) {
+      // 先尝试本名，再尝试兼容别名（primary/secondary）
+      final aliasKey = ThemeColorKeys.alias.entries
+          .firstWhere(
+            (e) => e.value == key,
+            orElse: () => const MapEntry('', ''),
+          )
+          .key;
+      final dynamic value =
+          raw[key] ?? (aliasKey.isNotEmpty ? raw[aliasKey] : null);
+
+      if (value == null) {
+        throw FormatException('主题 "$id" 缺少必填颜色 "$key"');
+      }
+      final hex = value.toString();
+      if (!isValidHexColor(hex)) {
+        throw FormatException('主题 "$id" 颜色 "$key"="$hex" 格式非法');
+      }
+      colors[key] = hex;
+    }
+
+    return ThemeDescriptor(id: id, name: name, colors: colors);
   }
 
   factory ThemeDescriptor.fromJsonString(String str) =>
       ThemeDescriptor.fromJson(jsonDecode(str) as Map<String, dynamic>);
 
   Map<String, dynamic> toJson() => {
-    'type': 'theme',
-    'id': id,
-    'name': name,
-    'app': _layerToJson(app),
-    'module': _layerToJson(module),
-    'page': _layerToJson(page),
-    'slot': _layerToJson(slot),
-    'components': _layerToJson(components),
-  };
+        'type': 'theme',
+        'id': id,
+        'name': name,
+        'colors': colors,
+      };
 
   @override
   String toString() => 'ThemeDescriptor($id, $name)';
 }
 
-// ═══════ 解析辅助 ═══════
+// ═══════ hex 校验 ═══════
 
-/// 解析 JSON 中指定 layer 的组件 Token Map。
-///
-/// 要求 [json] 中 `layerKey` 字段必须存在且为 Map。
-LayerTokens _parseLayer(
-  Map<String, dynamic> json,
-  String layerKey,
-  Set<String> allowedKeys,
-) {
-  final raw = json[layerKey];
-  if (raw == null) {
-    throw FormatException('缺少必填层 "$layerKey"');
-  }
-  if (raw is! Map<String, dynamic>) {
-    throw FormatException('层 "$layerKey" 必须是对象');
-  }
-
-  final result = <String, Map<String, String>>{};
-  for (final entry in raw.entries) {
-    final componentKey = entry.key.toString();
-    if (entry.value is Map) {
-      final subMap = <String, String>{};
-      for (final se in (entry.value as Map).entries) {
-        subMap[se.key.toString()] = se.value.toString();
-      }
-      result[componentKey] = subMap;
-    } else {
-      throw FormatException(
-        '层 "$layerKey" 中 "$componentKey" 必须是对象（子 token Map）',
-      );
-    }
-  }
-
-  return result;
-}
-
-/// 将 [LayerTokens] 序列化为 JSON 友好结构。
-Map<String, dynamic> _layerToJson(LayerTokens layer) {
-  return layer.map((k, v) => MapEntry(k, v));
-}
-
-// ═══════ 校验 ═══════
-
-/// 校验某层是否完整声明所有必要组件和子 token。
-///
-/// 规则：
-/// 1. 层必须存在所有规范组件 key
-/// 2. 每个组件必须含有所有规范子 token
-/// 3. 颜色值必须合法
-void _validateLayer(
-  LayerTokens layer,
-  String layerKey,
-  Map<String, Set<String>> requiredSubTokens,
-  String themeId,
-) {
-  for (final entry in requiredSubTokens.entries) {
-    final componentKey = entry.key;
-    final requiredTokens = entry.value;
-
-    final component = layer[componentKey];
-    if (component == null) {
-      throw FormatException(
-        '主题 "$themeId" 层 "$layerKey" 缺少必填组件 "$componentKey"',
-      );
-    }
-
-    for (final subToken in requiredTokens) {
-      final value = component[subToken];
-      if (value == null) {
-        throw FormatException(
-          '主题 "$themeId" 层 "$layerKey" 组件 "$componentKey" '
-          '缺少必填子 token "$subToken"',
-        );
-      }
-      // 检查颜色格式（跳过非颜色子 token）
-      if (!_isNonColorToken(componentKey, subToken) && !isValidHexColor(value)) {
-        stderr.writeln(
-          '[theme] "$themeId": 层 "$layerKey" 组件 '
-          '"$componentKey.$subToken"="$value" 颜色格式非法',
-        );
-      }
-    }
-  }
-}
-
-/// 判断是否为非颜色子 token（如 `thickness`、`width` 等尺寸值）。
-bool _isNonColorToken(String component, String subToken) {
-  const nonColor = <String, Set<String>>{
-    'divider': {'thickness', 'width'},
-    'border': {'width'},
-    'chart': {'colors'}, // 数组型 palette
-  };
-  return nonColor[component]?.contains(subToken) ?? false;
-}
-
-// ═══════ 导出 hex 校验 ═══════
-
-/// 校验 hex 颜色字符串格式。
+/// 校验 hex 颜色字符串格式（#RGB / #RRGGBB / #AARRGGBB）。
 bool isValidHexColor(String? value) {
   if (value == null || value.isEmpty) return false;
   return RegExp(

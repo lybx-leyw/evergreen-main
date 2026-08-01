@@ -8,15 +8,13 @@ library;
 
 import 'dart:io';
 
+import 'package:evergreen_base/core/utils/greenix_path.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_document.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_page.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/plugin_exporter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/plugin_exporter.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_component.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_document.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_page.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_slot.dart';
-import 'package:evergreen_base/core/utils/greenix_path.dart';
 
 void main() {
   group('GapA resolvePluginsRoot() 优先级', () {

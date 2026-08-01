@@ -2,17 +2,18 @@
 ///
 /// 验证 DataPluginer → ConfigRegister → PluginGenerator 三步流水线。
 /// 新增：scraper_exporter exportDataManifest + ScraperFlowFacade + _scanAndRegisterDataSources 兼容性。
+library;
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/config_register.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/data_pluginer.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/plugin_generator.dart';
+import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_exporter.dart';
+import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_flow_facade.dart';
+import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_workflow.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/data_pluginer.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/config_register.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/plugin_generator.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/scraper/scraper_exporter.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/scraper/scraper_flow_facade.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/scraper/scraper_workflow.dart';
 
 void main() {
   late String tmpDir;
@@ -30,13 +31,13 @@ void main() {
   group('P1 DataPluginer', () {
     test('registerDataPlugin 生成 data manifest.json', () async {
       final pluginer = DataPluginer();
-      final schema = InferredSchema(
+      const schema = InferredSchema(
         sourceUrl: 'https://example.com/api',
         title: '测试API',
         fields: [
-          const InferredField(name: 'id', type: 'number'),
-          const InferredField(name: 'name', type: 'string'),
-          const InferredField(name: 'api_key', type: 'string', description: 'API密钥'),
+          InferredField(name: 'id', type: 'number'),
+          InferredField(name: 'name', type: 'string'),
+          InferredField(name: 'api_key', type: 'string', description: 'API密钥'),
         ],
       );
 
@@ -66,9 +67,9 @@ void main() {
       final result = await pluginer.registerDataPlugin(
         name: 'test-dir',
         outputDir: tmpDir,
-        schema: InferredSchema(
+        schema: const InferredSchema(
           sourceUrl: 'https://example.com',
-          fields: const [],
+          fields: [],
         ),
       );
 
@@ -162,13 +163,13 @@ void main() {
   group('P1 PluginGenerator — 端到端', () {
     test('generateFromScraper 三步流水线成功', () async {
       final generator = PluginGenerator();
-      final schema = InferredSchema(
+      const schema = InferredSchema(
         sourceUrl: 'https://example.com/data',
         title: '端到端测试',
         fields: [
-          const InferredField(name: 'id', type: 'number'),
-          const InferredField(name: 'value', type: 'string'),
-          const InferredField(name: 'api_key', type: 'string', description: '认证密钥'),
+          InferredField(name: 'id', type: 'number'),
+          InferredField(name: 'value', type: 'string'),
+          InferredField(name: 'api_key', type: 'string', description: '认证密钥'),
         ],
       );
 
@@ -211,9 +212,9 @@ void main() {
       final result = await generator.generateFromScraper(
         name: 'status-test',
         outputDir: tmpDir,
-        schema: InferredSchema(
+        schema: const InferredSchema(
           sourceUrl: 'https://example.com',
-          fields: const [],
+          fields: [],
         ),
       );
 
@@ -235,10 +236,10 @@ void main() {
 
   group('P1 scraper_exporter — exportDataManifest', () {
     test('生成有效 data/manifest.json 含 script + dataTypes', () async {
-      final schema = InferredSchema(
+      const schema = InferredSchema(
         sourceUrl: 'https://example.com/data',
         title: '测试导出',
-        fields: const [
+        fields: [
           InferredField(name: 'id', type: 'number'),
           InferredField(name: 'title', type: 'string'),
         ],
@@ -276,9 +277,9 @@ void main() {
       final result = await exportDataManifest(
         name: 'exe-test',
         fetcherScript: 'scraper.exe',
-        schema: InferredSchema(
+        schema: const InferredSchema(
           sourceUrl: 'https://example.com',
-          fields: const [],
+          fields: [],
         ),
         outputDir: tmpDir,
       );
@@ -296,9 +297,9 @@ void main() {
       final result = await exportDataManifest(
         name: 'fail-test',
         fetcherScript: 'scraper.py',
-        schema: InferredSchema(
+        schema: const InferredSchema(
           sourceUrl: 'https://example.com',
-          fields: const [],
+          fields: [],
         ),
         outputDir: invalidDir,
       );
@@ -308,10 +309,10 @@ void main() {
     });
 
     test('exportAsPython 带 manifestConfig 自动生成 manifest.json', () async {
-      final schema = InferredSchema(
+      const schema = InferredSchema(
         sourceUrl: 'https://example.com',
         title: '自动生成的manifest',
-        fields: const [
+        fields: [
           InferredField(name: 'id', type: 'number'),
         ],
       );
@@ -379,10 +380,10 @@ void main() {
       final workflow = ScraperWorkflow();
       final facade = ScraperFlowFacade(workflow: workflow);
 
-      final schema = InferredSchema(
+      const schema = InferredSchema(
         sourceUrl: 'https://example.com/api',
         title: 'Facade测试',
-        fields: const [
+        fields: [
           InferredField(name: 'id', type: 'number'),
         ],
       );
@@ -485,10 +486,10 @@ void main() {
     test('生成的 manifest 可被 scanner 解析', () async {
       // 模拟 _scanAndRegisterDataSources 的核心逻辑
       final pluginer = DataPluginer();
-      final schema = InferredSchema(
+      const schema = InferredSchema(
         sourceUrl: 'https://example.com/data',
         title: '兼容性测试',
-        fields: const [
+        fields: [
           InferredField(name: 'id', type: 'number'),
         ],
       );
@@ -526,7 +527,7 @@ void main() {
 
       // 验证 script 路径可解析
       final dataDir = p.join(tmpDir, 'data');
-      final exePath = p.join(dataDir, script!);
+      final exePath = p.join(dataDir, script);
       // 路径在文件系统中应可解析（即使文件不存在也不影响注册）
       expect(p.isAbsolute(exePath) || p.isRelative(exePath), isTrue);
     });
@@ -588,10 +589,10 @@ if __name__ == '__main__':
       File(scraperPath).writeAsStringSync(scraperPy);
 
       // 写入 manifest.json（经由 exportDataManifest）
-      final schema = InferredSchema(
+      const schema = InferredSchema(
         sourceUrl: 'https://example.com/e2e',
         title: 'E2联调',
-        fields: const [
+        fields: [
           InferredField(name: 'id', type: 'number'),
           InferredField(name: 'name', type: 'string'),
           InferredField(name: 'value', type: 'number'),
@@ -644,7 +645,7 @@ if __name__ == '__main__':
       expect(dt['typeArg'], isNotEmpty);
 
       // 5) 验证 DataType 可构造（无需真实 DataOrchestrator）
-      final tt = Duration(minutes: 5); // default
+      const tt = Duration(minutes: 5); // default
       expect(dt['ttl'], '5m');
       expect(dt['persistentKey'], contains('custom-'));
     });
@@ -679,10 +680,10 @@ if __name__ == '__main__':
       }
 
       // 1) 生成 manifest.json
-      final schema = InferredSchema(
+      const schema = InferredSchema(
         sourceUrl: 'https://api.example.com/v2/data',
         title: '全链路测试',
-        fields: const [
+        fields: [
           InferredField(name: 'id', type: 'number', description: '记录ID'),
           InferredField(name: 'timestamp', type: 'string', description: '时间戳'),
         ],

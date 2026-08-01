@@ -1,4 +1,4 @@
-/// Plugin Bridge — 自动扫描 plugins/<name>/agent/.exe 并包装为 Tool。
+/// Plugin Bridge — 自动扫描 plugins/<name>/agent/ 下的 .exe 或 .py 并包装为 Tool。
 ///
 /// ## API
 /// | 方法 | 说明 |
@@ -11,6 +11,7 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:evergreen_base/core/plugin/plugin_runner.dart';
 import '../tool.dart';
 
 // ═══════ ArgSpec ═══════
@@ -47,7 +48,8 @@ class ArgSpec {
       flags: (json['flags'] as Map<String, dynamic>?)
               ?.map((k, v) => MapEntry(k, v.toString())) ??
           const {},
-      order: (json['order'] as List?)?.map((e) => e.toString()).toList() ?? const [],
+      order: (json['order'] as List?)?.map((e) => e.toString()).toList() ??
+          const [],
     );
   }
 }
@@ -62,6 +64,7 @@ class PluginManifest {
   final bool readOnly;
   final String argMode;
   final ArgSpec argSpec;
+  final String runtime;
 
   const PluginManifest({
     required this.name,
@@ -70,6 +73,7 @@ class PluginManifest {
     this.readOnly = false,
     this.argMode = 'stdin',
     this.argSpec = const ArgSpec(),
+    this.runtime = 'native',
   });
 
   /// 从 JSON 字符串解析。
@@ -89,6 +93,7 @@ class PluginManifest {
       readOnly: map['readOnly'] == true,
       argMode: map['argMode']?.toString() == 'args' ? 'args' : 'stdin',
       argSpec: argSpec,
+      runtime: map['runtime'] as String? ?? 'native',
     );
   }
 
@@ -97,14 +102,19 @@ class PluginManifest {
 
 // ═══════ PluginTool ═══════
 
-/// 包装单个 .exe 插件为 Agent Tool。
+/// 包装单个插件（.exe 或 .py）为 Agent Tool。
 class PluginTool extends Tool {
   final String _exePath;
   final PluginManifest _manifest;
+  PluginRunner? _runner;
 
-  PluginTool({required String exePath, required PluginManifest manifest})
-      : _exePath = exePath,
-        _manifest = manifest;
+  PluginTool({
+    required String exePath,
+    required PluginManifest manifest,
+    PluginRunner? runner,
+  })  : _exePath = exePath,
+        _manifest = manifest,
+        _runner = runner;
 
   @override
   String get name => _manifest.name;
@@ -115,33 +125,42 @@ class PluginTool extends Tool {
   @override
   bool get readOnly => _manifest.readOnly;
 
+  Future<PluginRunner> _ensureRunner() async {
+    return _runner ??= await sharedPluginRunner;
+  }
+
   @override
   Future<String> execute(Map<String, dynamic> args) async {
     try {
-      final process = _manifest.argMode == 'args'
-          ? await _runWithArgs(args)
-          : await _runWithStdin(args);
-
-      final exitCode = await process.exitCode;
-      final stdout = await process.stdout.transform(utf8.decoder).join();
-      final stderr = await process.stderr.transform(utf8.decoder).join();
-
-      if (exitCode != 0) {
-        final errInfo = stderr.isNotEmpty ? '\n[stderr]\n$stderr' : '';
-        return '[plugin "${_manifest.name}" exited with code $exitCode]$errInfo\n$stdout';
+      final runner = await _ensureRunner();
+      final RunResult res;
+      if (_manifest.argMode == 'args') {
+        res = await runner.runOnce(
+          _exePath,
+          _buildArgv(args),
+          runtime: _manifest.runtime,
+        );
+      } else {
+        res = await runner.runOnce(
+          _exePath,
+          const [],
+          stdinJson: args,
+          runtime: _manifest.runtime,
+        );
       }
-      if (stderr.isNotEmpty) return '$stdout\n[stderr]\n$stderr';
-      return stdout.isNotEmpty ? stdout : '_(no output)_';
+      if (res.exitCode != 0) {
+        final errInfo =
+            res.stderr.isNotEmpty ? '\n[stderr]\n${res.stderr}' : '';
+        return '[plugin "${_manifest.name}" exited with code '
+            '${res.exitCode}]$errInfo\n${res.stdout}';
+      }
+      if (res.stderr.isNotEmpty) {
+        return '${res.stdout}\n[stderr]\n${res.stderr}';
+      }
+      return res.stdout.isNotEmpty ? res.stdout : '_(no output)_';
     } catch (e) {
       return '[plugin "${_manifest.name}" error: $e]';
     }
-  }
-
-  Future<Process> _runWithStdin(Map<String, dynamic> args) async {
-    final process = await Process.start(_exePath, [], mode: ProcessStartMode.normal);
-    process.stdin.write(jsonEncode(args));
-    await process.stdin.close();
-    return process;
   }
 
   List<String> _buildArgv(Map<String, dynamic> args) {
@@ -185,15 +204,11 @@ class PluginTool extends Tool {
     }
     return argv;
   }
-
-  Future<Process> _runWithArgs(Map<String, dynamic> args) async {
-    return Process.start(_exePath, _buildArgv(args), mode: ProcessStartMode.normal);
-  }
 }
 
 // ═══════ PluginBridge ═══════
 
-/// 扫描 plugins/<name>/agent/ 目录，发现 .exe 并注册为 Tool。
+/// 扫描 plugins/<name>/agent/ 目录，发现 .exe 或 .py 并注册为 Tool。
 class PluginBridge {
   /// 扫描目录，返回发现的所有 PluginTool。
   static List<Tool> discover(Directory pluginsDir) {
@@ -201,7 +216,7 @@ class PluginBridge {
     final tools = <Tool>[];
     for (final entry in pluginsDir.listSync()) {
       if (entry is! Directory) continue;
-      final exeFile = _findExe(entry);
+      final exeFile = _findEntry(entry);
       if (exeFile == null) continue;
       final manifest = _readManifest(entry, exeFile);
       if (!manifest.isValid) continue;
@@ -229,26 +244,33 @@ class PluginBridge {
     }
   }
 
-  /// 在 agent/ 子目录中找 .exe，优先匹配与目录同名的。
-  static File? _findExe(Directory dir) {
+  /// 在 agent/ 子目录中找入口文件：优先同名 .exe，其次同名 .py，否则首个。
+  static File? _findEntry(Directory dir) {
     final agentDir = Directory('${dir.path}/agent');
     if (!agentDir.existsSync()) return null;
     final dirName = dir.uri.pathSegments.last;
     File? firstExe;
+    File? firstPy;
     for (final f in agentDir.listSync()) {
-      if (f is File && f.path.endsWith('.exe')) {
-        final name = f.uri.pathSegments.last;
+      if (f is! File) continue;
+      final name = f.uri.pathSegments.last;
+      if (name.endsWith('.exe')) {
         if (name == '$dirName.exe') return f;
         firstExe ??= f;
+      } else if (name.endsWith('.py')) {
+        if (name == '$dirName.py') return f;
+        firstPy ??= f;
       }
     }
-    return firstExe;
+    return firstExe ?? firstPy; // .exe 优先于 .py
   }
 
   /// 读取 manifest.json（必写），不存在或无效返回空 name。
   static PluginManifest _readManifest(Directory dir, File exeFile) {
     final mf = File('${dir.path}/agent/manifest.json');
-    if (!mf.existsSync()) return const PluginManifest(name: '', description: '', schema: {});
+    if (!mf.existsSync()) {
+      return const PluginManifest(name: '', description: '', schema: {});
+    }
     try {
       final m = PluginManifest.fromJson(mf.readAsStringSync());
       if (m.isValid) return m;

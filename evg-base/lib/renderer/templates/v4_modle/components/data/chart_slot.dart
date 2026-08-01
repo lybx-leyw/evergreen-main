@@ -11,6 +11,10 @@ import 'package:evergreen_base/renderer/components/shared/widgets/chart_renderer
 class ChartSlot extends DataSourceSlot {
   const ChartSlot({super.key, required super.config});
 
+  // Phase 2: labels+series 转换逻辑保留在 mergeData（迁移到 transform 待 Phase 2.1）
+  @override
+  DataMapping get dataMapping => const DataMapping(targetKey: 'data');
+
   @override
   DataSourceSlotState<ChartSlot> createState() => _ChartSlotState();
 }
@@ -74,3 +78,5 @@ class _ChartSlotState extends DataSourceSlotState<ChartSlot> {
     );
   }
 }
+
+

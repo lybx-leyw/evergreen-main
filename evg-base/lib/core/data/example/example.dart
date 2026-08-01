@@ -163,6 +163,7 @@ Future<void> main() async {
   final loaders = await scanAndLoadDataSources(
     pluginsDir: 'example/plugins/',
     orchestrator: orch,
+    projectRoot: Directory.current.path,
   );
 
   for (final l in loaders) {

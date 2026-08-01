@@ -1,108 +1,39 @@
 # 主题
 
-> 两层 token（20 语义 + 54 组件），深色/浅色双主题，ChangeNotifier 即时切换。
+> 扁平语义色板（8 色），亮/暗由主题自身色板决定，ChangeNotifier 即时切换。
+> 当前模型：**扁平 8 色**（v1 五层 token 体系已废弃，勿参考旧文档）。
 
 ---
 
-## 一、API 速览
+## 一、主题模型
 
-### ThemeDescriptor
+一个主题 = `id` + `name` + 8 个**必填**语义色：
 
-| 字段 | 必填 | 类型 | 说明 |
-|------|------|------|------|
-| `id` | ✓ | `String` | 唯一标识 |
-| `name` | ✓ | `String` | 展示名称 |
-| `semanticTokens` | | `Map<String,String>` | 语义 token（20 个） |
-| `componentTokens` | | `Map<String,Map<String,String>>` | 组件 token（54 个） |
+| 字段 | 必填 | 含义 | 映射 |
+|------|:---:|------|------|
+| `background` | ✓ | 页面主背景（scaffold） | scaffoldBackgroundColor |
+| `surface` | ✓ | 卡片/面板底色 | surface |
+| `border` | ✓ | 默认边框/分隔线 | outline |
+| `text` | ✓ | 主文字 | onSurface |
+| `textSecondary` | ✓ | 次级/弱化文字 | onSurfaceVariant |
+| `accent` | ✓ | 强调/品牌色 | primary |
+| `error` | ✓ | 错误态 | error |
+| `others` | ✓ | 其余杂色 | secondary |
 
-| 方法 | 说明 |
-|------|------|
-| `ThemeDescriptor.fromJson(json)` | 解析 JSON，校验 `type=="theme"` |
-| `semantic(key)` → `String?` | 获取语义 token 原始 hex |
-| `semanticColor(key)` → `ThemeColor?` | 语义 token → 颜色对象 |
-| `semanticColorOr(key, fallback)` → `ThemeColor` | 语义 token + 兜底 |
-| `componentColor(c, t)` → `ThemeColor?` | 组件 token → 颜色对象 |
-| `componentColorOr(c, t, fallback)` → `ThemeColor` | 组件 token + 兜底 |
-| `unknownSemanticKeys` → `List<String>` | 不在 20 规范中的 key |
-| `unknownComponentKeys` → `List<String>` | 不在 54 规范中的 key |
-| `invalidColors` → `List<MapEntry>` | 格式非法条目 |
+兼容别名：`primary` → `accent`，`secondary` → `others`（旧 theme.json 可无缝迁移）。
+除上述 8 键外**不接受**其他语义键（多余键会被忽略，但 8 键缺一即解析失败）。
 
-### ThemeColor
+## 二、主题来源与优先级
 
-| 方法 | 说明 |
-|------|------|
-| `ThemeColor.fromHex("#1677FF")` | hex 构造 |
-| `ThemeColor.tryParse(hex)` → `ThemeColor?` | 安全解析 |
-| `toHex()` → `String` | 序列化为 `#AARRGGBB` |
+| 来源 | 路径/方式 | 优先级 |
+|------|-----------|:---:|
+| 代码注册 | `store.register(ThemeDescriptor(...))`，内置见 `builtin_themes.dart`（dark/light/evergreen） | 高 |
+| 主题插件 | `plugins/<name>/theme/theme.json`（`scanThemes` 自动发现） | 中 |
+| 示例 | `lib/core/theme/example/plugins/my_theme/`（`ocean_blue`，供复制验证） | 低 |
 
-### ThemeStore
+同 `id` 后者覆盖。加载失败（缺 8 色/hex 非法）→ stderr ❌ 明细 + 汇总，**静默跳过**。
 
-| 方法 | 说明 |
-|------|------|
-| `register(theme)` | 注册（同 id 覆盖） |
-| `activeTheme` / `activeTheme=` | 当前主题 / 切换（触发通知） |
-| `setActiveById(id)` → `bool` | 按 id 切换 |
-| `addListener(fn)` / `dispose()` | ChangeNotifier |
-
-### 加载函数
-
-| 函数 | 说明 |
-|------|------|
-| `scanThemes(dir)` → `List<ThemeDescriptor>` | 扫描 `<dir>/<name>/theme/theme.json` |
-| `loadThemes(dir, store)` | 扫描 + 注册到 store |
-
-### ThemeHttpServer（6 端点）
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| GET | `/theme/health` | 健康检查 |
-| GET | `/theme/themes` | 列出所有主题 |
-| GET | `/theme/themes/:id` | 主题详情 |
-| GET | `/theme/active` | 当前活跃主题 |
-| POST | `/theme/active` | 切换活跃主题 |
-| GET | `/theme/token?component=&token=` | 查询 token 颜色 |
-
-### render_rules
-
-| 类 | 常量 |
-|-----|------|
-| `Spacing` | `xs=4`, `sm=8`, `md=16`, `lg=24`, `xl=32`, `xxl=48` |
-| `Radii` | `sm=4`, `md=8`, `lg=12`, `xl=16`, `full=9999` |
-| `FontSize` | `caption=12`, `body=14`, `subtitle=16`, `title=20`, `heading=24`, `display=32` |
-| `Durations` | `fast=150`, `normal=300`, `slow=500` |
-| `Shadows` | `none`, `card`, `elevated`, `modal`, `drawer`, `fab` |
-
----
-
-## 二、Token 体系
-
-### 语义 Token（20 个）
-
-`primary`, `secondary`, `tertiary`, `background`, `surface`, `surfaceVariant`, `error`, `success`, `warning`, `info`, `text`, `textSecondary`, `textTertiary`, `textInverse`, `border`, `shadow`, `overlay`, `disabled`, `placeholder`, `divider`
-
-### 组件 Token（54 个，按分类）
-
-| 分类 | 组件 |
-|------|------|
-| 导航 | `sidebar`, `tab`, `breadcrumb`, `pagination`, `stepper` |
-| 对话 | `bubble`, `thinking`, `toolCall`, `codeBlock`, `blockquote` |
-| 表单 | `input`, `checkbox`, `radio`, `switch_`, `slider`, `dropdown`, `datePicker` |
-| 反馈 | `progressBar`, `spinner`, `skeleton`, `toast`, `alert`, `emptyState` |
-| 数据 | `table`, `card`, `list`, `chip`, `avatar`, `badge`, `tooltip`, `calendar`, `timeline` |
-| 按钮 | `button`, `iconButton`, `fab` |
-| 布局 | `drawer`, `modal`, `header`, `footer`, `divider`, `scrollbar` |
-| 图表 | `chart` |
-| 媒体 | `videoPlayer`, `audioPlayer`, `imageViewer` |
-| 杂项 | `link`, `menu`, `commandPalette`, `contextMenu`, `search` |
-| 范式 | `spreadsheet`, `document`, `presentation`, `workspace` |
-
-> 完整子 token 定义见 `docs/plugin-authoring-guide-theme.md`。
-
----
-
-## 三、插件开发者指南
-
-**最小 `theme.json`**（放入 `plugins/<name>/theme/theme.json`）：
+## 三、插件格式（minimal theme.json）
 
 ```json
 {
@@ -110,58 +41,59 @@
   "id": "my_theme",
   "name": "我的主题",
   "colors": {
-    "primary": "#1976D2",
-    "background": "#FAFAFA"
+    "background": "#0D1117",
+    "surface": "#161B22",
+    "border": "#30363D",
+    "text": "#C9D1D9",
+    "textSecondary": "#8B949E",
+    "accent": "#58A6FF",
+    "error": "#FF7B72",
+    "others": "#8B949E"
   }
 }
 ```
 
-**规则**：
-- `type` 必须为 `"theme"`，否则解析抛出 `FormatException`
-- `colors` 中字符串值 → 语义 token，对象值 → 组件 token
-- 颜色格式：`#RGB` / `#RRGGBB` / `#AARRGGBB`
-- 同 `id` 后者覆盖前者（加载优先级：`store.register()` > `example/plugins/` > `builtins/`）
-- 完整指南 → `docs/plugin-authoring-guide-theme.md`，快速参考 → `docs/plugin-theme.md`
+颜色格式：`#RGB` / `#RRGGBB`（推荐）/ `#AARRGGBB`。不支持颜色名、`rgb()`、无 `#` 前缀。
 
----
+校验清单：
+- [ ] `type` = `"theme"`
+- [ ] `id` 全局唯一（**不要**用 `dark`/`light`/`default`/`evergreen`，与内置冲突）
+- [ ] `colors` 8 键全必填、值均为合法 hex
+- [ ] `theme.json` 为有效 UTF-8 JSON
 
-## 四、架构决策
+## 四、运行时切换
 
-### 两层 Token
+```
+UI（设置页「外观·主题」下拉）→ store.setActiveById(id)
+    → ChangeNotifier → themeDescriptorProvider（renderer）重建
+        → MaterialApp theme（buildAppThemeFromDescriptor）
+        → RenderTokens.applyTheme → 组件层静态色板
+```
 
-组件 token 引用语义 token，切换主题时全量自动跟随。禁止组件 token 直接写死色值。
+持久化：`SharedPreferences['active_theme_id']`，启动时恢复（无效 id 回退内置 dark）。
 
-### Fallback 不抛异常
+HTTP 通道（供插件 .exe）：`ThemeHttpServer` 7 端点 ——
+`GET /theme/health` `GET /theme/themes` `GET /theme/themes/:id`
+`GET /theme/active` `POST /theme/active {id}` `GET /theme/token?key=` + OPTIONS。
 
-`semanticColor()` / `componentColor()` 对缺失 token 返回 `null`，不崩溃页面。
+## 五、API 速览
 
-### 深色/浅色独立色值
+| 类 | 关键成员 |
+|----|----------|
+| `ThemeDescriptor` | `fromJson`（校验 type/8 色/hex）、`color(key)`、`parseHex`、`toJson` |
+| `ThemeColor` | `fromHex` / `tryParse` / `toHex`（ARGB 32 位） |
+| `ThemeStore` | `register` / `all` / `findById` / `activeTheme` / `setActiveById` / `activeOrFirst` |
+| `scanThemes(dir)` | 扫描 `plugins/<dir>/theme/theme.json` → `List<ThemeDescriptor>` |
+| `loadThemes(dir, store)` | 扫描 + 注册 |
+| `registerBuiltinThemes(store)` | 注册内置 dark/light/evergreen |
+| `ThemeHttpServer(store)` | 7 端点 HTTP 服务 |
 
-不是"反色"，而是两套独立设计的配色方案。
+## 六、渲染层消费
 
-### 内置主题路径
+- `lib/renderer/app/service/theme/theme_provider.dart`：`buildAppThemeFromDescriptor`（8 色 → Material ColorScheme）
+- `lib/renderer/app/service/theme/render_tokens.dart`：`RenderTokensColors.fromTheme` + `RenderTokens.applyTheme`（组件层共享色板）
+- `lib/renderer/app/service/providers/renderer_providers.dart`：`themeDescriptorProvider` / `renderTokensProvider`（watch 链路）
 
-`builtins/<name>/theme/theme.json`，与 `scanThemes()` 期望一致。
+## 七、设计常量
 
----
-
-## 五、质量
-
-| 维度 | 状态 |
-|------|------|
-| 测试 | ✅ 99 用例全量通过 |
-| Example | ✅ 覆盖全部 API |
-| 文档 | ✅ README + CLAUDE.md + 2 份插件指南 |
-| 内置主题 | ✅ 10 个（`builtins/`） |
-| dart analyze | ✅ 零 errors |
-
----
-
-## 六、已知问题
-
-- `ThemeColor` 与 Flutter `dart:ui` Color 是不同类，渲染器通过 `.value` 桥接
-- 内置 `light`/`dark` 仅覆盖核心组件 token，其余需渲染器 fallback
-- HTTP 服务器绑定 `loopbackIPv4` 仅内部可访问
-- 未知 token key 静默兼容，不抛错
-- `divider` 键名在语义/组件间冲突，同一 JSON 只能选一种形态
-- 非法 hex 值返回 `null`，使用 `*Or()` 方法指定兜底色
+像素级规范（间距/圆角/字号/阴影/动效）见 `render_rules.dart`（Spacing 4px 基准 / Radii / FontSize / Shadows / Durations / ComponentSize）——渲染层应引用，禁止新增硬编码。

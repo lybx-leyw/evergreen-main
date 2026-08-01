@@ -1,6 +1,0 @@
-port=51354
-agent=OK
-core=OK
-cwd=C:\Users\19389\Desktop\Evergreen-Multi-Tools\core\Win\evergreen-base - 副本\lib\core\builtins\ai-assistant
-root=C:\Users\19389\Desktop\Evergreen-Multi-Tools\core\Win\evergreen-base - 副本
-exe=C:\Users\19389\Desktop\Evergreen-Multi-Tools\core\Win\evergreen-base - 副本\lib\core\builtins\ai-assistant\module\ai-assistant.exe

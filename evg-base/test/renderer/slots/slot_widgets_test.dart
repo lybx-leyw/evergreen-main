@@ -5,19 +5,20 @@
 /// 2. 注入的真实字段值出现在 widget 文本中（R4 真实字段渲染）。
 ///
 /// 运行：cd evg-base && flutter test test/slot_widgets_test.dart
+library;
 import 'package:evergreen_base/core/module/module_descriptor.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/audio_player_slot.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/learning/crossword_slot.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/controls/custom_slot.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/controls/webview_slot.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/creative/terminal_slot.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/creative/whiteboard_slot.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/data/tree_slot.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/document/audio_player_slot.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/diff_viewer_slot.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/image_gallery_slot.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/notepad_slot.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/interaction/prompt_builder_slot.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/learning/crossword_slot.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/learning/pronunciation_slot.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/creative/terminal_slot.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/data/tree_slot.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/controls/webview_slot.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/creative/whiteboard_slot.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -38,7 +39,7 @@ void main() {
     // audio-player
     await _pump(
       tester,
-      AudioPlayerSlot(
+      const AudioPlayerSlot(
         config: ComponentDescriptor(
           type: 'audio-player',
           config: {'title': 'M1D_AUDIO_TITLE', 'src': 'https://e.io/a.mp3'},
@@ -53,7 +54,7 @@ void main() {
     // image-gallery
     await _pump(
       tester,
-      ImageGallerySlot(
+      const ImageGallerySlot(
         config: ComponentDescriptor(
           type: 'image-gallery',
           config: {
@@ -73,7 +74,7 @@ void main() {
     // notepad
     await _pump(
       tester,
-      NotepadSlot(
+      const NotepadSlot(
         config: ComponentDescriptor(
           type: 'notepad',
           config: {'title': 'M1D_NOTE_TITLE', 'content': 'M1D_NOTE_CONTENT'},
@@ -86,7 +87,7 @@ void main() {
     // prompt-builder
     await _pump(
       tester,
-      PromptBuilderSlot(
+      const PromptBuilderSlot(
         config: ComponentDescriptor(
           type: 'prompt-builder',
           config: {
@@ -102,7 +103,7 @@ void main() {
     // tree
     await _pump(
       tester,
-      TreeSlot(
+      const TreeSlot(
         config: ComponentDescriptor(
           type: 'tree',
           config: {
@@ -118,7 +119,7 @@ void main() {
     // webview
     await _pump(
       tester,
-      WebViewSlot(
+      const WebViewSlot(
         config: ComponentDescriptor(
           type: 'webview',
           config: {'url': 'https://M1D_WV_URL.example'},
@@ -131,7 +132,7 @@ void main() {
     // custom — 现已改用 HtmlWidget 真实渲染 HTML
     await _pump(
       tester,
-      CustomSlot(
+      const CustomSlot(
         config: ComponentDescriptor(
           type: 'custom',
           config: {'html': '<p>M1D_CUSTOM_SRC</p>'},
@@ -150,7 +151,7 @@ void main() {
     // diff-viewer
     await _pump(
       tester,
-      DiffViewerSlot(
+      const DiffViewerSlot(
         config: ComponentDescriptor(
           type: 'diff-viewer',
           config: {
@@ -167,7 +168,7 @@ void main() {
     // terminal
     await _pump(
       tester,
-      TerminalSlot(
+      const TerminalSlot(
         config: ComponentDescriptor(
           type: 'terminal',
           config: {
@@ -186,7 +187,7 @@ void main() {
     // whiteboard（工具/颜色由配置驱动；断言无异常即可）
     await _pump(
       tester,
-      WhiteboardSlot(
+      const WhiteboardSlot(
         config: ComponentDescriptor(
           type: 'whiteboard',
           config: {
@@ -202,7 +203,7 @@ void main() {
     // crossword
     await _pump(
       tester,
-      CrosswordSlot(
+      const CrosswordSlot(
         config: ComponentDescriptor(
           type: 'crossword',
           config: {
@@ -226,7 +227,7 @@ void main() {
     // pronunciation
     await _pump(
       tester,
-      PronunciationSlot(
+      const PronunciationSlot(
         config: ComponentDescriptor(
           type: 'pronunciation',
           config: {

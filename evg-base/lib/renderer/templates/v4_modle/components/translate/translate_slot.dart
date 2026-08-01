@@ -14,6 +14,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -91,6 +92,9 @@ class _TranslateSlotState extends ConsumerState<TranslateSlot> {
   // 当前阶段
   String _currentStage = 'idle';
 
+  // 竖版窄屏：当前激活的 Tab（0=预览 1=队列 2=日志 3=AI）
+  int _narrowTab = 0;
+
   @override
   void initState() {
     super.initState();
@@ -124,6 +128,22 @@ class _TranslateSlotState extends ConsumerState<TranslateSlot> {
     await prefs.setString(key, value);
   }
 
+  /// 翻译引擎目录：
+  /// - 桌面：项目 `scripts/`（pdf_translate.py + pdf2zh_next 所在）
+  /// - 安卓：chaquopy 资源（经 MethodChannel 解析设备路径，见 PdfTranslateService）
+  Future<String> _resolveTranslateDir() async {
+    if (Platform.isAndroid) {
+      try {
+        const ch = MethodChannel('evergreen/python');
+        final p = await ch.invokeMethod<String>(
+            'getAssetPath', {'name': 'pdf_translate.py'});
+        if (p != null && p.isNotEmpty) return File(p).parent.path;
+      } catch (_) {}
+      return '';
+    }
+    return p.join(Directory.current.path, 'scripts');
+  }
+
   Future<void> _initAgent() async {
     if (_initialized) return;
     final assemblyId = '${widget.moduleId}/${widget.slotKey}/translate';
@@ -138,7 +158,7 @@ class _TranslateSlotState extends ConsumerState<TranslateSlot> {
 
       final provider = agent.DeepSeekProvider(dio: Dio(), apiKey: apiKey);
       final workspace = greenixWorkspaceDir('ai-assistant');
-      final translateDir = p.join(workspace, 'translate');
+      final translateDir = await _resolveTranslateDir();
       final bundledPython = p.join(greenixPythonDir, 'python.exe');
 
       final seedTools = <agent.Tool>[
@@ -235,32 +255,37 @@ class _TranslateSlotState extends ConsumerState<TranslateSlot> {
     _appendLog('[${DateTime.now().toIso8601String()}] 启动翻译 (${paths.length} 文件)');
 
     // 环境检查
-    final translateDir = p.join(greenixWorkspaceDir('ai-assistant'), 'translate');
+    final translateDir = await _resolveTranslateDir();
     final scriptPath = p.join(translateDir, 'pdf_translate.py');
     final bundledPython = p.join(greenixPythonDir, 'python.exe');
-    final python = File(bundledPython).existsSync() ? bundledPython : await resolvePythonExe();
+    final python = File(bundledPython).existsSync()
+        ? bundledPython
+        : await resolvePythonExe();
     if (python == null) {
       _appendLog('[ERROR] 未找到 Python');
       return;
     }
     _appendLog('[OK] Python: $python');
 
-    // 依赖检查
-    final depsCheck = await Process.run(python, ['-c',
-      'import sys; sys.path.insert(0, r"$translateDir"); '
-      'from pdf2zh_next.high_level import do_translate_async_stream; print("OK")'
-    ], workingDirectory: translateDir);
-    if (depsCheck.exitCode != 0) {
-      _appendLog('[INFO] 缺少依赖，开始安装: babeldoc pymupdf openai tomlkit');
-      setState(() => _currentStage = 'installing_deps');
-      final install = await Process.run(python, ['-m', 'pip', 'install',
-        'babeldoc', 'pymupdf', 'openai', 'tomlkit'
-      ]).timeout(const Duration(seconds: 300));
-      if (install.exitCode != 0) {
-        _appendLog('[ERROR] 依赖安装失败: ${install.stderr}');
-        return;
+    // 依赖检查（安卓：chaquopy 进程内环境，无 pip/Process——跳过桌面式预检，
+    // 缺失依赖由脚本在设备上执行时明确报告）
+    if (!Platform.isAndroid) {
+      final depsCheck = await Process.run(python, ['-c',
+        'import sys; sys.path.insert(0, r"$translateDir"); '
+        'from pdf2zh_next.high_level import do_translate_async_stream; print("OK")'
+      ], workingDirectory: translateDir);
+      if (depsCheck.exitCode != 0) {
+        _appendLog('[INFO] 缺少依赖，开始安装: babeldoc pymupdf openai tomlkit');
+        setState(() => _currentStage = 'installing_deps');
+        final install = await Process.run(python, ['-m', 'pip', 'install',
+          'babeldoc', 'pymupdf', 'openai', 'tomlkit'
+        ]).timeout(const Duration(seconds: 300));
+        if (install.exitCode != 0) {
+          _appendLog('[ERROR] 依赖安装失败: ${install.stderr}');
+          return;
+        }
+        _appendLog('[OK] 依赖安装完成');
       }
-      _appendLog('[OK] 依赖安装完成');
     }
 
     // 创建翻译队列
@@ -337,18 +362,19 @@ class _TranslateSlotState extends ConsumerState<TranslateSlot> {
       Expanded(child: LayoutBuilder(builder: (context, c) {
         final isNarrow = c.maxWidth < 600;
         if (isNarrow) {
-          // 窄屏：单列堆叠
-          return SingleChildScrollView(
-            child: Column(children: [
-              _buildPdfPreview(c),
-              const Divider(height: 1),
-              _buildTerminal(c),
-              const Divider(height: 1),
-              _buildQueuePanel(c),
-              const Divider(height: 1),
-              SizedBox(height: 400, child: _buildAiPanel(c)),
-            ]),
-          );
+          // 竖版窄屏：保持各面板原有视觉风格，外壳改为 Tab 切换 + 全宽渲染，
+          // 避免四面板纵向堆叠（需频繁滚动）与固定高度带来的将就感。
+          return Column(children: [
+            _buildNarrowTabBar(),
+            Expanded(
+              child: switch (_narrowTab) {
+                0 => _buildPdfPreview(c),
+                1 => _buildQueuePanel(c),
+                2 => _buildTerminal(c, fillHeight: true),
+                _ => _buildAiPanel(c),
+              },
+            ),
+          ]);
         }
         // Dock 布局：左侧 60% / 右侧 40%
         return Row(children: [
@@ -402,9 +428,10 @@ class _TranslateSlotState extends ConsumerState<TranslateSlot> {
   }
 
   // ── 左下：翻译日志终端 ──
-  Widget _buildTerminal(BoxConstraints c) {
+  // [fillHeight] 竖版 Tab 模式下占满可用高度（Dock 布局固定 180）。
+  Widget _buildTerminal(BoxConstraints c, {bool fillHeight = false}) {
     return Container(
-      height: 180,
+      height: fillHeight ? null : 180,
       color: const Color(0xFF0A0A0A),
       child: Column(children: [
         Container(
@@ -573,7 +600,10 @@ class _TranslateSlotState extends ConsumerState<TranslateSlot> {
               child: Container(
                 margin: const EdgeInsets.only(bottom: 6),
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.5),
+                constraints: BoxConstraints(
+                    maxWidth: c.maxWidth < 600
+                        ? c.maxWidth * 0.85
+                        : MediaQuery.of(context).size.width * 0.5),
                 decoration: BoxDecoration(
                   color: isUser ? Theme.of(context).colorScheme.primaryContainer : Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(8),
@@ -604,6 +634,59 @@ class _TranslateSlotState extends ConsumerState<TranslateSlot> {
           ]),
         ),
       ]),
+    );
+  }
+
+  // ── 竖版窄屏 Tab 导航 ──
+
+  /// 竖版 Tab 顺序：预览 / 队列 / 日志 / AI。
+  static const _narrowTabs = <(IconData, String)>[
+    (Icons.picture_as_pdf, '预览'),
+    (Icons.queue, '队列'),
+    (Icons.terminal, '日志'),
+    (Icons.psychology, 'AI'),
+  ];
+
+  Widget _buildNarrowTabBar() {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      height: 36,
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest,
+        border: Border(bottom: BorderSide(color: scheme.outlineVariant, width: 0.5)),
+      ),
+      child: Row(children: [
+        for (var i = 0; i < _narrowTabs.length; i++) ...[if (i > 0) const SizedBox(width: 3), Expanded(child: _buildNarrowTabItem(i))],
+      ]),
+    );
+  }
+
+  Widget _buildNarrowTabItem(int index) {
+    final (icon, label) = _narrowTabs[index];
+    final active = _narrowTab == index;
+    final scheme = Theme.of(context).colorScheme;
+    final fg = active ? scheme.primary : scheme.onSurfaceVariant;
+    return InkWell(
+      onTap: () => setState(() => _narrowTab = index),
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        decoration: BoxDecoration(
+          color: active ? scheme.primaryContainer : null,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(icon, size: 13, color: fg),
+          const SizedBox(width: 3),
+          Text(label,
+              style: TextStyle(
+                  fontSize: 10.5,
+                  color: fg,
+                  fontWeight: active ? FontWeight.w600 : null)),
+        ]),
+      ),
     );
   }
 

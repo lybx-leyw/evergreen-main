@@ -301,10 +301,10 @@ class Agent {
           ' toolCalls=${pendingCalls?.length ?? 0}');
 
       // ③ 记录 assistant 消息
-      if (pendingCalls != null && pendingCalls!.isNotEmpty) {
-        _session.add(Message.assistantTool(pendingCalls!));
+      if (pendingCalls != null && pendingCalls.isNotEmpty) {
+        _session.add(Message.assistantTool(pendingCalls));
         usedAnyTool = true;
-        print('[Agent:D] added ${pendingCalls!.length} tool calls to session');
+        print('[Agent:D] added ${pendingCalls.length} tool calls to session');
       } else if (text.isNotEmpty) {
         _session.add(Message.assistant(text, reasoning: reasoning));
         print('[Agent:D] added assistant text to session');
@@ -317,9 +317,9 @@ class Agent {
       yield AgentEvent.message(text: text, reasoning: reasoning);
 
       // ④ 执行工具调用
-      if (pendingCalls != null && pendingCalls!.isNotEmpty) {
-        print('[Agent:D] === Executing ${pendingCalls!.length} tool call(s) ===');
-        for (final call in pendingCalls!) {
+      if (pendingCalls != null && pendingCalls.isNotEmpty) {
+        print('[Agent:D] === Executing ${pendingCalls.length} tool call(s) ===');
+        for (final call in pendingCalls) {
           print('[Agent:D]   tool: ${call.name} id=${call.id} argsLen=${call.arguments.length}');
           if (_cancelled) break;
 

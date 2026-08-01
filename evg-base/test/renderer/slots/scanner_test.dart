@@ -4,10 +4,11 @@
 /// 手动提交应经 onScan → pageEventBus.emit 链路。
 ///
 /// 运行：cd evg-base && flutter test test/renderer/slots/scanner_test.dart
+library;
 import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'package:evergreen_base/core/module/page_event_bus.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/scanner_slot.dart';
 import 'package:evergreen_base/renderer/components/shared/widgets/scanner.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/document/scanner_slot.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -50,7 +51,7 @@ void main() {
 
   group('ScannerSlot 事件接通', () {
     testWidgets('Windows 下降级渲染不崩，hint 透传', (tester) async {
-      await tester.pumpWidget(ProviderScope(
+      await tester.pumpWidget(const ProviderScope(
         child: MaterialApp(
           home: Scaffold(
             body: ScannerSlot(

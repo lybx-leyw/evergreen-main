@@ -8,21 +8,22 @@
 /// - 拉取失败（未注册类型）→ 优雅降级为静态 config，不崩。
 ///
 /// 运行：cd evg-base && flutter test test/renderer/data_slot_test.dart
-import 'package:evergreen_base/renderer/templates/v4_modle/components/data/card_list_slot.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/data/chart_slot.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/data/kanban_slot.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/data/stat_tile_slot.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/data/timeline_slot.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/data/tree_slot.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/data/map_slot.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/data/calendar_slot.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/data/timetable_slot.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/data/data_table_slot.dart';
-import 'package:evergreen_base/renderer/components/shared/widgets/calendar_widget.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/slot/slot_widgets.dart';
+library;
 import 'package:evergreen_base/core/data/data.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'package:evergreen_base/providers.dart';
+import 'package:evergreen_base/renderer/components/shared/widgets/calendar_widget.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/data/calendar_slot.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/data/card_list_slot.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/data/chart_slot.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/data/data_table_slot.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/data/kanban_slot.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/data/map_slot.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/data/stat_tile_slot.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/data/timeline_slot.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/data/timetable_slot.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/data/tree_slot.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/slot/slot_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -50,7 +51,7 @@ void main() {
 
   group('stat-tile 注入', () {
     testWidgets('无 dataSource → 静态 value 渲染', (tester) async {
-      final slot = StatTileSlot(
+      const slot = StatTileSlot(
         config: ComponentDescriptor(
           type: 'stat-tile',
           config: {'title': 'T', 'value': '7'},
@@ -65,11 +66,11 @@ void main() {
       final orch = _fakeOrch({
         'statMetric': {'value': '42', 'subtitle': '注入成功'},
       });
-      final slot = StatTileSlot(
+      const slot = StatTileSlot(
         config: ComponentDescriptor(
           type: 'stat-tile',
           config: {'title': 'T'},
-          dataSource: const DataSourceDescriptor(endpoint: 'orch://statMetric'),
+          dataSource: DataSourceDescriptor(endpoint: 'orch://statMetric'),
         ),
       );
       await tester.pumpWidget(_scope(slot, orch));
@@ -85,7 +86,7 @@ void main() {
       int calls = 0;
       final orch = DataOrchestrator();
       orch.register(
-        DataType<dynamic>(name: 'statMetric'),
+        const DataType<dynamic>(name: 'statMetric'),
         () async {
           calls++;
           return {
@@ -94,10 +95,10 @@ void main() {
           };
         },
       );
-      final slot = StatTileSlot(
+      const slot = StatTileSlot(
         config: ComponentDescriptor(
           type: 'stat-tile',
-          dataSource: const DataSourceDescriptor(
+          dataSource: DataSourceDescriptor(
             endpoint: 'orch://statMetric',
             refreshInterval: 2,
           ),
@@ -125,10 +126,10 @@ void main() {
           {'title': '注入卡片B', 'body': 'b'},
         ],
       });
-      final slot = CardListSlot(
+      const slot = CardListSlot(
         config: ComponentDescriptor(
           type: 'card-list',
-          dataSource: const DataSourceDescriptor(endpoint: 'orch://cards'),
+          dataSource: DataSourceDescriptor(endpoint: 'orch://cards'),
         ),
       );
       await tester.pumpWidget(_scope(slot, orch));
@@ -146,10 +147,10 @@ void main() {
           {'label': '注入事件2', 'time': '10:00'},
         ],
       });
-      final slot = TimelineSlot(
+      const slot = TimelineSlot(
         config: ComponentDescriptor(
           type: 'timeline',
-          dataSource: const DataSourceDescriptor(endpoint: 'orch://events'),
+          dataSource: DataSourceDescriptor(endpoint: 'orch://events'),
         ),
       );
       await tester.pumpWidget(_scope(slot, orch));
@@ -171,10 +172,10 @@ void main() {
           }
         ],
       });
-      final slot = KanbanSlot(
+      const slot = KanbanSlot(
         config: ComponentDescriptor(
           type: 'kanban',
-          dataSource: const DataSourceDescriptor(endpoint: 'orch://board'),
+          dataSource: DataSourceDescriptor(endpoint: 'orch://board'),
         ),
       );
       await tester.pumpWidget(_scope(slot, orch));
@@ -194,10 +195,10 @@ void main() {
           ]
         },
       });
-      final slot = TreeSlot(
+      const slot = TreeSlot(
         config: ComponentDescriptor(
           type: 'tree',
-          dataSource: const DataSourceDescriptor(endpoint: 'orch://tree'),
+          dataSource: DataSourceDescriptor(endpoint: 'orch://tree'),
         ),
       );
       await tester.pumpWidget(_scope(slot, orch));
@@ -214,10 +215,10 @@ void main() {
           {'label': '注入维度', 'value': 9}
         ],
       });
-      final slot = ChartSlot(
+      const slot = ChartSlot(
         config: ComponentDescriptor(
           type: 'chart',
-          dataSource: const DataSourceDescriptor(endpoint: 'orch://series'),
+          dataSource: DataSourceDescriptor(endpoint: 'orch://series'),
         ),
       );
       await tester.pumpWidget(_scope(slot, orch));
@@ -230,7 +231,7 @@ void main() {
 
   group('map 注入', () {
     testWidgets('无 dataSource → 静态中心点渲染', (tester) async {
-      final slot = MapSlot(
+      const slot = MapSlot(
         config: ComponentDescriptor(
           type: 'map',
           config: {
@@ -250,10 +251,10 @@ void main() {
           'markers': true,
         },
       });
-      final slot = MapSlot(
+      const slot = MapSlot(
         config: ComponentDescriptor(
           type: 'map',
-          dataSource: const DataSourceDescriptor(endpoint: 'orch://geo'),
+          dataSource: DataSourceDescriptor(endpoint: 'orch://geo'),
         ),
       );
       await tester.pumpWidget(_scope(slot, orch));
@@ -272,10 +273,10 @@ void main() {
           ],
         },
       });
-      final slot = CalendarSlot(
+      const slot = CalendarSlot(
         config: ComponentDescriptor(
           type: 'calendar',
-          dataSource: const DataSourceDescriptor(endpoint: 'orch://schedule'),
+          dataSource: DataSourceDescriptor(endpoint: 'orch://schedule'),
         ),
       );
       await tester.pumpWidget(_scope(slot, orch));
@@ -299,10 +300,10 @@ void main() {
           ],
         },
       });
-      final slot = TimetableSlot(
+      const slot = TimetableSlot(
         config: ComponentDescriptor(
           type: 'timetable',
-          dataSource: const DataSourceDescriptor(endpoint: 'orch://courses'),
+          dataSource: DataSourceDescriptor(endpoint: 'orch://courses'),
         ),
       );
       await tester.pumpWidget(_scope(slot, orch));
@@ -318,7 +319,7 @@ void main() {
           {'name': '注入行'},
         ],
       });
-      final slot = DataTableSlot(
+      const slot = DataTableSlot(
         config: ComponentDescriptor(
           type: 'data-table',
           config: {
@@ -326,7 +327,7 @@ void main() {
               {'title': '名称', 'key': 'name', 'editable': false},
             ],
           },
-          dataSource: const DataSourceDescriptor(endpoint: 'orch://rows'),
+          dataSource: DataSourceDescriptor(endpoint: 'orch://rows'),
         ),
       );
       await tester.pumpWidget(_scope(slot, orch));
@@ -344,12 +345,12 @@ void main() {
           {'word': 'injectWord', 'meaning': '注入释义卡'},
         ],
       });
-      final slot = FlashcardsSlot(
+      const slot = FlashcardsSlot(
         slotKey: 'fc1',
         moduleId: 'm',
         config: ComponentDescriptor(
           type: 'flashcards',
-          dataSource: const DataSourceDescriptor(endpoint: 'orch://vocab'),
+          dataSource: DataSourceDescriptor(endpoint: 'orch://vocab'),
         ),
       );
       await tester.pumpWidget(_scope(slot, orch));
@@ -359,7 +360,7 @@ void main() {
     });
 
     testWidgets('无 dataSource → 回退本地文件加载（空词库占位）', (tester) async {
-      final slot = FlashcardsSlot(
+      const slot = FlashcardsSlot(
         slotKey: 'fc2',
         moduleId: 'm',
         config: ComponentDescriptor(
@@ -381,12 +382,12 @@ void main() {
           {'word': 'injectQ', 'meaning': '注入测验题'},
         ],
       });
-      final slot = QuizSlot(
+      const slot = QuizSlot(
         slotKey: 'qz1',
         moduleId: 'm',
         config: ComponentDescriptor(
           type: 'quiz',
-          dataSource: const DataSourceDescriptor(endpoint: 'orch://quizData'),
+          dataSource: DataSourceDescriptor(endpoint: 'orch://quizData'),
         ),
       );
       await tester.pumpWidget(_scope(slot, orch));
@@ -396,7 +397,7 @@ void main() {
     });
 
     testWidgets('无 dataSource → 回退本地文件加载（空态不崩）', (tester) async {
-      final slot = QuizSlot(
+      const slot = QuizSlot(
         slotKey: 'qz2',
         moduleId: 'm',
         config: ComponentDescriptor(
@@ -412,12 +413,12 @@ void main() {
 
   group('优雅降级', () {
     testWidgets('未注册类型 → 回退静态 config，不崩', (tester) async {
-      final slot = StatTileSlot(
+      const slot = StatTileSlot(
         config: ComponentDescriptor(
           type: 'stat-tile',
           config: {'title': 'T', 'value': 'STATIC'},
           dataSource:
-              const DataSourceDescriptor(endpoint: 'orch://notRegistered'),
+              DataSourceDescriptor(endpoint: 'orch://notRegistered'),
         ),
       );
       await tester.pumpWidget(_scope(slot, _fakeOrch({})));

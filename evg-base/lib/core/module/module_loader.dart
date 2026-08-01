@@ -23,6 +23,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:evergreen_base/core/log.dart';
+import 'package:evergreen_base/core/plugin/plugin_runner.dart';
 import 'capability.dart';
 import 'module_descriptor.dart';
 import 'module_registry.dart';
@@ -71,7 +72,9 @@ class ModuleLoader {
         return;
       }
 
-    _process = await Process.start(exePath, ['--project-root', projectRoot], workingDirectory: workingDirectory);
+      final runner = await sharedPluginRunner;
+      _process = await runner.startLong(exePath, ['--project-root', projectRoot],
+          workingDirectory: workingDirectory, runtime: proc.runtime);
     Log().info('ModuleLoader: ${manifest.id} 进程已启动', data: {'pid': _process!.pid, 'projectRoot': projectRoot});
 
     // 监听 stderr —— 转发到宿主日志系统

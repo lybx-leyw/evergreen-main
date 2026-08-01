@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'package:evergreen_base/core/agent/agent_runtime.dart' show webSearchEnabledProvider, reasoningEffortProvider, validReasoningEfforts;
-import 'package:evergreen_base/renderer/app/service/theme/theme_provider.dart';
 
 /// 聊天输入栏。
 ///
@@ -66,12 +65,10 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
 
     return Container(
       decoration: BoxDecoration(
-        color: context.componentColor('input', 'bg') ??
-            theme.colorScheme.surface,
+        color: theme.colorScheme.surface,
         border: Border(
           top: BorderSide(
-            color: context.componentColor('input', 'border') ??
-                theme.dividerColor,
+            color: theme.dividerColor,
             width: 0.5,
           ),
         ),

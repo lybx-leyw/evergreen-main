@@ -9,21 +9,15 @@ import 'package:evergreen_base/renderer/templates/v4_modle/slot/data_source_slot
 class TimelineSlot extends DataSourceSlot {
   const TimelineSlot({super.key, required super.config});
 
+  // Phase 2: 声明式数据绑定
+  @override
+  DataMapping get dataMapping => const DataMapping(targetKey: 'items');
+
   @override
   DataSourceSlotState<TimelineSlot> createState() => _TimelineSlotState();
 }
 
 class _TimelineSlotState extends DataSourceSlotState<TimelineSlot> {
-  @override
-  Map<String, dynamic> mergeData(Map<String, dynamic> base, dynamic resolved) {
-    final merged = <String, dynamic>{...base};
-    if (resolved is List) {
-      merged['items'] = resolved;
-    } else if (resolved is Map<String, dynamic>) {
-      merged.addAll(resolved);
-    }
-    return merged;
-  }
 
   @override
   Widget buildStatic(Map<String, dynamic> cfg) {
@@ -169,3 +163,5 @@ class _TimelineEntry extends StatelessWidget {
     );
   }
 }
+
+

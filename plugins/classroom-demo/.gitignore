@@ -1,8 +1,0 @@
-# 运行时由 scraper 下载的 PPT 图片（本地相对路径，见 data/ppt/）
-/data/ppt/
-
-# 渲染层远程图兜底下载的本地缓存
-/data/ppt_cache/
-
-# 会话 cookie 兜底文件（短时效，含登录态，避免提交）
-/data/classroom_cookies.json

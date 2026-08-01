@@ -10,7 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:evergreen_base/providers.dart';
 import 'package:evergreen_base/core/agent/skill/skill.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
-import 'package:evergreen_base/renderer/app/service/theme/theme_provider.dart';
+
 
 /// 技能管理页面。
 ///
@@ -448,6 +448,7 @@ class _NewSkillDialogState extends State<_NewSkillDialog> {
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<String>(
+                      isExpanded: true,
                       value: _scope,
                       decoration: const InputDecoration(
                         labelText: '作用域',
@@ -468,6 +469,7 @@ class _NewSkillDialogState extends State<_NewSkillDialog> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: DropdownButtonFormField<String>(
+                      isExpanded: true,
                       value: _runAs,
                       decoration: const InputDecoration(
                         labelText: '运行方式',

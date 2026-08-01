@@ -9,13 +9,12 @@
 // - AgentAssembly.buildStandardTools 提供与全局 AgentRuntime 一致的标准工具集。
 
 import 'package:dio/dio.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:evergreen_base/core/agent/agent.dart' as agent;
 import 'package:evergreen_base/core/agent/agent_factory.dart';
 import 'package:evergreen_base/core/agent/memory/file_memory_store.dart';
 import 'package:evergreen_base/core/agent/skill/skill.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('buildStandardTools 返回与全局 Runtime 一致的标准工具集', () {

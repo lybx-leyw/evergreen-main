@@ -94,6 +94,10 @@ class DesignDocument {
   /// 侧边栏导航配置（manifest V2 的 nav.sidebar）。
   DesignNav nav;
 
+  /// 模板类型（manifest V2 的 template 字段）。
+  /// 'v4' = 使用预定义组件库配置，「html」= 插件自由定义 HTML 界面。
+  String template;
+
   /// 后端进程列表（manifest V2 的 process 字段）。
   List<DesignProcess> process;
 
@@ -118,6 +122,7 @@ class DesignDocument {
     this.version = '1.0.0',
     List<String>? dependencies,
     DesignNav? nav,
+    this.template = 'v4',
     List<DesignProcess>? process,
     List<DesignPage>? pages,
     Map<String, dynamic>? metadata,
@@ -139,6 +144,7 @@ class DesignDocument {
       description: json['description'] as String?,
       route: json['route'] as String?,
       version: json['version'] as String? ?? '1.0.0',
+      template: json['template'] as String? ?? 'v4',
       dependencies: (json['dependencies'] as List?)
               ?.map((d) => d.toString())
               .toList() ??
@@ -171,6 +177,7 @@ class DesignDocument {
         if (description != null) 'description': description,
         if (route != null) 'route': route,
         'version': version,
+        'template': template,
         if (dependencies.isNotEmpty) 'dependencies': dependencies,
         'nav': nav.toJson(),
         if (process.isNotEmpty)

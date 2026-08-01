@@ -6,13 +6,24 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 /// Greenix 可写基础目录，默认为当前工作目录下的 `.greenix`。
 String _greenixBaseDir = '.greenix';
 
-/// 初始化 Greenix 路径——main() 启动时调用一次。
-void initGreenixPaths() {
-  _greenixBaseDir = p.join(Directory.current.path, '.greenix');
+/// 初始化 Greenix 路径——main() 启动时调用一次（须 await）。
+///
+/// - 桌面端：基于当前工作目录（通常为项目根）下的 `.greenix`，保持历史行为。
+/// - 移动端（Android/iOS）：进程工作目录是只读的 `/`，直接拼 `.greenix` 会得到
+///   `/.greenix` 并抛 `FileSystemException: Read-only file system (errno=30)`。
+///   故改用 app 私有可写目录 [getApplicationSupportDirectory] 下的 `.greenix`。
+Future<void> initGreenixPaths() async {
+  if (Platform.isAndroid || Platform.isIOS) {
+    final support = await getApplicationSupportDirectory();
+    _greenixBaseDir = p.join(support.path, '.greenix');
+  } else {
+    _greenixBaseDir = p.join(Directory.current.path, '.greenix');
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -22,13 +33,20 @@ void initGreenixPaths() {
 /// 插件目录缓存——首次解析后复用，避免重复文件 I/O。
 String? _cachedPluginsRoot;
 
+/// 安卓端插件释放目录：应用可写目录下的 `.greenix/plugins`。
+///
+/// 与 [releasePluginsAssetsIfNeeded] 的释放目标一致（见
+/// plugin_asset_releaser.dart），是安卓侧所有插件消费者的统一入口。
+String get androidPluginsDir => p.join(_greenixBaseDir, 'plugins');
+
 /// 解析插件根目录（plugins/）的绝对路径。
 ///
 /// **解析优先级**：
-/// 1. 环境变量 `EVERGREEN_PLUGINS_DIR`（最高优先级）
-/// 2. 从 [Platform.resolvedExecutable] 向上查找 `pubspec.yaml` → `$projectRoot/../plugins`
-/// 3. 从 [Directory.current] 向上查找 `pubspec.yaml` → `$projectRoot/../plugins`
-/// 4. 回退：`Directory.current.parent/plugins`
+/// 1. 安卓：插件资产已释放到应用可写目录（见 [androidPluginsDir]）
+/// 2. 环境变量 `EVERGREEN_PLUGINS_DIR`（最高优先级）
+/// 3. 从 [Platform.resolvedExecutable] 向上查找 `pubspec.yaml` → `$projectRoot/plugins`
+/// 4. 从 [Directory.current] 向上查找 `pubspec.yaml` → `$projectRoot/plugins`
+/// 5. 回退：`Directory.current/plugins`
 ///
 /// 设计原因：节点 2（一次性产出三件套）及其他插件路径消费者需要绝对路径，
 /// 避免硬编码 `'plugins/'` 相对路径在 CWD 变动时错落。
@@ -36,6 +54,15 @@ String? _cachedPluginsRoot;
 /// 结果已规范化（`p.normalize`），并确保目录存在。
 String resolvePluginsRoot() {
   if (_cachedPluginsRoot != null) return _cachedPluginsRoot!;
+
+  // 安卓：直接返回已释放的插件目录（避免回退到只读的 `/`）
+  if (Platform.isAndroid) {
+    final d = androidPluginsDir;
+    _ensureDir(d);
+    debugPrint('[GreenixPath] 🔌 pluginsRoot (android) ← $d');
+    _cachedPluginsRoot = d;
+    return d;
+  }
 
   // 策略1：环境变量
   final envDir = Platform.environment['EVERGREEN_PLUGINS_DIR'];
@@ -47,28 +74,18 @@ String resolvePluginsRoot() {
     return normalized;
   }
 
-  // 策略2A：从 Platform.resolvedExecutable 向上找项目根
-  final exeRoot = _findProjectRoot(Directory(p.dirname(Platform.resolvedExecutable)));
-  if (exeRoot != null) {
-    final plugins = p.normalize(p.absolute(exeRoot, '..', 'plugins'));
+  // 策略2：从可执行文件目录 / 当前工作目录向上找项目根
+  final root = resolveProjectRoot();
+  if (root != null) {
+    final plugins = p.normalize(p.absolute(root, 'plugins'));
     _ensureDir(plugins);
-    debugPrint('[GreenixPath] 🔌 pluginsRoot ← exe parent: $plugins');
+    debugPrint('[GreenixPath] 🔌 pluginsRoot ← projectRoot: $plugins');
     _cachedPluginsRoot = plugins;
     return plugins;
   }
 
-  // 策略2B：从 Directory.current 向上找项目根
-  final cwdRoot = _findProjectRoot(Directory.current);
-  if (cwdRoot != null) {
-    final plugins = p.normalize(p.absolute(cwdRoot, '..', 'plugins'));
-    _ensureDir(plugins);
-    debugPrint('[GreenixPath] 🔌 pluginsRoot ← cwd parent: $plugins');
-    _cachedPluginsRoot = plugins;
-    return plugins;
-  }
-
-  // 策略3：回退——当前工作目录的平级
-  final fallback = p.normalize(p.absolute(Directory.current.parent.path, 'plugins'));
+  // 策略3：回退——当前工作目录下的 plugins
+  final fallback = p.normalize(p.absolute(Directory.current.path, 'plugins'));
   _ensureDir(fallback);
   debugPrint('[GreenixPath] ⚠ pluginsRoot fallback: $fallback');
   _cachedPluginsRoot = fallback;
@@ -79,6 +96,33 @@ String resolvePluginsRoot() {
 @visibleForTesting
 void resetPluginsRootCache() {
   _cachedPluginsRoot = null;
+}
+
+/// 向上查找包含 pubspec.yaml 的目录作为项目根（公开 API，带缓存）。
+///
+/// 从 [Platform.resolvedExecutable] 所在目录向上查找；找不到时从
+/// [Directory.current] 向上查找；均失败返回 null。
+String? resolveProjectRoot() {
+  if (_cachedProjectRoot != null) return _cachedProjectRoot!;
+  final fromExe = _findProjectRoot(Directory(p.dirname(Platform.resolvedExecutable)));
+  if (fromExe != null) {
+    _cachedProjectRoot = fromExe;
+    return fromExe;
+  }
+  final fromCwd = _findProjectRoot(Directory.current);
+  if (fromCwd != null) {
+    _cachedProjectRoot = fromCwd;
+    return fromCwd;
+  }
+  return null;
+}
+
+String? _cachedProjectRoot;
+
+/// 重置项目根缓存（测试用）。
+@visibleForTesting
+void resetProjectRootCache() {
+  _cachedProjectRoot = null;
 }
 
 /// 向上查找包含 [markerFile] 的目录作为项目根。
@@ -103,6 +147,12 @@ void _ensureDir(String path) {
     debugPrint('[GreenixPath] 📁 创建目录: $path');
   }
 }
+
+/// 配置凭证 JSON 文件路径（供 scraper 脚本直接读取，跳过 HTTP ConfigHttpServer）。
+///
+/// 启动时 ConfigHttpServer 将全部 SharedPreferences 设置覆写到该文件。
+/// Python scraper 的 `_get_config()` 将此作为 Tier 2 降级路径。
+String get greenixConfigPath => p.join(_greenixBaseDir, 'config.json');
 
 /// 记忆存储目录。
 String get greenixMemoriesDir => p.join(_greenixBaseDir, 'memories');

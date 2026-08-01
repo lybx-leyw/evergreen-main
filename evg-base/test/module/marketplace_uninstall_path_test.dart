@@ -2,11 +2,12 @@
 /// 不能靠 manifest 的 id 反推（id 可能与文件夹名不同，反推指向不存在路径→卸载静默失败）。
 ///
 /// 纯 Dart，不挂载 widget、不碰 Riverpod/SharedPreferences，绝不挂死。
+library;
 import 'dart:io';
 
+import 'package:evergreen_base/renderer/templates/v4_modle/components/marketplace/marketplace_scan.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
-import 'package:evergreen_base/renderer/templates/v4_modle/components/marketplace/marketplace_scan.dart';
 
 void main() {
   group('scanPluginManifests 目录映射', () {

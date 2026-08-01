@@ -3,7 +3,6 @@
 /// 公开类：[ToolCallCard]
 import 'package:flutter/material.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
-import 'package:evergreen_base/renderer/app/service/theme/theme_provider.dart';
 import 'models.dart';
 
 /// 工具调用卡片。
@@ -43,8 +42,6 @@ class _ToolCallCardState extends State<ToolCallCard> {
 
   @override
   Widget build(BuildContext context) {
-    final tokenBg = context.componentColor('toolCall', 'bg');
-    final tokenBorder = context.componentColor('toolCall', 'border');
     final surface = Theme.of(context).colorScheme.surfaceContainerHighest;
 
     final call = widget.call;
@@ -53,10 +50,9 @@ class _ToolCallCardState extends State<ToolCallCard> {
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       decoration: BoxDecoration(
-        color: tokenBg ?? surface,
+        color: surface,
         border: Border.all(
-          color: tokenBorder ??
-              Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3),
         ),
         borderRadius: BorderRadius.circular(8),
       ),

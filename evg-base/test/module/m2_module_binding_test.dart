@@ -4,6 +4,7 @@
 /// 经 DataOrchestrator 拉取的行数据注入 [DefaultView]，使其不再恒空（R2）。
 ///
 /// 运行：cd evg-base && flutter test test/renderer/m2_module_binding_test.dart
+library;
 import 'package:evergreen_base/core/data/data.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'package:evergreen_base/providers.dart';
@@ -18,14 +19,14 @@ void main() {
   testWidgets('模块级 dataBindings → DefaultView 注入行数据渲染', (tester) async {
     final orch = DataOrchestrator();
     orch.register(
-      DataType<dynamic>(name: 'myRows'),
+      const DataType<dynamic>(name: 'myRows'),
       () async => [
         {'name': '注入行A'},
         {'name': '注入行B'},
       ],
     );
 
-    final descriptor = ModuleDescriptor(
+    const descriptor = ModuleDescriptor(
       id: 'mod1',
       name: 'M1',
       dataBindings: [
@@ -36,7 +37,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [dataOrchestratorProvider.overrideWith((ref) => orch)],
-        child: MaterialApp(home: Scaffold(body: CompositeView(descriptor: descriptor))),
+        child: const MaterialApp(home: Scaffold(body: CompositeView(descriptor: descriptor))),
       ),
     );
     await tester.pumpAndSettle();
@@ -47,16 +48,16 @@ void main() {
   });
 
   testWidgets('无 dataBindings → DefaultView 显示空状态占位，不崩', (tester) async {
-    final descriptor = ModuleDescriptor(
+    const descriptor = ModuleDescriptor(
       id: 'mod2',
       name: 'M2',
-      dataBindings: const [],
+      dataBindings: [],
     );
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [dataOrchestratorProvider.overrideWith((ref) => DataOrchestrator())],
-        child: MaterialApp(home: Scaffold(body: CompositeView(descriptor: descriptor))),
+        child: const MaterialApp(home: Scaffold(body: CompositeView(descriptor: descriptor))),
       ),
     );
     await tester.pumpAndSettle();

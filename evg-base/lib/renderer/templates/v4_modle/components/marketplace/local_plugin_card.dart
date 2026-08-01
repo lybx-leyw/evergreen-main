@@ -44,7 +44,7 @@ class LocalPluginCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         side: BorderSide(
           color: isDisabled
-              ? theme.disabledColor.withValues(alpha: 0.3)
+              ? theme.colorScheme.outlineVariant
               : theme.dividerColor,
         ),
       ),
@@ -61,7 +61,7 @@ class LocalPluginCard extends StatelessWidget {
                   height: 40,
                   decoration: BoxDecoration(
                     color: isDisabled
-                        ? theme.disabledColor.withValues(alpha: 0.1)
+                        ? theme.colorScheme.surfaceContainerHighest
                         : theme.colorScheme.primaryContainer,
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -69,7 +69,7 @@ class LocalPluginCard extends StatelessWidget {
                     icon,
                     size: 22,
                     color: isDisabled
-                        ? theme.disabledColor
+                        ? theme.colorScheme.onSurfaceVariant
                         : theme.colorScheme.onPrimaryContainer,
                   ),
                 ),
@@ -84,7 +84,8 @@ class LocalPluginCard extends StatelessWidget {
                           fontWeight: FontWeight.w600,
                           fontSize: 14,
                           color: isDisabled
-                              ? theme.disabledColor
+                              ? theme.colorScheme.onSurface
+                                  .withValues(alpha: 0.55)
                               : theme.colorScheme.onSurface,
                         ),
                         maxLines: 1,
@@ -95,7 +96,7 @@ class LocalPluginCard extends StatelessWidget {
                         'v${plugin.version ?? '0.0.0'} · ${plugin.id} · ${plugin.typeLabel}',
                         style: TextStyle(
                           fontSize: 11,
-                          color: theme.disabledColor,
+                          color: theme.colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -118,7 +119,7 @@ class LocalPluginCard extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   color: isDisabled
-                      ? theme.disabledColor
+                      ? theme.colorScheme.onSurface.withValues(alpha: 0.45)
                       : theme.colorScheme.onSurface.withValues(alpha: 0.6),
                 ),
                 maxLines: 2,
@@ -126,60 +127,65 @@ class LocalPluginCard extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 8),
-            // 底部：信息标签 + 操作按钮
-            Row(
-              children: [
-                _InfoBadge(
-                  label: plugin.typeLabel,
-                  icon: plugin.typeIcon,
-                ),
-                const SizedBox(width: 8),
-                if (plugin.isModule)
+            // 底部：信息标签 + 操作按钮。
+            // 窄屏（360px 手机）下 3 badge + 2 button 总宽 ~321px > 可用 ~312px，
+            // 超 7-13px 导致 RenderFlex 右溢出。用 SingleChildScrollView 兜底。
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
                   _InfoBadge(
-                    label: plugin.hasSidebar ? '侧栏可见' : '无侧栏',
-                    icon: plugin.hasSidebar
-                        ? Icons.visibility
-                        : Icons.visibility_off,
+                    label: plugin.typeLabel,
+                    icon: plugin.typeIcon,
                   ),
-                if (plugin.isModule && plugin.pageCount > 0) ...[
                   const SizedBox(width: 8),
-                  _InfoBadge(
-                    label: '${plugin.pageCount} 页',
-                    icon: Icons.tab,
-                  ),
-                ],
-                const Spacer(),
-                // 侧栏隐藏/显示仅对 module 且启用时可用。
-                if (plugin.isModule && plugin.hasSidebar)
+                  if (plugin.isModule)
+                    _InfoBadge(
+                      label: plugin.hasSidebar ? '侧栏可见' : '无侧栏',
+                      icon: plugin.hasSidebar
+                          ? Icons.visibility
+                          : Icons.visibility_off,
+                    ),
+                  if (plugin.isModule && plugin.pageCount > 0) ...[
+                    const SizedBox(width: 8),
+                    _InfoBadge(
+                      label: '${plugin.pageCount} 页',
+                      icon: Icons.tab,
+                    ),
+                  ],
+                  const SizedBox(width: 8),
+                  // 侧栏隐藏/显示仅对 module 且启用时可用。
+                  if (plugin.isModule && plugin.hasSidebar)
+                    TextButton.icon(
+                      onPressed: _enabled ? onToggleSidebar : null,
+                      icon: Icon(
+                        _sidebarVisible ? Icons.menu_open : Icons.menu,
+                        size: 16,
+                      ),
+                      label: Text(
+                        _sidebarVisible ? '隐藏侧栏' : '显示侧栏',
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                  const SizedBox(width: 4),
                   TextButton.icon(
-                    onPressed: _enabled ? onToggleSidebar : null,
-                    icon: Icon(
-                      _sidebarVisible ? Icons.menu_open : Icons.menu,
-                      size: 16,
-                    ),
-                    label: Text(
-                      _sidebarVisible ? '隐藏侧栏' : '显示侧栏',
-                      style: const TextStyle(fontSize: 11),
-                    ),
+                    onPressed: _enabled ? onUninstall : null,
+                    icon: const Icon(Icons.delete_outline, size: 16),
+                    label: const Text('卸载', style: TextStyle(fontSize: 11)),
                     style: TextButton.styleFrom(
+                      foregroundColor: Theme.of(context).colorScheme.error,
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       minimumSize: Size.zero,
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                   ),
-                const SizedBox(width: 4),
-                TextButton.icon(
-                  onPressed: _enabled ? onUninstall : null,
-                  icon: const Icon(Icons.delete_outline, size: 16),
-                  label: const Text('卸载', style: TextStyle(fontSize: 11)),
-                  style: TextButton.styleFrom(
-                    foregroundColor: Colors.red.shade400,
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),

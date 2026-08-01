@@ -37,8 +37,8 @@ PluginStateRecord _rec({
     );
 
 void main() {
-  final secA = SidebarSection('A', order: 1);
-  final secB = SidebarSection('B', order: 2);
+  const secA = SidebarSection('A', order: 1);
+  const secB = SidebarSection('B', order: 2);
 
   group('filterNavByPluginState', () {
     test('state==null 保留；enabled=false 与 sidebarVisible=false 隐藏', () {

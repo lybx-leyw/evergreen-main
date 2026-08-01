@@ -3,33 +3,13 @@
   "id": "ocean_dark",
   "name": "深海暗色",
   "colors": {
-    "primary": "#1565C0",
-    "secondary": "#42A5F5",
     "background": "#0D1B2A",
     "surface": "#1B2838",
-    "error": "#EF5350",
-    "success": "#66BB6A",
+    "border": "#263850",
     "text": "#E8EDF2",
     "textSecondary": "#90A4AE",
-    "border": "#263850",
-    "shadow": "#000000",
-    "overlay": "#000000",
-
-    "sidebar": { "bg": "#0A1628", "text": "#E8EDF2", "active": "#1565C0", "hover": "#1B3450" },
-    "bubble": { "user": "#1565C0", "assistant": "#1B2838", "text": "#E8EDF2", "timestamp": "#546E7A" },
-    "thinking": { "bg": "#102A44", "text": "#90CAF9", "border": "#1565C0" },
-    "toolCall": { "bg": "#1B3A20", "text": "#A5D6A7", "border": "#388E3C" },
-    "codeBlock": { "bg": "#0F1923", "text": "#E8EDF2", "border": "#263850", "header": "#1B2838" },
-    "input": { "bg": "#1B2838", "text": "#E8EDF2", "border": "#263850", "focus": "#1565C0", "placeholder": "#546E7A" },
-    "progressBar": { "track": "#263850", "fill": "#1565C0", "text": "#FFFFFF" },
-    "table": { "header": "#102A44", "stripe": "#152538", "text": "#E8EDF2", "border": "#263850", "hover": "#1B3450" },
-    "card": { "bg": "#1B2838", "border": "#263850", "shadow": "#000000", "text": "#E8EDF2" },
-    "button": { "primary": "#1565C0", "hover": "#1976D2", "active": "#0D47A1", "disabled": "#37474F", "text": "#FFFFFF" },
-    "drawer": { "bg": "#0D1B2A", "text": "#E8EDF2", "overlay": "#000000" },
-    "modal": { "bg": "#1B2838", "overlay": "#000000", "text": "#E8EDF2", "border": "#263850" },
-    "badge": { "bg": "#EF5350", "text": "#FFFFFF" },
-    "divider": { "color": "#263850", "thickness": "1" },
-    "scrollbar": { "thumb": "#37474F", "track": "#0D1B2A" },
-    "search": { "bg": "#1B2838", "text": "#E8EDF2", "border": "#263850", "focus": "#1565C0", "icon": "#546E7A" }
+    "accent": "#1565C0",
+    "error": "#EF5350",
+    "others": "#42A5F5"
   }
 }

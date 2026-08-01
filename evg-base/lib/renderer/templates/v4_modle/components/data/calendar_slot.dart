@@ -10,25 +10,15 @@ import 'package:evergreen_base/renderer/components/shared/widgets/calendar_widge
 class CalendarSlot extends DataSourceSlot {
   const CalendarSlot({super.key, required super.config});
 
+  // Phase 2: 声明式数据绑定 — 优先提取 events 键
+  @override
+  DataMapping get dataMapping => const DataMapping(sourcePath: 'events', targetKey: 'events');
+
   @override
   DataSourceSlotState<CalendarSlot> createState() => _CalendarSlotState();
 }
 
 class _CalendarSlotState extends DataSourceSlotState<CalendarSlot> {
-  @override
-  Map<String, dynamic> mergeData(Map<String, dynamic> base, dynamic resolved) {
-    final merged = <String, dynamic>{...base};
-    if (resolved is List) {
-      merged['events'] = resolved;
-    } else if (resolved is Map<String, dynamic>) {
-      if (resolved['events'] is List) {
-        merged['events'] = resolved['events'];
-      } else {
-        merged.addAll(resolved);
-      }
-    }
-    return merged;
-  }
 
   @override
   Widget buildStatic(Map<String, dynamic> cfg) {
@@ -62,3 +52,5 @@ class _CalendarSlotState extends DataSourceSlotState<CalendarSlot> {
     return value == null ? null : Color(value);
   }
 }
+
+

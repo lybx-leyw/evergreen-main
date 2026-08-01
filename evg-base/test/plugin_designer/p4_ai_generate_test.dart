@@ -2,7 +2,7 @@
 ///
 /// 使用 [_FakeProvider] 注入确定性响应，不调用真实 DeepSeek，不驱动
 /// PluginDesignerView（避免 PluginPreloader 常驻定时器与 flutter_test 泵冲突，见 FAIL #13）。
-import 'dart:convert';
+library;
 
 import 'package:evergreen_base/core/agent/agent.dart' as agent;
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_document.dart';
@@ -13,11 +13,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 /// 受控的 LLM 通道：返回固定文本，可模拟抛错，并捕获传入的消息。
 class _FakeProvider implements agent.Provider {
+
+  _FakeProvider(this.responseText, {this.throwOnChat = false});
   final String responseText;
   final bool throwOnChat;
   List<agent.Message>? capturedMessages;
-
-  _FakeProvider(this.responseText, {this.throwOnChat = false});
 
   @override
   String get name => 'fake';
@@ -196,7 +196,7 @@ void main() {
         final ds = comp.config['dataSource'];
         if (ds is! Map) return ds != null; // 非对象即非法（null 不算）
         final ep = ds['endpoint'];
-        return ep is! String || (ep as String).isEmpty;
+        return ep is! String || (ep).isEmpty;
       });
       expect(hasSpurious, isFalse);
     });

@@ -4,9 +4,9 @@
 /// （生成 ↔ 解析往返一致），否则点选生成的 dataPath 在渲染期取不到数据。
 library;
 
-import 'package:flutter_test/flutter_test.dart';
 import 'package:evergreen_base/renderer/atomic/json_path.dart';
 import 'package:evergreen_base/renderer/atomic/json_tree.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('jsonPathOf 路径生成', () {

@@ -66,7 +66,7 @@ void main() {
 
       // 关键 4：_resolvePreset 支持 List 简写（保留 base.mode）
       expect(
-        src.contains("base is Map && override is List"),
+        src.contains('base is Map && override is List'),
         isTrue,
         reason: 'P0 修复缺失：_resolvePreset 未处理 List 简写',
       );
@@ -99,7 +99,7 @@ void main() {
 
     test('v4 manifest AI 助手页使用正确类型 + 有效预设', () {
       final manifest = File(
-        '../plugins/showcase-v4/module/manifest.json',
+        'plugins/showcase-v4/module/manifest.json',
       ).readAsStringSync();
 
       // page_0 的 ai-assistant slot 应使用标准 "ai-assistant" 类型（非 compact）

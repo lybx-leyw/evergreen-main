@@ -9,25 +9,15 @@ import 'package:evergreen_base/renderer/components/shared/widgets/map_panel.dart
 class MapSlot extends DataSourceSlot {
   const MapSlot({super.key, required super.config});
 
+  // Phase 2: 声明式数据绑定 — 嵌套 map 键由 buildStatic 自行解包
+  @override
+  DataMapping get dataMapping => const DataMapping(targetKey: 'map');
+
   @override
   DataSourceSlotState<MapSlot> createState() => _MapSlotState();
 }
 
 class _MapSlotState extends DataSourceSlotState<MapSlot> {
-  @override
-  Map<String, dynamic> mergeData(Map<String, dynamic> base, dynamic resolved) {
-    final merged = <String, dynamic>{...base};
-    if (resolved is Map<String, dynamic>) {
-      // 数据源可返回嵌套 `map` 子键，或直接扁平的 center/zoom/markers。
-      final inner = resolved['map'];
-      if (inner is Map<String, dynamic>) {
-        merged.addAll(inner);
-      } else {
-        merged.addAll(resolved);
-      }
-    }
-    return merged;
-  }
 
   @override
   Widget buildStatic(Map<String, dynamic> cfg) {
@@ -37,3 +27,5 @@ class _MapSlotState extends DataSourceSlotState<MapSlot> {
     return MapPanel(map: map);
   }
 }
+
+

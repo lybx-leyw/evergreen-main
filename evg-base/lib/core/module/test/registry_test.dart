@@ -322,6 +322,37 @@ void main() {
       expect(groups[1].$1.label, '教育');
     });
 
+    test('navGroups 同名分组不同 sectionOrder 合并为一组', () {
+      final r = ModuleRegistry();
+      r.register(ModuleDescriptor(
+        id: 'campus-a',
+        name: '通知',
+        icon: 0xe7f4,
+        route: '/campus-a',
+        nav: const NavObjectDescriptor(
+          sidebar: SidebarDescriptor(section: '校园', sectionOrder: 50, order: 15),
+        ),
+      ));
+      r.register(ModuleDescriptor(
+        id: 'campus-b',
+        name: '我的课表',
+        icon: 0xe916,
+        route: '/campus-b',
+        // 显式声明不同的 sectionOrder（99）—— 仍应并入「校园」组
+        nav: const NavObjectDescriptor(
+          sidebar: SidebarDescriptor(section: '校园', sectionOrder: 99, order: 30),
+        ),
+      ));
+      r.seal();
+
+      final groups = r.navGroups;
+      expect(groups.length, 1, reason: '同名分组必须合并，sectionOrder 只影响排序不影响分组');
+      expect(groups[0].$1.label, '校园');
+      expect(groups[0].$2.length, 2);
+      // 组排序权重取最小 sectionOrder
+      expect(groups[0].$1.order, 50);
+    });
+
     test('navFlat 扁平列表', () {
       final r = _freshRegistry();
       final flat = r.navFlat;

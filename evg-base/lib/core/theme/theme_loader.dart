@@ -1,4 +1,4 @@
-/// 主题加载器——扫描 theme.json 文件（五层模型）。
+/// 主题加载器——扫描 theme.json 文件（扁平语义色板模型）。
 ///
 /// # 顶层函数
 ///
@@ -11,7 +11,6 @@ library;
 
 import 'dart:convert';
 import 'dart:io';
-import 'dart:io' show stderr;
 import 'package:path/path.dart' as p;
 import 'theme_descriptor.dart';
 import 'theme_store.dart';
@@ -19,11 +18,15 @@ import 'theme_store.dart';
 // ═══════ 扫描 ═══════
 
 /// 扫描目录下所有子目录中的 theme.json，返回 [ThemeDescriptor] 列表。
+///
+/// 格式错误（缺 8 必填色 / hex 非法）的主题会跳过并在 stderr 输出
+/// ❌ 明细与汇总，便于插件作者定位问题（不再静默丢弃）。
 List<ThemeDescriptor> scanThemes(String dirPath) {
   final dir = Directory(dirPath);
   if (!dir.existsSync()) return [];
 
   final themes = <ThemeDescriptor>[];
+  final failures = <String>[];
   for (final entity in dir.listSync()) {
     if (entity is! Directory) continue;
     final file = File(p.join(entity.path, 'theme', 'theme.json'));
@@ -34,8 +37,14 @@ List<ThemeDescriptor> scanThemes(String dirPath) {
       if (map['type'] != 'theme') continue;
       themes.add(ThemeDescriptor.fromJson(map));
     } on FormatException catch (e) {
-      stderr.writeln('[theme] 加载 "${file.path}" 失败: $e');
+      failures.add('${file.path}: $e');
+      stderr.writeln('[theme] ❌ 主题加载失败: ${file.path} → $e');
     }
+  }
+  if (failures.isNotEmpty) {
+    stderr.writeln(
+        '[theme] ⚠ 共 ${failures.length} 个主题加载失败，已跳过：\n  - '
+        '${failures.join('\n  - ')}');
   }
   return themes;
 }

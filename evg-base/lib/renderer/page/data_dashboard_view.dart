@@ -68,7 +68,6 @@ class _DataDashboardViewState extends ConsumerState<DataDashboardView> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final items = _statuses;
     if (items.isEmpty) {
       return Center(
@@ -100,9 +99,10 @@ class _DataDashboardViewState extends ConsumerState<DataDashboardView> {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: isDark
-                  ? [Colors.blueGrey.shade800, Colors.blueGrey.shade900]
-                  : [Colors.blue.shade50, Colors.blue.shade100],
+              colors: [
+                theme.colorScheme.primaryContainer,
+                theme.colorScheme.surfaceContainerHighest,
+              ],
             ),
             borderRadius: BorderRadius.circular(12),
           ),
@@ -188,7 +188,6 @@ class _SourceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final never = status.lastFetchedAt == null;
     final label = never ? '点击拉取' : (status.isFresh ? '新鲜 · ${status.relativeTime}' : '过期 · ${status.relativeTime}');
     final labelColor = never
@@ -199,7 +198,8 @@ class _SourceCard extends StatelessWidget {
 
     return Card(
       elevation: 0,
-      color: isDark ? Colors.grey.shade900 : Colors.grey.shade50,
+      // 跟随主题：卡片面板底色（surfaceContainerHighest = 主题 surface/bgSecondary）
+      color: theme.colorScheme.surfaceContainerHighest,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
         side: BorderSide(

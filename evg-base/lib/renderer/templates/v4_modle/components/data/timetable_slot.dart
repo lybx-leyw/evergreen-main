@@ -10,25 +10,15 @@ import 'package:evergreen_base/renderer/components/shared/widgets/timetable_grid
 class TimetableSlot extends DataSourceSlot {
   const TimetableSlot({super.key, required super.config});
 
+  // Phase 2: 声明式数据绑定 — 优先提取 sessions 键
+  @override
+  DataMapping get dataMapping => const DataMapping(sourcePath: 'sessions', targetKey: 'sessions');
+
   @override
   DataSourceSlotState<TimetableSlot> createState() => _TimetableSlotState();
 }
 
 class _TimetableSlotState extends DataSourceSlotState<TimetableSlot> {
-  @override
-  Map<String, dynamic> mergeData(Map<String, dynamic> base, dynamic resolved) {
-    final merged = <String, dynamic>{...base};
-    if (resolved is List) {
-      merged['sessions'] = resolved;
-    } else if (resolved is Map<String, dynamic>) {
-      if (resolved['sessions'] is List) {
-        merged['sessions'] = resolved['sessions'];
-      } else {
-        merged.addAll(resolved);
-      }
-    }
-    return merged;
-  }
 
   @override
   Widget buildStatic(Map<String, dynamic> cfg) {
@@ -47,3 +37,5 @@ class _TimetableSlotState extends DataSourceSlotState<TimetableSlot> {
     return TimetableGrid(sessions: sessions);
   }
 }
+
+

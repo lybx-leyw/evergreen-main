@@ -82,3 +82,36 @@ flutter:
   assets:
     - .greenix/skills/
     - assets/video/
+    # 安卓适配：插件目录整体作为资产，启动期释放到设备可写目录。
+    # 注意：本环境 Flutter 版本的目录资产包含不递归子目录，故由
+    # tool/bundle_plugins.dart 在打包时显式列出每个文件（见下方标记块）。
+    # >>>PLUGIN_ASSETS_START>>>
+    - assets/plugins_bundle/ai-assistant/module/manifest.json
+    - assets/plugins_bundle/data-dashboard/module/manifest.json
+    - assets/plugins_bundle/data-zdbk/config/config.json
+    - assets/plugins_bundle/data-zdbk/data/manifest.json
+    - assets/plugins_bundle/data-zdbk/data/scraper.py
+    - assets/plugins_bundle/html-creator/module/manifest.json
+    - assets/plugins_bundle/html-creator/my-plugin/module/index.html
+    - assets/plugins_bundle/html-creator/my-plugin/module/manifest.json
+    - assets/plugins_bundle/html-creator/zdbk-transcript-v2/module/index.html
+    - assets/plugins_bundle/html-creator/zdbk-transcript-v2/module/manifest.json
+    - assets/plugins_bundle/html-creator/zdbk-transcript/module/index.html
+    - assets/plugins_bundle/html-creator/zdbk-transcript/module/manifest.json
+    - assets/plugins_bundle/liyu_weiyang_hongfen/theme/theme.json
+    - assets/plugins_bundle/magic-book/module/manifest.json
+    - assets/plugins_bundle/marketplace/module/manifest.json
+    - assets/plugins_bundle/pdf_translate/module/manifest.json
+    - assets/plugins_bundle/python-runner/agent/manifest.json
+    - assets/plugins_bundle/scraper/module/manifest.json
+    - assets/plugins_bundle/settings/README.md
+    - assets/plugins_bundle/settings/config/config.json
+    - assets/plugins_bundle/settings/module/manifest.json
+    - assets/plugins_bundle/settings/module/settings.py
+    - assets/plugins_bundle/settings/module/settings.spec
+    - assets/plugins_bundle/theme-creator/module/manifest.json
+    - assets/plugins_bundle/view/module/index.html
+    - assets/plugins_bundle/view/module/manifest.json
+    - assets/plugins_bundle/warm_study/theme/theme.json
+
+    # <<<PLUGIN_ASSETS_END<<<

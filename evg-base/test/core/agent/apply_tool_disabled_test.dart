@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('applyToolDisabledSetToRegistry', () {
-    Registry _build() {
+    Registry build() {
       final r = Registry();
       for (final n in ['a', 'b', 'c']) {
         r.register(SimpleTool(
@@ -18,7 +18,7 @@ void main() {
     }
 
     test('禁用集合内的工具被关闭，其余保持启用', () {
-      final registry = _build();
+      final registry = build();
 
       applyToolDisabledSetToRegistry(registry, {'b'});
 
@@ -32,7 +32,7 @@ void main() {
     });
 
     test('从禁用集合移除后（重新启用）真正生效', () {
-      final registry = _build();
+      final registry = build();
       registry.disable('a');
       expect(registry.isEnabled('a'), isFalse);
 
@@ -42,7 +42,7 @@ void main() {
     });
 
     test('禁用集合含未注册工具时不抛异常', () {
-      final registry = _build();
+      final registry = build();
 
       expect(() => applyToolDisabledSetToRegistry(registry, {'x'}),
           returnsNormally);
@@ -51,7 +51,7 @@ void main() {
   });
 
   group('applyWebSearchEnabledToRegistry', () {
-    Registry _build() {
+    Registry build() {
       final r = Registry();
       for (final n in ['web_search', 'web_fetch', 'other']) {
         r.register(SimpleTool(
@@ -65,7 +65,7 @@ void main() {
     }
 
     test('开启 → web_search/web_fetch 启用', () {
-      final registry = _build();
+      final registry = build();
       registry.disable('web_search');
       registry.disable('web_fetch');
 
@@ -77,7 +77,7 @@ void main() {
     });
 
     test('关闭 → web_search/web_fetch 禁用', () {
-      final registry = _build();
+      final registry = build();
 
       applyWebSearchEnabledToRegistry(registry, false);
 

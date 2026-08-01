@@ -18,7 +18,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:evergreen_base/providers.dart';
 import 'package:evergreen_base/core/agent/memory/memory.dart' as mem;
 import '../components/shared/widgets/markdown_renderer.dart';
-import 'package:evergreen_base/renderer/app/service/theme/theme_provider.dart';
+
 
 /// Allport 特质分类（UI 维度的"类型"），对应记忆的 [mem.Memory.priority]。
 const List<String> _allportTraits = [
@@ -132,11 +132,11 @@ class _GlobalMemoryViewState extends ConsumerState<GlobalMemoryView> {
     }
   }
 
-  void _deleteMemory(String name) async {
+  Future<void> _deleteMemory(String name) async {
     try {
       final store = ref.read(memoryStoreProvider);
       await store.delete(name);
-      _loadMemories();
+      await _loadMemories();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -146,11 +146,11 @@ class _GlobalMemoryViewState extends ConsumerState<GlobalMemoryView> {
     }
   }
 
-  void _saveMemory(mem.Memory memory) async {
+  Future<void> _saveMemory(mem.Memory memory) async {
     try {
       final store = ref.read(memoryStoreProvider);
-      store.save(memory);
-      _loadMemories();
+      await store.save(memory);
+      await _loadMemories();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -207,7 +207,7 @@ class _GlobalMemoryViewState extends ConsumerState<GlobalMemoryView> {
       final priority = _allportPriority(selectedTrait);
       // 新建记忆默认归入用户维度；编辑时保留原有 type
       final type = memory?.type ?? mem.MemoryType.user;
-      _saveMemory(mem.Memory(
+      await _saveMemory(mem.Memory(
         name: effectiveName,
         title: title.isNotEmpty ? title : effectiveName,
         description: _allportDescription(selectedTrait),
@@ -320,7 +320,7 @@ class _GlobalMemoryViewState extends ConsumerState<GlobalMemoryView> {
           if (sec.memories.isNotEmpty)
             _AllportSectionView(
               section: sec,
-              onDelete: _deleteMemory,
+              onDelete: (name) => _deleteMemory(name),
               onTap: (m) => _showEditDialog(memory: m),
             ),
       ],

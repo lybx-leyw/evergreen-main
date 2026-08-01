@@ -224,7 +224,7 @@ class DeepSeekProvider implements Provider {
     final msgCount = messages.length;
     final toolCount = tools.length;
     print('[Provider:D] chat() called model=$_model messages=$msgCount tools=$toolCount'
-        ' apiKey=${_apiKey != null && _apiKey!.isNotEmpty ? "✅ ${_apiKey!.substring(0, 8)}..." : "❌ null"}');
+        ' apiKey=${_apiKey.isNotEmpty ? "✅ ${_apiKey.substring(0, 8)}..." : "❌ null"}');
 
     final body = <String, dynamic>{
       'model': _model,
@@ -356,29 +356,29 @@ class DeepSeekProvider implements Provider {
               final tcId = tc['id']?.toString();
 
               // 按 index 合并：新 index 创建新 call，已有 index 追加内容
-              while (pendingCalls!.length <= index) {
-                pendingCalls!.add(ToolCall(id: '', name: '', arguments: ''));
+              while (pendingCalls.length <= index) {
+                pendingCalls.add(ToolCall(id: '', name: '', arguments: ''));
               }
               if (tcId != null && tcId.isNotEmpty) {
-                pendingCalls![index] = ToolCall(
+                pendingCalls[index] = ToolCall(
                   id: tcId,
-                  name: pendingCalls![index].name,
-                  arguments: pendingCalls![index].arguments,
+                  name: pendingCalls[index].name,
+                  arguments: pendingCalls[index].arguments,
                 );
               }
               if (func['name'] != null && (func['name'] as String).isNotEmpty) {
-                pendingCalls![index] = ToolCall(
-                  id: pendingCalls![index].id,
+                pendingCalls[index] = ToolCall(
+                  id: pendingCalls[index].id,
                   name: func['name'] as String,
-                  arguments: pendingCalls![index].arguments,
+                  arguments: pendingCalls[index].arguments,
                 );
               }
               if (func['arguments'] != null) {
                 final argStr = func['arguments'] as String;
-                pendingCalls![index] = ToolCall(
-                  id: pendingCalls![index].id,
-                  name: pendingCalls![index].name,
-                  arguments: pendingCalls![index].arguments + argStr,
+                pendingCalls[index] = ToolCall(
+                  id: pendingCalls[index].id,
+                  name: pendingCalls[index].name,
+                  arguments: pendingCalls[index].arguments + argStr,
                 );
               }
             }
@@ -392,22 +392,22 @@ class DeepSeekProvider implements Provider {
 
           // finish_reason = tool_calls → 工具调用收集完成
           if (finishReason == 'tool_calls' && pendingCalls != null && pendingCalls.isNotEmpty) {
-            print('[Provider:D] finish_reason=tool_calls calls=${pendingCalls!.length}');
-            for (final c in pendingCalls!) {
+            print('[Provider:D] finish_reason=tool_calls calls=${pendingCalls.length}');
+            for (final c in pendingCalls) {
               print('[Provider:D]   call: ${c.name} args=${c.arguments.substring(0, (c.arguments.length).clamp(0, 100))}');
             }
             // 补全可能缺失的 ID
-            for (var i = 0; i < pendingCalls!.length; i++) {
-              if (pendingCalls![i].id.isEmpty) {
-                pendingCalls![i] = ToolCall(
+            for (var i = 0; i < pendingCalls.length; i++) {
+              if (pendingCalls[i].id.isEmpty) {
+                pendingCalls[i] = ToolCall(
                   id: 'call_${DateTime.now().millisecondsSinceEpoch}_$i',
-                  name: pendingCalls![i].name,
-                  arguments: pendingCalls![i].arguments,
+                  name: pendingCalls[i].name,
+                  arguments: pendingCalls[i].arguments,
                 );
               }
             }
-            toolCallCount = pendingCalls!.length;
-            yield ProviderEvent.toolCalls(pendingCalls!);
+            toolCallCount = pendingCalls.length;
+            yield ProviderEvent.toolCalls(pendingCalls);
             pendingCalls = null;
           }
 

@@ -40,6 +40,14 @@ Future<String?> resolvePythonExe({String? configuredPath}) async {
     } catch (_) {}
   }
 
+  // ④ 安卓：进程内 Chaquopy 解释器（不走 Process）。
+  // 返回哨兵字符串 'chaquopy' 仅作标识；实际执行由 [ChaquopyRunner]
+  // 经 MethodChannel 完成。桌面不应触达此分支。
+  if (Platform.isAndroid) {
+    Log().info('PythonEnv: using chaquopy (in-process interpreter)');
+    return 'chaquopy';
+  }
+
   Log().warn('PythonEnv: no Python found');
   return null;
 }

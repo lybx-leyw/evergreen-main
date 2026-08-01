@@ -6,7 +6,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:evergreen_base/theme/breakpoints.dart';
 import 'package:evergreen_base/core/module/modules.dart';
 import 'package:evergreen_base/generated/plugin_imports.g.dart';
-import 'package:evergreen_base/renderer/app/service/theme/theme_provider.dart';
 import 'package:evergreen_base/renderer/app/service/providers/renderer_providers.dart';
 import 'package:evergreen_base/core/feedback/feedback_bar.dart';
 import '../../providers.dart';
@@ -153,8 +152,7 @@ class _CollapsedSidebar extends ConsumerWidget {
     final location = GoRouterState.of(context).uri.path;
 
     return Material(
-      color: context.componentColor('sidebar', 'bg') ??
-          Theme.of(context).colorScheme.surfaceContainerLow,
+      color: Theme.of(context).colorScheme.surfaceContainerLow,
       child: Column(
         children: [
           // Logo icon
@@ -397,8 +395,7 @@ class _ExpandedSidebar extends ConsumerWidget {
     final groups = filterNavByPluginState(registry.navGroups, states);
 
     return Material(
-      color: context.componentColor('sidebar', 'bg') ??
-          Theme.of(context).colorScheme.surfaceContainerLow,
+      color: Theme.of(context).colorScheme.surfaceContainerLow,
       child: Column(
         children: [
           Expanded(
@@ -559,8 +556,7 @@ class _NavItemWithBadge extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       child: Material(
-        color: context.componentColor('sidebar', 'active') ??
-            Theme.of(context).colorScheme.primaryContainer,
+        color: Theme.of(context).colorScheme.primaryContainer,
         borderRadius: BorderRadius.circular(8),
         child: InkWell(
           borderRadius: BorderRadius.circular(8),

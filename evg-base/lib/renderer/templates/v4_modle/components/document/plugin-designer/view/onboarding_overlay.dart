@@ -31,13 +31,13 @@ class _OnboardingStep {
 /// 显示完整引导流程。
 ///
 /// 返回 `true` 表示用户完成了引导（或跳过了）。
-Future<bool> showOnboardingOverlay(BuildContext context) async {
+Future<void> showOnboardingOverlay(BuildContext context) {
   return Navigator.of(context).push(
     MaterialPageRoute(
       fullscreenDialog: true,
       builder: (_) => const _OnboardingOverlay(),
     ),
-  ) as bool;
+  );
 }
 
 /// 引导蒙层组件。

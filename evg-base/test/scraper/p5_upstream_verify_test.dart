@@ -1,7 +1,7 @@
 /// A-P5 上游依赖验证 — 覆盖 4 个测试缺口。
 ///
 /// Gap 1: `scraperConfigTemplate` 常量验证
-///   模板必须包含 `_get_config`、`{CREDENTIAL_PLACEHOLDER}`、双策略降级。
+///   模板必须包含 `_get_config`、`GREENIX_CONFIG_PATH`、`{CREDENTIAL_PLACEHOLDER}`、三级降级。
 ///
 /// Gap 2: `exportAsExe` 签名与预检
 ///   确认是顶级函数（非类方法），Python 找不到时返回 success:false。
@@ -16,15 +16,15 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:evergreen_base/core/config/config_http_server.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/data_pluginer.dart';
+import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_exporter.dart';
+import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_flow_facade.dart';
+import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_generator_view.dart';
+import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_workflow.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/scraper/scraper_exporter.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/scraper/scraper_workflow.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/scraper/scraper_flow_facade.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/scraper/scraper_generator_view.dart';
-import 'package:evergreen_base/core/config/config_http_server.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/data_pluginer.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Gap 1: scraperConfigTemplate 常量验证
@@ -35,7 +35,7 @@ void main() {
     test('模板非空', () {
       expect(scraperConfigTemplate, isNotEmpty);
       expect(scraperConfigTemplate.length, greaterThan(500),
-          reason: '配置模板应包含完整双策略降级逻辑');
+          reason: '配置模板应包含完整三级降级逻辑');
     });
 
     test('模板包含 _get_config(key) 函数', () {
@@ -47,13 +47,16 @@ void main() {
           reason: 'AI 只能填充此占位符');
     });
 
-    test('模板包含双策略降级注释', () {
+    test('模板包含三级降级注释', () {
       final content = scraperConfigTemplate;
-      // 策略1：HTTP 从 ConfigHttpServer 读取
+      // 策略1：.greenix/config.json 本地文件直接读取（GREENIX_CONFIG_PATH 环境变量）
+      expect(content, contains('GREENIX_CONFIG_PATH'));
+      expect(content, contains('.greenix/config.json'));
+      // 策略2：HTTP 从 ConfigHttpServer 读取
       expect(content, contains('ConfigHttpServer'));
       expect(content, contains('config/settings'));
       expect(content, contains('urllib.request.Request'));
-      // 策略2：环境变量兜底
+      // 策略3：系统环境变量
       expect(content, contains('os.environ.get'));
     });
 
@@ -123,10 +126,10 @@ void main() {
         () async => null, // Python 不存在 → PyInstaller 跳过
         manifestConfig: ExportManifestConfig(
           name: 'test-exe',
-          schema: InferredSchema(
+          schema: const InferredSchema(
             sourceUrl: 'https://example.com',
             title: 'EXE测试',
-            fields: const [InferredField(name: 'id', type: 'number')],
+            fields: [InferredField(name: 'id', type: 'number')],
           ),
         ),
       );

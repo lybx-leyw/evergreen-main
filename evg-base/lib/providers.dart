@@ -5,18 +5,18 @@ library;
 
 import 'dart:async';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:evergreen_base/core/module/module_registry.dart';
-import 'package:evergreen_base/core/theme/theme_store.dart';
 import 'package:evergreen_base/core/agent/controller/controller.dart' as agent;
+import 'package:evergreen_base/core/agent/controller/controller.dart' show ControllerState;
 import 'package:evergreen_base/core/agent/event.dart' as agent;
 import 'package:evergreen_base/core/agent/memory/file_memory_store.dart';
 import 'package:evergreen_base/core/agent/skill/skill.dart';
-import 'package:evergreen_base/core/agent/controller/controller.dart' show ControllerState;
 import 'package:evergreen_base/core/agent/tool.dart' show Registry;
-import 'package:evergreen_base/core/data/orchestrator.dart' show DataOrchestrator;
 import 'package:evergreen_base/core/config/config_http_server.dart' show ConfigHttpServer;
+import 'package:evergreen_base/core/data/orchestrator.dart' show DataOrchestrator;
+import 'package:evergreen_base/core/module/module_registry.dart';
+import 'package:evergreen_base/core/theme/theme_store.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// 全局模块注册中心——在 main() 中创建、填充、密封后通过 ProviderScope.overrides 注入。
 ///

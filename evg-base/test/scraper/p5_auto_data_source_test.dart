@@ -5,17 +5,17 @@
 /// （运行期注册 / CDP / 端到端 widget 测试在后续批次。）
 library;
 
-import 'package:flutter_test/flutter_test.dart';
-import 'package:path/path.dart' as p;
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/auto_data_source_service.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/scraper/scraper_workflow.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/scraper/scraper_flow_facade.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/scraper/scraper_exporter.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/data_pluginer.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_component.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_document.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_page.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_slot.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_component.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/auto_data_source_service.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/data_pluginer.dart';
+import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_exporter.dart';
+import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_flow_facade.dart';
+import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_workflow.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 
 /// 假门面：直接返回可预期 schema 与成功结果，不触碰文件系统。
 class FakeScraperFlowFacade extends ScraperFlowFacade {

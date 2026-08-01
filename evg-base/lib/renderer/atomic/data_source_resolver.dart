@@ -8,6 +8,7 @@
 /// 校验与降级（R5）：任何异常都被捕获、[Log].warn 记录，返回 null，绝不向上抛到 UI。
 library;
 
+import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'package:evergreen_base/core/data/data.dart';
 import 'package:evergreen_base/core/data/type.dart';
@@ -42,6 +43,7 @@ Future<dynamic> resolveDataSource({
   try {
     dynamic raw;
     final ep = ds.endpoint;
+    debugPrint('[resolveDataSource] ep=$ep, orch=${orch != null ? "非null" : "NULL"}');
     if (ep != null && ep.isNotEmpty) {
       if (ep.startsWith('orch://') &&
           (orch != null || dataType != null)) {
@@ -49,13 +51,22 @@ Future<dynamic> resolveDataSource({
         final name = ep.startsWith('orch://')
             ? ep.substring('orch://'.length)
             : dataType!;
-        final t = DataType<dynamic>(
-          name: name,
-          category: '',
-          displayName: name,
-          ttl: const Duration(minutes: 5),
-        );
-        raw = forceRefresh ? await orch!.refresh(t) : await orch!.get(t);
+        // 复用中枢已注册的 DataType（携带 persistentKey/ttl），以启用其"缓存优先"
+        // 读取——否则临时构造的空壳 DataType 因 persistentKey 为 null 会令 orch.get
+        // 每次都真实拉取（绕过缓存）。未注册时兜底匿名 DataType，get 内部的
+        // _requireRegistered 仍会正确降级。
+        final registered = orch?.typeByName(name);
+        debugPrint('[resolveDataSource] orch://$name → typeByName=${registered != null ? "命中" : "NULL(兜底匿名)"}');
+        final t = registered ??
+            DataType<dynamic>(
+              name: name,
+              category: '',
+              displayName: name,
+              ttl: const Duration(minutes: 5),
+            );
+        debugPrint('[resolveDataSource] 即将 orch.fastRead("$name")...');
+        raw = forceRefresh ? await orch!.refresh(t) : await orch!.fastRead(t);
+        debugPrint('[resolveDataSource] orch.fastRead("$name") 返回: raw=${raw != null ? "有数据" : "NULL"}');
       } else {
         // 注入的 fetcher 仅接收 ds（1 参）；默认实现内部创建 dio（2 参）。
         raw = httpFetcher != null
@@ -63,13 +74,15 @@ Future<dynamic> resolveDataSource({
             : await _defaultHttpFetch(ds, dio ?? Dio());
       }
     } else if (dataType != null && dataType.isNotEmpty && orch != null) {
-      final t = DataType<dynamic>(
-        name: dataType,
-        category: '',
-        displayName: dataType,
-        ttl: const Duration(minutes: 5),
-      );
-      raw = forceRefresh ? await orch.refresh(t) : await orch.get(t);
+      // 同上：优先复用已注册 DataType 以启用缓存优先读取。
+      final t = orch.typeByName(dataType) ??
+          DataType<dynamic>(
+            name: dataType,
+            category: '',
+            displayName: dataType,
+            ttl: const Duration(minutes: 5),
+          );
+      raw = forceRefresh ? await orch.refresh(t) : await orch.fastRead(t);
     } else {
       // 既无 endpoint 也无 dataType+orch → 无数据源可解析。
       return null;

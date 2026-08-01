@@ -73,8 +73,11 @@ class PathSandbox {
 
   /// 规范化路径，解析 `..` 和 `.`（不要求路径已存在）。
   static String _canonical(String path) {
-    final abs = Directory(path).absolute.path;
     final sep = Platform.pathSeparator;
+    // 用户常传 Unix 风格 /，需先统一为平台分隔符，否则 split(sep) 会把
+    // "C:\root\../../escape" 整体当作一个 part，".." 永远不被识别 → 越界绕过。
+    final normalized = path.replaceAll('/', sep).replaceAll('\\', sep);
+    final abs = Directory(normalized).absolute.path;
     final parts = abs.split(sep);
     final out = <String>[];
     for (final part in parts) {
@@ -93,7 +96,8 @@ class PathSandbox {
         out.insert(0, driveMatch.group(1)!);
       }
     }
-    return '${out.join(sep)}${abs.endsWith(sep) ? sep : ''}'.replaceAll('$sep$sep', sep);
+    final result = '${out.join(sep)}${abs.endsWith(sep) ? sep : ''}'.replaceAll('$sep$sep', sep);
+    return result;
   }
 
   @override

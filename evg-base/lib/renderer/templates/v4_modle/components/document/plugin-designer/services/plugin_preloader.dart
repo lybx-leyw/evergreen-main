@@ -70,6 +70,9 @@ class PluginPreloader {
 
   /// 开始监控。
   void start() {
+    // 目录热监控依赖 watcher（桌面原生后端）。安卓端插件为内置打包，
+    // 无文件系统热更新需求，故跳过监控，避免调用缺失的原生后端。
+    if (Platform.isAndroid) return;
     if (_isRunning) return;
     final dir = Directory(_pluginsDir);
     if (!dir.existsSync()) {

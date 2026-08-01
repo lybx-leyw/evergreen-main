@@ -98,12 +98,15 @@ bool _parseFlag(dynamic raw) {
   return false;
 }
 
-/// 不可解析（名称不在 `_iconMap` 且非合法 codePoint hex）的 icon 统一兜底为此默认值，
-/// 避免 `"movie"` 这类未知名称导致图标为空或渲染异常。
+/// 缺失、不可解析（名称不在 `_iconMap` 且非合法 codePoint hex）的 icon 统一兜底为此默认值，
+/// 避免 `"movie"` 这类未知名称或字段缺失导致图标为空、渲染异常、
+/// 或 hasSidebar 判定意外失败（插件从侧边栏静默消失）。
 const int kDefaultIcon = 0xe873; // Icons.description
 
 int? _parseIcon(dynamic raw) {
-  if (raw == null) return null;
+  // 字段缺失（null）→ 兜底默认值，与不可解析名称同等待遇。
+  // 不返回 null：hasSidebar 依赖 icon != null，缺失会导致模块静默退出侧边栏。
+  if (raw == null) return kDefaultIcon;
   if (raw is int) return raw;
   if (raw is String) {
     final mapped = _iconMap[raw];
@@ -113,7 +116,8 @@ int? _parseIcon(dynamic raw) {
     // 名称无法解析 → 兜底默认值（仍视为有 icon，hasSidebar 等逻辑可正常成立）
     return kDefaultIcon;
   }
-  return null;
+  // 类型异常（如对象/数组）→ 同样兜底，绝不返回 null 破坏侧边栏判定
+  return kDefaultIcon;
 }
 
 int? _iconToJson(int? codePoint) => codePoint;
@@ -686,8 +690,12 @@ class ProcessDescriptor {
   /// 进程唯一标识（V2 新增）。
   final String? id;
 
-  /// .exe 路径。
+  /// .exe 路径（或 runtime=='python' 时的 .py 入口，向后兼容：旧 manifest 仍写 exe）。
   final String exe;
+
+  /// 运行环境：'native'（默认，直接执行 exe）| 'python'（用 Python 解释器执行 .py）。
+  /// 仅桌面用于判定首参；安卓 P1 据此后台进程内执行。
+  final String runtime;
 
   /// 通信协议："http" | "stdio"。
   final String protocol;
@@ -707,6 +715,7 @@ class ProcessDescriptor {
   const ProcessDescriptor({
     this.id,
     required this.exe,
+    this.runtime = 'native',
     this.protocol = 'http',
     this.scope = 'long',
     this.autoStart = true,
@@ -720,7 +729,8 @@ class ProcessDescriptor {
     }
     return ProcessDescriptor(
       id: json['id'] as String?,
-      exe: json['exe'] as String? ?? '',
+      exe: json['exe'] as String? ?? json['entry'] as String? ?? '',
+      runtime: json['runtime'] as String? ?? 'native',
       protocol: json['protocol'] as String? ?? 'http',
       scope: json['scope'] as String? ?? 'long',
       autoStart: json['autoStart'] as bool? ?? true,
@@ -734,6 +744,7 @@ class ProcessDescriptor {
       'exe': exe,
       'protocol': protocol,
     };
+    if (runtime != 'native') m['runtime'] = runtime;
     if (id != null) m['id'] = id;
     if (scope != 'long') m['scope'] = scope;
     if (!autoStart) m['autoStart'] = autoStart;
@@ -1243,9 +1254,15 @@ class LayoutDescriptor {
 
 // ═══════ SlotDescriptor ═══════
 
-/// 插槽描述符（V2）——region / style / process / events / component。
+/// 插槽描述符（V3：统一节点模型）——region / style / process / events / component / children / layout。
 ///
-/// Slot 不能嵌套 Slot，只能包含 Component。
+/// # 统一节点模型（v5P Phase 1）
+///
+/// Slot 现在支持两种形态：
+/// - **原子节点**：[component] 非空，[children] 为空/未声明 → 渲染单个组件
+/// - **容器节点**：[children] 非空，[component] 可选 → 按 [layout] 排布子 slot
+///
+/// 容器节点若同时有 [component]，先渲染自身组件再渲染子 slot（类似 HTML 的嵌套容器）。
 class SlotDescriptor {
   /// dock/absolute 布局的区域标识（top / left / center / right / bottom）。
   final String? region;
@@ -1259,8 +1276,16 @@ class SlotDescriptor {
   /// 插槽级事件（delegates）。
   final EventDescriptor events;
 
-  /// 组件声明。
+  /// 组件声明（原子节点必填；容器节点可选）。
   final ComponentDescriptor? component;
+
+  /// 子 slot 列表（容器节点）。非空时此 slot 为容器型，按 [layout] 排布子节点。
+  /// 兼容旧 manifest：缺省或 null → 退化为纯原子 slot。
+  final List<SlotDescriptor>? children;
+
+  /// 子 slot 的布局方式（仅当 [children] 非空时有效）。
+  /// 缺省时子节点垂直排列（等同于 `{"type": "flex", "direction": "column"}`）。
+  final LayoutDescriptor? layout;
 
   /// V2: slot 级 theme 覆盖（可选）。
   /// 部分覆盖 theme.json 中 slot 层的颜色。
@@ -1272,8 +1297,28 @@ class SlotDescriptor {
     this.process = const [],
     this.events = const EventDescriptor(),
     this.component,
+    this.children,
+    this.layout,
     this.theme,
   });
+
+  /// 是否为容器型 slot（有子节点）。
+  bool get isContainer => children != null && children!.isNotEmpty;
+
+  /// 是否为原子型 slot（有组件）。
+  bool get isAtomic => component != null;
+
+  /// 所有后代 slot 的 component type 列表（递归）。
+  List<String> get allComponentTypes {
+    final types = <String>[];
+    if (component != null) types.add(component!.type);
+    if (children != null) {
+      for (final child in children!) {
+        types.addAll(child.allComponentTypes);
+      }
+    }
+    return types;
+  }
 
   factory SlotDescriptor.fromJson(Map<String, dynamic>? json) {
     if (json == null) return const SlotDescriptor();
@@ -1287,6 +1332,11 @@ class SlotDescriptor {
       component: json['component'] != null
           ? ComponentDescriptor.fromJson(
               json['component'] as Map<String, dynamic>)
+          : null,
+      children: _parseSlotChildren(json['children']),
+      layout: json['layout'] != null
+          ? LayoutDescriptor.fromJson(
+              json['layout'] as Map<String, dynamic>?)
           : null,
       theme: ModuleDescriptor._parseThemeOverride(json['theme']),
     );
@@ -1303,8 +1353,20 @@ class SlotDescriptor {
     final e = events.toJson();
     if (e.isNotEmpty) m['events'] = e;
     if (component != null) m['component'] = component!.toJson();
+    if (children != null && children!.isNotEmpty) {
+      m['children'] = children!.map((c) => c.toJson()).toList();
+    }
+    if (layout != null) m['layout'] = layout!.toJson();
     return m;
   }
+}
+
+/// 解析子 slot 列表（null 安全，空数组视为无子节点）。
+List<SlotDescriptor>? _parseSlotChildren(dynamic raw) {
+  if (raw == null || raw is! List || raw.isEmpty) return null;
+  return raw
+      .map((c) => SlotDescriptor.fromJson(c as Map<String, dynamic>?))
+      .toList();
 }
 
 // ═══════ ComponentDescriptor ═══════
@@ -1405,7 +1467,7 @@ Map<String, SlotDescriptor> _parseSlots(dynamic raw) {
 Map<String, DataSourceDescriptor>? _parseModuleDataSources(dynamic raw) {
   if (raw == null || raw is! Map) return null;
   final out = <String, DataSourceDescriptor>{};
-  for (final entry in (raw as Map).entries) {
+  for (final entry in (raw).entries) {
     out[entry.key.toString()] = DataSourceDescriptor.fromJson(
       entry.value is Map ? (entry.value as Map).cast<String, dynamic>() : null,
     );
@@ -2602,7 +2664,7 @@ class ModuleDescriptor {
   final DataSourceDescriptor? dataSource;
 
   /// 模板路由子选择（v5P）——消费方模块经 `modle_route` 选择 modle 内的某套子 UI。
-  /// 例如 zdbk-modle 支持 'score' | 'courses' | 'notifications'，留空回退 'score'。
+  /// 例如 zdbk-modle 支持 'score' | 'course_offerings' | 'training_plans' | 'notifications'，留空回退 'score'。
   final String? modleRoute;
 
   /// 模块级多数据源（v5P）——声明式多数据源：命名 source → 数据源描述。
@@ -2641,7 +2703,11 @@ class ModuleDescriptor {
   bool get isServiceOnly => pages.isEmpty && (route == null || route!.isEmpty);
 
   /// 是否出现在侧边栏。
-  bool get hasSidebar => nav.sidebar != null && icon != null && !isServiceOnly;
+  ///
+  /// 不要求 `icon != null`：icon 缺失/不可解析已由 [_parseIcon] 兜底为
+  /// [kDefaultIcon]，直接构造时缺失也由 navGroups/paletteItems 兜底，
+  /// 避免插件因漏写 icon 从侧边栏静默消失。
+  bool get hasSidebar => nav.sidebar != null && !isServiceOnly;
 
   /// 所有路由路径。
   List<String> get allRoutePaths {
@@ -2717,7 +2783,7 @@ class ModuleDescriptor {
   static Map<String, Map<String, String>>? _parseThemeOverride(dynamic raw) {
     if (raw == null || raw is! Map) return null;
     final result = <String, Map<String, String>>{};
-    for (final entry in (raw as Map).entries) {
+    for (final entry in (raw).entries) {
       if (entry.value is Map) {
         result[entry.key.toString()] =
             (entry.value as Map).map((k, v) => MapEntry(k.toString(), v.toString()));

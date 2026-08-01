@@ -14,16 +14,16 @@ library;
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:evergreen_base/core/utils/greenix_path.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/config_register.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/data_pluginer.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/view/data_collection_wizard.dart';
+import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_exporter.dart';
+import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_flow_facade.dart';
+import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_workflow.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/scraper/scraper_workflow.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/scraper/scraper_flow_facade.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/scraper/scraper_exporter.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/data_pluginer.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/config_register.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/view/data_collection_wizard.dart';
-import 'package:evergreen_base/core/utils/greenix_path.dart';
 
 void main() {
   // ═══════════════════════════════════════════════════════════════════════
@@ -32,12 +32,12 @@ void main() {
 
   group('N1A DataCollectionResult 模型', () {
     test('构造所有字段', () {
-      final schema = InferredSchema(
+      const schema = InferredSchema(
         sourceUrl: 'https://example.com/api/scores',
-        fields: [const InferredField(name: 'score', type: 'number')],
+        fields: [InferredField(name: 'score', type: 'number')],
       );
 
-      final result = DataCollectionResult(
+      const result = DataCollectionResult(
         typeName: 'scores',
         outputDir: 'plugins/scores',
         pyPath: 'plugins/scores/scraper.py',
@@ -46,7 +46,7 @@ void main() {
         configPath: 'plugins/scores/config/config.json',
         schema: schema,
         files: [
-          const FileOutput(
+          FileOutput(
             path: 'plugins/scores/scraper.py',
             label: 'scraper.py',
             exists: true,
@@ -65,7 +65,7 @@ void main() {
     });
 
     test('configPath 可为 null（无敏感字段）', () {
-      final result = DataCollectionResult(
+      const result = DataCollectionResult(
         typeName: 'news',
         outputDir: 'plugins/news',
         schema: InferredSchema(
@@ -79,7 +79,7 @@ void main() {
     });
 
     test('files 可记录失败的输出项', () {
-      final output = const FileOutput(
+      const output = FileOutput(
         path: 'plugins/scores/scraper.exe',
         label: 'scraper.exe',
         exists: false,
@@ -235,10 +235,10 @@ void main() {
     test('generateAsDataPlugin 写入 manifest.json', () async {
       final tmp = Directory.systemTemp.createTempSync('evg_n1c_');
       try {
-        final schema = InferredSchema(
+        const schema = InferredSchema(
           sourceUrl: 'https://example.com/api/test',
           title: 'testData',
-          fields: [const InferredField(name: 'value', type: 'string')],
+          fields: [InferredField(name: 'value', type: 'string')],
         );
         final result = await facade.generateAsDataPlugin(
           schema: schema,
@@ -271,7 +271,7 @@ void main() {
     test('generateAsDataPlugin 空代码不写入 scraper.py', () async {
       final tmp = Directory.systemTemp.createTempSync('evg_n1c_empty_');
       try {
-        final schema = InferredSchema(
+        const schema = InferredSchema(
           sourceUrl: 'https://example.com/test',
           fields: [],
         );
@@ -318,12 +318,12 @@ void main() {
     });
 
     test('registerDataPlugin 生成完整 manifest', () async {
-      final schema = InferredSchema(
+      const schema = InferredSchema(
         sourceUrl: 'https://example.com/api/scores',
         title: '成绩查询',
         fields: [
-          const InferredField(name: 'studentName', type: 'string'),
-          const InferredField(name: 'score', type: 'number'),
+          InferredField(name: 'studentName', type: 'string'),
+          InferredField(name: 'score', type: 'number'),
         ],
       );
 
@@ -354,7 +354,7 @@ void main() {
     });
 
     test('registerDataPlugin 无 title 时用 name 回退', () async {
-      final schema = InferredSchema(
+      const schema = InferredSchema(
         sourceUrl: 'https://example.com/api/data',
         fields: [],
       );
@@ -371,7 +371,7 @@ void main() {
     });
 
     test('data/ 目录必定创建', () async {
-      final schema = InferredSchema(
+      const schema = InferredSchema(
         sourceUrl: 'https://example.com/test',
         fields: [],
       );
@@ -517,13 +517,13 @@ void main() {
       final pluginDir = p.join(tmpPlugins, 'my-scraper');
 
       // 1. scraper.py
-      final pyCode = 'print("hello")';
+      const pyCode = 'print("hello")';
       final pyResult = await exportAsPython(pyCode, pluginDir,
           manifestConfig: ExportManifestConfig(
             name: 'my-scraper',
-            schema: InferredSchema(
+            schema: const InferredSchema(
               sourceUrl: 'https://example.com/api/x',
-              fields: [const InferredField(name: 'val', type: 'string')],
+              fields: [InferredField(name: 'val', type: 'string')],
             ),
           ));
       expect(pyResult.success, isTrue, reason: pyResult.message);
@@ -533,9 +533,9 @@ void main() {
       final dataResult = await pluginer.registerDataPlugin(
         name: 'my-scraper',
         outputDir: pluginDir,
-        schema: InferredSchema(
+        schema: const InferredSchema(
           sourceUrl: 'https://example.com/api/x',
-          fields: [const InferredField(name: 'val', type: 'string')],
+          fields: [InferredField(name: 'val', type: 'string')],
         ),
       );
       expect(dataResult.success, isTrue, reason: dataResult.message);
@@ -566,7 +566,7 @@ void main() {
       final pluginDir = p.join(tmpPlugins, 'idempotent');
 
       final pluginer = DataPluginer();
-      final schema = InferredSchema(
+      const schema = InferredSchema(
         sourceUrl: 'https://example.com/api/x',
         fields: [],
       );
@@ -620,7 +620,7 @@ void main() {
     test('exportAsPython 包含 scraperConfigTemplate', () async {
       final tmp = Directory.systemTemp.createTempSync('evg_n2d_py_');
       try {
-        final pyCode = 'def main():\n    pass\n';
+        const pyCode = 'def main():\n    pass\n';
         final result = await exportAsPython(pyCode, tmp.path);
         expect(result.success, isTrue);
 

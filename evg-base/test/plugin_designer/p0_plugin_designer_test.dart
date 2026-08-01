@@ -3,12 +3,13 @@
 /// 验证:
 /// 1. DesignDocument / DesignPage / DesignSlot / DesignComponent 序列化/反序列化
 /// 2. DesignToManifest 编译器输出标准 manifest.json 结构
-import 'package:flutter_test/flutter_test.dart';
+library;
+import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_component.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_document.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_page.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_slot.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_component.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/design_to_manifest.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('P0 编排模型序列化', () {

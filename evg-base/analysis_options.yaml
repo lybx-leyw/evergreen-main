@@ -15,6 +15,14 @@ analyzer:
     - "**/stub/**"
     - "build/**"
     - "scripts/**"
+    # ── 嵌套子包：各有独立 pubspec + analysis_options，须在其包根独立分析 ──
+    # lib/core 本身即嵌套包（含 agent/config/data/module/theme 子包与 stub 目录），
+    # 根包上下文分析会命中子包 stub 配置（package:flutter 解析失败），产生海量
+    # 级联假错误（2026-07-25 基线 25,577 条中约 2.4 万条属此噪声）。
+    # 根包 analyze 只覆盖根包实际代码（lib 顶层 + test/ + tool/）；
+    # 嵌套子包质量门禁：cd <子包> && dart analyze / flutter test。
+    - "lib/core/**"
+    - "lib/renderer/**"
 
 linter:
   rules:

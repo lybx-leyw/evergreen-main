@@ -1,6 +1,7 @@
 /// M2 P1 数据层单测：json_path / transform_registry / data_source_resolver。
 ///
 /// 运行：cd evg-base && flutter test test/renderer/data_test.dart
+library;
 import 'package:evergreen_base/core/data/data.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'package:evergreen_base/renderer/atomic/data_source_resolver.dart';
@@ -84,7 +85,7 @@ void main() {
     test('dataType 路径经 DataOrchestrator 拉取', () async {
       final orch = DataOrchestrator();
       orch.register(
-        DataType<dynamic>(name: 'myType'),
+        const DataType<dynamic>(name: 'myType'),
         () async => {'hello': 'world'},
       );
       final result = await resolveDataSource(

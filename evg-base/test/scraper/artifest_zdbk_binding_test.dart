@@ -13,11 +13,12 @@
 ///
 /// 本测试不依赖任何外部 scraper / 不存在的测试插件，纯 Dart 数据 + 真实 manifest
 /// 静态契约，以源码（models.dart + module_descriptor.dart）为唯一真相来源。
+library;
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:evergreen_base/core/module/module_descriptor.dart';
-import 'package:evergreen_base/renderer/templates/zdbk_modle/models.dart';
+import 'package:evergreen_base/renderer/templates/zju_modle/zdbk/models.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
@@ -439,12 +440,16 @@ void main() {
       expect(list[0].courseNo, 'MATH2');
     });
 
-    test('zdbk-courses 声明 course_offerings/training_plans.bindings', () {
-      final m = _loadModule(ws, 'zdbk-courses');
+    test('zdbk-course-offerings 声明 course_offerings.bindings', () {
+      final m = _loadModule(ws, 'zdbk-course-offerings');
       final o = m.dataSources!['course_offerings']!;
       expect(o.bindings!['courseName'], 'kcmc');
       expect(o.bindings!['teacher'], 'jsxm');
       expect(o.bindings!['location'], 'skdd');
+    });
+
+    test('zdbk-training-plans 声明 training_plans.bindings', () {
+      final m = _loadModule(ws, 'zdbk-training-plans');
       final p = m.dataSources!['training_plans']!;
       expect(p.bindings!['planName'], 'zymc');
       expect(p.bindings!['grade'], 'synj');

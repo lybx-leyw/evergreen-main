@@ -109,6 +109,9 @@ class _WebViewSlotState extends State<WebViewSlot> {
 
   @override
   Widget build(BuildContext context) {
+    // 安卓无 webview_windows（Windows-only 插件，构建期被剔除），
+    // 直接展示平台不支持占位，避免初始化报误导性的 "需 Edge WebView2"。
+    if (Platform.isAndroid) return _unsupportedOnAndroid(context);
     if (_rawUrl.isEmpty) return _emptyState(context);
 
     final theme = Theme.of(context);
@@ -209,6 +212,31 @@ class _WebViewSlotState extends State<WebViewSlot> {
             child: LinearProgressIndicator(),
           ),
       ],
+    );
+  }
+
+  /// 安卓不支持 webview_windows（Windows-only），展示占位而非报错。
+  Widget _unsupportedOnAndroid(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      alignment: Alignment.center,
+      color: theme.colorScheme.surfaceContainerLowest,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.desktop_windows, size: 36, color: Colors.orange),
+          const SizedBox(height: 8),
+          Text('WebView 仅桌面端支持', style: theme.textTheme.titleSmall),
+          const SizedBox(height: 4),
+          Text(
+            '安卓端暂不支持内嵌 WebView2',
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
     );
   }
 

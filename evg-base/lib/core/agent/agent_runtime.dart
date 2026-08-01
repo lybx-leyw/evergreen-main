@@ -20,7 +20,10 @@ import 'package:evergreen_base/core/agent/tools/run_skill.dart';
 import 'package:evergreen_base/core/agent/tools/web_search.dart';
 import 'package:evergreen_base/core/agent/tools/user_info.dart';
 import 'package:evergreen_base/core/agent/tools/read_file.dart';
+import 'package:evergreen_base/core/agent/tools/grep.dart';
 import 'package:evergreen_base/core/agent/tools/write_file.dart';
+import 'package:evergreen_base/core/agent/tools/head_tail.dart';
+import 'package:evergreen_base/core/agent/tools/file_info.dart';
 import 'package:evergreen_base/core/agent/tools/write_global_memory.dart';
 import 'package:evergreen_base/core/agent/tools/python_runner_tool.dart';
 import 'package:evergreen_base/core/agent/skill/skill.dart';
@@ -83,6 +86,10 @@ final agentRuntimeProvider = Provider<AgentRuntime>((ref) {
     WriteGlobalMemoryTool(globalStore),
     ReadFileTool(workspaceDir: greenixWorkspaceDir('ai-assistant')),
     WriteFileTool(workspaceDir: greenixWorkspaceDir('ai-assistant')),
+    GrepTool(workspaceDir: greenixWorkspaceDir('ai-assistant')),
+    ReadHeadTool(workspaceDir: greenixWorkspaceDir('ai-assistant')),
+    ReadTailTool(workspaceDir: greenixWorkspaceDir('ai-assistant')),
+    FileInfoTool(workspaceDir: greenixWorkspaceDir('ai-assistant')),
     RunSkillTool(loader, skillIndex, provider, registry),
     ListSkillsTool(loader, skillIndex),
     WebSearchTool(Dio()),

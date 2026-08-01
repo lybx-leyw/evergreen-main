@@ -1,8 +1,8 @@
-/// ThemeDescriptor + ThemeStore + 扫描函数 全量测试（五层架构）。
+/// ThemeDescriptor + ThemeStore + 扫描函数 全量测试（扁平语义色板）。
 ///
 /// 覆盖范围：
 ///   ThemeDescriptor — const 构造 / fromJson / fromJsonString / toJson /
-///     tokenValue / tokenColor / parseHex
+///     color / parseHex / 别名兼容
 ///   ThemeStore — register / all / findById / activeTheme / setActiveById /
 ///     activeOrFirst / ChangeNotifier
 ///   scanThemes / loadThemes / scanThemeFile
@@ -17,7 +17,6 @@ import '../theme_descriptor.dart';
 import '../theme_store.dart';
 import '../theme_loader.dart';
 import '../src/color.dart';
-import '../src/tokens.dart' show ComponentTokens, AppTokens;
 
 // ═══════ helpers ═══════
 
@@ -25,41 +24,34 @@ String _testDir(String sub) =>
     p.join(Directory.current.path, 'test', '_fixtures', sub);
 
 ThemeDescriptor _simpleTheme() => const ThemeDescriptor(
-  id: 'test',
-  name: 'Test',
-  app: {'sidebar': {'bg': '#FF0000', 'text': '#FF0000', 'active': '#FF0000', 'hover': '#FF0000', 'divider': '#FF0000'}},
-  module: {},
-  page: {},
-  slot: {},
-  components: {},
-);
+      id: 'test',
+      name: 'Test',
+      colors: {
+        'background': '#0D1117',
+        'surface': '#161B22',
+        'border': '#30363D',
+        'text': '#C9D1D9',
+        'textSecondary': '#8B949E',
+        'accent': '#58A6FF',
+        'error': '#FF7B72',
+        'others': '#8B949E',
+      },
+    );
 
 ThemeDescriptor _fullTheme() => const ThemeDescriptor(
-  id: 'full',
-  name: 'Full Theme',
-  app: {
-    'sidebar': {'bg': '#F2F3F5', 'text': '#1A1D21', 'active': '#1677FF', 'hover': '#E8E8E8', 'divider': '#D0D5DD'},
-    'header': {'bg': '#FFF', 'text': '#1A1D21', 'border': '#D0D5DD'},
-    'footer': {'bg': '#FFF', 'text': '#1A1D21', 'border': '#D0D5DD'},
-    'blank': {'bg': '#F5F6F8'},
-    'commandPalette': {'bg': '#FFF', 'text': '#1A1D21', 'highlight': '#E8E8E8', 'border': '#D0D5DD'},
-  },
-  module: {'chrome': {'bg': '#FFF', 'border': '#D0D5DD'}},
-  page: {
-    'tabBar': {'bg': '#FFF', 'text': '#6B7280', 'active': '#1677FF', 'indicator': '#1677FF', 'hover': '#E8E8E8', 'border': '#D0D5DD'},
-    'background': {'color': '#F5F6F8'},
-  },
-  slot: {
-    'header': {'bg': '#FFF', 'text': '#1A1D21', 'border': '#D0D5DD'},
-    'background': {'color': '#FFF'},
-    'border': {'color': '#D0D5DD', 'width': '1'},
-  },
-  components: {
-    'sidebar': {'bg': '#F2F3F5', 'text': '#1A1D21', 'active': '#1677FF', 'hover': '#0958D9'},
-    'button': {'primary': '#1677FF', 'hover': '#0958D9', 'active': '#1677FF', 'disabled': '#D0D5DD', 'text': '#FFFFFF'},
-    'card': {'bg': '#FFFFFF', 'border': '#D0D5DD', 'shadow': '#000000', 'text': '#1A1D21'},
-  },
-);
+      id: 'full',
+      name: 'Full Theme',
+      colors: {
+        'background': '#0D1117',
+        'surface': '#161B22',
+        'border': '#30363D',
+        'text': '#C9D1D9',
+        'textSecondary': '#8B949E',
+        'accent': '#58A6FF',
+        'error': '#FF7B72',
+        'others': '#8B949E',
+      },
+    );
 
 // ═══════ ThemeDescriptor ═══════
 
@@ -70,47 +62,54 @@ void main() {
       final t = _fullTheme();
       expect(t.id, 'full');
       expect(t.name, 'Full Theme');
-      expect(t.app.length, 5); // 5 app components
-      expect(t.components.length, 3); // 3 components
+      expect(t.colors.length, 8);
     });
 
-    test('const 构造 — 空层', () {
-      const t = ThemeDescriptor(
-        id: 'empty', name: 'Empty',
-        app: {}, module: {}, page: {}, slot: {}, components: {},
-      );
-      expect(t.app, isEmpty);
-      expect(t.components, isEmpty);
+    test('const 构造 — 空 colors', () {
+      const t = ThemeDescriptor(id: 'empty', name: 'Empty', colors: {});
+      expect(t.colors, isEmpty);
     });
 
-    // ── fromJson（五层完整校验）──
+    // ── fromJson（扁平 8 色）──
     test('fromJson — 最小合法 JSON', () {
       final t = ThemeDescriptor.fromJson({
         'type': 'theme',
         'id': 'json_theme',
         'name': 'JSON Theme',
-        'app': {
-          'sidebar': {'bg': '#333', 'text': '#FFF', 'active': '#FF5722', 'hover': '#444', 'divider': '#555'},
-          'header': {'bg': '#333', 'text': '#FFF', 'border': '#555'},
-          'footer': {'bg': '#333', 'text': '#FFF', 'border': '#555'},
-          'blank': {'bg': '#FAFAFA'},
-          'commandPalette': {'bg': '#FFF', 'text': '#333', 'highlight': '#EEE', 'border': '#555'},
+        'colors': {
+          'background': '#0D1117',
+          'surface': '#161B22',
+          'border': '#30363D',
+          'text': '#C9D1D9',
+          'textSecondary': '#8B949E',
+          'accent': '#58A6FF',
+          'error': '#FF7B72',
+          'others': '#8B949E',
         },
-        'module': {'chrome': {'bg': '#FFF', 'border': '#DDD'}},
-        'page': {
-          'tabBar': {'bg': '#FFF', 'text': '#999', 'active': '#FF5722', 'indicator': '#FF5722', 'hover': '#EEE', 'border': '#DDD'},
-          'background': {'color': '#FAFAFA'},
-        },
-        'slot': {
-          'header': {'bg': '#FFF', 'text': '#333', 'border': '#DDD'},
-          'background': {'color': '#FFF'},
-          'border': {'color': '#DDD', 'width': '1'},
-        },
-        'components': _makeMinComponents(),
       });
       expect(t.id, 'json_theme');
-      expect(t.app['sidebar']?['active'], '#FF5722');
-      expect(t.app['blank']?['bg'], '#FAFAFA');
+      expect(t.colors['accent'], '#58A6FF');
+      expect(t.colors['background'], '#0D1117');
+    });
+
+    test('fromJson — 兼容别名 primary/secondary', () {
+      final t = ThemeDescriptor.fromJson({
+        'type': 'theme',
+        'id': 'alias',
+        'name': 'Alias',
+        'colors': {
+          'background': '#0D1117',
+          'surface': '#161B22',
+          'border': '#30363D',
+          'text': '#C9D1D9',
+          'textSecondary': '#8B949E',
+          'primary': '#0D47A1',
+          'error': '#EF5350',
+          'secondary': '#42A5F5',
+        },
+      });
+      expect(t.colors['accent'], '#0D47A1');
+      expect(t.colors['others'], '#42A5F5');
     });
 
     test('fromJson — type 不为 theme 抛 FormatException', () {
@@ -120,9 +119,40 @@ void main() {
       );
     });
 
-    test('fromJson — 缺少必填层抛 FormatException', () {
+    test('fromJson — 缺少 colors 抛 FormatException', () {
       expect(
         () => ThemeDescriptor.fromJson({'type': 'theme', 'id': 'x'}),
+        throwsFormatException,
+      );
+    });
+
+    test('fromJson — 缺少必填色抛 FormatException', () {
+      expect(
+        () => ThemeDescriptor.fromJson({
+          'type': 'theme',
+          'id': 'x',
+          'colors': {'background': '#0D1117'},
+        }),
+        throwsFormatException,
+      );
+    });
+
+    test('fromJson — 非法 hex 抛 FormatException', () {
+      expect(
+        () => ThemeDescriptor.fromJson({
+          'type': 'theme',
+          'id': 'x',
+          'colors': {
+            'background': 'not-a-color',
+            'surface': '#161B22',
+            'border': '#30363D',
+            'text': '#C9D1D9',
+            'textSecondary': '#8B949E',
+            'accent': '#58A6FF',
+            'error': '#FF7B72',
+            'others': '#8B949E',
+          },
+        }),
         throwsFormatException,
       );
     });
@@ -131,7 +161,7 @@ void main() {
     test('fromJsonString — 有效 JSON', () {
       // 用内置主题文件验证
       final builtinPath = p.join(
-        Directory.current.path, 'builtins', 'light', 'theme', 'theme.json');
+          Directory.current.path, 'builtins', 'light', 'theme', 'theme.json');
       if (File(builtinPath).existsSync()) {
         final raw = File(builtinPath).readAsStringSync();
         final t = ThemeDescriptor.fromJsonString(raw);
@@ -148,72 +178,22 @@ void main() {
 
     // ── toJson ──
     test('toJson — 往返一致性', () {
-      // _fullTheme() 仅有 3 个组件，无法通过 fromJson 的 54 组件完整校验。
-      // 这里构造一个含全部 54 组件的完整主题来验证 JSON 往返。
-      final original = ThemeDescriptor(
-        id: 'full',
-        name: 'Full Theme',
-        app: _fullTheme().app,
-        module: _fullTheme().module,
-        page: _fullTheme().page,
-        slot: _fullTheme().slot,
-        components: _makeMinComponents(),
-      );
+      final original = _fullTheme();
       final json = original.toJson();
       final restored = ThemeDescriptor.fromJson(json);
       expect(restored.id, original.id);
-      expect(restored.app.length, original.app.length);
-      for (final k in original.components.keys) {
-        expect(restored.components[k], original.components[k]);
-      }
+      expect(restored.colors, original.colors);
     });
 
-    // ── tokenValue ──
-    test('tokenValue — 命中返回 hex', () {
+    // ── color ──
+    test('color — 命中返回 hex', () {
       final t = _simpleTheme();
-      expect(t.tokenValue(t.app, 'sidebar', 'active'), '#FF0000');
+      expect(t.color('accent'), '#58A6FF');
     });
 
-    test('tokenValue — 未命中返回 null', () {
+    test('color — 未命中返回 null', () {
       final t = _simpleTheme();
-      expect(t.tokenValue(t.app, 'nonexistent', 'x'), isNull);
-    });
-
-    test('tokenValue — 组件命中但子 token 不存在', () {
-      final t = _fullTheme();
-      expect(t.tokenValue(t.components, 'button', 'nonexistent'), isNull);
-    });
-
-    // ── tokenColor ──
-    test('tokenColor — 合法 hex 返回 ThemeColor', () {
-      final t = _simpleTheme();
-      final c = t.tokenColor(t.app, 'sidebar', 'active');
-      expect(c, isNotNull);
-      expect(c!.toHex(withAlpha: false), '#FF0000');
-    });
-
-    test('tokenColor — 未声明返回 null', () {
-      final t = _simpleTheme();
-      expect(t.tokenColor(t.app, 'missing', 'x'), isNull);
-    });
-
-    test('tokenColor — 非法 hex 返回 null', () {
-      const t = ThemeDescriptor(
-        id: 'bad', name: 'Bad',
-        app: {'sidebar': {'bg': 'not-a-color', 'text': 'not', 'active': 'not', 'hover': 'not', 'divider': 'not'}},
-        module: {}, page: {}, slot: {}, components: {},
-      );
-      expect(t.tokenColor(t.app, 'sidebar', 'bg'), isNull);
-    });
-
-    test('tokenColorOr — 使用 ?? 模式', () {
-      final t = _simpleTheme();
-      final fallback = const ThemeColor(0xFF000000);
-      final c = t.tokenColor(t.app, 'sidebar', 'active') ?? fallback;
-      expect(c.toHex(withAlpha: false), '#FF0000');
-
-      final missing = t.tokenColor(t.app, 'missing', 'x') ?? fallback;
-      expect(missing, same(fallback));
+      expect(t.color('unknown'), isNull);
     });
 
     // ── parseHex ──
@@ -290,8 +270,9 @@ void main() {
     test('register — 同 id 覆盖', () {
       store.register(_simpleTheme());
       store.register(const ThemeDescriptor(
-        id: 'test', name: 'Overridden',
-        app: {}, module: {}, page: {}, slot: {}, components: {},
+        id: 'test',
+        name: 'Overridden',
+        colors: {},
       ));
       expect(store.all.length, 1);
       expect(store.findById('test')?.name, 'Overridden');
@@ -418,37 +399,30 @@ void main() {
       final themeDir = Directory(p.join(dir, 'my_theme', 'theme'));
       themeDir.createSync(recursive: true);
 
-      // 构造含全部 54 组件的完整主题 JSON（fromJson 要求完整声明）
+      // 构造扁平 8 色主题 JSON（fromJson 要求 8 必填色）
       final themeMap = {
         'type': 'theme',
         'id': 'loaded',
         'name': 'Second',
-        'app': {
-          'sidebar': {'bg': '#FFF', 'text': '#FFF', 'active': '#FFF', 'hover': '#FFF', 'divider': '#FFF'},
-          'header': {'bg': '#FFF', 'text': '#FFF', 'border': '#FFF'},
-          'footer': {'bg': '#FFF', 'text': '#FFF', 'border': '#FFF'},
-          'blank': {'bg': '#FFF'},
-          'commandPalette': {'bg': '#FFF', 'text': '#FFF', 'highlight': '#FFF', 'border': '#FFF'},
+        'colors': {
+          'background': '#0D1117',
+          'surface': '#161B22',
+          'border': '#30363D',
+          'text': '#C9D1D9',
+          'textSecondary': '#8B949E',
+          'accent': '#58A6FF',
+          'error': '#FF7B72',
+          'others': '#8B949E',
         },
-        'module': {'chrome': {'bg': '#FFF', 'border': '#FFF'}},
-        'page': {
-          'tabBar': {'bg': '#FFF', 'text': '#FFF', 'active': '#FFF', 'indicator': '#FFF', 'hover': '#FFF', 'border': '#FFF'},
-          'background': {'color': '#FFF'},
-        },
-        'slot': {
-          'header': {'bg': '#FFF', 'text': '#FFF', 'border': '#FFF'},
-          'background': {'color': '#FFF'},
-          'border': {'color': '#FFF', 'width': '1'},
-        },
-        'components': _makeMinComponents(),
       };
       File(p.join(themeDir.path, 'theme.json'))
           .writeAsStringSync(jsonEncode(themeMap));
 
       final store = ThemeStore();
       store.register(const ThemeDescriptor(
-        id: 'loaded', name: 'First',
-        app: {}, module: {}, page: {}, slot: {}, components: {},
+        id: 'loaded',
+        name: 'First',
+        colors: {},
       ));
       loadThemes(dir, store);
       expect(store.findById('loaded')?.name, 'Second'); // 后者覆盖
@@ -458,7 +432,7 @@ void main() {
 
     test('scanThemeFile — 内置主题文件', () {
       final builtinPath = p.join(
-        Directory.current.path, 'builtins', 'light', 'theme', 'theme.json');
+          Directory.current.path, 'builtins', 'light', 'theme', 'theme.json');
       if (File(builtinPath).existsSync()) {
         final t = scanThemeFile(builtinPath);
         expect(t.id, 'light');
@@ -472,41 +446,4 @@ void main() {
       );
     });
   });
-
-  // ═══════ Token 常量 ═══════
-
-  group('token 常量', () {
-    test('AppTokens 数量 = 5', () {
-      expect(AppTokens.count, 5);
-    });
-
-    test('ComponentTokens 数量 = 54', () {
-      expect(ComponentTokens.count, 54);
-    });
-
-    test('subTokens 覆盖全部 54 组件', () {
-      for (final key in ComponentTokens.allowedKeys) {
-        expect(
-          ComponentTokens.subTokens.containsKey(key),
-          isTrue,
-          reason: '组件 "$key" 缺少子 token 定义',
-        );
-      }
-    });
-  });
-}
-
-// ═══════ 测试辅助 ═══════
-
-/// 构建最小的 54 组件 JSON（仅含必要子 token，fromJson 校验用）。
-Map<String, Map<String, String>> _makeMinComponents() {
-  final result = <String, Map<String, String>>{};
-  for (final entry in ComponentTokens.subTokens.entries) {
-    final subs = <String, String>{};
-    for (final token in entry.value) {
-      subs[token] = '#CCCCCC';
-    }
-    result[entry.key] = subs;
-  }
-  return result;
 }

@@ -1,7 +1,6 @@
 /// 数据表格渲染——根据 [DataBindingDescriptor(display=table)] 渲染表格。
 import 'package:flutter/material.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
-import 'package:evergreen_base/renderer/app/service/theme/theme_provider.dart';
 import 'sort_header.dart';
 import 'empty_state.dart';
 
@@ -135,8 +134,7 @@ class _DataTableWidgetState extends State<DataTableWidget> {
               // 表头
               TableRow(
                 decoration: BoxDecoration(
-                  color: context.componentColor('table', 'header') ??
-                      Theme.of(context).colorScheme.surfaceContainerHighest,
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 ),
                 children: widget.columns
                     .map((c) => Padding(

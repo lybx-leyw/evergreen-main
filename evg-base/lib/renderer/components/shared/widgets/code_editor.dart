@@ -187,7 +187,7 @@ class _CodeEditorState extends State<CodeEditor> {
 
     // Actions 拦截 PageUp/PageDown：re_editor v0.10.0
     // moveCursorToPageUp/Down 是空 TODO，在此层替代实现。
-    return Actions(
+    final body = Actions(
       actions: {
         re.CodeShortcutCursorMovePageIntent: _PageMoveAction(
           controller: _controller,
@@ -198,6 +198,18 @@ class _CodeEditorState extends State<CodeEditor> {
         ),
       },
       child: editor,
+    );
+
+    // re_editor 内部 CodeField 要求显式宽度约束，键盘弹出/收起时约束可能
+    // 临时无界；用 LayoutBuilder 检测并兜底为屏幕宽度。
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        debugPrint('[CodeEditor:BUILD] maxWidth=${constraints.maxWidth} bounded=${constraints.hasBoundedWidth}');
+        if (constraints.hasBoundedWidth) return body;
+        final fallbackWidth = MediaQuery.of(context).size.width;
+        debugPrint('[CodeEditor:BUILD] width is unbounded → fallback to $fallbackWidth');
+        return SizedBox(width: fallbackWidth, child: body);
+      },
     );
   }
 

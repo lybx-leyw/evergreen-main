@@ -425,7 +425,8 @@ class PluginInstaller {
         installedAt: stat.modified,
         subComponents: subComponents,
       );
-    } catch (_) {
+    } catch (e) {
+      Log().warn('PluginInstaller: 读取插件状态失败 ($pluginId): $e', error: e);
       return null;
     }
   }
@@ -466,7 +467,8 @@ class PluginInstaller {
       final pluginDir = p.canonicalize(_pluginDir(pluginId));
       final target = p.canonicalize(path);
       return target == pluginDir || target.startsWith('$pluginDir${p.separator}');
-    } catch (_) {
+    } catch (e) {
+      Log().warn('PluginInstaller: 路径校验异常 ($pluginId, $path): $e', error: e);
       return false;
     }
   }

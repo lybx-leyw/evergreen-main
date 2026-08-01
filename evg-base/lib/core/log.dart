@@ -2,20 +2,30 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
+
+import 'errors.dart';
 
 /// 日志级别。
 enum LogLevel { debug, info, warn, error }
 
-/// 日志条目（供 UIOperationLog 捕获）。
+/// 日志条目（供 UIOperationLog 捕获 / 错误中心过滤）。
 class LogEntry {
   final LogLevel level;
   final String msg;
-  final Map<String, dynamic>? data;
+  final Object? data;
   final DateTime timestamp;
 
-  LogEntry(this.level, this.msg, {this.data})
+  /// 调用方模块标签（如 'PluginInstaller'），由调用栈提取。
+  final String? module;
+
+  /// 错误标识（格式 EVG-xxxxxxxx），仅 ERROR 级自动生成。
+  final String? errorId;
+
+  LogEntry(this.level, this.msg,
+      {this.data, this.module, this.errorId})
       : timestamp = DateTime.now();
 }
 
@@ -44,6 +54,21 @@ class Log {
   int _currentFileSize = 0;
   final List<String> _recentBuffer = [];
   static const int _recentBufferMax = 500;
+
+  /// Release 模式是否同时镜像到 stderr。
+  ///
+  /// 安卓 release 构建无文件日志排查入口，logcat 是唯一通道；
+  /// 置 true 后所有级别在写文件的同时镜像到 stderr（logcat 可见）。
+  /// 由 main.dart 在启动时开启。
+  static bool mirrorToStderr = false;
+
+  /// errorId 去重窗口：相同 (模块, 消息) 在此窗口内复用同一 errorId，避免刷屏。
+  static const Duration errorIdDedupeWindow = Duration(minutes: 10);
+  final Map<String, ({String id, int at})> _errorIdState = {};
+
+  /// 最近结构化日志条目（供错误中心/过滤检索，与文本缓冲同上限）。
+  final List<LogEntry> _recentEntries = [];
+  static const int _recentEntriesMax = 500;
 
   /// 日志流（UIOperationLog 订阅以捕获操作期间的日志）。
   final _logStreamController = StreamController<LogEntry>.broadcast();
@@ -99,7 +124,10 @@ class Log {
 
   /// 写入一条日志。
   Future<void> _write(String level, String message,
-      {Object? data, Object? error, StackTrace? stack}) async {
+      {Object? data,
+      Object? error,
+      StackTrace? stack,
+      String? errorId}) async {
     final now = DateTime.now();
     final timestamp =
         '${now.year}-${_pad(now.month)}-${_pad(now.day)} '
@@ -110,7 +138,8 @@ class Log {
     final moduleTag = _extractModuleTag();
 
     final buffer = StringBuffer();
-    buffer.writeln('[$timestamp] [$level] [$moduleTag] $message');
+    buffer.writeln('[$timestamp] [$level] [$moduleTag]'
+        '${errorId != null ? ' [$errorId]' : ''} $message');
     if (data != null) {
       buffer.writeln('  data: $data');
     }
@@ -139,6 +168,10 @@ class Log {
         // 文件写入失败时回退到 stderr
         stderr.write(line);
       }
+      // 安卓 release 排障：镜像到 stderr（logcat 可见）
+      if (mirrorToStderr) {
+        stderr.write(line);
+      }
     } else {
       // Debug 模式：直接输出到 stderr
       stderr.write(line);
@@ -153,29 +186,77 @@ class Log {
 
   /// 调试日志 —— 仅在 debug 模式输出。
   void debug(String message, {Object? data}) {
-    if (!kReleaseMode) {
-      _write('DEBUG', message, data: data);
-    }
+    if (kReleaseMode) return;
+    final tag = _extractModuleTag();
+    _remember(LogEntry(LogLevel.debug, message, data: data, module: tag));
+    _write('DEBUG', message, data: data);
   }
 
   /// 信息日志。
   void info(String message, {Object? data}) {
-    _logStreamController.add(LogEntry(LogLevel.info, message));
+    final tag = _extractModuleTag();
+    _remember(LogEntry(LogLevel.info, message, data: data, module: tag));
     _write('INFO', message, data: data);
   }
 
   /// 警告日志。
-  void warn(String message, {Object? data, Object? error}) {
-    _logStreamController.add(LogEntry(LogLevel.warn, message));
-    _write('WARN', message, data: data, error: error);
+  void warn(String message, {Object? data, Object? error, String? errorId}) {
+    final tag = _extractModuleTag();
+    _remember(LogEntry(LogLevel.warn, message,
+        data: data, module: tag, errorId: errorId));
+    _write('WARN', message, data: data, error: error, errorId: errorId);
   }
 
-  /// 错误日志 —— 记录错误 + 调用栈。
+  /// 错误日志 —— 记录错误 + 调用栈 + errorId。
+  ///
+  /// errorId 由 (模块, 消息) 哈希生成，格式 `EVG-xxxxxxxx`；
+  /// 相同错误在 [errorIdDedupeWindow] 内复用同一 id，便于按 id 检索整条链路。
   void error(String message,
-      {Object? data, Object? error, StackTrace? stack}) {
-    _logStreamController.add(LogEntry(LogLevel.error, message));
+      {Object? data, Object? error, StackTrace? stack, String? errorId}) {
+    final tag = _extractModuleTag();
+    // AppError 自带 errorId（EVG-<模块>-<8hex>），优先使用，保证错误链路可检索
+    final appErrId = error is AppError ? (error).errorId : null;
+    final id = errorId ?? appErrId ?? _errorIdFor(tag, message);
+    _remember(LogEntry(LogLevel.error, message,
+        data: data, module: tag, errorId: id));
     _write('ERROR', message,
-        data: data, error: error, stack: stack ?? StackTrace.current);
+        data: data,
+        error: error,
+        stack: stack ?? StackTrace.current,
+        errorId: id);
+  }
+
+  /// 结构化过滤最近日志条目（供错误中心/检索）。
+  ///
+  /// [module] 为空则不限模块；[minLevel] 为最低级别；结果按时间升序。
+  List<LogEntry> entries({String? module, LogLevel minLevel = LogLevel.debug}) {
+    return _recentEntries
+        .where((e) =>
+            (module == null || e.module == module) &&
+            e.level.index >= minLevel.index)
+        .toList();
+  }
+
+  /// 记录结构化条目到内存缓冲（与文本缓冲同上限）。
+  void _remember(LogEntry entry) {
+    _recentEntries.add(entry);
+    if (_recentEntries.length > _recentEntriesMax) {
+      _recentEntries.removeAt(0);
+    }
+  }
+
+  /// 生成/复用 errorId：相同 (模块, 消息) 在去重窗口内复用同一 id。
+  String _errorIdFor(String moduleTag, String message) {
+    final key = '$moduleTag|$message';
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final state = _errorIdState[key];
+    if (state != null && now - state.at < errorIdDedupeWindow.inMilliseconds) {
+      return state.id;
+    }
+    final digest = sha256.convert(utf8.encode(key)).toString();
+    final id = 'EVG-${digest.substring(0, 8)}';
+    _errorIdState[key] = (id: id, at: now);
+    return id;
   }
 
   /// 导出最近 N 条日志（供用户反馈时附上到 GitHub Issue）。

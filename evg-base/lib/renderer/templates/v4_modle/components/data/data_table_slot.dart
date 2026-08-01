@@ -15,21 +15,15 @@ import 'package:evergreen_base/renderer/templates/v4_modle/components/document/e
 class DataTableSlot extends DataSourceSlot {
   const DataTableSlot({super.key, required super.config});
 
+  // Phase 2: 声明式数据绑定
+  @override
+  DataMapping get dataMapping => const DataMapping(targetKey: 'rows');
+
   @override
   DataSourceSlotState<DataTableSlot> createState() => _DataTableSlotState();
 }
 
 class _DataTableSlotState extends DataSourceSlotState<DataTableSlot> {
-  @override
-  Map<String, dynamic> mergeData(Map<String, dynamic> base, dynamic resolved) {
-    final merged = <String, dynamic>{...base};
-    if (resolved is List) {
-      merged['rows'] = resolved;
-    } else if (resolved is Map<String, dynamic>) {
-      merged.addAll(resolved);
-    }
-    return merged;
-  }
 
   @override
   Widget buildStatic(Map<String, dynamic> cfg) {
@@ -147,3 +141,5 @@ class _EditableTableViewState extends State<_EditableTableView> {
     );
   }
 }
+
+

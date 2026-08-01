@@ -149,6 +149,12 @@ class RenderTokensColors {
   final Color buttonBg;
   final String buttonBgHex;
 
+  /// 其余所有非共用组件杂色（单一字段渲染其余所有）。
+  ///
+  /// 主题 `others` 字段的镜像；无对应语义归属的小众色统一引用此处。
+  final Color others;
+  final String othersHex;
+
   const RenderTokensColors._({
     required this.bgPrimary,
     required this.bgPrimaryHex,
@@ -198,6 +204,8 @@ class RenderTokensColors {
     required this.chartPaletteHex,
     required this.buttonBg,
     required this.buttonBgHex,
+    required this.others,
+    required this.othersHex,
   });
 
   /// 内置 dark 默认色板（GitHub-dark 风格）。
@@ -257,59 +265,60 @@ class RenderTokensColors {
     ],
     buttonBg: const Color(0xFF21262D),
     buttonBgHex: '#21262d',
+    others: const Color(0xFF8B949E),
+    othersHex: '#8b949e',
   );
 
   /// 从 [ThemeDescriptor] 构建颜色集。
   ///
-  /// 五层映射（未声明则回退 dark 默认）：
-  /// - `app.sidebar.active` → accentBlue
-  /// - `app.blank.bg` → bgPrimary
-  /// - `components.card.bg` → bgSecondary
-  /// - `components.codeBlock.bg` → bgTertiary
-  /// - `slot.border.color` → borderDefault
-  /// - `app.sidebar.text` → textPrimary
-  /// - `components.button.primary` → stateSuccess / buttonGreen
+  /// 扁平 8 字段映射（未声明则回退 dark 默认）：
+  /// - `accent`       → accentBlue（primary 派生）
+  /// - `background`   → bgPrimary（scaffold）
+  /// - `surface`      → bgSecondary（卡片/面板）
+  /// - `border`       → borderDefault
+  /// - `text`         → textPrimary
+  /// - `textSecondary`→ textSecondary
+  /// - `error`        → stateError
+  /// - `others`       → others（非共用组件杂色）
+  ///
+  /// 其余固定/派生字段（bgTertiary、stateSuccess、code*、chartPalette 等）
+  /// 沿用内置 dark 默认，不随主题变化。
   factory RenderTokensColors.fromTheme(ThemeDescriptor? theme) {
     if (theme == null) return defaultInstance;
 
-    // ── 辅助：从指定层查 token ──
-    String _l(LayerTokens layer, String comp, String tok, String fb) =>
-        layer[comp]?[tok] ?? fb;
+    final c = theme.colors;
+    String _pick(String key, String fallback) => c[key] ?? fallback;
 
-    // ── 从五层结构派生 ──
-    final accentHex = _l(theme.app, 'sidebar', 'active', '#58a6ff');
+    final accentHex = _pick('accent', '#58a6ff');
     final accent = _parseHex(accentHex);
 
-    final bgPrimaryHex = _l(theme.app, 'blank', 'bg', '#0D1117');
-    final bgSecondaryHex = _l(theme.components, 'card', 'bg', '#161B22');
-    final bgTertiaryHex = _l(theme.components, 'codeBlock', 'bg', '#1C2128');
-    final borderDefaultHex = _l(theme.slot, 'border', 'color', '#30363D');
-    final textPrimaryHex = _l(theme.app, 'sidebar', 'text', '#C9D1D9');
-    final textSecondaryHex = _l(theme.components, 'chip', 'text', '#8B949E');
-    final textTertiaryHex = _l(theme.components, 'tooltip', 'text', '#484F58');
-    final successHex = _l(theme.components, 'button', 'primary', '#3FB950');
-    final buttonGreenHex = _l(theme.components, 'button', 'primary', '#238636');
-    final buttonBgHex = _l(theme.components, 'card', 'bg', '#21262D');
+    final backgroundHex = _pick('background', '#0D1117');
+    final surfaceHex = _pick('surface', '#161B22');
+    final borderHex = _pick('border', '#30363D');
+    final textHex = _pick('text', '#C9D1D9');
+    final textSecondaryHex = _pick('textSecondary', '#8B949E');
+    final errorHex = _pick('error', '#FF7B72');
+    final othersHex = _pick('others', '#8B949E');
 
     return RenderTokensColors._(
-      bgPrimary: _parseHex(bgPrimaryHex),
-      bgPrimaryHex: bgPrimaryHex,
-      bgSecondary: _parseHex(bgSecondaryHex),
-      bgSecondaryHex: bgSecondaryHex,
-      bgTertiary: _parseHex(bgTertiaryHex),
-      bgTertiaryHex: bgTertiaryHex,
-      borderDefault: _parseHex(borderDefaultHex),
-      borderDefaultHex: borderDefaultHex,
+      bgPrimary: _parseHex(backgroundHex),
+      bgPrimaryHex: backgroundHex,
+      bgSecondary: _parseHex(surfaceHex),
+      bgSecondaryHex: surfaceHex,
+      bgTertiary: defaultInstance.bgTertiary,
+      bgTertiaryHex: defaultInstance.bgTertiaryHex,
+      borderDefault: _parseHex(borderHex),
+      borderDefaultHex: borderHex,
       borderAccent: accent,
       borderAccentHex: accentHex,
-      borderSuccess: _parseHex(successHex),
-      borderSuccessHex: successHex,
-      textPrimary: _parseHex(textPrimaryHex),
-      textPrimaryHex: textPrimaryHex,
+      borderSuccess: defaultInstance.borderSuccess,
+      borderSuccessHex: defaultInstance.borderSuccessHex,
+      textPrimary: _parseHex(textHex),
+      textPrimaryHex: textHex,
       textSecondary: _parseHex(textSecondaryHex),
       textSecondaryHex: textSecondaryHex,
-      textTertiary: _parseHex(textTertiaryHex),
-      textTertiaryHex: textTertiaryHex,
+      textTertiary: defaultInstance.textTertiary,
+      textTertiaryHex: defaultInstance.textTertiaryHex,
       // ── primary 派生：文本强调、半透明背景、半透明边框 ──
       accentBlue: accent,
       accentBlueHex: accentHex,
@@ -318,33 +327,36 @@ class RenderTokensColors {
       accentBlueBorder: accent.withValues(alpha: 0.27),
       accentBlueBorderHex: _hexWithAlpha(accentHex, 0.27),
       // ── 状态色 ──
-      stateSuccess: _parseHex(successHex),
-      stateSuccessHex: successHex,
-      stateSuccessBg: _parseHex(successHex).withValues(alpha: 0.13),
-      stateSuccessBgHex: _hexWithAlpha(successHex, 0.13),
-      stateSuccessBorder: _parseHex(successHex).withValues(alpha: 0.27),
-      stateSuccessBorderHex: _hexWithAlpha(successHex, 0.27),
-      stateError: const Color(0xFFFF7B72),
-      stateErrorHex: '#ff7b72',
-      buttonGreen: _parseHex(buttonGreenHex),
-      buttonGreenHex: buttonGreenHex,
+      stateSuccess: defaultInstance.stateSuccess,
+      stateSuccessHex: defaultInstance.stateSuccessHex,
+      stateSuccessBg: defaultInstance.stateSuccessBg,
+      stateSuccessBgHex: defaultInstance.stateSuccessBgHex,
+      stateSuccessBorder: defaultInstance.stateSuccessBorder,
+      stateSuccessBorderHex: defaultInstance.stateSuccessBorderHex,
+      stateError: _parseHex(errorHex),
+      stateErrorHex: errorHex,
+      buttonGreen: defaultInstance.buttonGreen,
+      buttonGreenHex: defaultInstance.buttonGreenHex,
       // ── 代码高亮（保持独立，不跟随主题）──
-      codeKeyword: const Color(0xFFFF7B72),
-      codeKeywordHex: '#ff7b72',
-      codeFunction: const Color(0xFFD2A8FF),
-      codeFunctionHex: '#d2a8ff',
-      codeString: const Color(0xFFA5D6FF),
-      codeStringHex: '#a5d6ff',
-      codeNumber: const Color(0xFF79C0FF),
-      codeNumberHex: '#79c0ff',
-      codeComment: const Color(0xFF8B949E),
-      codeCommentHex: '#8b949e',
+      codeKeyword: defaultInstance.codeKeyword,
+      codeKeywordHex: defaultInstance.codeKeywordHex,
+      codeFunction: defaultInstance.codeFunction,
+      codeFunctionHex: defaultInstance.codeFunctionHex,
+      codeString: defaultInstance.codeString,
+      codeStringHex: defaultInstance.codeStringHex,
+      codeNumber: defaultInstance.codeNumber,
+      codeNumberHex: defaultInstance.codeNumberHex,
+      codeComment: defaultInstance.codeComment,
+      codeCommentHex: defaultInstance.codeCommentHex,
       // ── 图表色板（保持独立）──
       chartPalette: defaultInstance.chartPalette,
       chartPaletteHex: defaultInstance.chartPaletteHex,
       // ── 按钮背景 ──
-      buttonBg: _parseHex(buttonBgHex),
-      buttonBgHex: buttonBgHex,
+      buttonBg: defaultInstance.buttonBg,
+      buttonBgHex: defaultInstance.buttonBgHex,
+      // ── 非共用组件杂色 ──
+      others: _parseHex(othersHex),
+      othersHex: othersHex,
     );
   }
 }
@@ -532,6 +544,9 @@ class RenderTokensCss {
   --evg-state-success-bg: ${c.stateSuccessBgHex};
   --evg-state-success-border: ${c.stateSuccessBorderHex};
   --evg-state-error: ${c.stateErrorHex};
+
+  /* 其余所有非共用组件杂色 */
+  --evg-others: ${c.othersHex};
 
   /* 按钮 */
   --evg-button-green: ${c.buttonGreenHex};

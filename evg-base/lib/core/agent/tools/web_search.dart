@@ -67,7 +67,7 @@ class WebSearchTool extends Tool {
             ),
           );
           html = response.data?.toString() ?? '';
-          if (html!.isNotEmpty) break;
+          if (html.isNotEmpty) break;
         } catch (_) {
           continue;
         }

@@ -4,6 +4,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:evergreen_base/core/config/settings.dart' show initSettings, getAllSettings, setSetting, SettingType, SettingDecl;
+import 'package:evergreen_base/core/config/config_http_server.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'package:evergreen_base/providers.dart';
 
@@ -35,13 +36,35 @@ class _SettingsViewState extends ConsumerState<SettingsView> {
   Future<void> _saveAll() async {
     final prefs = ref.read(sharedPreferencesProvider);
     var saved = 0;
-    _controllers.forEach((key, ctrl) {
-      setSetting(prefs, key, ctrl.text);
+    // ⚠️ 必须 await 每个 setSetting：SharedPreferences 在 Android 底层用 apply()
+    // 异步刷盘，若 fire-and-forget → 进程重启前未刷盘 → 数据丢失。
+    for (final entry in _controllers.entries) {
+      final v = entry.value.text;
+      final masked = (entry.key.contains('PASSWORD') || entry.key.contains('SECRET'))
+          ? (v.isNotEmpty ? '***(${v.length}字符)' : '(空)')
+          : v;
+      debugPrint('[SettingsView] 保存 ${entry.key} = $masked');
+      await setSetting(prefs, entry.key, v);
       saved++;
-    });
+    }
+    // 保存后验证
+    debugPrint('[SettingsView] 保存完成, 验证: ZJU_USERNAME in prefs=${prefs.containsKey("ZJU_USERNAME")}, val="${prefs.getString("ZJU_USERNAME")}"');
+    // 保存后立即同步到 .greenix/config.json，确保同一 session 内 Python scraper
+    // 能直接读到最新凭证（Tier 1 本地文件路径，而非等下次启动的 sync）。
+    try {
+      final configServer = ref.read(configHttpServerProvider);
+      configServer.syncConfigToGreenix();
+    } catch (e) {
+      debugPrint('[SettingsView] syncConfigToGreenix 失败: $e');
+    }
     if (!mounted) return;
+    final scheme = Theme.of(context).colorScheme;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('已保存 $saved 项'), backgroundColor: Colors.green, duration: const Duration(seconds: 2)),
+      SnackBar(
+        content: Text('已保存 $saved 项'),
+        backgroundColor: scheme.primary,
+        duration: const Duration(seconds: 2),
+      ),
     );
   }
 
@@ -69,7 +92,6 @@ class _SettingsViewState extends ConsumerState<SettingsView> {
     }
 
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -91,17 +113,75 @@ class _SettingsViewState extends ConsumerState<SettingsView> {
               onPressed: _saveAll,
               icon: const Icon(Icons.save, size: 18),
               label: const Text('保存所有'),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.green.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: theme.colorScheme.primary,
+                foregroundColor: theme.colorScheme.onPrimary,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              ),
             ),
           ],
         ),
         const SizedBox(height: 16),
-        for (final e in items) _buildTile(e, isDark),
+        _buildThemeSection(theme),
+        const SizedBox(height: 16),
+        for (final e in items) _buildTile(e, theme.colorScheme),
       ],
     );
   }
 
-  Widget _buildTile(({SettingDecl decl, String value}) item, bool isDark) {
+  /// 外观 · 主题——列出 ThemeStore 全部主题（内置 + 插件），
+  /// 切换即全局换肤（ChangeNotifier 链路）并持久化到 prefs。
+  Widget _buildThemeSection(ThemeData theme) {
+    final store = ref.watch(themeStoreProvider);
+    final all = store.all;
+    final activeId = store.activeTheme?.id;
+    final validActive =
+        activeId != null && all.any((t) => t.id == activeId) ? activeId : null;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 180,
+            child: Text('外观 · 主题',
+                style: theme.textTheme.bodyMedium
+                    ?.copyWith(fontWeight: FontWeight.w500)),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: all.isEmpty
+                ? Text('无可用主题',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant))
+                : DropdownButtonFormField<String>(
+                    value: validActive ?? all.first.id,
+                    isExpanded: true,
+                    decoration: _decoration(theme.colorScheme),
+                    items: all
+                        .map((t) =>
+                            DropdownMenuItem(value: t.id, child: Text(t.name)))
+                        .toList(),
+                    onChanged: (id) async {
+                      if (id == null || id == activeId) return;
+                      store.setActiveById(id);
+                      final prefs = ref.read(sharedPreferencesProvider);
+                      await prefs.setString('active_theme_id', id);
+                      debugPrint('[SettingsView] 主题切换 → $id');
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTile(({SettingDecl decl, String value}) item, ColorScheme scheme) {
     final d = item.decl;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -119,13 +199,13 @@ class _SettingsViewState extends ConsumerState<SettingsView> {
             ),
           ),
           const SizedBox(width: 16),
-          Expanded(child: _buildControl(item, isDark)),
+          Expanded(child: _buildControl(item, scheme)),
         ],
       ),
     );
   }
 
-  Widget _buildControl(({SettingDecl decl, String value}) item, bool isDark) {
+  Widget _buildControl(({SettingDecl decl, String value}) item, ColorScheme scheme) {
     final d = item.decl;
     switch (d.type) {
       case SettingType.bool_:
@@ -139,12 +219,12 @@ class _SettingsViewState extends ConsumerState<SettingsView> {
         );
       case SettingType.option:
         final opts = d.options ?? [];
-        if (opts.isEmpty) return _buildTextField(item, isDark);
+        if (opts.isEmpty) return _buildTextField(item, scheme);
         final cur = opts.any((o) => o.value == item.value) ? item.value : opts.first.value;
         return DropdownButtonFormField<String>(
           value: cur,
           isExpanded: true,
-          decoration: _decoration(isDark),
+          decoration: _decoration(scheme),
           items: opts.map((o) => DropdownMenuItem(value: o.value, child: Text(o.label))).toList(),
           onChanged: (v) async {
             if (v != null) {
@@ -155,17 +235,17 @@ class _SettingsViewState extends ConsumerState<SettingsView> {
           },
         );
       default:
-        return _buildTextField(item, isDark);
+        return _buildTextField(item, scheme);
     }
   }
 
-  Widget _buildTextField(({SettingDecl decl, String value}) item, bool isDark) {
+  Widget _buildTextField(({SettingDecl decl, String value}) item, ColorScheme scheme) {
     final d = item.decl;
     final isMasked = d.isSecure && (_obscured[d.key] ?? true);
     return TextFormField(
       controller: _controllers[d.key],
       obscureText: isMasked,
-      decoration: _decoration(isDark).copyWith(
+      decoration: _decoration(scheme).copyWith(
         suffixIcon: d.isSecure
             ? IconButton(
                 icon: Icon(isMasked ? Icons.visibility_off : Icons.visibility, size: 20),
@@ -177,13 +257,14 @@ class _SettingsViewState extends ConsumerState<SettingsView> {
     );
   }
 
-  InputDecoration _decoration(bool isDark) {
+  InputDecoration _decoration(ColorScheme scheme) {
     return InputDecoration(
       isDense: true,
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
       filled: true,
-      fillColor: isDark ? Colors.grey.shade900 : Colors.grey.shade50,
+      // 跟随主题：M3 填充输入框标准语义色（surfaceContainerHighest = 主题 surface/bgSecondary）
+      fillColor: scheme.surfaceContainerHighest,
     );
   }
 }

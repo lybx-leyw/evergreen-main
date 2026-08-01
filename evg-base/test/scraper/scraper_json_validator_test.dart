@@ -12,7 +12,7 @@
 // 2. 非 JSON（人类文本 / 前缀文本 / 空输出）→ isValid == false
 // 3. 失败回传消息含 ❌（_onAgentEvent 据此进入调试分支，使 AI 能自我修正）
 // 4. isScraperRunCommand 仅对 scraper.py 命令返回 true（不会误校验 pip install）
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/scraper/scraper_json_validator.dart';
+import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_json_validator.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

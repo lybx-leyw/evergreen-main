@@ -5,12 +5,12 @@ library;
 
 import 'dart:async';
 
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:evergreen_base/core/agent/event.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
-import 'package:evergreen_base/renderer/module/module_dispatch.dart';
 import 'package:evergreen_base/providers.dart';
+import 'package:evergreen_base/renderer/module/module_dispatch.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// 构造 V2 ModuleDescriptor。
@@ -28,10 +28,10 @@ ModuleDescriptor _descriptor({
 
 /// 构造有单页的 ModuleDescriptor。
 ModuleDescriptor _withPage() {
-  return ModuleDescriptor(
+  return const ModuleDescriptor(
     id: 'test-module',
     name: 'Test Module',
-    pages: const [
+    pages: [
       PageDescriptor(id: 'main', label: 'Main'),
     ],
   );
@@ -39,10 +39,10 @@ ModuleDescriptor _withPage() {
 
 /// 构造有 workspace 的 ModuleDescriptor。
 ModuleDescriptor _withWorkspace() {
-  return ModuleDescriptor(
+  return const ModuleDescriptor(
     id: 'test-module',
     name: 'Test Module',
-    workspace: const WorkspaceDescriptor(enabled: true),
+    workspace: WorkspaceDescriptor(enabled: true),
   );
 }
 

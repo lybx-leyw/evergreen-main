@@ -1,13 +1,12 @@
 import 'package:dio/dio.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-
 import 'package:evergreen_base/core/agent/agent.dart' show Registry;
-import 'package:evergreen_base/core/agent/tools/web_search.dart'
-    show WebSearchTool;
 import 'package:evergreen_base/core/agent/agent_runtime.dart'
     show webSearchEnabledProvider;
+import 'package:evergreen_base/core/agent/tools/web_search.dart'
+    show WebSearchTool;
 import 'package:evergreen_base/providers.dart' show toolRegistryProvider;
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 /// 复刻 chat_controller_view.dart 的 applyWebSearchEnabledToRegistry。
 /// 该函数本身已在 apply_tool_disabled_test.dart 直接测试；此处内联仅为避免

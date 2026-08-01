@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:test/test.dart';
 import '../module_descriptor.dart';
 
@@ -18,7 +17,8 @@ void main() {
       expect(d.id, 'minimal');
       expect(d.name, '最简模块');
       expect(d.description, '');
-      expect(d.icon, isNull);
+      // icon 缺失 → 兜底为默认图标（避免 hasSidebar 失败导致插件从侧边栏静默消失）
+      expect(d.icon, kDefaultIcon);
       expect(d.route, isNull);
       expect(d.isServiceOnly, isTrue);
       expect(d.dependencies, isEmpty);
@@ -608,7 +608,7 @@ void main() {
       expect(d.isServiceOnly, isFalse);
     });
 
-    test('hasSidebar — 需 icon + sidebar + 非服务', () {
+    test('hasSidebar — 需 sidebar + 非服务（icon 缺失兜底默认图标）', () {
       final withAll = ModuleDescriptor(
         id: 'all',
         name: '全部',
@@ -620,6 +620,7 @@ void main() {
       );
       expect(withAll.hasSidebar, isTrue);
 
+      // icon 缺失不再阻止侧边栏显示（兜底默认图标）
       final noIcon = ModuleDescriptor(
         id: 'noicon',
         name: '无图标',
@@ -628,7 +629,16 @@ void main() {
           sidebar: SidebarDescriptor(section: '工具'),
         ),
       );
-      expect(noIcon.hasSidebar, isFalse);
+      expect(noIcon.hasSidebar, isTrue);
+
+      // 无 sidebar 仍不进侧边栏
+      final noSidebar = ModuleDescriptor(
+        id: 'nosidebar',
+        name: '无侧栏',
+        icon: 0xe88a,
+        route: '/nosidebar',
+      );
+      expect(noSidebar.hasSidebar, isFalse);
     });
 
     test('allRoutePaths 聚合页面路由', () {

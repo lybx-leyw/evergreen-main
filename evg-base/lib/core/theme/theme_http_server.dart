@@ -136,13 +136,7 @@ class ThemeHttpServer {
         'themes': _store.all.map((t) => {
           'id': t.id,
           'name': t.name,
-          'layerCounts': {
-            'app': t.app.length,
-            'module': t.module.length,
-            'page': t.page.length,
-            'slot': t.slot.length,
-            'components': t.components.length,
-          },
+          'colors': t.colors,
         }).toList(),
       }, sw);
     },
@@ -176,22 +170,12 @@ class ThemeHttpServer {
       }, sw);
     },
 
-    // 6: query token color (五层)
+    // 6: query semantic color (扁平色板)
     'GET /theme/token': (req, _, sw) async {
-      final layer = req.uri.queryParameters['layer'];
-      final component = req.uri.queryParameters['component'];
-      final token = req.uri.queryParameters['token'];
+      final key = req.uri.queryParameters['key'];
 
-      if (layer == null || layer.isEmpty) {
-        _respond(req, 400, {'error': '缺少 layer 参数 (app|module|page|slot|components)'}, sw);
-        return;
-      }
-      if (component == null || component.isEmpty) {
-        _respond(req, 400, {'error': '缺少 component 参数'}, sw);
-        return;
-      }
-      if (token == null || token.isEmpty) {
-        _respond(req, 400, {'error': '缺少 token 参数'}, sw);
+      if (key == null || key.isEmpty) {
+        _respond(req, 400, {'error': '缺少 key 参数（语义色字段名）'}, sw);
         return;
       }
 
@@ -201,29 +185,11 @@ class ThemeHttpServer {
         return;
       }
 
-      final layerTokens = switch (layer) {
-        'app' => theme.app,
-        'module' => theme.module,
-        'page' => theme.page,
-        'slot' => theme.slot,
-        'components' => theme.components,
-        _ => null,
-      };
-
-      if (layerTokens == null) {
-        _respond(req, 400, {
-          'error': '无效 layer: $layer (应为 app|module|page|slot|components)',
-        }, sw);
-        return;
-      }
-
-      final colorHex = theme.tokenValue(layerTokens, component, token);
+      final colorHex = theme.color(key);
       if (colorHex == null) {
         _respond(req, 404, {
-          'error': 'token 未找到',
-          'layer': layer,
-          'component': component,
-          'token': token,
+          'error': '颜色未找到',
+          'key': key,
           'themeId': theme.id,
         }, sw);
         return;
@@ -231,9 +197,7 @@ class ThemeHttpServer {
 
       _respond(req, 200, {
         'color': colorHex,
-        'layer': layer,
-        'component': component,
-        'token': token,
+        'key': key,
         'themeId': theme.id,
       }, sw);
     },

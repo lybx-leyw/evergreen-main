@@ -2,20 +2,20 @@
 ///
 /// 注入 fake [agent.Provider]，不触发真实网络，也不驱动 PluginDesignerView
 /// 的 PluginPreloader 常驻定时器（见 FAIL #13）。
+library;
+import 'package:evergreen_base/core/agent/agent.dart' as agent;
+import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_document.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/ai_design_generator.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/view/ai_generate_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:evergreen_base/core/agent/agent.dart' as agent;
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_document.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/ai_design_generator.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/view/ai_generate_dialog.dart';
-
 /// 受控 LLM 通道。
 class _FakeProvider implements agent.Provider {
-  final String responseText;
   _FakeProvider(this.responseText);
+  final String responseText;
 
   @override
   String get name => 'fake';

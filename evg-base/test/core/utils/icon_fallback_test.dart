@@ -1,8 +1,8 @@
 /// icon 解析兜底验证：不可解析的 icon 名称应兜底为默认值，未提供仍保持 null。
 library;
 
-import 'package:flutter_test/flutter_test.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('icon 解析兜底', () {

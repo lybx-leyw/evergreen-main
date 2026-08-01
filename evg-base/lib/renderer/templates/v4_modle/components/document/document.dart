@@ -17,5 +17,5 @@ export 'image_gallery_slot.dart';
 export 'tech_planner_slot.dart';
 export 'tech_planner/tech_planner.dart' hide ExportResult;
 export 'editable/editable.dart';
-export 'scraper/scraper.dart';
+export '../../../scraper_modle/scraper.dart' hide ExportResult;
 export 'plugin-designer/plugin_designer.dart';

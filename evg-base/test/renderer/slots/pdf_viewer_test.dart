@@ -3,9 +3,10 @@
 /// 验证：空态不崩；config 真实字段（title/url）渲染。
 ///
 /// 运行：cd evg-base && flutter test test/renderer/slots/pdf_viewer_test.dart
+library;
 import 'package:evergreen_base/core/module/module_descriptor.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/components/document/pdf_viewer_slot.dart';
 import 'package:evergreen_base/renderer/components/shared/widgets/pdf_viewer.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/document/pdf_viewer_slot.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -21,7 +22,7 @@ void main() {
     });
 
     testWidgets('title 经 config 同步渲染到工具条', (tester) async {
-      await tester.pumpWidget(MaterialApp(
+      await tester.pumpWidget(const MaterialApp(
           home: Scaffold(
               body: PdfViewerWidget(
                   title: '我的PDF', path: 'assets/x.pdf'))));
@@ -34,12 +35,12 @@ void main() {
   group('PdfViewerSlot 接通', () {
     testWidgets('经 SlotDispatch 路由到 PdfViewerSlot（非 UnknownSlot）',
         (tester) async {
-      final slot = PdfViewerSlot(
+      const slot = PdfViewerSlot(
         config: ComponentDescriptor(type: 'pdf-viewer'),
         moduleId: 'test',
         pluginsDir: r'C:\tmp\plugins',
       );
-      await tester.pumpWidget(MaterialApp(home: Scaffold(body: slot)));
+      await tester.pumpWidget(const MaterialApp(home: Scaffold(body: slot)));
       await tester.pump();
       expect(find.byType(PdfViewerWidget), findsWidgets);
     });

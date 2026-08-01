@@ -3,10 +3,7 @@
 /// A-P3 升级：PreviewPanel 接入真实 [CompositeView] 渲染，故预览相关测试
 /// 需在 [ProviderScope] 内运行，并断言"真实渲染管线"行为（页面 Tab、无崩溃），
 /// 不再断言 mock 卡片文本。
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
-
+library;
 import 'package:evergreen_base/core/data/orchestrator.dart';
 import 'package:evergreen_base/providers.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/models/design_component.dart';
@@ -17,6 +14,9 @@ import 'package:evergreen_base/renderer/templates/v4_modle/components/document/p
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/design_to_manifest.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/view/preview_panel.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/widgets/composite_preview_frame.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 
 Widget _wrap(Widget child) => ProviderScope(
       overrides: [

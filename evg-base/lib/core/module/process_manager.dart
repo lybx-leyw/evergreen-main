@@ -18,6 +18,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
+import 'package:evergreen_base/core/plugin/plugin_runner.dart';
 import 'module_descriptor.dart';
 
 /// 进程管理器 —— 管理一个模块下所有作用域的后端进程。
@@ -195,10 +196,12 @@ class ProcessManager {
         return '[error: exe not found: $exePath]';
       }
 
-      final process = await Process.start(
+      final runner = await sharedPluginRunner;
+      final process = await runner.startLong(
         exePath,
         [],
         workingDirectory: workingDirectory,
+        runtime: desc.runtime,
       );
 
       // 如果有输入，写入 stdin（stdio 协议）
@@ -294,10 +297,12 @@ class _ManagedProcess {
         args.addAll(['--port', desc.preferredPort.toString()]);
       }
 
-      _process = await Process.start(
+      final runner = await sharedPluginRunner;
+      _process = await runner.startLong(
         exePath,
         args,
         workingDirectory: workingDir,
+        runtime: desc.runtime,
       );
       debugPrint('[PM] 进程已启动: ${desc.exe} pid=${_process!.pid}');
 

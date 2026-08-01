@@ -176,7 +176,11 @@ class DataHttpServer {
   late final Map<String, Future<void> Function(HttpRequest, Map<String, String>)> _paramRoutes = {
     'GET /data/types/:name': (req, p) async {
       final name = p['name']!;
-      final dt = DataType<dynamic>(name: name, category: '');
+      // 复用中枢已注册的 DataType（携带 persistentKey/ttl），以启用“缓存优先”读取；
+      // 否则临时构造的空壳 DataType 因 persistentKey 为 null 会令 _orchestrator.get
+      // 每次都真实拉取、绕过缓存。未注册时兜底空壳，get 内部降级为异常。
+      final dt = _orchestrator.typeByName(name) ??
+          DataType<dynamic>(name: name, category: '');
       try {
         final data = await _orchestrator.get(dt);
         if (data == null) {
@@ -195,7 +199,10 @@ class DataHttpServer {
     },
     'POST /data/types/:name/refresh': (req, p) async {
       final name = p['name']!;
-      final dt = DataType<dynamic>(name: name, category: '');
+      // 同上：优先复用已注册 DataType（携带 persistentKey），refresh 无条件重抓但
+      // 仍写回中枢缓存，避免后续 get 因 type 不匹配而失效。未注册时兜底空壳。
+      final dt = _orchestrator.typeByName(name) ??
+          DataType<dynamic>(name: name, category: '');
       try {
         final data = await _orchestrator.refresh(dt);
         if (data == null) {

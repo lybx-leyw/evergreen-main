@@ -3,27 +3,13 @@
   "id": "ocean_blue",
   "name": "海洋蓝",
   "colors": {
-    "primary": "#0D47A1",
-    "secondary": "#42A5F5",
     "background": "#F0F4F8",
     "surface": "#FFFFFF",
+    "border": "#BBDEFB",
     "text": "#1A2332",
     "textSecondary": "#78909C",
-
-    "sidebar": { "bg": "#0D47A1", "text": "#FFFFFF", "active": "#42A5F5", "hover": "#1565C0" },
-    "tab": { "text": "#78909C", "active": "#0D47A1", "indicator": "#0D47A1" },
-    "bubble": { "user": "#0D47A1", "assistant": "#E8EDF2", "text": "#1A2332" },
-    "thinking": { "bg": "#E3F2FD", "text": "#0D47A1", "border": "#90CAF9" },
-    "toolCall": { "bg": "#FFF8E1", "text": "#E65100", "border": "#FFB74D" },
-    "codeBlock": { "bg": "#1A2332", "text": "#E8EDF2" },
-    "input": { "bg": "#FFFFFF", "text": "#1A2332", "border": "#BBDEFB", "focus": "#0D47A1", "placeholder": "#BDBDBD" },
-    "progressBar": { "track": "#E0E0E0", "fill": "#0D47A1", "text": "#FFFFFF" },
-    "table": { "header": "#E3F2FD", "stripe": "#F5F8FC", "text": "#1A2332" },
-    "button": { "primary": "#0D47A1", "hover": "#0A3D8F", "active": "#082E6E", "disabled": "#BDBDBD", "text": "#FFFFFF" },
-    "drawer": { "bg": "#FFFFFF", "text": "#1A2332", "overlay": "#000000" },
-    "modal": { "bg": "#FFFFFF", "overlay": "#000000", "text": "#1A2332" },
-    "badge": { "bg": "#E53935", "text": "#FFFFFF" },
-    "link": { "text": "#0D47A1", "hover": "#0A3D8F" },
-    "search": { "bg": "#FFFFFF", "text": "#1A2332", "border": "#BBDEFB", "focus": "#0D47A1", "icon": "#78909C" }
+    "accent": "#0D47A1",
+    "error": "#E53935",
+    "others": "#42A5F5"
   }
 }

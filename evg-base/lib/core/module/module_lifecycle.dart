@@ -125,10 +125,8 @@ class ModuleLifecycle {
 
     // 4. 标记为 active
     _states[moduleId] = ModuleState.active;
-    if (descriptor.process != null) {
-      _savedModuleProcess[moduleId] = descriptor.process!.toJson();
-    }
-
+    _savedModuleProcess[moduleId] = descriptor.process.toJson();
+  
     Log().info('ModuleLifecycle: 模块 $moduleId 安装完成，状态=active');
   }
 
@@ -202,7 +200,7 @@ class ModuleLifecycle {
 
     // 2. 保存模块级进程描述符（用于恢复）
     if (descriptor?.process != null) {
-      _savedModuleProcess[moduleId] = descriptor!.process!.toJson();
+      _savedModuleProcess[moduleId] = descriptor!.process.toJson();
     }
 
     // 3. 标记为 disabled
@@ -266,10 +264,8 @@ class ModuleLifecycle {
     _ensureWorkspaceSubdirs(moduleId, overwrite: false);
 
     // 3. 更新保存的进程描述符
-    if (newDescriptor.process != null) {
-      _savedModuleProcess[moduleId] = newDescriptor.process!.toJson();
-    }
-
+    _savedModuleProcess[moduleId] = newDescriptor.process.toJson();
+  
     // 4. 启用
     _states[moduleId] = ModuleState.active;
 

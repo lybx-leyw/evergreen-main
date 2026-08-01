@@ -91,9 +91,10 @@ class CoreHttpServer {
     final path = request.uri.path;
     try {
       await _dispatch(request);
-      stderr.writeln('[CoreHttp] $method $path → ${request.response.statusCode} (${sw.elapsedMilliseconds}ms)');
+      Log().info('[CoreHttp] $method $path → ${request.response.statusCode} (${sw.elapsedMilliseconds}ms)');
     } catch (e) {
-      stderr.writeln('[CoreHttp] $method $path ❌ $e (${sw.elapsedMilliseconds}ms)');
+      Log().error('[CoreHttp] $method $path ❌ $e (${sw.elapsedMilliseconds}ms)',
+          error: e);
       _respond(request.response, 500, {'error': '内部错误: $e'});
     }
   }
@@ -264,7 +265,8 @@ Future<Map<String, dynamic>> _readBody(HttpRequest req) async {
   if (raw.isEmpty) return {};
   try {
     return jsonDecode(raw) as Map<String, dynamic>;
-  } catch (_) {
+  } catch (e) {
+    Log().warn('[CoreHttp] 请求体 JSON 解析失败，按空请求处理: $e', error: e);
     return {};
   }
 }
