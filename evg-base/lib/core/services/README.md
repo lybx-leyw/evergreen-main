@@ -1,5 +1,13 @@
 # 服务
 
+| 元信息 | 值 |
+| --- | --- |
+| 状态 | active |
+| 版本 | 1.0 |
+| 日期 | 2026-08-02 |
+| 负责人 | 待补充 |
+| 适用 | services（OCR/翻译/安装/更新） |
+
 > 源码 `ocr_pipeline.dart` `deepseek_ocr_service.dart` `update_service.dart` `plugin_installer.dart` `core_http_server.dart`、测试 `../test/`
 
 平台级基础服务——OCR 文字识别、应用更新、插件安装管理、HTTP API。外部插件可直接调用。

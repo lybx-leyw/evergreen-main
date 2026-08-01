@@ -1,5 +1,13 @@
 # 工具
 
+| 元信息 | 值 |
+| --- | --- |
+| 状态 | active |
+| 版本 | 1.0 |
+| 日期 | 2026-08-02 |
+| 负责人 | 待补充 |
+| 适用 | utils（路径/沙箱/Python 环境） |
+
 > 源码 `safe_parse.dart` `token_estimator.dart` `python_env.dart` `greenix_path.dart` `path_sandbox.dart` `file_utils.dart`、测试（待添加）
 
 通用工具——安全解析、Token 估算、Python 环境、运行路径、路径沙箱、文件管理。仅面向平台开发者。

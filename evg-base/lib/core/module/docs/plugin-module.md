@@ -1,5 +1,13 @@
 # Module 插件撰写指南
 
+| 元信息 | 值 |
+| --- | --- |
+| 状态 | active |
+| 版本 | 1.0 |
+| 日期 | 2026-08-02 |
+| 负责人 | 待补充 |
+| 适用 | Module 插件作者 |
+
 > 面向插件开发者——第三方如何编写 `manifest.json` 来声明一个 UI 模块。
 > 本文档是 Module 插件开发的**唯一权威参考**，合并了原 `plugin-authoring-guide-module.md` 和 `plugin-module.md`。
 

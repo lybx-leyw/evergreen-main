@@ -1,5 +1,13 @@
 # Module 插件撰写指南
 
+| 元信息 | 值 |
+| --- | --- |
+| 状态 | active |
+| 版本 | 1.0 |
+| 日期 | 2026-08-02 |
+| 负责人 | 待补充 |
+| 适用 | Module 插件作者 |
+
 > **本文档已合并至 `plugin-module.md`**，后者现在是 Module 插件开发的唯一权威参考。
 >
 > 请查阅：`lib/core/module/docs/plugin-module.md`

@@ -1,5 +1,13 @@
 # Module 模块
 
+| 元信息 | 值 |
+| --- | --- |
+| 状态 | active |
+| 版本 | 1.0 |
+| 日期 | 2026-08-02 |
+| 负责人 | 待补充 |
+| 适用 | module 子包 |
+
 > 声明式模块系统：`manifest.json` → `ModuleDescriptor` → `ModuleRegistry` → 渲染管线。  
 > 源码: `module_descriptor.dart` `module_registry.dart` `module_loader.dart` | 示例: `example/` | 教程: `docs/` | 测试: `test/`
 

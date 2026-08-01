@@ -1,5 +1,13 @@
 # Agent 运行时核心
 
+| 元信息 | 值 |
+| --- | --- |
+| 状态 | active |
+| 版本 | 1.0 |
+| 日期 | 2026-08-02 |
+| 负责人 | 待补充 |
+| 适用 | agent 子包 |
+
 > **示例 & 测试路径**
 > - 平台开发者 → `example/example.dart`
 > - 插件开发者 → `example/plugins/<name>/`（插件模板，含 manifest.json + plugin.py + README）

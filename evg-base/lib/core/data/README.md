@@ -1,5 +1,13 @@
 # Data Orchestrator
 
+| 元信息 | 值 |
+| --- | --- |
+| 状态 | active |
+| 版本 | 1.0 |
+| 日期 | 2026-08-02 |
+| 负责人 | 待补充 |
+| 适用 | data 子包 |
+
 > **快速导航**
 > - 平台开发者 → `example/example.dart` | 测试：`test/orchestrator_test.dart` + `test/cache_test.dart`
 > - 插件开发者 → `docs/plugin-authoring-guide-data.md` | 示例：`example/plugins/douban/`

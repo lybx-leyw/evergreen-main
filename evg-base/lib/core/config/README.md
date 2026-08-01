@@ -1,6 +1,13 @@
 # Config
 
-> 设置项自动发现、权限管理、插件源管理、HTTP API、配置导出/导入。
+| 元信息 | 值 |
+| --- | --- |
+| 状态 | active |
+| 版本 | 1.0 |
+| 日期 | 2026-08-02 |
+| 负责人 | 待补充 |
+| 适用 | config 子包 |
+
 > 完整用法 → [`example/example.dart`](example/example.dart) | AI 协作指南 → [`CLAUDE.md`](CLAUDE.md)
 
 ---

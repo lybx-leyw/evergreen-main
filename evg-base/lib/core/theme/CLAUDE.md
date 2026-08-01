@@ -1,5 +1,13 @@
 # Theme 模块 — AI 协作文档
 
+| 元信息 | 值 |
+| --- | --- |
+| 状态 | active |
+| 版本 | 1.0 |
+| 日期 | 2026-08-02 |
+| 负责人 | 待补充 |
+| 适用 | AI 协作者（theme 子包） |
+
 > Evergreen 主题系统——**扁平语义色板（8 色）**，主题即完整配色方案（明暗由色板决定），ChangeNotifier 响应式切换。
 > ⚠️ v1「五层 token（App/Module/Page/Slot/Component）」体系已废弃（`src/tokens.dart` 与 `builtins/` 已删除），本文档下方历史章节仅作参考，**实现以代码为准**。
 

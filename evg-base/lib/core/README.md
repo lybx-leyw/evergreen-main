@@ -1,5 +1,13 @@
 # Core
 
+| 元信息 | 值 |
+| --- | --- |
+| 状态 | active |
+| 版本 | 1.0 |
+| 日期 | 2026-08-02 |
+| 负责人 | 待补充 |
+| 适用 | core 声明层 |
+
 > 示例 `example/`、子模块 `agent/` `config/` `data/` `module/` `theme/` `services/` `utils/`、工具 `errors.dart` `log.dart` `result.dart`、测试（待添加）
 
 Evergreen 平台底层依赖——对外提供统一的模块注册、AI 基建、OCR 服务、文件工作区等基础能力。

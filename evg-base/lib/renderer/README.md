@@ -1,5 +1,13 @@
 # Renderer — Evergreen 渲染层
 
+| 元信息 | 值 |
+| --- | --- |
+| 状态 | active |
+| 版本 | 1.0 |
+| 日期 | 2026-08-02 |
+| 负责人 | 待补充 |
+| 适用 | renderer 渲染层 |
+
 > 纯渲染层：读 `ModuleDescriptor`，按声明画 UI。不解析 manifest、不管理进程、不写业务逻辑。
 
 ---
