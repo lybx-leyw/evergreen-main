@@ -32,3 +32,7 @@ Thumbs.db
 
 # 构建/运行日志归档（D7 起根目录不再堆放日志）
 logs-archive/
+
+# 会话分析临时文件
+[cd]_analyze*.txt
+[cd]?_analyze*.txt
