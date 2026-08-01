@@ -252,6 +252,28 @@ class _ScraperWebViewState extends State<ScraperWebView> {
       onMessageReceived: (msg) => _handleWebMessage(msg.message),
     );
     await _androidController.setNavigationDelegate(NavigationDelegate(
+      onNavigationRequest: (request) {
+        final url = request.url;
+        // 正常网页导航放行
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+          return NavigationDecision.navigate;
+        }
+        // 自定义 scheme（baiduboxapp:// 等）：WebView 无法加载 →
+        // ERR_UNKNOWN_URL_SCHEME + 导航失败。阻止并尝试改写为真实网页。
+        _log('🚫 拦截自定义 scheme 导航: ${url.length > 160 ? '${url.substring(0, 160)}...' : url}');
+        // baiduboxapp://v1/browser/open?url=<encoded https> → 解码后继续爬取
+        final m = RegExp(r'baiduboxapp://[^?]*\?.*[?&]url=([^&]+)').firstMatch(url);
+        if (m != null) {
+          try {
+            final real = Uri.decodeComponent(m.group(1)!);
+            if (real.startsWith('http://') || real.startsWith('https://')) {
+              _log('🔀 改写为网页导航: $real');
+              _androidController.loadRequest(Uri.parse(real));
+            }
+          } catch (_) {}
+        }
+        return NavigationDecision.prevent;
+      },
       onUrlChange: (change) {
         if (!mounted) return;
         final u = change.url ?? '';
