@@ -84,10 +84,15 @@ jobs:
           channel: stable
           cache: true
 
-      - name: 构建 Windows (debug)
+      - name: 生成插件资产清单 + pub get
+        env:
+          EVERGREEN_WORKSPACE: ${{ github.workspace }}/evg-base
         run: |
           flutter pub get
-          flutter build windows --debug
+          dart run tool/bundle_plugins.dart
+
+      - name: 构建 Windows (debug)
+        run: flutter build windows --debug
 
       - name: 打包产物 (zip)
         run: |
