@@ -1,0 +1,994 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>我的成绩单</title><style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #f2f4ef;
+  --bg-2: #e7ebe4;
+  --ink: #1f2420;
+  --ink-soft: #5f6a61;
+  --ink-faint: #8f9a90;
+  --accent: #5c7f66;          /* 低饱和墨绿 */
+  --accent-deep: #3f6048;
+  --accent-soft: #d7e3da;
+  --card: rgba(255, 255, 255, 0.84);
+  --line: rgba(60, 80, 65, 0.14);
+  --shadow: 0 10px 30px rgba(50, 70, 55, 0.08);
+  --shadow-hover: 0 16px 36px rgba(50, 70, 55, 0.14);
+  --A: #4f7d58;
+  --B: #4a7380;
+  --C: #a8843c;
+  --D: #b06b4a;
+  --F: #a14d42;
+}
+
+html, body { height: 100%; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, sans-serif;
+  background:
+    radial-gradient(1200px 500px at 85% -10%, rgba(92, 127, 102, 0.12), transparent 60%),
+    radial-gradient(900px 420px at -10% 20%, rgba(120, 140, 110, 0.10), transparent 55%),
+    linear-gradient(160deg, var(--bg) 0%, var(--bg-2) 100%);
+  background-attachment: fixed;
+  min-height: 100vh;
+  color: var(--ink);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- 顶部 ---------- */
+.topbar {
+  background: rgba(248, 250, 246, 0.75);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--line);
+  position: relative;
+  z-index: 5;
+}
+.topbar-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px 28px;
+  display: flex;
+  align-items: center;
+}
+.brand { display: flex; align-items: center; gap: 14px; }
+.brand-mark {
+  width: 46px; height: 46px;
+  border-radius: 13px;
+  background: linear-gradient(145deg, var(--accent), var(--accent-deep));
+  color: #f3f7f2;
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 6px 14px rgba(92, 127, 102, 0.30);
+  pointer-events: none;
+}
+.topbar h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
+.brand-sub { font-size: 12.5px; color: var(--ink-faint); margin-top: 3px; }
+
+/* ---------- 布局 ---------- */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 30px 28px 56px;
+}
+
+/* ---------- 概览统计 ---------- */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(205px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.stat-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 20px 22px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.stat-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  pointer-events: none;
+}
+.stat-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
+.stat-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.stat-value {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  line-height: 1.1;
+}
+.stat-value .unit {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink-faint);
+  margin-left: 3px;
+  letter-spacing: 0;
+}
+.stat-foot {
+  margin-top: 9px;
+  font-size: 12px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stat-foot .accent { color: var(--accent-deep); font-weight: 600; }
+.stat-accent { color: var(--accent-deep) !important; }
+
+/* ---------- 图表卡片（分布 + 走势） ---------- */
+.dist-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 18px 22px 16px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  margin-bottom: 20px;
+  position: relative;
+  overflow: hidden;
+}
+.dist-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  pointer-events: none;
+}
+.dist-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.dist-title { font-size: 14px; font-weight: 700; letter-spacing: -0.01em; }
+.dist-note { font-size: 12px; color: var(--ink-faint); }
+.dist-bar {
+  display: flex;
+  gap: 3px;
+  height: 10px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: rgba(90, 110, 95, 0.07);
+  pointer-events: none;
+}
+.seg { height: 100%; min-width: 3px; }
+.seg-A { background: var(--A); }
+.seg-B { background: var(--B); }
+.seg-C { background: var(--C); }
+.seg-D { background: var(--D); }
+.seg-F { background: var(--F); }
+.dist-legend {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.lg-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+.lg-item b { color: var(--ink); font-weight: 700; }
+.lg-item em { font-style: normal; color: var(--ink-faint); font-size: 11.5px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; pointer-events: none; }
+.dot-A { background: var(--A); }
+.dot-B { background: var(--B); }
+.dot-C { background: var(--C); }
+.dot-D { background: var(--D); }
+.dot-F { background: var(--F); }
+
+/* ---------- 折线图 ---------- */
+.chart {
+  width: 100%;
+  height: auto;
+  display: block;
+  pointer-events: none;
+}
+.chart-grid { stroke: rgba(60, 80, 65, 0.10); stroke-width: 1; }
+.chart-axis { fill: var(--ink-faint); font-size: 11px; text-anchor: end; }
+.chart-line { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.chart-area { fill: rgba(92, 127, 102, 0.10); }
+.chart-dot { fill: var(--accent-deep); stroke: #fff; stroke-width: 1.5; }
+.chart-val { fill: var(--ink-soft); font-size: 11.5px; font-weight: 600; text-anchor: middle; }
+.chart-label { fill: var(--ink-faint); font-size: 11px; text-anchor: middle; }
+
+/* ---------- 分节标题 ---------- */
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 16px 0;
+  flex-wrap: wrap;
+}
+.section-head h2 { font-size: 17px; font-weight: 700; letter-spacing: -0.015em; }
+.section-count {
+  font-size: 12.5px;
+  color: var(--ink-faint);
+  background: rgba(80, 105, 88, 0.08);
+  border: 1px solid var(--line);
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+.toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; position: relative; z-index: 6; }
+
+/* ---------- 自定义下拉 ---------- */
+.dropdown { position: relative; }
+.dd-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  color: var(--ink);
+  cursor: pointer;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.dd-btn:hover { border-color: rgba(92, 127, 102, 0.4); }
+.dd-btn:focus {
+  outline: 2px solid rgba(92, 127, 102, 0.35);
+  border-color: var(--accent);
+}
+.dd-arrow { font-size: 10px; color: var(--ink-faint); margin-left: 2px; }
+.dd-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 50;
+  min-width: 172px;
+  margin: 0;
+  padding: 5px;
+  list-style: none;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 12px 30px rgba(50, 70, 55, 0.16);
+  max-height: 280px;
+  overflow: auto;
+}
+.dd-item {
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--ink);
+  border-radius: 7px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s ease;
+}
+.dd-item:hover { background: rgba(92, 127, 102, 0.10); }
+.dd-item.is-active {
+  color: var(--accent-deep);
+  font-weight: 600;
+  background: rgba(92, 127, 102, 0.08);
+}
+
+/* ---------- 课程网格 ---------- */
+.course-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 16px;
+}
+.course-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 18px 20px 16px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.course-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  pointer-events: none;
+}
+.course-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-hover);
+}
+.course-card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-soft));
+  opacity: 0.85;
+  pointer-events: none;
+}
+.course-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.course-name {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+}
+.grade-badge {
+  flex-shrink: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+.grade-A { color: var(--A); background: rgba(79,125,88,0.12); border: 1px solid rgba(79,125,88,0.25); }
+.grade-B { color: var(--B); background: rgba(74,115,128,0.12); border: 1px solid rgba(74,115,128,0.25); }
+.grade-C { color: var(--C); background: rgba(168,132,60,0.12); border: 1px solid rgba(168,132,60,0.25); }
+.grade-D { color: var(--D); background: rgba(176,107,74,0.12); border: 1px solid rgba(176,107,74,0.25); }
+.grade-F { color: var(--F); background: rgba(161,77,66,0.12); border: 1px solid rgba(161,77,66,0.25); }
+
+.course-meta { display: flex; align-items: center; gap: 8px; }
+.course-term {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--accent-deep);
+  background: rgba(92, 127, 102, 0.10);
+  border: 1px solid rgba(92, 127, 102, 0.20);
+  padding: 2px 9px;
+  border-radius: 999px;
+}
+.course-score-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+.course-score {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: var(--ink);
+}
+.course-score.muted { color: var(--ink-faint); font-size: 26px; font-weight: 600; }
+.course-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.course-gpa, .course-credit { font-size: 12px; color: var(--ink-faint); }
+.course-gpa b, .course-credit b { color: var(--ink); font-weight: 700; }
+.score-bar-track {
+  height: 6px;
+  border-radius: 4px;
+  background: rgba(90, 110, 95, 0.10);
+  overflow: hidden;
+  pointer-events: none;
+}
+.score-bar { height: 100%; border-radius: 4px; }
+.score-bar-track.dim { opacity: 0.4; }
+.bar-A { background: linear-gradient(90deg, var(--A), #7ba37f); }
+.bar-B { background: linear-gradient(90deg, var(--B), #7d9da6); }
+.bar-C { background: linear-gradient(90deg, var(--C), #c3a464); }
+.bar-D { background: linear-gradient(90deg, var(--D), #c78d6c); }
+.bar-F { background: linear-gradient(90deg, var(--F), #c06d60); }
+
+/* ---------- 骨架屏 ---------- */
+.sk-line {
+  height: 14px;
+  border-radius: 7px;
+  background: linear-gradient(90deg, rgba(80, 105, 88, 0.07), rgba(80, 105, 88, 0.15), rgba(80, 105, 88, 0.07));
+  background-size: 200% 100%;
+  animation: shimmer 1.3s infinite linear;
+  margin-bottom: 10px;
+  pointer-events: none;
+}
+.sk-line.w40 { width: 40%; }
+.sk-line.w50 { width: 50%; }
+.sk-line.w60 { width: 60%; }
+.sk-line.w70 { width: 70%; }
+.sk-line.w80 { width: 80%; }
+.sk-line.big { height: 26px; }
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ---------- 空状态 / 错误 ---------- */
+.empty-state {
+  text-align: center;
+  padding: 64px 20px;
+  background: var(--card);
+  border: 1px dashed rgba(60, 80, 65, 0.25);
+  border-radius: 16px;
+  color: var(--ink-soft);
+}
+.empty-icon { font-size: 44px; margin-bottom: 14px; }
+.empty-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+.empty-sub { font-size: 13px; color: var(--ink-faint); }
+
+.error-card {
+  grid-column: 1 / -1;
+  background: rgba(161, 77, 66, 0.08);
+  border: 1px solid rgba(161, 77, 66, 0.25);
+  border-radius: 14px;
+  padding: 18px 20px;
+}
+.error-title { font-weight: 700; color: var(--F); margin-bottom: 4px; }
+.error-msg { font-size: 13px; color: var(--ink-soft); word-break: break-all; }
+
+/* ---------- 页脚 / 工具类 ---------- */
+.footer {
+  text-align: center;
+  padding: 22px 20px 30px;
+  color: var(--ink-faint);
+  font-size: 12px;
+}
+.hidden { display: none !important; }
+
+/* ---------- 响应式 ---------- */
+@media (max-width: 640px) {
+  .container { padding: 20px 16px 40px; }
+  .topbar-inner { padding: 16px; }
+  .course-score { font-size: 30px; }
+  .stat-value { font-size: 26px; }
+}
+
+</style>
+</head><body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <div class="brand-mark">绩</div>
+      <div class="brand-text">
+        <h1>我的成绩单</h1>
+        <div class="brand-sub">ZDBK 学业档案 · 成绩 · 绩点 · 学分</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="container">
+  <section class="stats-row" id="stats" aria-label="成绩概览"></section>
+  <section class="dist-card hidden" id="dist" aria-label="成绩等级分布"></section>
+  <section class="dist-card hidden" id="trend" aria-label="学期绩点走势"></section>
+
+  <div class="section-head">
+    <h2>课程成绩</h2>
+    <div class="toolbar">
+      <span class="section-count" id="course-count">—</span>
+      <div class="dropdown" id="term-dd">
+        <button type="button" class="dd-btn" id="term-btn" aria-haspopup="listbox" aria-expanded="false">
+          <span class="dd-label">全部学期</span><span class="dd-arrow">▾</span>
+        </button>
+        <ul class="dd-menu" id="term-menu" role="listbox" hidden></ul>
+      </div>
+      <div class="dropdown" id="sort-dd">
+        <button type="button" class="dd-btn" id="sort-btn" aria-haspopup="listbox" aria-expanded="false">
+          <span class="dd-label">默认顺序</span><span class="dd-arrow">▾</span>
+        </button>
+        <ul class="dd-menu" id="sort-menu" role="listbox" hidden>
+          <li class="dd-item is-active" data-v="default" role="option">默认顺序</li>
+          <li class="dd-item" data-v="score-desc" role="option">成绩从高到低</li>
+          <li class="dd-item" data-v="score-asc" role="option">成绩从低到高</li>
+          <li class="dd-item" data-v="gpa-desc" role="option">绩点从高到低</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="course-grid" id="course-grid"></div>
+
+  <div class="empty-state" id="empty" hidden>
+    <div class="empty-icon">🎓</div>
+    <p class="empty-title">暂无成绩记录</p>
+    <p class="empty-sub">数据源拉取到成绩后，这里将展示你的课程成绩单</p>
+  </div>
+</main>
+
+<footer class="footer">Powered by Evergreen · 数据来源 zdbk_transcript</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  var SOURCE = 'zdbk_transcript';
+  var sortMode = 'default';
+  var termFilter = 'all';
+  var allItems = [];
+
+  function toNum(v) {
+    var n = parseFloat(v);
+    return isNaN(n) ? null : n;
+  }
+
+  function gradeOf(score) {
+    if (score >= 90) return { label: '优秀', cls: 'A' };
+    if (score >= 80) return { label: '良好', cls: 'B' };
+    if (score >= 70) return { label: '中等', cls: 'C' };
+    if (score >= 60) return { label: '及格', cls: 'D' };
+    return { label: '不及格', cls: 'F' };
+  }
+
+  // 5 分制绩点：优先使用数据自带 jd，缺失时由成绩估算
+  function gpa5Of(it) {
+    var j = toNum(it.jd);
+    if (j !== null) return Math.max(0, Math.min(5, j));
+    var s = toNum(it.cj);
+    if (s === null) return null;
+    return Math.max(0, Math.min(5, (s - 50) / 10));
+  }
+
+  function barWidth(score) {
+    var w = Math.round(((score - 40) / 60) * 100);
+    return Math.max(6, Math.min(100, w)) + '%';
+  }
+
+  // 从 xkkh 形如 (2025-2026-1)-CS1001G-... 提取学期
+  function termOf(it) {
+    var m = /\((\d{4}-\d{4}-\d)\)/.exec(String(it.xkkh || ''));
+    if (!m) return '未知学期';
+    var s = m[1];
+    return s + ' ' + ({ '1': '秋冬', '2': '春夏' }[s.slice(-1)] || '');
+  }
+
+  function shortTerm(t) {
+    var m = /^(\d{4})-(\d{4})-(\d)\s*(.*)$/.exec(t);
+    if (!m) return t;
+    return m[1].slice(2) + '-' + m[2].slice(2) + ' ' + m[4];
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  /* ---------- 骨架屏 ---------- */
+  function skeletonStats() {
+    var h = '';
+    for (var i = 0; i < 4; i++) {
+      h += '<div class="stat-card"><div class="sk-line w40"></div><div class="sk-line w70 big"></div><div class="sk-line w50"></div></div>';
+    }
+    return h;
+  }
+
+  function skeletonCards() {
+    var h = '';
+    for (var i = 0; i < 6; i++) {
+      h += '<div class="course-card"><div class="sk-line w60"></div><div class="sk-line w80"></div><div class="sk-line w40"></div></div>';
+    }
+    return h;
+  }
+
+  /* ---------- 统计 ---------- */
+  function buildStats(items) {
+    var totalCredit = 0;
+    var w5 = 0, c5 = 0;
+    var scoreSum = 0, scoreCount = 0;
+    var maxScore = -Infinity, maxCourse = null;
+    var buckets = { A: 0, B: 0, C: 0, D: 0, F: 0 };
+
+    items.forEach(function (it) {
+      var s = toNum(it.cj);
+      var credit = toNum(it.xf) || 0;
+      totalCredit += credit;
+
+      var g5 = gpa5Of(it);
+      if (g5 !== null) { w5 += g5 * credit; c5 += credit; }
+
+      if (s !== null) {
+        scoreSum += s; scoreCount++;
+        if (s > maxScore) { maxScore = s; maxCourse = it; }
+        buckets[gradeOf(s).cls]++;
+      }
+    });
+
+    return {
+      totalCredit: totalCredit,
+      avgGpa: c5 > 0 ? w5 / c5 : null,
+      count: items.length,
+      scoreCount: scoreCount,
+      avgScore: scoreCount > 0 ? scoreSum / scoreCount : null,
+      maxScore: scoreCount > 0 ? maxScore : null,
+      maxCourse: maxCourse,
+      buckets: buckets
+    };
+  }
+
+  /* ---------- 排序：空值置底 ---------- */
+  function cmpDesc(a, b) {
+    var an = toNum(a), bn = toNum(b);
+    if (an === null && bn === null) return 0;
+    if (an === null) return 1;
+    if (bn === null) return -1;
+    return bn - an;
+  }
+  function cmpAsc(a, b) {
+    var an = toNum(a), bn = toNum(b);
+    if (an === null && bn === null) return 0;
+    if (an === null) return 1;
+    if (bn === null) return -1;
+    return an - bn;
+  }
+
+  function sortItems(items, mode) {
+    var arr = items.slice();
+    if (mode === 'score-desc') arr.sort(function (a, b) { return cmpDesc(a.cj, b.cj); });
+    else if (mode === 'score-asc') arr.sort(function (a, b) { return cmpAsc(a.cj, b.cj); });
+    else if (mode === 'gpa-desc') arr.sort(function (a, b) { return cmpDesc(a.jd, b.jd); });
+    return arr;
+  }
+
+  /* ---------- 学期 ---------- */
+  function termRank(t) {
+    var m = /^(\d{4})-(\d{4})-(\d)/.exec(t);
+    if (!m) return -1;
+    return parseInt(m[1], 10) * 10 + parseInt(m[3], 10);
+  }
+
+  function collectTerms(items) {
+    var seen = {}, order = [];
+    items.forEach(function (it) {
+      var t = termOf(it);
+      if (!seen[t]) { seen[t] = true; order.push(t); }
+    });
+    order.sort(function (a, b) {
+      var ka = termRank(a), kb = termRank(b);
+      if (ka >= 0 && kb >= 0) return kb - ka;
+      if (ka < 0) return 1;
+      if (kb < 0) return -1;
+      return a < b ? -1 : a > b ? 1 : 0;
+    });
+    return order;
+  }
+
+  function populateTermMenu(items) {
+    var menu = document.getElementById('term-menu');
+    var btn = document.getElementById('term-btn');
+    if (!menu) return;
+    var terms = collectTerms(items);
+    var html = '<li class="dd-item' + (termFilter === 'all' ? ' is-active' : '') + '" data-v="all" role="option">全部学期</li>';
+    terms.forEach(function (t) {
+      html += '<li class="dd-item' + (termFilter === t ? ' is-active' : '') + '" data-v="' + esc(t) + '" role="option">' + esc(t) + '</li>';
+    });
+    menu.innerHTML = html;
+    if (terms.indexOf(termFilter) === -1) termFilter = 'all';
+    if (btn) {
+      var label = btn.querySelector('.dd-label');
+      if (label) label.textContent = termFilter === 'all' ? '全部学期' : termFilter;
+    }
+  }
+
+  /* ---------- 自定义下拉 ---------- */
+  var ddMenus = [];
+
+  function closeAllMenus() {
+    ddMenus.forEach(function (m) { if (m) m.hidden = true; });
+  }
+
+  function setupDropdown(btnId, menuId, onSelect) {
+    var btn = document.getElementById(btnId);
+    var menu = document.getElementById(menuId);
+    if (!btn || !menu) return;
+    ddMenus.push(menu);
+
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var wasOpen = !menu.hidden;
+      closeAllMenus();
+      menu.hidden = wasOpen;
+      if (btn.getAttribute) btn.setAttribute('aria-expanded', String(!wasOpen));
+    });
+
+    menu.addEventListener('click', function (e) {
+      var item = e.target && e.target.closest ? e.target.closest('.dd-item') : null;
+      if (!item || !menu.contains(item)) return;
+      var v = item.getAttribute('data-v');
+      var label = btn.querySelector('.dd-label');
+      if (label) label.textContent = item.textContent.trim();
+      Array.prototype.forEach.call(menu.querySelectorAll('.dd-item'), function (it) {
+        it.classList.toggle('is-active', it === item);
+      });
+      menu.hidden = true;
+      btn.setAttribute('aria-expanded', 'false');
+      if (onSelect) onSelect(v);
+    });
+  }
+
+  document.addEventListener('click', function () { closeAllMenus(); });
+
+  /* ---------- 渲染：概览 ---------- */
+  function renderStats(s) {
+    var topName = s.maxCourse ? s.maxCourse.kcmc : '—';
+    var topScore = s.maxScore !== null ? s.maxScore : '—';
+    var html =
+      '<div class="stat-card">' +
+        '<div class="stat-label">课程门数</div>' +
+        '<div class="stat-value">' + s.count + '<span class="unit">门</span></div>' +
+        '<div class="stat-foot">总学分 <span class="accent">' + s.totalCredit.toFixed(1) + '</span></div>' +
+      '</div>' +
+      '<div class="stat-card">' +
+        '<div class="stat-label">加权平均绩点</div>' +
+        '<div class="stat-value stat-accent">' + (s.avgGpa !== null ? s.avgGpa.toFixed(2) : '—') + '</div>' +
+        '<div class="stat-foot">5 分制 · 按学分加权</div>' +
+      '</div>' +
+      '<div class="stat-card">' +
+        '<div class="stat-label">平均成绩</div>' +
+        '<div class="stat-value">' + (s.avgScore !== null ? s.avgScore.toFixed(1) : '—') + '<span class="unit">分</span></div>' +
+        '<div class="stat-foot">共 ' + s.scoreCount + ' 次有效成绩</div>' +
+      '</div>' +
+      '<div class="stat-card">' +
+        '<div class="stat-label">最高成绩</div>' +
+        '<div class="stat-value stat-accent">' + topScore + '<span class="unit">分</span></div>' +
+        '<div class="stat-foot">' + esc(topName) + '</div>' +
+      '</div>';
+    document.getElementById('stats').innerHTML = html;
+  }
+
+  /* ---------- 渲染：等级分布 ---------- */
+  function renderDist(buckets) {
+    var el = document.getElementById('dist');
+    if (!el) return;
+    var total = buckets.A + buckets.B + buckets.C + buckets.D + buckets.F;
+    if (total === 0) { el.hidden = true; return; }
+    var meta = [
+      { k: 'A', label: '优秀', cls: 'A' },
+      { k: 'B', label: '良好', cls: 'B' },
+      { k: 'C', label: '中等', cls: 'C' },
+      { k: 'D', label: '及格', cls: 'D' },
+      { k: 'F', label: '不及格', cls: 'F' }
+    ];
+    var segs = '', legend = '';
+    meta.forEach(function (m) {
+      var n = buckets[m.k] || 0;
+      segs += '<span class="seg seg-' + m.cls + '" style="flex:' + Math.max(n, 0.01) + '"></span>';
+      legend += '<span class="lg-item"><i class="dot dot-' + m.cls + '"></i>' + m.label +
+        ' <b>' + n + '</b><em>' + (total > 0 ? Math.round(n / total * 100) + '%' : '—') + '</em></span>';
+    });
+    el.innerHTML =
+      '<div class="dist-top">' +
+        '<span class="dist-title">成绩等级分布</span>' +
+        '<span class="dist-note">共 ' + total + ' 门 · 按课程成绩分档</span>' +
+      '</div>' +
+      '<div class="dist-bar">' + segs + '</div>' +
+      '<div class="dist-legend">' + legend + '</div>';
+    el.hidden = false;
+  }
+
+  /* ---------- 渲染：学期绩点走势 ---------- */
+  function buildTrend(items) {
+    var map = {};
+    items.forEach(function (it) {
+      var g5 = gpa5Of(it);
+      if (g5 === null) return;
+      var credit = toNum(it.xf) || 0;
+      var t = termOf(it);
+      if (!map[t]) map[t] = { credit: 0, w: 0, n: 0 };
+      map[t].credit += credit;
+      map[t].w += g5 * credit;
+      map[t].n++;
+    });
+    var terms = Object.keys(map);
+    terms.sort(function (a, b) {
+      var ka = termRank(a), kb = termRank(b);
+      if (ka >= 0 && kb >= 0) return ka - kb;
+      if (ka < 0) return 1;
+      if (kb < 0) return -1;
+      return a < b ? -1 : a > b ? 1 : 0;
+    });
+    return terms.map(function (t) {
+      var m = map[t];
+      return { term: t, gpa5: m.credit > 0 ? m.w / m.credit : null, n: m.n };
+    }).filter(function (x) { return x.gpa5 !== null; });
+  }
+
+  function renderTrend(series) {
+    var el = document.getElementById('trend');
+    if (!el) return;
+    if (series.length === 0) { el.hidden = true; return; }
+
+    var W = 1100, H = 250, padL = 46, padR = 24, padT = 30, padB = 42;
+    var cw = W - padL - padR, ch = H - padT - padB;
+    var yMin = 0, yMax = 5;
+
+    function X(i) {
+      if (series.length === 1) return padL + cw / 2;
+      return padL + (cw * i) / (series.length - 1);
+    }
+    function Y(v) { return padT + ch * (1 - (v - yMin) / (yMax - yMin)); }
+
+    var grid = '';
+    for (var g = 0; g <= 5; g++) {
+      var gy = Y(g);
+      grid += '<line x1="' + padL + '" y1="' + gy.toFixed(1) + '" x2="' + (W - padR) + '" y2="' + gy.toFixed(1) + '" class="chart-grid"></line>' +
+              '<text x="' + (padL - 8) + '" y="' + (gy + 4).toFixed(1) + '" class="chart-axis">' + g + '</text>';
+    }
+
+    var pts = series.map(function (s, i) {
+      return X(i).toFixed(1) + ',' + Y(s.gpa5).toFixed(1);
+    });
+
+    var chart = '';
+    if (pts.length >= 2) {
+      chart += '<polygon class="chart-area" points="' + padL + ',' + Y(0).toFixed(1) + ' ' + pts.join(' ') + ' ' + X(series.length - 1).toFixed(1) + ',' + Y(0).toFixed(1) + '"></polygon>';
+      chart += '<polyline class="chart-line" points="' + pts.join(' ') + '"></polyline>';
+    }
+    series.forEach(function (s, i) {
+      var cx = X(i).toFixed(1), cy = Y(s.gpa5).toFixed(1);
+      chart += '<circle cx="' + cx + '" cy="' + cy + '" r="4.5" class="chart-dot"></circle>' +
+               '<text x="' + cx + '" y="' + (Y(s.gpa5) - 10).toFixed(1) + '" class="chart-val">' + s.gpa5.toFixed(2) + '</text>' +
+               '<text x="' + cx + '" y="' + (H - padB + 18) + '" class="chart-label">' + esc(shortTerm(s.term)) + '</text>';
+    });
+
+    el.innerHTML =
+      '<div class="dist-top">' +
+        '<span class="dist-title">学期绩点走势</span>' +
+        '<span class="dist-note">各学期加权平均绩点 · 5 分制</span>' +
+      '</div>' +
+      '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="学期绩点走势折线图">' +
+        grid + chart +
+      '</svg>';
+    el.hidden = false;
+  }
+
+  /* ---------- 渲染：课程列表 ---------- */
+  function renderCourses(items) {
+    var grid = document.getElementById('course-grid');
+    var count = document.getElementById('course-count');
+    if (count) count.textContent = items.length + ' 门课程';
+
+    var empty = document.getElementById('empty');
+    if (items.length === 0) {
+      grid.innerHTML = '';
+      if (empty) empty.hidden = false;
+      return;
+    }
+    if (empty) empty.hidden = true;
+
+    var html = items.map(function (it) {
+      var name = it.kcmc || '未命名课程';
+      var score = toNum(it.cj);
+      var gpa = toNum(it.jd);
+      var credit = toNum(it.xf);
+      var term = termOf(it);
+
+      var badge, scoreHtml, barHtml;
+      if (score !== null) {
+        var g = gradeOf(score);
+        badge = '<span class="grade-badge grade-' + g.cls + '">' + g.label + '</span>';
+        scoreHtml = '<div class="course-score">' + Math.round(score) + '</div>';
+        barHtml = '<div class="score-bar-track"><div class="score-bar bar-' + g.cls + '" style="width:' + barWidth(score) + '"></div></div>';
+      } else {
+        badge = '<span class="grade-badge grade-F">暂无</span>';
+        scoreHtml = '<div class="course-score muted">—</div>';
+        barHtml = '<div class="score-bar-track dim"></div>';
+      }
+
+      return '' +
+        '<div class="course-card">' +
+          '<div class="course-top">' +
+            '<div class="course-name">' + esc(name) + '</div>' +
+            badge +
+          '</div>' +
+          '<div class="course-meta"><span class="course-term">' + esc(term) + '</span></div>' +
+          '<div class="course-score-row">' +
+            scoreHtml +
+            '<div class="course-side">' +
+              '<div class="course-gpa">绩点 <b>' + (gpa !== null ? gpa.toFixed(1) : '—') + '</b></div>' +
+              '<div class="course-credit">学分 <b>' + (credit !== null ? credit.toFixed(1) : '—') + '</b></div>' +
+            '</div>' +
+          '</div>' +
+          barHtml +
+        '</div>';
+    }).join('');
+
+    grid.innerHTML = html;
+  }
+
+  /* ---------- 汇总视图 ---------- */
+  function getVisible() {
+    var list = allItems;
+    if (termFilter !== 'all') {
+      list = list.filter(function (it) { return termOf(it) === termFilter; });
+    }
+    return sortItems(list, sortMode);
+  }
+
+  function renderAll() {
+    var visible = getVisible();
+    var stats = buildStats(visible);
+    renderStats(stats);
+    renderDist(stats.buckets);
+    renderCourses(visible);
+  }
+
+  function renderEmpty() {
+    document.getElementById('stats').innerHTML =
+      '<div class="stat-card">' +
+        '<div class="stat-label">课程门数</div>' +
+        '<div class="stat-value">0<span class="unit">门</span></div>' +
+        '<div class="stat-foot">暂无数据</div>' +
+      '</div>';
+    document.getElementById('dist').hidden = true;
+    document.getElementById('trend').hidden = true;
+    renderCourses([]);
+  }
+
+  /* ---------- 初始化 ---------- */
+  function init() {
+    document.getElementById('stats').innerHTML = skeletonStats();
+    document.getElementById('course-grid').innerHTML = skeletonCards();
+
+    setupDropdown('sort-btn', 'sort-menu', function (v) {
+      sortMode = v;
+      renderAll();
+    });
+    setupDropdown('term-btn', 'term-menu', function (v) {
+      termFilter = v;
+      renderAll();
+    });
+
+    platform.data.get(SOURCE).then(function (d) {
+      allItems = (d && Array.isArray(d.items)) ? d.items : [];
+      if (allItems.length === 0) {
+        renderEmpty();
+        return;
+      }
+      populateTermMenu(allItems);
+      renderAll();
+      renderTrend(buildTrend(allItems));
+    }).catch(function (e) {
+      document.getElementById('stats').innerHTML =
+        '<div class="error-card">' +
+          '<div class="error-title">⚠️ 数据加载失败</div>' +
+          '<div class="error-msg">' + esc(e && e.message ? e.message : String(e)) + '</div>' +
+        '</div>';
+      document.getElementById('course-grid').innerHTML = '';
+    });
+  }
+
+  init();
+})();
+
+</script>
+</body></html>

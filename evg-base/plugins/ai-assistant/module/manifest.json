@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "2.0",
+  "renderMode": "dart",
+  "type": "module",
+  "id": "ai-assistant",
+  "name": "AI 助手",
+  "description": "内置 AI 对话模块——全功能聊天界面，支持深度思考、联网搜索、工具调用、多会话管理",
+  "icon": "smart_toy",
+  "route": "/ai-assistant",
+  "version": "2.0.0",
+  "nav": {
+    "sidebar": { "section": "base主功能", "order": 10 }
+  },
+  "workspace": {
+    "enabled": true,
+    "maxFiles": 50,
+    "maxSizeMb": 50,
+    "aiCreatable": ["md", "json", "py", "dart", "txt", "csv", "html", "css", "js", "pptx", "pdf"],
+    "persistAcrossSessions": true
+  },
+  "dependencies": []
+}

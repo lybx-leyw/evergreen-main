@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>学业成绩单</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg: #f4f1ea;
+  --bg-2: #ece7dc;
+  --ink: #22211d;
+  --ink-soft: #6b675d;
+  --ink-faint: #9a958a;
+  --accent: #b0743a;          /* 暖琥珀棕，低饱和 */
+  --accent-deep: #8d5a2b;
+  --accent-soft: #e9d9c3;
+  --card: rgba(255, 255, 255, 0.82);
+  --line: rgba(90, 80, 60, 0.14);
+  --shadow: 0 10px 30px rgba(70, 55, 30, 0.08);
+  --good: #5a7d5a;
+  --mid: #a8843c;
+  --warn: #b06b4a;
+}
+
+html, body { height: 100%; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, sans-serif;
+  background:
+    radial-gradient(1200px 500px at 85% -10%, rgba(176, 116, 58, 0.10), transparent 60%),
+    radial-gradient(900px 420px at -10% 20%, rgba(120, 140, 110, 0.10), transparent 55%),
+    linear-gradient(160deg, var(--bg) 0%, var(--bg-2) 100%);
+  background-attachment: fixed;
+  min-height: 100vh;
+  color: var(--ink);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- 顶部 ---------- */
+.topbar {
+  background: rgba(250, 248, 243, 0.75);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+.topbar-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 22px 28px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.brand { display: flex; align-items: center; gap: 14px; }
+.brand-mark {
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  background: linear-gradient(145deg, var(--accent), var(--accent-deep));
+  color: #fbf7ef;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 6px 14px rgba(176, 116, 58, 0.28);
+}
+.topbar h1 {
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+.brand-sub {
+  font-size: 12.5px;
+  color: var(--ink-faint);
+  letter-spacing: 0.01em;
+  margin-top: 2px;
+}
+
+/* ---------- 布局 ---------- */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 30px 28px 56px;
+}
+
+/* ---------- 统计 ---------- */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 16px;
+  margin-bottom: 34px;
+}
+.stat-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 20px 22px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  position: relative;
+  overflow: hidden;
+}
+.stat-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  pointer-events: none;
+}
+.stat-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.stat-value {
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  line-height: 1.1;
+}
+.stat-value .unit {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink-faint);
+  margin-left: 3px;
+  letter-spacing: 0;
+}
+.stat-foot {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.stat-foot .accent { color: var(--accent-deep); font-weight: 600; }
+.stat-accent { color: var(--accent-deep) !important; }
+
+/* ---------- 分节标题 ---------- */
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.section-head h2 {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+.section-count {
+  font-size: 12.5px;
+  color: var(--ink-faint);
+  background: rgba(120, 100, 70, 0.08);
+  border: 1px solid var(--line);
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+.sort-group { display: flex; align-items: center; gap: 8px; }
+.sort-label { font-size: 12.5px; color: var(--ink-faint); }
+.sort-select {
+  appearance: none;
+  background: rgba(255,255,255,0.75);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 6px 28px 6px 12px;
+  font-size: 13px;
+  color: var(--ink);
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236b675d' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+.sort-select:focus { outline: 2px solid rgba(176, 116, 58, 0.35); }
+
+/* ---------- 课程网格 ---------- */
+.course-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+}
+.course-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 18px 20px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.course-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  pointer-events: none;
+}
+.course-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 36px rgba(70, 55, 30, 0.14);
+}
+.course-card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-soft));
+  opacity: 0.85;
+}
+.course-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.course-name {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+}
+.grade-badge {
+  flex-shrink: 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+.grade-A { background: rgba(90, 125, 90, 0.16); color: var(--good); }
+.grade-B { background: rgba(168, 132, 60, 0.16); color: var(--mid); }
+.grade-C { background: rgba(176, 107, 74, 0.14); color: var(--warn); }
+.grade-D { background: rgba(130, 90, 70, 0.14); color: #7d5a45; }
+
+.course-score-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.course-score {
+  font-size: 30px;
+  font-weight: 750;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.course-score .point { font-size: 18px; }
+.course-gpa {
+  font-size: 13px;
+  color: var(--ink-soft);
+  font-weight: 500;
+  margin-left: auto;
+  text-align: right;
+}
+.course-gpa b { color: var(--ink); font-weight: 650; }
+
+.score-bar-track {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(90, 80, 60, 0.12);
+  overflow: hidden;
+}
+.score-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent-soft), var(--accent));
+}
+
+.course-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--ink-faint);
+}
+.course-foot .sep { color: var(--line); }
+.course-credit b { color: var(--ink-soft); font-weight: 600; }
+
+/* ---------- 空状态 / 错误 ---------- */
+.empty-state, .error-state {
+  text-align: center;
+  padding: 70px 20px;
+  background: var(--card);
+  border: 1px dashed rgba(90, 80, 60, 0.25);
+  border-radius: 18px;
+  margin-top: 8px;
+}
+.empty-icon, .error-icon { font-size: 42px; margin-bottom: 12px; }
+.empty-state p, .error-state p {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.empty-sub {
+  display: block;
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--ink-faint);
+}
+
+/* ---------- 骨架屏 ---------- */
+.skeleton-card { pointer-events: none; }
+.skeleton-line {
+  height: 12px;
+  border-radius: 6px;
+  background: linear-gradient(90deg, rgba(90,80,60,0.10) 25%, rgba(90,80,60,0.20) 45%, rgba(90,80,60,0.10) 65%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  margin-bottom: 10px;
+}
+.skeleton-line.tall { height: 26px; }
+.skeleton-line.w40 { width: 40%; }
+.skeleton-line.w50 { width: 50%; }
+.skeleton-line.w60 { width: 60%; }
+.skeleton-line.w70 { width: 70%; }
+.skeleton-line.w90 { width: 90%; }
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ---------- 底部 ---------- */
+.footer {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 26px 28px 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.dot { color: var(--line); }
+
+/* ---------- 响应式 ---------- */
+@media (max-width: 640px) {
+  .container { padding: 20px 16px 40px; }
+  .topbar-inner { padding: 16px; }
+  .stats-row { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .stat-card { padding: 16px; }
+  .stat-value { font-size: 24px; }
+  .course-grid { grid-template-columns: 1fr; }
+}
+
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <div class="brand-mark">绩</div>
+      <div>
+        <h1>学业成绩单</h1>
+        <p class="brand-sub">主修课程成绩 · ZDBK 数据中枢</p>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="container">
+
+  <section class="stats-row" id="stats">
+    <div class="stat-card skeleton-card">
+      <div class="skeleton-line w40"></div>
+      <div class="skeleton-line w70 tall"></div>
+    </div>
+    <div class="stat-card skeleton-card">
+      <div class="skeleton-line w40"></div>
+      <div class="skeleton-line w70 tall"></div>
+    </div>
+    <div class="stat-card skeleton-card">
+      <div class="skeleton-line w40"></div>
+      <div class="skeleton-line w70 tall"></div>
+    </div>
+    <div class="stat-card skeleton-card">
+      <div class="skeleton-line w40"></div>
+      <div class="skeleton-line w70 tall"></div>
+    </div>
+  </section>
+
+  <div class="section-head">
+    <h2>课程明细</h2>
+    <div class="sort-group" id="sort-group" hidden>
+      <span class="sort-label">排序</span>
+      <select id="sort-select" class="sort-select">
+        <option value="default">原始顺序</option>
+        <option value="score-desc">成绩 ↓</option>
+        <option value="score-asc">成绩 ↑</option>
+        <option value="gpa-desc">绩点 ↓</option>
+      </select>
+    </div>
+  </div>
+
+  <div id="course-grid" class="course-grid">
+    <div class="course-card skeleton-card">
+      <div class="skeleton-line w60"></div>
+      <div class="skeleton-line w50 tall"></div>
+      <div class="skeleton-line w90"></div>
+    </div>
+    <div class="course-card skeleton-card">
+      <div class="skeleton-line w60"></div>
+      <div class="skeleton-line w50 tall"></div>
+      <div class="skeleton-line w90"></div>
+    </div>
+    <div class="course-card skeleton-card">
+      <div class="skeleton-line w60"></div>
+      <div class="skeleton-line w50 tall"></div>
+      <div class="skeleton-line w90"></div>
+    </div>
+    <div class="course-card skeleton-card">
+      <div class="skeleton-line w60"></div>
+      <div class="skeleton-line w50 tall"></div>
+      <div class="skeleton-line w90"></div>
+    </div>
+  </div>
+
+  <div id="empty" class="empty-state" hidden>
+    <div class="empty-icon">📄</div>
+    <p>暂无成绩数据</p>
+    <span class="empty-sub">拉取数据源后可查看课程成绩明细</span>
+  </div>
+
+  <div id="error" class="error-state" hidden>
+    <div class="error-icon">⚠️</div>
+    <p id="error-text">加载失败</p>
+  </div>
+
+</main>
+
+<footer class="footer">
+  <span>数据来源：ZDBK 成绩单</span>
+  <span class="dot">·</span>
+  <span>Evergreen 插件</span>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  var SOURCE = 'zdbk_transcript';
+
+  function toNum(v) {
+    var n = parseFloat(v);
+    return isNaN(n) ? null : n;
+  }
+
+  function gradeOf(score) {
+    if (score >= 90) return { label: '优秀', cls: 'grade-A' };
+    if (score >= 80) return { label: '良好', cls: 'grade-B' };
+    if (score >= 70) return { label: '中等', cls: 'grade-C' };
+    if (score >= 60) return { label: '及格', cls: 'grade-C' };
+    return { label: '不及格', cls: 'grade-D' };
+  }
+
+  function barWidth(score) {
+    // 40 ~ 100 映射到 8% ~ 100%
+    var w = Math.round(((score - 40) / 60) * 100);
+    return Math.max(6, Math.min(100, w)) + '%';
+  }
+
+  function buildStats(items) {
+    var totalCredit = 0, weightedGpa = 0, scoreSum = 0, scoreCount = 0;
+    var maxScore = -Infinity, minScore = Infinity;
+    var maxCourse = null, minCourse = null;
+
+    items.forEach(function (it) {
+      var s = toNum(it.cj);
+      var g = toNum(it.jd);
+      var c = toNum(it.xf);
+      var credit = c || 0;
+
+      totalCredit += credit;
+      if (g !== null) weightedGpa += (g || 0) * credit;
+
+      if (s !== null) {
+        scoreSum += s;
+        scoreCount++;
+        if (s > maxScore) { maxScore = s; maxCourse = it; }
+        if (s < minScore) { minScore = s; minCourse = it; }
+      }
+    });
+
+    var avgGpa = totalCredit > 0 ? weightedGpa / totalCredit : null;
+    var avgScore = scoreCount > 0 ? scoreSum / scoreCount : null;
+
+    return {
+      totalCredit: totalCredit,
+      avgGpa: avgGpa,
+      avgScore: avgScore,
+      count: items.length,
+      maxScore: scoreCount > 0 ? maxScore : null,
+      maxCourse: maxCourse,
+      minScore: scoreCount > 0 ? minScore : null,
+      minCourse: minCourse
+    };
+  }
+
+  function sortItems(items, mode) {
+    var arr = items.slice();
+    if (mode === 'score-desc') {
+      arr.sort(function (a, b) { return (toNum(b.cj) || 0) - (toNum(a.cj) || 0); });
+    } else if (mode === 'score-asc') {
+      arr.sort(function (a, b) { return (toNum(a.cj) || 0) - (toNum(b.cj) || 0); });
+    } else if (mode === 'gpa-desc') {
+      arr.sort(function (a, b) { return (toNum(b.jd) || 0) - (toNum(a.jd) || 0); });
+    }
+    return arr;
+  }
+
+  function renderStats(stats) {
+    var avgGpaStr = stats.avgGpa !== null ? stats.avgGpa.toFixed(2) : '—';
+    var avgScoreStr = stats.avgScore !== null ? stats.avgScore.toFixed(1) : '—';
+    var topName = stats.maxCourse ? stats.maxCourse.kcmc : '—';
+    var topScore = stats.maxScore !== null ? stats.maxScore : '—';
+
+    var html =
+      '<div class="stat-card">' +
+        '<div class="stat-label">课程门数</div>' +
+        '<div class="stat-value">' + stats.count + '<span class="unit">门</span></div>' +
+        '<div class="stat-foot">总学分 <span class="accent">' + stats.totalCredit.toFixed(1) + '</span></div>' +
+      '</div>' +
+      '<div class="stat-card">' +
+        '<div class="stat-label">加权平均绩点</div>' +
+        '<div class="stat-value stat-accent">' + avgGpaStr + '</div>' +
+        '<div class="stat-foot">按学分加权</div>' +
+      '</div>' +
+      '<div class="stat-card">' +
+        '<div class="stat-label">平均成绩</div>' +
+        '<div class="stat-value">' + avgScoreStr + '<span class="unit">分</span></div>' +
+        '<div class="stat-foot">共 ' + (stats.count) + ' 次成绩</div>' +
+      '</div>' +
+      '<div class="stat-card">' +
+        '<div class="stat-label">最高成绩</div>' +
+        '<div class="stat-value stat-accent">' + topScore + '<span class="unit">分</span></div>' +
+        '<div class="stat-foot">' + topName + '</div>' +
+      '</div>';
+
+    document.getElementById('stats').innerHTML = html;
+  }
+
+  function renderCourses(items) {
+    var grid = document.getElementById('course-grid');
+    var count = document.getElementById('course-count');
+    if (!count) {
+      count = document.createElement('span');
+      count.id = 'course-count';
+      count.className = 'section-count';
+      document.querySelector('.section-head').appendChild(count);
+    }
+    count.textContent = items.length + ' 门课程';
+
+    if (items.length === 0) {
+      grid.innerHTML = '';
+      document.getElementById('empty').hidden = false;
+      document.getElementById('sort-group').hidden = true;
+      return;
+    }
+
+    var html = items.map(function (it) {
+      var name = it.kcmc || '未命名课程';
+      var score = toNum(it.cj);
+      var gpa = toNum(it.jd);
+      var credit = toNum(it.xf);
+
+      var scoreHtml, badgeHtml, barHtml;
+      if (score !== null) {
+        var g = gradeOf(score);
+        badgeHtml = '<span class="grade-badge ' + g.cls + '">' + g.label + '</span>';
+        scoreHtml = '<div class="course-score">' + Math.round(score) + '</div>';
+        barHtml = '<div class="score-bar-track"><div class="score-bar" style="width:' + barWidth(score) + '"></div></div>';
+      } else {
+        badgeHtml = '<span class="grade-badge grade-D">暂无</span>';
+        scoreHtml = '<div class="course-score" style="color:var(--ink-faint)">—</div>';
+        barHtml = '<div class="score-bar-track" style="opacity:0.35"></div>';
+      }
+
+      return '' +
+        '<div class="course-card">' +
+          '<div class="course-top">' +
+            '<div class="course-name">' + name + '</div>' +
+            badgeHtml +
+          '</div>' +
+          '<div class="course-score-row">' +
+            scoreHtml +
+            '<div class="course-gpa">绩点 <b>' + (gpa !== null ? gpa.toFixed(1) : '—') + '</b></div>' +
+          '</div>' +
+          barHtml +
+          '<div class="course-foot">' +
+            '<span class="course-credit">学分 <b>' + (credit !== null ? credit.toFixed(1) : '—') + '</b></span>' +
+            '<span class="sep">·</span>' +
+            '<span>' + (it.xkkh ? String(it.xkkh).replace(/\(.*?\)-/, '').slice(0, 18) : '') + '</span>' +
+          '</div>' +
+        '</div>';
+    }).join('');
+
+    grid.innerHTML = html;
+    document.getElementById('empty').hidden = true;
+  }
+
+  function normalize(data) {
+    if (!data) return [];
+    if (Array.isArray(data)) return data;
+    if (data.items && Array.isArray(data.items)) return data.items;
+    return [];
+  }
+
+  async function init() {
+    var grid = document.getElementById('course-grid');
+    var empty = document.getElementById('empty');
+    var err = document.getElementById('error');
+    var sortGroup = document.getElementById('sort-group');
+
+    try {
+      var data = await platform.data.get(SOURCE);
+      var items = normalize(data);
+
+      var stats = buildStats(items);
+      renderStats(stats);
+
+      var sortSelect = document.getElementById('sort-select');
+      sortSelect.addEventListener('change', function () {
+        var sorted = sortItems(items, sortSelect.value);
+        renderCourses(sorted);
+      });
+
+      renderCourses(sortItems(items, 'default'));
+      sortGroup.hidden = false;
+    } catch (e) {
+      grid.innerHTML = '';
+      document.getElementById('stats').innerHTML = '';
+      err.hidden = false;
+      document.getElementById('error-text').textContent = '加载失败：' + (e && e.message ? e.message : '未知错误');
+      empty.hidden = true;
+      sortGroup.hidden = true;
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', init);
+})();
+
+</script>
+</body>
+</html>

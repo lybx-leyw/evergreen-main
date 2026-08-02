@@ -191,10 +191,7 @@ evg-base/lib/core/example/plugins/*/*/__pycache__/
 # 插件运行时状态（不可提交）
 .plugin_states.json
 
-# 插件目录（旧平级路径 + 新 evg-base/plugins 路径）
-# 含凭证 config / 运行时状态 / 下载缓存，一律不进版本库
-plugins/
-evg-base/plugins/
+# 插件目录源码进版本库（构建/运行时中间产物在 evg-base/.gitignore 排除）
 
 # 安卓打包副本（tool/bundle_plugins.dart 从 evg-base/plugins/ 生成）
 evg-base/assets/plugins_bundle/
