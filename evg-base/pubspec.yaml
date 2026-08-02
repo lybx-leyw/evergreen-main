@@ -111,3 +111,41 @@ flutter:
     - assets/plugins_bundle/warm_study/theme/theme.json
 
     # <<<PLUGIN_ASSETS_END<<<
+
+    # >>>SCRIPTS_ASSETS_START>>>
+    - assets/scripts_bundle/ocr_file.py
+    - assets/scripts_bundle/ocr_slides.py
+    - assets/scripts_bundle/paper_reader.py
+    - assets/scripts_bundle/paper_vision.py
+    - assets/scripts_bundle/pdf2zh_next/config/cli_env_model.py
+    - assets/scripts_bundle/pdf2zh_next/config/main.py
+    - assets/scripts_bundle/pdf2zh_next/config/model.py
+    - assets/scripts_bundle/pdf2zh_next/config/translate_engine_model.py
+    - assets/scripts_bundle/pdf2zh_next/const.py
+    - assets/scripts_bundle/pdf2zh_next/high_level.py
+    - assets/scripts_bundle/pdf2zh_next/translator/base_rate_limiter.py
+    - assets/scripts_bundle/pdf2zh_next/translator/base_translator.py
+    - assets/scripts_bundle/pdf2zh_next/translator/cache.py
+    - assets/scripts_bundle/pdf2zh_next/translator/rate_limiter/qps_rate_limiter.py
+    - assets/scripts_bundle/pdf2zh_next/translator/translator_impl/anythingllm.py
+    - assets/scripts_bundle/pdf2zh_next/translator/translator_impl/azure.py
+    - assets/scripts_bundle/pdf2zh_next/translator/translator_impl/azureopenai.py
+    - assets/scripts_bundle/pdf2zh_next/translator/translator_impl/bing.py
+    - assets/scripts_bundle/pdf2zh_next/translator/translator_impl/claudecode.py
+    - assets/scripts_bundle/pdf2zh_next/translator/translator_impl/clitranslator.py
+    - assets/scripts_bundle/pdf2zh_next/translator/translator_impl/deepl.py
+    - assets/scripts_bundle/pdf2zh_next/translator/translator_impl/dify.py
+    - assets/scripts_bundle/pdf2zh_next/translator/translator_impl/google.py
+    - assets/scripts_bundle/pdf2zh_next/translator/translator_impl/ollama.py
+    - assets/scripts_bundle/pdf2zh_next/translator/translator_impl/openai.py
+    - assets/scripts_bundle/pdf2zh_next/translator/translator_impl/qwenmt.py
+    - assets/scripts_bundle/pdf2zh_next/translator/translator_impl/siliconflow.py
+    - assets/scripts_bundle/pdf2zh_next/translator/translator_impl/siliconflowfree.py
+    - assets/scripts_bundle/pdf2zh_next/translator/translator_impl/tencentmechinetranslation.py
+    - assets/scripts_bundle/pdf2zh_next/translator/translator_impl/xinference.py
+    - assets/scripts_bundle/pdf2zh_next/translator/utils.py
+    - assets/scripts_bundle/pdf_to_images.py
+    - assets/scripts_bundle/pdf_translate.py
+    - assets/scripts_bundle/requirements.txt
+
+    # <<<SCRIPTS_ASSETS_END<<<

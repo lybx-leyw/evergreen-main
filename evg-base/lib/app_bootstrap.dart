@@ -220,7 +220,7 @@ class AppBootstrap {
         BootStep('window-init', '桌面窗口参数预设', _stepWindowInit),
         BootStep('greenix-paths', 'Greenix 路径初始化', _stepGreenixPaths,
             fatal: true),
-        BootStep('android-assets', '安卓插件资产释放', _stepAndroidAssets),
+        BootStep('release-assets', '运行时资产释放', _stepReleaseAssets),
         BootStep('media-kit', 'media_kit 初始化', _stepMediaKit),
         BootStep('webview2', 'WebView2 CDP 环境', _stepWebView2),
         BootStep('prefs', 'SharedPreferences 初始化', _stepPrefs),
@@ -328,15 +328,15 @@ class AppBootstrap {
     return _ok();
   }
 
-  /// 安卓：释放插件资产到设备可写目录。
-  Future<Result<void>> _stepAndroidAssets() async {
-    if (!Platform.isAndroid) return _ok();
-    Log().info('[BOOT] 安卓：开始释放插件资产...');
+  /// 全平台：释放插件 + 管线脚本资产到 `.greenix/`。
+  Future<Result<void>> _stepReleaseAssets() async {
+    Log().info('[BOOT] 开始释放运行时资产（plugins + scripts）...');
     try {
-      final released = await releasePluginsAssetsIfNeeded();
-      Log().info('[BOOT] 安卓插件资产释放目录: $released');
+      await releaseBundledAssets();
+      Log().info('[BOOT] 运行时资产释放完成（plugins → $greenixPluginsDir，'
+          'scripts → $greenixScriptsDir）');
     } catch (e, st) {
-      Log().error('[BOOT] 安卓插件资产释放失败: $e', error: e, stack: st);
+      Log().error('[BOOT] 运行时资产释放失败: $e', error: e, stack: st);
     }
     return _ok();
   }
@@ -505,9 +505,8 @@ class AppBootstrap {
     registry.register(FileInfoTool(workspaceDir: aiWorkspace));
     registry.register(DataQueryTool(orchestrator: orchestrator));
     // 注册嵌入式 Python 解释器工具——多级回退发现
-    // ① .greenix/python/python.exe（同学打包的嵌入式 Python，最高优先级）
-    // ② scripts/python/python.exe（安装包自带）
-    // ③ 用户配置路径 → 系统 PATH（python3 → python → py -3）
+    // ① .greenix/python/python.exe（安装包预置/CI 供给的嵌入式 Python，最高优先级）
+    // ② 用户配置路径 → 系统 PATH（python3 → python → py -3）
     final bundledCandidate = p.join(greenixPythonDir, 'python.exe');
     final resolvedPython =
         await resolvePythonExe(configuredPath: bundledCandidate);
@@ -525,7 +524,7 @@ class AppBootstrap {
       ));
       Log().info('[BOOT] PythonRunnerTool 已注册 ($resolvedPython, workDir: $workDir)');
     } else {
-      Log().warn('[BOOT] ⚠ Python 解释器未找到——已尝试 .greenix/python/、scripts/python/、系统 PATH。');
+      Log().warn('[BOOT] ⚠ Python 解释器未找到——已尝试 .greenix/python/、系统 PATH。');
       Log().warn('[BOOT]    AI 将无法执行 Python 代码。安装 Python 3.8+ 或放置 python.exe 到 .greenix/python/。');
     }
     // 注册插件 Agent 工具

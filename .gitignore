@@ -200,6 +200,7 @@ evg-base/lib/core/example/plugins/*/*/__pycache__/
 
 # 安卓打包副本（tool/bundle_plugins.dart 从 evg-base/plugins/ 生成）
 evg-base/assets/plugins_bundle/
+evg-base/assets/scripts_bundle/
 
 # evg-base — 运行时 debug / 临时输出文件（含绝对路径，严禁提交）
 **/._debug.txt
@@ -209,6 +210,7 @@ evg-base/*_output.txt
 # （其余 tool/ 脚本为本地开发辅助，不需要进版本库）
 evg-base/tool/*
 !evg-base/tool/bundle_plugins.dart
+!evg-base/tool/bundle_scripts.dart
 analyze_*.txt
 _*.txt
 build_*.txt

@@ -6,10 +6,10 @@ import 'package:evergreen_base/core/log.dart';
 /// 按优先级自动发现 Python 可执行文件路径。
 ///
 /// 1. [configuredPath] 用户/项目指定的路径（如 `.greenix/python/python.exe`）
-/// 2. `scripts/python/python.exe`（安装包自带的嵌入 Python）
-/// 3. 系统 PATH：`python3` → `python` → `py -3`
+/// 2. 系统 PATH：`python3` → `python` → `py -3`
+/// 3. 安卓：Chaquopy 进程内解释器
 Future<String?> resolvePythonExe({String? configuredPath}) async {
-  // ① 优先使用调用方指定的路径
+  // ① 优先使用调用方指定的路径（嵌入式 Python 统一走 `.greenix/python/python.exe`）
   if (configuredPath != null && configuredPath.isNotEmpty) {
     final configuredFile = File(configuredPath);
     if (await configuredFile.exists()) {
@@ -18,17 +18,7 @@ Future<String?> resolvePythonExe({String? configuredPath}) async {
     }
   }
 
-  // ② 安装包自带的嵌入 Python
-  try {
-    final bundled = p.join(Directory.current.path, 'scripts', 'python', 'python.exe');
-    final bundledFile = File(bundled);
-    if (await bundledFile.exists()) {
-      Log().info('PythonEnv: using bundled Python', data: {'path': bundled});
-      return bundled;
-    }
-  } catch (_) {}
-
-  // ③ 系统 PATH 回退
+  // ② 系统 PATH 回退
   for (final candidate in ['python3', 'python', 'py']) {
     try {
       final checkArgs = candidate == 'py' ? ['-3', '--version'] : ['--version'];
@@ -40,7 +30,7 @@ Future<String?> resolvePythonExe({String? configuredPath}) async {
     } catch (_) {}
   }
 
-  // ④ 安卓：进程内 Chaquopy 解释器（不走 Process）。
+  // ③ 安卓：进程内 Chaquopy 解释器（不走 Process）。
   // 返回哨兵字符串 'chaquopy' 仅作标识；实际执行由 [ChaquopyRunner]
   // 经 MethodChannel 完成。桌面不应触达此分支。
   if (Platform.isAndroid) {
@@ -67,7 +57,7 @@ class PythonEnv {
   PythonEnv({String? python, String? requirements})
     : _configuredPython = python,
       requirementsPath = requirements ??
-          p.join(Directory.current.path, 'scripts', 'requirements.txt');
+          p.join(Directory.current.path, '.greenix', 'scripts', 'requirements.txt');
 
   Future<String?> get pythonExe async =>
       await resolvePythonExe(configuredPath: _configuredPython);

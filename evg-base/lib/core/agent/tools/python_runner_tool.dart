@@ -1,6 +1,6 @@
 /// Agent 工具：嵌入式 Python 3.10 解释器 + pip 包管理。
 ///
-/// 调用 scripts/python/python.exe 执行 Python 代码或 pip 命令。
+/// 调用 .greenix/python/python.exe 执行 Python 代码或 pip 命令。
 /// 遵循 PluginBridge manifest.json 规范（manifest 位于 plugins/python-runner/agent/）。
 ///
 /// ## 模式

@@ -52,12 +52,13 @@ jobs:
           restore-keys: |
             gradle-${{ runner.os }}-
 
-      - name: 生成插件资产清单 + pub get
+      - name: 生成插件 + 脚本资产清单 + pub get
         env:
           EVERGREEN_WORKSPACE: ${{ github.workspace }}/evg-base
         run: |
           flutter pub get
           dart run tool/bundle_plugins.dart
+          dart run tool/bundle_scripts.dart
 
       - name: 构建 APK (debug)
         run: flutter build apk --debug
@@ -71,7 +72,7 @@ jobs:
 
   # ─────────────────────────── 2. Windows 桌面 ───────────────────────────
   build-windows:
-    name: 构建 Windows 桌面
+    name: 构建 Windows 安装包
     runs-on: windows-latest
     defaults:
       run:
@@ -84,25 +85,50 @@ jobs:
           channel: stable
           cache: true
 
-      - name: 生成插件资产清单 + pub get
+      - name: 生成插件 + 脚本资产清单 + pub get
         env:
           EVERGREEN_WORKSPACE: ${{ github.workspace }}/evg-base
         run: |
           flutter pub get
           dart run tool/bundle_plugins.dart
+          dart run tool/bundle_scripts.dart
 
-      - name: 构建 Windows (debug)
-        run: flutter build windows --debug
+      - name: 构建 Windows (Release)
+        run: flutter build windows --release
 
-      - name: 打包产物 (zip)
+      - name: 下载嵌入 Python 并安装依赖
+        shell: pwsh
         run: |
-          Compress-Archive -Path "build/windows/x64/runner/Debug/*" -DestinationPath "evergreen-windows-debug.zip"
+          $pyVer = "3.10.11"
+          $url = "https://www.python.org/ftp/python/$pyVer/python-$pyVer-embed-amd64.zip"
+          $dest = "build\greenix_dist\python"
+          New-Item -ItemType Directory -Force $dest | Out-Null
+          Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\python-embed.zip"
+          Expand-Archive -Path "$env:TEMP\python-embed.zip" -DestinationPath $dest -Force
+          # embeddable 默认注释掉 import site → pip 无法工作，启用之
+          Get-ChildItem $dest -Filter "*.pth" | ForEach-Object {
+            $c = Get-Content $_.FullName -Raw
+            $c = $c -replace "^#import site", "import site"
+            [IO.File]::WriteAllText($_.FullName, $c)
+          }
+          # embeddable 不带 pip，先经 get-pip.py 引导
+          Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile "$env:TEMP\get-pip.py"
+          & "$dest\python.exe" "$env:TEMP\get-pip.py"
+          & "$dest\python.exe" -m pip install -r scripts\requirements.txt
 
-      - name: 上传 Windows artifact
+      - name: 构建 Inno Setup 安装包
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { $iscc = "${env:ProgramFiles}\Inno Setup 6\ISCC.exe" }
+          & $iscc scripts\installer.iss
+
+      - name: 上传 Windows 安装包
         uses: actions/upload-artifact@v4
         with:
-          name: evergreen-windows-debug
-          path: evg-base/evergreen-windows-debug.zip
+          name: evergreen-windows-setup
+          path: evg-base/build/installer/EvergreenSetup-*.exe
           if-no-files-found: error
 
   # ─────────────────────────── 3. 创建 Release ───────────────────────────
@@ -145,7 +171,7 @@ jobs:
           body: ${{ steps.notes.outputs.release_notes }}
           files: |
             artifacts/evergreen-android-debug/app-debug.apk
-            artifacts/evergreen-windows-debug/evergreen-windows-debug.zip
+            artifacts/evergreen-windows-setup/*.exe
           draft: false
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
         env:

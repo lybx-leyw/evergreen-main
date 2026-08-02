@@ -10,8 +10,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:path/path.dart' as p;
 import 'package:evergreen_base/providers.dart';
 import 'package:evergreen_base/core/config/settings.dart';
+import 'package:evergreen_base/core/utils/greenix_path.dart';
+import 'package:evergreen_base/core/utils/python_env.dart';
 import '../paper_reading_models.dart';
 import '../paper_reading_state.dart';
 import '../services/paper_service.dart';
@@ -311,14 +314,15 @@ class _BookPagesViewState extends ConsumerState<BookPagesView> {
     );
   }
 
-  void _showImportDialog(BuildContext context) {
+  Future<void> _showImportDialog(BuildContext context) async {
     debugPrint('[BookPages] _showImportDialog');
+    final pythonPath = await _resolvePythonPath();
     showDialog(
       context: context,
       builder: (ctx) => _VisionImportDialog(
         apiKey: _resolveApiKey(),
-        pythonPath: _resolvePythonPath(),
-        scriptDir: '${Directory.current.path}/scripts',
+        pythonPath: pythonPath,
+        scriptDir: greenixScriptsDir,
         onImport: (VisionResult result) {
           debugPrint('[BookPages] onImport: ${result.chapters.length} chapters, ${result.totalParagraphs} paras');
           final paperId = 'paper_${DateTime.now().millisecondsSinceEpoch}';
@@ -368,7 +372,7 @@ class _BookPagesViewState extends ConsumerState<BookPagesView> {
     return '';
   }
 
-  String _resolvePythonPath() => 'python';
+  Future<String> _resolvePythonPath() async => await resolvePythonExe() ?? 'python';
 
   void _showTechniqueChoiceDialog(BuildContext context, PaperRecord paper) {
     final notebook = ref.read(innovationNotebookProvider);

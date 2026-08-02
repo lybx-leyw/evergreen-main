@@ -129,7 +129,7 @@ class _TranslateSlotState extends ConsumerState<TranslateSlot> {
   }
 
   /// 翻译引擎目录：
-  /// - 桌面：项目 `scripts/`（pdf_translate.py + pdf2zh_next 所在）
+  /// - 桌面：`.greenix/scripts/`（pdf_translate.py + pdf2zh_next 所在，资产释放/安装包预置）
   /// - 安卓：chaquopy 资源（经 MethodChannel 解析设备路径，见 PdfTranslateService）
   Future<String> _resolveTranslateDir() async {
     if (Platform.isAndroid) {
@@ -141,7 +141,7 @@ class _TranslateSlotState extends ConsumerState<TranslateSlot> {
       } catch (_) {}
       return '';
     }
-    return p.join(Directory.current.path, 'scripts');
+    return greenixScriptsDir;
   }
 
   Future<void> _initAgent() async {

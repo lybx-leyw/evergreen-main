@@ -37,7 +37,7 @@ String? _cachedPluginsRoot;
 ///
 /// 与 [releasePluginsAssetsIfNeeded] 的释放目标一致（见
 /// plugin_asset_releaser.dart），是安卓侧所有插件消费者的统一入口。
-String get androidPluginsDir => p.join(_greenixBaseDir, 'plugins');
+String get androidPluginsDir => greenixPluginsDir;
 
 /// 解析插件根目录（plugins/）的绝对路径。
 ///
@@ -84,7 +84,17 @@ String resolvePluginsRoot() {
     return plugins;
   }
 
-  // 策略3：回退——当前工作目录下的 plugins
+  // 策略3：应用数据目录下的 .greenix/plugins
+  // （分布式桌面：由资产释放或安装包预置到这里，无项目根时优先可用）
+  final greenixPlugins = greenixPluginsDir;
+  if (Directory(greenixPlugins).existsSync()) {
+    _ensureDir(greenixPlugins);
+    debugPrint('[GreenixPath] 🔌 pluginsRoot ← .greenix/plugins: $greenixPlugins');
+    _cachedPluginsRoot = greenixPlugins;
+    return greenixPlugins;
+  }
+
+  // 策略4：回退——当前工作目录下的 plugins
   final fallback = p.normalize(p.absolute(Directory.current.path, 'plugins'));
   _ensureDir(fallback);
   debugPrint('[GreenixPath] ⚠ pluginsRoot fallback: $fallback');
@@ -165,6 +175,14 @@ String get greenixSessionsDir => p.join(_greenixBaseDir, 'sessions');
 
 /// 嵌入式 Python 运行时目录（python.exe + site-packages）。
 String get greenixPythonDir => p.join(_greenixBaseDir, 'python');
+
+/// 管线脚本目录（OCR/论文/翻译等 *.py + requirements.txt）。
+/// 由资产释放（Android）或安装包预置（Windows）填充到 `.greenix/scripts`。
+String get greenixScriptsDir => p.join(_greenixBaseDir, 'scripts');
+
+/// 插件目录（应用数据目录下）。与 [androidPluginsDir] 同路径，桌面分布式的
+/// `.greenix/plugins` 也走这里。
+String get greenixPluginsDir => p.join(_greenixBaseDir, 'plugins');
 
 // ═══════ 文件工作区 ═══════
 
