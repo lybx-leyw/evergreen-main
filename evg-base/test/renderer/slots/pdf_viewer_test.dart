@@ -9,6 +9,7 @@ import 'package:evergreen_base/renderer/components/shared/widgets/pdf_viewer.dar
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/pdf_viewer_slot.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pdfx/pdfx.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -22,6 +23,12 @@ void main() {
     });
 
     testWidgets('title 经 config 同步渲染到工具条', (tester) async {
+      if (!await hasPdfSupport()) {
+        // pdfx 在 Linux CI 无渲染后端，openAsset 会抛未处理异步
+        // PlatformNotSupportedException，直接跳过该平台。
+        markTestSkipped('pdfx 不支持当前平台，跳过 PDF 渲染断言');
+        return;
+      }
       await tester.pumpWidget(const MaterialApp(
           home: Scaffold(
               body: PdfViewerWidget(
