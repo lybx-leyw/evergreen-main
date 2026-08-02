@@ -96,6 +96,7 @@ migrate_working_dir/
 # ──────────────────────────────────────────────────────────
 .codebuddy
 .claude
+.reasonix
 .claude/
 .omc/
 .omx/
@@ -202,7 +203,10 @@ evg-base/assets/plugins_bundle/
 **/._debug.txt
 evg-base/analyze_*.txt
 evg-base/*_output.txt
-evg-base/tool/
+# evg-base — 工具脚本整体忽略，仅放行 CI 需要的 bundle_plugins.dart
+# （其余 tool/ 脚本为本地开发辅助，不需要进版本库）
+evg-base/tool/*
+!evg-base/tool/bundle_plugins.dart
 analyze_*.txt
 _*.txt
 build_*.txt
