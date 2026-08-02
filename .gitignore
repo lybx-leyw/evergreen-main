@@ -32,6 +32,7 @@ __pycache__/
 *.egg-info/
 *.egg
 *.manifest
+!evg-base/windows/runner/runner.exe.manifest
 *.spec
 
 # Go
