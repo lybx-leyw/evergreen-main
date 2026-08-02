@@ -16,7 +16,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/services.dart' show AssetManifest, rootBundle;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
@@ -42,13 +42,15 @@ Future<String?> releasePluginsAssetsIfNeeded() async {
   debugPrint('[PluginRelease] target=$target');
 
   // 读取 AssetManifest，筛选插件资产键。
-  final manifestStr = await rootBundle.loadString('AssetManifest.json');
-  final manifest = jsonDecode(manifestStr) as Map<String, dynamic>;
-  final pluginKeys = manifest.keys
+  // 新版 Flutter 已用 AssetManifest.bin 取代 AssetManifest.json，手动
+  // loadString('.json') 会抛异常导致插件资产释放失败（安卓空目录）。用
+  // 官方 API 解析，自动兼容 .json / .bin 两种格式。
+  final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+  final pluginKeys = manifest.listAssets()
       .where((k) => k.startsWith(kPluginAssetPrefix))
       .where((k) => k.substring(kPluginAssetPrefix.length).isNotEmpty)
       .toList();
-  debugPrint('[PluginRelease] AssetManifest 总键: ${manifest.keys.length},'
+  debugPrint('[PluginRelease] AssetManifest 总键: ${manifest.listAssets().length},'
       ' 插件资产键: ${pluginKeys.length}');
 
   // 本次清单（相对路径，用于差异清理）。
