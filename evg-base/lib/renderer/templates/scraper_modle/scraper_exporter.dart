@@ -215,6 +215,7 @@ Future<ExportResult> exportAsPython(
 /// ```json
 /// {
 ///   "type": "data-source",
+///   "runtime": "python",
 ///   "script": "scraper.py",
 ///   "dataTypes": [
 ///     {
@@ -255,6 +256,9 @@ Future<ExportResult> exportDataManifest({
     final resolvedDataTypeName = dataTypeName ?? schema.title ?? name;
     final manifest = {
       'type': 'data-source',
+      // 统一 .py 插件契约：script 指向 .py，由解释器（桌面）/ Chaquopy（安卓）
+      // 执行，不再依赖 PyInstaller 编译的 .exe（安卓无法 exec PE 格式）。
+      'runtime': 'python',
       'script': fetcherScript,
       'dataTypes': [
         {

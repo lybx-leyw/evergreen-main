@@ -18,7 +18,7 @@ Evergreen Base 建立在以下开源项目的基础上。
 - **仓库**: https://github.com/esengine/reasonix
 - **许可证**: MIT License
 
-Evergreen Base 的 AI 助手内核命名为 **Greenix**——基于 Reasonix Go 实现全量移植到 Dart。
+Evergreen Base 的 AI 助手内核命名为 **Greenix**——参考 Reasonix 架构，以 Dart 复刻核心逻辑。
 
 | 模块 | 对应 Reasonix 源 |
 |---|---|

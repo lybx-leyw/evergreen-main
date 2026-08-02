@@ -4,7 +4,7 @@
 /// 可经 ThemeDescriptor.fromJson 往返 / registerBuiltinThemes 幂等注册。
 library;
 
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import '../theme_descriptor.dart';
 import '../theme_store.dart';
 import '../builtin_themes.dart';

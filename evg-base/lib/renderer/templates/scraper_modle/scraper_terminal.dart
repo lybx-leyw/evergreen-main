@@ -9,6 +9,9 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
+import 'package:evergreen_base/core/plugin/plugin_runner.dart';
+import 'package:evergreen_base/core/utils/greenix_path.dart';
 
 import 'scraper_workflow.dart';
 import 'scraper_json_validator.dart';
@@ -124,6 +127,13 @@ class _ScraperTerminalState extends State<ScraperTerminal> {
       final executable = parts.first;
       final args = parts.sublist(1);
 
+      // ═══ 安卓：无子进程 exec（/system/bin/sh 找不到 'chaquopy' 哨兵），
+      // python 命令必须走 ChaquopyRunner（进程内解释器），pip 等命令不可用。═══
+      if (Platform.isAndroid) {
+        await _executeOnAndroid(command, executable, args);
+        return; // _executeOnAndroid 内部完成 _executing 复位
+      }
+
       // 如果是 python 命令，解析实际 Python 路径
       String? resolvedExe = executable;
       if (executable.toLowerCase() == 'python' || executable.toLowerCase() == 'python3') {
@@ -148,56 +158,12 @@ class _ScraperTerminalState extends State<ScraperTerminal> {
           ..['PROJECT_ROOT'] = widget.workspaceDir,
       ).timeout(const Duration(seconds: 60));
 
-      final stdout = (result.stdout as String).trim();
-      final stderr = (result.stderr as String).trim();
-
-      setState(() {
-        for (final line in stdout.split('\n')) {
-          if (line.isNotEmpty) _lines.add(_TerminalLine.stdout(line));
-        }
-        if (stderr.isNotEmpty) {
-          for (final line in stderr.split('\n')) {
-            _lines.add(_TerminalLine.stderr(line));
-          }
-        }
-        if (result.exitCode == 0) {
-          _lines.add(_TerminalLine.system('── 命令执行成功 (exitCode=0) ──'));
-        } else {
-          _lines.add(_TerminalLine.system(
-              '── 命令执行失败 (exitCode=${result.exitCode}) ──'));
-        }
-        _lines.add(_TerminalLine.prompt('\$ '));
-      });
-      _scrollToBottom();
-
-      // 构造回传给 AI 的结果
-      String resultMsg;
-      if (result.exitCode == 0) {
-        // 对 scraper 运行额外做与平台一致的 JSON 校验：stdout 必须是合法 JSON。
-        // 校验失败则把 ❌ 校验日志回传 AI，使其经 _onAgentEvent 进入调试分支自我修正。
-        if (isScraperRunCommand(command)) {
-          final validation = validateScraperStdout(stdout);
-          if (!validation.isValid) {
-            setState(() => _lines.add(_TerminalLine.system(
-                '── ⚠️ JSON 输出校验未通过（stdout 非合法 JSON）──')));
-            resultMsg = buildJsonValidationFailureMessageForTerminal(
-              stdout,
-              error: validation.error,
-            );
-          } else {
-            resultMsg = buildJsonValidationSuccessMessageForTerminal(stdout, stderr);
-          }
-        } else {
-          resultMsg = '✅ 命令执行成功 (exitCode=0)\n--- STDOUT ---\n$stdout\n${stderr.isNotEmpty ? '--- STDERR ---\n$stderr\n' : ''}';
-        }
-      } else {
-        resultMsg = '❌ 命令执行失败 (exitCode=${result.exitCode})\n--- STDOUT ---\n$stdout\n--- STDERR ---\n$stderr\n请根据错误信息修改代码后重试。';
-      }
-
-      widget.workflow.setTerminalResult(resultMsg);
-
-      // 同步更新 pythonOutput 以兼容现有监听
-      widget.workflow.setPythonOutput(result.exitCode == 0 ? stdout : '$stdout\n$stderr');
+      _finishCommand(
+        command,
+        (result.stdout as String).trim(),
+        (result.stderr as String).trim(),
+        result.exitCode,
+      );
     } on TimeoutException {
       const errMsg = '[error: 命令执行超时 (60s)]';
       setState(() => _lines.add(_TerminalLine.error(errMsg)));
@@ -209,6 +175,106 @@ class _ScraperTerminalState extends State<ScraperTerminal> {
     } finally {
       _executing = false;
     }
+  }
+
+  /// 安卓执行：`python <script.py>` → ChaquopyRunner.runOnce（与 run_python_scraper
+  /// 工具同款：注入 --project-root / --greenix-config，原生桥据此注入环境变量）；
+  /// pip 等其他命令明确报错——安卓无子进程、无 pip，依赖必须预打包进 APK。
+  Future<void> _executeOnAndroid(String command, String executable, List<String> args) async {
+    final isPython =
+        executable.toLowerCase() == 'python' || executable.toLowerCase() == 'python3';
+    if (!isPython) {
+      final errMsg = '[error: 安卓端仅支持 python 脚本命令；"$executable" 需要子进程，'
+          '安卓无法执行。pip install 同样不可用——第三方依赖必须预打包进 APK '
+          '(src/main/python/ 或 chaquopy pip 配置)。如确需新依赖，请在桌面端生成后重新构建 APK。]';
+      setState(() => _lines.add(_TerminalLine.error(errMsg)));
+      widget.workflow.setTerminalResult(errMsg);
+      _executing = false;
+      return;
+    }
+    if (args.isEmpty) {
+      final errMsg = '[error: 命令缺少脚本参数，安卓端格式: python <script.py> [args...]]';
+      setState(() => _lines.add(_TerminalLine.error(errMsg)));
+      widget.workflow.setTerminalResult(errMsg);
+      _executing = false;
+      return;
+    }
+    final scriptPath = p.join(widget.workspaceDir, args.first);
+    debugPrint('[ScraperTerminal] 安卓执行: ChaquopyRunner $scriptPath ${args.skip(1).join(" ")}');
+    try {
+      final runner = await sharedPluginRunner;
+      final r = await runner.runOnce(
+        scriptPath,
+        [
+          ...args.skip(1),
+          '--project-root', widget.workspaceDir,
+          '--greenix-config', greenixConfigPath,
+        ],
+        workingDirectory: widget.workspaceDir,
+      ).timeout(const Duration(seconds: 60));
+      _finishCommand(command, r.stdout.trim(), r.stderr.trim(), r.exitCode);
+    } on TimeoutException {
+      const errMsg = '[error: 命令执行超时 (60s)]';
+      setState(() => _lines.add(_TerminalLine.error(errMsg)));
+      widget.workflow.setTerminalResult(errMsg);
+    } catch (e) {
+      final errMsg = '[error: 命令执行异常: $e]';
+      setState(() => _lines.add(_TerminalLine.error(errMsg)));
+      widget.workflow.setTerminalResult(errMsg);
+    } finally {
+      _executing = false;
+    }
+  }
+
+  /// 统一渲染命令结果并回传 AI（桌面/安卓共用；scraper 运行附带 JSON 校验）。
+  void _finishCommand(String command, String stdout, String stderr, int exitCode) {
+    setState(() {
+      for (final line in stdout.split('\n')) {
+        if (line.isNotEmpty) _lines.add(_TerminalLine.stdout(line));
+      }
+      if (stderr.isNotEmpty) {
+        for (final line in stderr.split('\n')) {
+          _lines.add(_TerminalLine.stderr(line));
+        }
+      }
+      if (exitCode == 0) {
+        _lines.add(_TerminalLine.system('── 命令执行成功 (exitCode=0) ──'));
+      } else {
+        _lines.add(_TerminalLine.system(
+            '── 命令执行失败 (exitCode=$exitCode) ──'));
+      }
+      _lines.add(_TerminalLine.prompt('\$ '));
+    });
+    _scrollToBottom();
+
+    // 构造回传给 AI 的结果
+    String resultMsg;
+    if (exitCode == 0) {
+      // 对 scraper 运行额外做与平台一致的 JSON 校验：stdout 必须是合法 JSON。
+      // 校验失败则把 ❌ 校验日志回传 AI，使其经 _onAgentEvent 进入调试分支自我修正。
+      if (isScraperRunCommand(command)) {
+        final validation = validateScraperStdout(stdout);
+        if (!validation.isValid) {
+          setState(() => _lines.add(_TerminalLine.system(
+              '── ⚠️ JSON 输出校验未通过（stdout 非合法 JSON）──')));
+          resultMsg = buildJsonValidationFailureMessageForTerminal(
+            stdout,
+            error: validation.error,
+          );
+        } else {
+          resultMsg = buildJsonValidationSuccessMessageForTerminal(stdout, stderr);
+        }
+      } else {
+        resultMsg = '✅ 命令执行成功 (exitCode=0)\n--- STDOUT ---\n$stdout\n${stderr.isNotEmpty ? '--- STDERR ---\n$stderr\n' : ''}';
+      }
+    } else {
+      resultMsg = '❌ 命令执行失败 (exitCode=$exitCode)\n--- STDOUT ---\n$stdout\n--- STDERR ---\n$stderr\n请根据错误信息修改代码后重试。';
+    }
+
+    widget.workflow.setTerminalResult(truncateToolOutput(resultMsg));
+
+    // 同步更新 pythonOutput 以兼容现有监听
+    widget.workflow.setPythonOutput(exitCode == 0 ? stdout : '$stdout\n$stderr');
   }
 
   /// 简单命令解析（支持引号参数）。

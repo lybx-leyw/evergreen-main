@@ -3,7 +3,7 @@
 /// 对标 规划A-可视化.html v5 节点1-3：
 ///   ① 引导页（简短说明 + 开始按钮，不填任何表单）
 ///   ② 嵌入 ScraperGeneratorView（零改动复用）
-///   ③ 三件套生成（scraper.exe + data/manifest.json + config/config.json）
+///   ③ 三件套生成（scraper.py + data/manifest.json + config/config.json）
 ///   ④ 热注册检验（registerDataSourcesFromManifest → 自动拉取验证）
 ///
 /// 用法：
@@ -23,7 +23,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:evergreen_base/core/utils/greenix_path.dart';
-import 'package:evergreen_base/core/utils/python_env.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'package:evergreen_base/core/data/orchestrator.dart';
 import 'package:evergreen_base/core/data/register_data_source.dart';
@@ -45,7 +44,6 @@ class DataCollectionResult {
   final String typeName;
   final String outputDir;
   final String? pyPath;
-  final String? exePath;
   final String? dataManifestPath;
   final String? configPath;
   final InferredSchema schema;
@@ -55,7 +53,6 @@ class DataCollectionResult {
     required this.typeName,
     required this.outputDir,
     this.pyPath,
-    this.exePath,
     this.dataManifestPath,
     this.configPath,
     required this.schema,
@@ -244,7 +241,7 @@ class _DataCollectionWizardState extends State<DataCollectionWizard> {
       final dataDir = Directory(p.join(outputDir, 'data'));
       if (!dataDir.existsSync()) dataDir.createSync(recursive: true);
 
-      // ── 第 1 件：scraper.py + scraper.exe ──
+      // ── 第 1 件：scraper.py（统一 .py 契约，不再编译 .exe）──
       _updateStatus('正在导出 scraper.py…');
       final pyResult = await exportAsPython(pythonCode, outputDir);
       String? pyPath;
@@ -260,31 +257,6 @@ class _DataCollectionWizardState extends State<DataCollectionWizard> {
           debugPrint('[DataCollectionWizard] ⚠ 复制 scraper.py 到 data/ 失败: $e');
         }
         files.add(FileOutput(path: pyPath!, label: 'scraper.py (data/)', exists: true));
-      }
-
-      // ── 编译 .exe ──
-      String? exePath;
-      _updateStatus('正在编译 scraper.exe（PyInstaller）…');
-      try {
-        final exeResult = await exportAsExe(pythonCode, outputDir, resolvePythonExe);
-        if (exeResult.success && exeResult.filePath != null) {
-          final dstExe = p.join(dataDir.path, 'scraper.exe');
-          try {
-            File(exeResult.filePath!).copySync(dstExe);
-            exePath = dstExe;
-            debugPrint('[DataCollectionWizard] 📋 scraper.exe → data/');
-          } catch (e) {
-            debugPrint('[DataCollectionWizard] ⚠ 复制 scraper.exe 到 data/ 失败: $e');
-            exePath = exeResult.filePath;
-          }
-          files.add(FileOutput(path: exePath!, label: 'scraper.exe (data/)', exists: true));
-        } else {
-          debugPrint('[DataCollectionWizard] ⚠ scraper.exe 编译失败: ${exeResult.message}');
-          files.add(FileOutput(
-            path: p.join(dataDir.path, 'scraper.exe'), label: 'scraper.exe', exists: false));
-        }
-      } catch (e) {
-        debugPrint('[DataCollectionWizard] ⚠ scraper.exe 编译异常: $e');
       }
 
       // ── 第 2 件：data/manifest.json ──
@@ -318,7 +290,6 @@ class _DataCollectionWizardState extends State<DataCollectionWizard> {
         typeName: pluginName,
         outputDir: outputDir,
         pyPath: pyPath,
-        exePath: exePath,
         dataManifestPath: dataManifestPath,
         configPath: configPath,
         schema: schema,

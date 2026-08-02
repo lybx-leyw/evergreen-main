@@ -36,3 +36,15 @@ logs-archive/
 # 会话分析临时文件
 [cd]_analyze*.txt
 [cd]?_analyze*.txt
+# D 系列分析输出（d7_analyze.txt 等，前缀含数字时上述模式不命中）
+d[0-9]*_analyze*.txt
+d[0-9]*_analyze*_*.txt
+
+# 根目录一次性分析脚本（含本机绝对路径，非仓库资产）
+/analyze_png.py
+/ascii_view.py
+/density_map.py
+/count_core_lines.py
+
+# NuGet CLI 二进制（构建工具，官方随时可下载：https://dist.nuget.org）
+/nuget.exe

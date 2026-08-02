@@ -22,7 +22,7 @@ void main() {
       expect(d.name, '插件市场');
       expect(d.icon, isNotNull);
       expect(d.nav.sidebar, isNotNull);
-      expect(d.nav.sidebar!.section, '系统');
+      expect(d.nav.sidebar!.section, 'base系统');
       expect(d.pages.length, 1);
       expect(d.pages.first.layout.slots.length, 1);
       expect(d.pages.first.layout.slots.keys.first, 'main');
@@ -30,20 +30,8 @@ void main() {
       expect(d.hasSidebar, isTrue, reason: 'marketplace 应该出现在侧边栏');
     });
 
-    test('plugin-designer manifest 能被 ModuleDescriptor.fromJson 解析', () {
-      final f = File('plugins/plugin-designer/module/manifest.json');
-      expect(f.existsSync(), isTrue, reason: 'plugin-designer manifest.json 文件不存在');
-      final json = jsonDecode(f.readAsStringSync()) as Map<String, dynamic>;
-      expect(json['type'], 'module');
-      final d = ModuleDescriptor.fromJson(json);
-      expect(d.id, 'plugin-designer');
-      expect(d.name, contains('插件设计器'));
-      expect(d.icon, isNotNull);
-      expect(d.nav.sidebar, isNotNull);
-      expect(d.nav.sidebar!.section, '系统');
-      expect(d.pages.length, 1);
-      expect(d.hasSidebar, isTrue, reason: 'plugin-designer 应该出现在侧边栏');
-    });
+    // 2026-08-02：plugin-designer 插件已不在 plugins/（组件内置于 renderer），
+    // 无 manifest 文件可读，删除该用例。
 
     test('ModuleRegistry 注册 + seal 后 navGroups 包含 marketplace', () {
       final f = File('plugins/marketplace/module/manifest.json');
@@ -61,7 +49,7 @@ void main() {
 
       final navGroups = registry.navGroups;
       expect(navGroups.isNotEmpty, isTrue, reason: 'navGroups 不应为空');
-      expect(navGroups.first.$1.label, '系统');
+      expect(navGroups.first.$1.label, 'base系统');
       expect(navGroups.first.$2.length, 1);
       expect(navGroups.first.$2.first.moduleId, 'marketplace');
     });

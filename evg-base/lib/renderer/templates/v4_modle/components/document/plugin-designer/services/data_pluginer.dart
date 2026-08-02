@@ -91,8 +91,7 @@ class InferredSchema {
 /// plugins/<name>/
 /// ├── data/
 /// │   ├── manifest.json    ← 由本类生成
-/// │   ├── scraper.py       ← 由 ScraperExporter 写入
-/// │   └── scraper.exe      ← 由 PyInstaller 编译（可选）
+/// │   └── scraper.py       ← 由 ScraperExporter 写入
 /// ```
 class DataPluginer {
   /// 注册一个 data 插件。
@@ -103,7 +102,8 @@ class DataPluginer {
   ///
   /// 生成的 manifest.json 对齐 `_scanAndRegisterDataSources` 真实契约：
   /// - `type`: "data-source"
-  /// - `script`: 脚本文件名（相对 data/ 目录）
+  /// - `runtime`: "python"（统一 .py 契约，解释器/Chaquopy 执行）
+  /// - `script`: 脚本文件名（相对 data/ 目录，恒为 scraper.py）
   /// - `dataTypes[]`: 含 name/typeArg/ttl/persistentKey/category/displayName
   Future<DataPluginResult> registerDataPlugin({
     required String name,
@@ -118,10 +118,10 @@ class DataPluginer {
         debugPrint('[DataPluginer] 创建目录: ${dataDir.path}');
       }
 
-      // 2) 推断 script 文件名（.exe 存在则优先，否则 .py）
-      final exePath = p.join(dataDir.path, 'scraper.exe');
-      final script = File(exePath).existsSync() ? 'scraper.exe' : 'scraper.py';
-      debugPrint('[DataPluginer] script 默认: $script (exe exists: ${File(exePath).existsSync()})');
+      // 2) script 恒为 scraper.py —— 统一 .py 插件契约（runtime: python），
+      //    不再优先 .exe（安卓无法 exec PE，PyInstaller 产物已废弃）
+      const script = 'scraper.py';
+      debugPrint('[DataPluginer] script: $script（统一 .py 契约）');
 
       // 3) 生成 data manifest.json（对齐 _scanAndRegisterDataSources 契约）
       final manifest = _buildDataManifest(
@@ -157,7 +157,8 @@ class DataPluginer {
   /// 生成 data manifest.json（对齐 `_scanAndRegisterDataSources` 真实契约）。
   ///
   /// 关键字段：
-  /// - `script`: 脚本文件名（相对 data/ 目录，如 scraper.py 或 scraper.exe）
+  /// - `runtime`: "python"（统一 .py 契约）
+  /// - `script`: 脚本文件名（相对 data/ 目录，恒为 scraper.py）
   /// - `dataTypes[]`: DataOrchestrator 注册的数据类型列表
   Map<String, dynamic> _buildDataManifest({
     required String name,
@@ -167,6 +168,8 @@ class DataPluginer {
     final dataTypeName = schema.title ?? name;
     return {
       'type': 'data-source',
+      // 统一 .py 契约：解释器（桌面）/ Chaquopy（安卓）执行，不再依赖 .exe
+      'runtime': 'python',
       'script': script,
       'dataTypes': [
         {

@@ -121,7 +121,14 @@ abstract class DataSourceSlotState<T extends DataSourceSlot> extends ConsumerSta
 
     // 步骤 3：注入 targetKey
     final merged = <String, dynamic>{...base};
-    merged[mapping.targetKey] = resolved ?? base[mapping.targetKey];
+    if (resolved is Map<String, dynamic> && mapping.mergeMap) {
+      // 旧 mergeData 语义（mergeMap=true）：Map 数据逐项覆盖进 config
+      //（如 stat-tile 的 {'value': '42', 'subtitle': '注入成功'} 应分别
+      //  注入 value/subtitle 两个字段）。
+      merged.addAll(resolved);
+    } else {
+      merged[mapping.targetKey] = resolved ?? base[mapping.targetKey];
+    }
     return merged;
   }
 

@@ -1,4 +1,7 @@
-/// icon 解析兜底验证：不可解析的 icon 名称应兜底为默认值，未提供仍保持 null。
+/// icon 解析兜底验证：不可解析的 icon 名称应兜底为默认值，未提供同样兜底（不返回 null）。
+///
+/// 设计意图（module_descriptor._parseIcon）：hasSidebar 依赖 icon != null，
+/// 缺失返回 null 会导致模块静默退出侧边栏，故字段缺失与不可解析名称同等待遇。
 library;
 
 import 'package:evergreen_base/core/module/module_descriptor.dart';
@@ -6,13 +9,14 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('icon 解析兜底', () {
-    test('未提供的 icon 仍为 null', () {
+    test('未提供的 icon 兜底为默认值（不返回 null，保证 hasSidebar）', () {
       final d = ModuleDescriptor.fromJson({
         'type': 'module',
         'id': 'noicon',
         'name': '无图标模块',
       });
-      expect(d.icon, isNull);
+      expect(d.icon, isNotNull);
+      expect(d.icon, kDefaultIcon);
     });
 
     test('未知 icon 名称兜底为默认值 (kDefaultIcon)', () {

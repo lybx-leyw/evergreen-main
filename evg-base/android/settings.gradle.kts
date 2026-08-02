@@ -11,13 +11,15 @@ pluginManagement {
     includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")
 
     repositories {
-        // P1b：阿里云镜像前置加速（Maven Central / Google / Gradle Plugin Portal 均经此代理）。
-        maven { url = uri("https://maven.aliyun.com/repository/public") }
-        maven { url = uri("https://maven.aliyun.com/repository/google") }
-        maven { url = uri("https://maven.aliyun.com/repository/gradle-plugin") }
+        // 依赖仓库：**官方优先**（google / Maven Central / Gradle Plugin Portal），
+        // 阿里云镜像仅作**降级兜底**（本地无 VPN 时官方仓库直连慢）。
         google()
         mavenCentral()
         gradlePluginPortal()
+        // 降级镜像（本地网络不佳时兜底）
+        maven { url = uri("https://maven.aliyun.com/repository/public") }
+        maven { url = uri("https://maven.aliyun.com/repository/google") }
+        maven { url = uri("https://maven.aliyun.com/repository/gradle-plugin") }
     }
 }
 

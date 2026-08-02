@@ -31,6 +31,9 @@ class _FakeOrch extends DataOrchestrator {
 
   @override
   Future<T?> refresh<T>(DataType<T> type) async => _data[type.name] as T?;
+
+  @override
+  Future<T?> fastRead<T>(DataType<T> type) async => _data[type.name] as T?;
 }
 
 /// 提供真实 WidgetRef 以构造 CourseOfferingsPage。

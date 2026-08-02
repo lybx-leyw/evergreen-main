@@ -99,7 +99,6 @@ flutter:
     - assets/plugins_bundle/html-creator/zdbk-transcript/module/index.html
     - assets/plugins_bundle/html-creator/zdbk-transcript/module/manifest.json
     - assets/plugins_bundle/liyu_weiyang_hongfen/theme/theme.json
-    - assets/plugins_bundle/magic-book/module/manifest.json
     - assets/plugins_bundle/marketplace/module/manifest.json
     - assets/plugins_bundle/pdf_translate/module/manifest.json
     - assets/plugins_bundle/python-runner/agent/manifest.json

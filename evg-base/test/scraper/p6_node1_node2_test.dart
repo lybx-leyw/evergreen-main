@@ -41,7 +41,6 @@ void main() {
         typeName: 'scores',
         outputDir: 'plugins/scores',
         pyPath: 'plugins/scores/scraper.py',
-        exePath: 'plugins/scores/scraper.exe',
         dataManifestPath: 'plugins/scores/data/manifest.json',
         configPath: 'plugins/scores/config/config.json',
         schema: schema,
@@ -57,7 +56,6 @@ void main() {
       expect(result.typeName, 'scores');
       expect(result.outputDir, 'plugins/scores');
       expect(result.pyPath, isNotNull);
-      expect(result.exePath, isNotNull);
       expect(result.dataManifestPath, isNotNull);
       expect(result.configPath, isNotNull);
       expect(result.schema.fields.length, 1);

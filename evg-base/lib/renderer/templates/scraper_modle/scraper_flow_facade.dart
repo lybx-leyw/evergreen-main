@@ -169,7 +169,8 @@ class ScraperFlowFacade {
   ///
   /// 依次调用：
   /// 1. [exportAsPython] — 写入 scraper.py（含配置模板）
-  /// 2. [exportDataManifest] — 写入 data/manifest.json（对齐 _scanAndRegisterDataSources）
+  /// 2. 复制 scraper.py → data/（对齐 register_data_source.dart 的 script 解析）
+  /// 3. [exportDataManifest] — 写入 data/manifest.json（script: scraper.py + runtime: python）
   ///
   /// [pluginName]: 插件英文标识
   /// [outputDir]: 插件根目录（如 plugins/my-scraper/）
@@ -193,11 +194,17 @@ class ScraperFlowFacade {
       debugPrint('[ScraperFlowFacade] ✅ scraper.py 已写入');
     }
 
-    // 2) 生成 data/manifest.json
+    // 1.5) 复制 scraper.py → data/（register_data_source.dart 按 data/ 相对路径解析 script）
     final dataDir = p.join(outputDir, 'data');
-    final exeExists = File(p.join(dataDir, 'scraper.exe')).existsSync();
-    final fetcherScript = exeExists ? 'scraper.exe' : 'scraper.py';
-    debugPrint('[ScraperFlowFacade] fetcherScript: $fetcherScript (exe exists: $exeExists)');
+    final srcPy = File(p.join(outputDir, 'scraper.py'));
+    if (srcPy.existsSync()) {
+      Directory(dataDir).createSync(recursive: true);
+      srcPy.copySync(p.join(dataDir, 'scraper.py'));
+      debugPrint('[ScraperFlowFacade] ✅ scraper.py → data/scraper.py');
+    }
+
+    // 2) 生成 data/manifest.json —— 统一 .py 契约（runtime: python，不再 .exe）
+    const fetcherScript = 'scraper.py';
 
     final manifestResult = await exportDataManifest(
       name: pluginName,

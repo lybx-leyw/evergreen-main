@@ -73,8 +73,9 @@ void main() {
     });
 
     test('composite_view.dart ai-assistant slot 走全屏 Scaffold + AgentAssembly 会话隔离', () {
+      // ai-assistant 注册在 _registrations.dart（SlotRegistry），非 composite_view。
       final src = File(
-        'lib/renderer/templates/v4_modle/composite_view.dart',
+        'lib/renderer/templates/v4_modle/_registrations.dart',
       ).readAsStringSync();
 
       // 未引入 chat_view.dart
@@ -97,37 +98,7 @@ void main() {
       );
     });
 
-    test('v4 manifest AI 助手页使用正确类型 + 有效预设', () {
-      final manifest = File(
-        'plugins/showcase-v4/module/manifest.json',
-      ).readAsStringSync();
-
-      // page_0 的 ai-assistant slot 应使用标准 "ai-assistant" 类型（非 compact）
-      final typeIdx = manifest.indexOf('"ai-assistant"');
-      expect(typeIdx > 0, isTrue, reason: 'v4 manifest 应包含 ai-assistant 槽位');
-      // 从 ai-assistant 之后找到 type 字段
-      final afterType = manifest.indexOf('"type": "ai-assistant"', typeIdx);
-      expect(afterType > 0, isTrue,
-          reason: '回归：v4 manifest AI 助手 type 应为 "ai-assistant"');
-      // type 值不应包含 "compact"
-      final typeEnd = afterType + '"type": "ai-assistant"'.length;
-      final snippet = manifest.substring(afterType, typeEnd);
-      expect(snippet.contains('compact'), isFalse,
-          reason: '回归：v4 manifest AI 助手不应使用 compact 类型');
-
-      // preset 应为真实存在的预设（research-full），不是虚构的 "Evergreen 助手"
-      expect(
-        manifest.contains('"preset": "research-full"'),
-        isTrue,
-        reason: '回归：v4 manifest 应使用真实预设 research-full',
-      );
-
-      // 不应包含虚构预设名
-      expect(
-        manifest.contains('Evergreen 助手'),
-        isFalse,
-        reason: '回归：v4 manifest 不应使用虚构预设名 "Evergreen 助手"',
-      );
-    });
+    // 测试 2 原读 plugins/showcase-v4/module/manifest.json——showcase-v4 已废弃（2026-08-02），
+    // 无真实 v4 manifest 样例，删除该用例。
   });
 }

@@ -32,11 +32,19 @@ class DataMapping {
   /// resolved 为 null 时是否跳过（避免 null 覆盖静态配置）。
   final bool skipIfNull;
 
+  /// resolved 为 Map 时是否**逐项合并**进 config（旧 mergeData 语义）。
+  ///
+  /// true：`{'value': '42', 'subtitle': 'x'}` → config 的 value/subtitle 分别注入
+  /// （stat-tile 等 KPI 卡片）；false（默认）：整个 Map 作为整体注入 [targetKey]
+  /// （tree 的根节点 map 注入 'root'、chart 的 series map 注入 'data' 等）。
+  final bool mergeMap;
+
   const DataMapping({
     this.fieldMap = const {},
     this.sourcePath = '',
     this.targetKey = 'data',
     this.skipIfNull = true,
+    this.mergeMap = false,
   });
 
   /// 应用字段映射：将行数据中的外部字段名替换为内部字段名。

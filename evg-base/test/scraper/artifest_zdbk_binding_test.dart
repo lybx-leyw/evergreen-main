@@ -1,46 +1,23 @@
 /// ZDBK bindings 真实性验证（以源码为准，v5P）。
 ///
 /// 目的：验证 zdbk-modle 渲染层（[ZdbkData]）的字段提取**确实走 bindings**，
-/// 而非写死数据源键名。两层验证：
+/// 而非写死数据源键名。验证方式：
 ///
 ///  A. 单元层：用一套**字段名完全自定义、与 zdbk 真实键（kcmc/cj/jd...）毫不相同**
 ///     的假数据 + 自定义 bindings 映射，证明 [ZdbkData] 按 `语义键 → 数据键路径`
 ///     提取（lesson → courseName、mark → score …）。
 ///
-///  B. 契约层：读取**真实** `plugins/zdbk-*` 模块 manifest，断言其
-///     `dataSources.<name>.bindings` 声明了字段映射，并用该 bindings 构造标准键
-///     数据验证 [ZdbkData] 正确提取——证明真实插件与源码 bindings 机制对齐。
+/// 本测试不依赖任何外部 scraper / 插件 manifest，纯 Dart 数据，
+/// 以源码（models.dart + module_descriptor.dart）为唯一真相来源。
 ///
-/// 本测试不依赖任何外部 scraper / 不存在的测试插件，纯 Dart 数据 + 真实 manifest
-/// 静态契约，以源码（models.dart + module_descriptor.dart）为唯一真相来源。
+/// ⚠️ 2026-08-02：原 B 层（真实 zdbk-* 插件 manifest 契约验证）已删除——
+/// zdbk-* 插件不在 plugins/（历史遗留，zdbk 功能已内置于 renderer 的 zdbk_modle，
+/// 数据由 data-zdbk 插件提供），无 manifest 可读；bindings 机制已由 A 层覆盖。
 library;
 import 'dart:convert';
-import 'dart:io';
 
-import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'package:evergreen_base/renderer/templates/zju_modle/zdbk/models.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:path/path.dart' as p;
-
-// ── 工作区定位：向上找到真实插件 plugins/zdbk-scores（契约层用）──
-String _workspaceRoot() {
-  var dir = Directory.current;
-  for (var i = 0; i < 8; i++) {
-    final probe =
-        p.join(dir.path, 'plugins', 'zdbk-scores', 'module', 'manifest.json');
-    if (File(probe).existsSync()) return dir.path;
-    final parent = dir.parent;
-    if (parent.path == dir.path) break;
-    dir = parent;
-  }
-  throw StateError('找不到 plugins/zdbk-scores（当前: ${Directory.current.path}）');
-}
-
-ModuleDescriptor _loadModule(String ws, String id) {
-  final f = File(p.join(ws, 'plugins', id, 'module', 'manifest.json'));
-  final json = jsonDecode(f.readAsStringSync()) as Map<String, dynamic>;
-  return ModuleDescriptor.fromJson(json);
-}
 
 /// 自定义键假数据（字段名与 zdbk 真实键毫不相同）——单元层演示 bindings 不写死键名。
 final Map<String, Map<String, dynamic>> _fake = {
@@ -361,108 +338,7 @@ void main() {
   });
 
   group('B. 契约层：真实 zdbk-* 插件 manifest 的 bindings', () {
-    final ws = _workspaceRoot();
-
-    test('zdbk-scores 声明 transcript/major_grade/practice_scores 且 bindings 正确', () {
-      final m = _loadModule(ws, 'zdbk-scores');
-      expect(m.template, 'zdbk');
-      expect(m.modleRoute, 'score');
-      expect(m.dataSources, isNotNull);
-
-      // transcript
-      final t = m.dataSources!['transcript']!;
-      expect(t.bindings, isNotNull);
-      expect(t.bindings!['courseName'], 'kcmc');
-      expect(t.bindings!['score'], 'cj');
-      expect(t.bindings!['gpa'], 'jd');
-      expect(t.bindings!['credit'], 'xf');
-      expect(t.bindings!['courseNo'], 'xkkh');
-      // 用真实 bindings 构造标准键数据，验证 ZdbkData 能正确提取
-      final raw = {
-        'items': [
-          {'kcmc': '数学分析', 'cj': '90', 'jd': '3.7', 'xf': '5.0', 'xkkh': 'MA001'},
-        ],
-      };
-      final list = ZdbkData.grades(raw, t.bindings);
-      expect(list.length, 1);
-      expect(list[0].courseName, '数学分析');
-      expect(list[0].score, '90');
-      expect(list[0].gpa, '3.7');
-      expect(list[0].credit, '5.0');
-      expect(list[0].courseNo, 'MA001');
-
-      // practice_scores 的 pt 字段映射
-      final p = m.dataSources!['practice_scores']!;
-      expect(p.bindings!['pt2'], 'pt2');
-      expect(p.bindings!['pt3'], 'pt3');
-      expect(p.bindings!['pt4'], 'pt4');
-    });
-
-    test('zdbk-exams 声明 exams.bindings（含 kssj/zwxh 等真实键）', () {
-      final m = _loadModule(ws, 'zdbk-exams');
-      final e = m.dataSources!['exams']!;
-      expect(e.bindings, isNotNull);
-      expect(e.bindings!['courseName'], 'kcmc');
-      expect(e.bindings!['location'], 'jsmc');
-      expect(e.bindings!['time'], 'kssj');
-      expect(e.bindings!['teacher'], 'xm');
-      expect(e.bindings!['seatNo'], 'zwxh');
-      final raw = {
-        'items': [
-          {'kcmc': '高等数学', 'jsmc': '东1A', 'kssj': '2026-01-15', 'xm': '王伟', 'xxq': '秋冬', 'zwxh': 'A12', 'xf': '4.0'},
-        ],
-      };
-      final list = ZdbkData.exams(raw, e.bindings);
-      expect(list[0].courseName, '高等数学');
-      expect(list[0].location, '东1A');
-      expect(list[0].time, '2026-01-15');
-      expect(list[0].teacher, '王伟');
-      expect(list[0].seatNo, 'A12');
-    });
-
-    test('zdbk-timetable 声明 timetable.bindings（含 kcb blob 与 kbList 列表根）', () {
-      final m = _loadModule(ws, 'zdbk-timetable');
-      final t = m.dataSources!['timetable']!;
-      expect(t.bindings!['items'], 'kbList'); // 课表列表根是 kbList
-      expect(t.bindings!['kcb'], 'kcb'); // blob 字段
-      expect(t.bindings!['courseName'], 'kcmc');
-      expect(t.bindings!['weekday'], 'xqj');
-      final raw = {
-        'kbList': [
-          {'kcb': '线性代数<br>张三/李四<br>紫金港西2B<br>2026年1月16日', 'kcmc': '线性代数', 'xqj': '3', 'xxq': '秋冬', 'xkkh': 'MATH2'},
-        ],
-      };
-      final list = ZdbkData.timetable(raw, t.bindings);
-      expect(list.length, 1);
-      expect(list[0].courseName, '线性代数');
-      expect(list[0].teacher, '张三/李四'); // kcb blob 中教师以 "/" 分隔
-      expect(list[0].weekday, '3');
-      expect(list[0].courseNo, 'MATH2');
-    });
-
-    test('zdbk-course-offerings 声明 course_offerings.bindings', () {
-      final m = _loadModule(ws, 'zdbk-course-offerings');
-      final o = m.dataSources!['course_offerings']!;
-      expect(o.bindings!['courseName'], 'kcmc');
-      expect(o.bindings!['teacher'], 'jsxm');
-      expect(o.bindings!['location'], 'skdd');
-    });
-
-    test('zdbk-training-plans 声明 training_plans.bindings', () {
-      final m = _loadModule(ws, 'zdbk-training-plans');
-      final p = m.dataSources!['training_plans']!;
-      expect(p.bindings!['planName'], 'zymc');
-      expect(p.bindings!['grade'], 'synj');
-      expect(p.bindings!['lengthYears'], 'xz');
-    });
-
-    test('zdbk-notifications 声明 notifications.bindings', () {
-      final m = _loadModule(ws, 'zdbk-notifications');
-      final n = m.dataSources!['notifications']!;
-      expect(n.bindings!['id'], 'id');
-      expect(n.bindings!['title'], 'title');
-      expect(n.bindings!['publisher'], 'publisher');
-      expect(n.bindings!['viewCount'], 'viewCount');
-    });
+    // ⚠️ 2026-08-02 删除：zdbk-* 插件已不在 plugins/（历史遗留），
+    // 无真实 manifest 可读。bindings 机制已由 A 层（自定义键）覆盖。
   });
 }

@@ -10,9 +10,10 @@ import 'package:evergreen_base/renderer/components/shared/widgets/dashboard_card
 class StatTileSlot extends DataSourceSlot {
   const StatTileSlot({super.key, required super.config});
 
-  // Phase 2: 声明式数据绑定 — 标量值注入 value
+  // Phase 2: 声明式数据绑定 — 标量值注入 value；Map 数据逐项合并（旧 mergeData 语义）
   @override
-  DataMapping get dataMapping => const DataMapping(targetKey: 'value');
+  DataMapping get dataMapping =>
+      const DataMapping(targetKey: 'value', mergeMap: true);
 
   @override
   DataSourceSlotState<StatTileSlot> createState() => _StatTileSlotState();

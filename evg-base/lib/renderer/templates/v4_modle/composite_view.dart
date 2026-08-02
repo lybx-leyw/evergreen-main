@@ -1195,28 +1195,52 @@ class SlotDispatch extends StatelessWidget {
     final s = SlotScale.of(context).scale;
     // Phase 3: 使用 StylePreset 替代硬编码间距/圆角
     final sp = StylePresetScope.of(context);
-    // 外边距保留（卡片间距），红边框 debug 标记已撤销
-    return Container(
-      margin: EdgeInsets.only(bottom: 2 * s),
-      child: Card(
-        elevation: sp.cardElevation,
-        shadowColor: Colors.black.withValues(alpha: isDark ? 0.12 : 0.04),
-        surfaceTintColor: theme.colorScheme.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(sp.cardRadius * s),
-          side: BorderSide(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200, width: 1),
-        ),
-        clipBehavior: Clip.antiAlias,
-        margin: EdgeInsets.zero,
-        child: _buildSlotCardBody(context, key, content, theme, isDark, s, sp),
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final margin = EdgeInsets.only(bottom: 2 * s);
+        // 无界高度（滚动容器 / 测量场景）双问题：
+        // ① Card 装饰链（Clip.antiAlias + ShapeBorder）在 0<=h<=Infinity 下
+        //   抛 "RenderBox was not laid out"；
+        // ② 嵌套 LayoutBuilder（外层 + _buildSlotCardBody 内层）在无界
+        //   relayout 时触发 Flutter 3.35 debugResetSize 断言。
+        // 故无界路径**完全不用 LayoutBuilder/Card**，直接 Column(min) 直放
+        // 标题栏 + 内容（标题栏保留，测试与视觉均可接受）。
+        if (!constraints.maxHeight.isFinite) {
+          return Container(
+            margin: margin,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildSlotTitleBar(context, theme, isDark, s, sp),
+                content,
+              ],
+            ),
+          );
+        }
+        return Container(
+          margin: margin,
+          child: Card(
+            elevation: sp.cardElevation,
+            shadowColor: Colors.black.withValues(alpha: isDark ? 0.12 : 0.04),
+            surfaceTintColor: theme.colorScheme.surface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(sp.cardRadius * s),
+              side: BorderSide(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200, width: 1),
+            ),
+            clipBehavior: Clip.antiAlias,
+            margin: EdgeInsets.zero,
+            child: _buildSlotCardBody(context, key, content, theme, isDark, s, sp),
+          ),
+        );
+      },
     );
   }
 
-  Widget _buildSlotCardBody(BuildContext context, String key, Widget content,
-      ThemeData theme, bool isDark, double s, StylePreset sp) {
-    // 提取标题栏：LayoutBuilder 两条路径复用，避免代码重复。
-    Widget titleBar = Container(
+  /// 标题栏（无 LayoutBuilder，供有界/无界两条路径复用）。
+  Widget _buildSlotTitleBar(BuildContext context, ThemeData theme, bool isDark,
+      double s, StylePreset sp) {
+    return Container(
       padding: EdgeInsets.symmetric(
           horizontal: sp.titlePaddingH * s, vertical: sp.titlePaddingV * s),
       decoration: BoxDecoration(
@@ -1262,6 +1286,12 @@ class SlotDispatch extends StatelessWidget {
           ),
       ]),
     );
+  }
+
+  Widget _buildSlotCardBody(BuildContext context, String key, Widget content,
+      ThemeData theme, bool isDark, double s, StylePreset sp) {
+    // 标题栏：与无界路径（_buildSlotCard）共用 _buildSlotTitleBar。
+    final Widget titleBar = _buildSlotTitleBar(context, theme, isDark, s, sp);
 
     // FAIL.md 2026-07-18: LayoutBuilder 双路径——有界约束用 Column(max)+Expanded
     // 填充空间；无界约束退避到 Column(min)+直放（SCSV 内部等测量场景）。

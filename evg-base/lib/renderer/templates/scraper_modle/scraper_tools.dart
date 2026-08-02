@@ -13,6 +13,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:evergreen_base/core/agent/tool.dart';
+import 'package:evergreen_base/core/plugin/plugin_runner.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
 import 'package:evergreen_base/core/utils/python_env.dart';
 import 'scraper_json_validator.dart';
@@ -71,20 +72,44 @@ class RunPythonScraperTool extends SimpleTool {
 
             debugPrint('[RunPythonScraper] 执行: $pyExe $scriptPath');
             try {
-              final result = await Process.run(
-                pyExe,
-                [scriptPath],
-                workingDirectory: workspaceDir,
-                runInShell: true,
-                environment: Map<String, String>.from(
-                  Platform.environment,
-                )..['PROJECT_ROOT'] = workspaceDir,
-              ).timeout(const Duration(seconds: 60));
+              final String stdout;
+              final String stderr;
+              final int exitCode;
 
-              final stdout = (result.stdout as String).trim();
-              final stderr = (result.stderr as String).trim();
+              if (Platform.isAndroid) {
+                // 安卓：resolvePythonExe 返回哨兵 'chaquopy'（进程内解释器），
+                // 不能直接当命令执行（/system/bin/sh: chaquopy: not found）
+                // → 必须走 ChaquopyRunner 经 MethodChannel('evergreen/python')。
+                // 原生侧从 args 提取 --project-root / --greenix-config 注入环境变量。
+                final runner = await sharedPluginRunner;
+                final r = await runner.runOnce(
+                  scriptPath,
+                  [
+                    '--project-root', workspaceDir,
+                    '--greenix-config', greenixConfigPath,
+                  ],
+                  workingDirectory: workspaceDir,
+                ).timeout(const Duration(seconds: 60));
+                stdout = r.stdout.trim();
+                stderr = r.stderr.trim();
+                exitCode = r.exitCode;
+                debugPrint('[RunPythonScraper] chaquopy 执行完成 exitCode=$exitCode');
+              } else {
+                final result = await Process.run(
+                  pyExe,
+                  [scriptPath],
+                  workingDirectory: workspaceDir,
+                  runInShell: true,
+                  environment: Map<String, String>.from(
+                    Platform.environment,
+                  )..['PROJECT_ROOT'] = workspaceDir,
+                ).timeout(const Duration(seconds: 60));
+                stdout = (result.stdout as String).trim();
+                stderr = (result.stderr as String).trim();
+                exitCode = result.exitCode;
+              }
 
-              if (result.exitCode == 0) {
+              if (exitCode == 0) {
                 // 与平台一致的 JSON 校验：scraper stdout 必须是合法 JSON，
                 // 否则平台 jsonDecode(stdout) 会在运行期「检验失败」。
                 // 这里让 AI 循环提前看到校验日志并自我修正，而非误判为成功。
@@ -97,13 +122,16 @@ class RunPythonScraperTool extends SimpleTool {
                   );
                 }
                 debugPrint('[RunPythonScraper] ✅ 执行成功且 JSON 校验通过');
-                return buildJsonValidationSuccessMessage(stdout, stderr);
+                return buildJsonValidationSuccessMessage(
+                  truncateToolOutput(stdout),
+                  stderr,
+                );
               } else {
                 debugPrint(
-                    '[RunPythonScraper] ❌ 执行失败 (exitCode=${result.exitCode})');
-                return '❌ 爬虫执行失败 (exitCode=${result.exitCode})\n'
-                    '--- STDOUT ---\n$stdout\n'
-                    '--- STDERR ---\n$stderr\n'
+                    '[RunPythonScraper] ❌ 执行失败 (exitCode=$exitCode)');
+                return '❌ 爬虫执行失败 (exitCode=$exitCode)\n'
+                    '--- STDOUT ---\n${truncateToolOutput(stdout)}\n'
+                    '--- STDERR ---\n${truncateToolOutput(stderr)}\n'
                     '请根据错误信息修改代码后，再次调用 run_python_scraper 重试。';
               }
             } catch (e) {
@@ -345,10 +373,10 @@ class RunTerminalCommandTool extends SimpleTool {
 
 // ═══════ export_and_register_scraper ═══════
 
-/// 工具：导出插件（编译 .exe + 三件套）并热注册到数据中心，返回完整验证日志。
+/// 工具：导出插件（打包 .py + 三件套）并热注册到数据中心，返回完整验证日志。
 ///
 /// **root cause B 修复**：过去「导出/注册/数据中心 orch.get 验证」的结果
-/// （含 .exe 编译失败、lastError、拉取异常、返回 null 等平台期「检验失败」）
+/// （含 scraper.py 打包失败、lastError、拉取异常、返回 null 等平台期「检验失败」）
 /// 只弹在 UI（`_messages.add`），AI 永远看不到、无法自修。
 ///
 /// 本工具让 AI 主动触发导出+注册，并把**完整结果日志**作为工具结果回传，
@@ -366,9 +394,10 @@ class ExportAndRegisterScraperTool extends SimpleTool {
   }) : super(
           name: 'export_and_register_scraper',
           description: '爬虫脚本跑通（run_python_scraper / run_terminal_command 返回 '
-              '✅ JSON 校验通过）后调用本工具，把 scraper.py 编译为 .exe、生成三件套插件、'
+              '✅ JSON 校验通过）后调用本工具，把 scraper.py 直接打包为 data 插件'
+              '（.py + manifest + config，不再编译 .exe——统一 .py 契约，安卓 Chaquopy 亦可执行）、'
               '热注册到数据中心并验证 orch.get 拉取，返回完整结果日志。'
-              '日志包含 .exe 编译失败、lastError、拉取异常、返回 null 等平台期「检验失败」详情。'
+              '日志包含 scraper.py 打包失败、lastError、拉取异常、返回 null 等平台期「检验失败」详情。'
               '若日志含 ❌ 或 lastError，请分析原因、修改 scraper 代码或凭证后，'
               '再次调用本工具重试（最多 5 轮）。',
           schema: const {
@@ -416,6 +445,62 @@ class ExportAndRegisterScraperTool extends SimpleTool {
         );
 }
 
+// ═══════ read_workspace_file ═══════
+
+/// 工具：读取爬虫工作区文件内容。
+///
+/// 背景（2026-08-02）：scraper 工具集没有文件读取工具，AI 只能用 Python
+/// 代码读文件——曾误读 8MB 的 scraper_sessions.json 导致 2.1MB 输出撑爆
+/// LLM 上下文（DeepSeek 400）。本工具提供受控读取：仅限工作区内文件、
+/// 单文件 ≤50KB、超出截断提示。
+class ReadWorkspaceFileTool extends SimpleTool {
+  /// 爬虫工作目录（scraper.py 所在目录）。
+  final String workspaceDir;
+
+  ReadWorkspaceFileTool({required this.workspaceDir})
+      : super(
+          name: 'read_workspace_file',
+          description: '读取爬虫工作区文件内容（如 scraper.py、config_reader.py）。'
+              '仅能读取工作区内文件，单文件不超过 50KB。'
+              '⚠️ 禁止用 Python 代码读取文件——请优先使用本工具；'
+              '禁止读取 scraper_sessions.json（会话文件可能数 MB，输出会撑爆上下文）。',
+          schema: const {
+            'type': 'object',
+            'properties': {
+              'path': {
+                'type': 'string',
+                'description': '工作区内文件名或相对路径（如 scraper.py、config/config.json）',
+              },
+            },
+            'required': ['path'],
+          },
+          readOnly: true,
+          execute: (args) async {
+            final name = args['path'] as String? ?? '';
+            if (name.isEmpty) return '[error: path 参数为空]';
+            // 防路径逃逸：解析后必须仍在工作区内
+            final resolved = p.normalize(p.join(workspaceDir, name));
+            if (!resolved.startsWith(p.normalize(workspaceDir)) ||
+                resolved.contains('scraper_sessions.json')) {
+              return '[error: 仅允许读取工作区内文件，且禁止读取 scraper_sessions.json]';
+            }
+            final file = File(resolved);
+            if (!file.existsSync()) {
+              return '[error: 文件不存在: $name]';
+            }
+            try {
+              var content = file.readAsStringSync();
+              if (content.length > 50000) {
+                content = '${content.substring(0, 50000)}\n…[文件过大，已截断 ${content.length - 50000} 字符]';
+              }
+              return '文件 $name (${file.lengthSync()} 字节):\n\n$content';
+            } catch (e) {
+              return '[error: 读取 $name 失败: $e]';
+            }
+          },
+        );
+}
+
 // ═══════ 工具集工厂 ═══════
 
 /// 为爬虫生成器 Agent 构造所有自定义工具。
@@ -448,6 +533,7 @@ List<Tool> createScraperTools({
     ReadExistingCredentialTool(projectRoot: projectRoot),
     SaveCredentialTool(projectRoot: projectRoot),
     GetRequestLogsTool(getLogsSummary: getLogsSummary),
+    ReadWorkspaceFileTool(workspaceDir: workspaceDir),
     ExportAndRegisterScraperTool(
       runExportAndRegister: exportAndRegister,
       dataNameProvider: dataNameProvider,

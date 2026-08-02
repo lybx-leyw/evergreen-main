@@ -27,6 +27,10 @@ POST http://127.0.0.1:{port}/config/settings         → body: {"key":"...", "va
 
 使用工具 `save_credential(key, value)` 可将凭证写入平台配置。
 
+**⚠️ 端口读取约束**：`{port}` 必须从 `.config_port` 文件读取——`_get_config`
+锁定模板已内置该逻辑。**禁止**在业务代码中硬编码端口号，也**禁止**自行访问
+ConfigHttpServer 的 HTTP 接口；一切凭证读取必须通过 `_get_config(key)`。
+
 **⚠️ 凭证最终必须注册到插件 config.json：**
 凭证（用户名/密码/Cookie/Token 等）的**声明入口**是 `plugins/data-{插件名称}/config/config.json`。
 该文件由 `export_and_register_scraper` 工具自动生成，其中敏感字段（api_key/token/password 等）
@@ -62,7 +66,8 @@ POST http://127.0.0.1:{port}/config/settings         → body: {"key":"...", "va
 工具: save_credential(key, value)         — 写入/更新凭证到平台配置（仅旧凭证失败后用）
 工具: run_python_scraper(code)            — 写入并执行 scraper.py（自动做 JSON 校验）
 工具: run_terminal_command(command)       — 在终端执行命令（如 pip install）
-工具: export_and_register_scraper()       — 跑通后导出 .exe + 三件套插件、热注册并验证数据中心拉取
+工具: read_workspace_file(path)           — 读取爬虫工作区文件内容（≤50KB，禁止用 python 读文件）
+工具: export_and_register_scraper()       — 跑通后直接打包 scraper.py 为 data 插件（.py + manifest + config）、热注册并验证数据中心拉取
 ```
 
 生成的 Python 脚本保存在工作区根目录（run_python_scraper 会写入 scraper.py）。
@@ -296,6 +301,14 @@ set SCRAPER_PASSWORD=<值>
 3. **数据拉取循环**（含分页）
 4. **数据解析与清洗**
 5. **`main()` 入口 + 输出格式**
+6. **依赖约束**：只允许使用 **Python 标准库 + `requests`**（平台已内置）。
+   **禁止** import 其他第三方库（如 pycryptodome / lxml / bs4 / selenium）——
+   安卓端无 pip 无法临时安装。如目标站点必须使用额外库，立即停止并告知用户：
+   该站点需要额外依赖，请在桌面端生成后重新打包 APK。
+7. **禁止读取/打印工作区大文件**：不要用 Python 读取 `scraper_sessions.json`、
+   `config_reader.py` 等文件（会话文件可达数 MB，输出会撑爆上下文导致 API 400）。
+   如需确认 scraper.py 内容，直接用 `run_python_scraper` 重新写入并执行即可；
+   需要读取工作区文件时用 `read_workspace_file` 工具。
 
 ### Step 5：终端执行 + 自动调试
 
@@ -303,7 +316,8 @@ set SCRAPER_PASSWORD=<值>
 2. 用户可在左下角终端面板实时看到输出
 3. **若成功** → 继续 Step 6
 4. **若失败** → 分析错误，修改后用 `write_file` 重新写入（确保模板完整保留），再执行。**最多重试 5 轮**。5 轮后仍失败 → 告知用户请求重新演示
-5. 缺失依赖时用 `run_terminal_command(command="pip install xxx")` 安装
+5. 缺失依赖时用 `run_terminal_command(command="pip install xxx")` 安装（仅桌面端；
+   安卓端依赖已预打包、pip 不可用，**禁止生成依赖未内置库的代码**）
 
 ### Step 6：JSON 输出格式（强制要求）
 
@@ -326,13 +340,14 @@ if __name__ == '__main__':
 export_and_register_scraper()
 ```
 
-该工具会把 scraper.py 编译为 .exe、生成三件套插件、热注册到数据中心，并调用
+该工具会把 scraper.py 直接打包为 data 插件（script: scraper.py + runtime: python，
+**不再编译 .exe**——统一 .py 契约，安卓 Chaquopy 亦可执行）、热注册到数据中心，并调用
 `orch.get()` 验证真实拉取，返回**完整结果日志**。
 
 - **若返回日志含 `✅` 且无 `❌`/`lastError`** → 全部成功，告知用户：
-  > ✅ 爬虫已生成、编译、热注册并验证数据中心拉取通过。
+  > ✅ 爬虫已生成、打包、热注册并验证数据中心拉取通过。
 - **若返回日志含 `❌` / `lastError` / `拉取异常` / `返回 null`** → 这是平台期「检验失败」：
-  1. 仔细阅读日志中的失败详情（`.exe 编译失败` / `lastError` / orch.get 异常）
+  1. 仔细阅读日志中的失败详情（`scraper.py 打包失败` / `lastError` / orch.get 异常）
   2. 定位根因（凭证缺失、SSL、字段解析、输出非法 JSON 等）
   3. 用 `run_python_scraper` 修改并重新跑通脚本
   4. 再次调用 `export_and_register_scraper()` 重试（**最多 5 轮**）

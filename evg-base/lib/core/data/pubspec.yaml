@@ -7,6 +7,8 @@ environment:
 dependencies:
   path: ^1.8.0
   meta: ^1.9.0
+  flutter:
+    path: lib/flutter_stub
   path_provider:
     path: lib/path_provider_stub
   flutter_riverpod:

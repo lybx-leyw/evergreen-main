@@ -140,8 +140,32 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
     } catch (_) {
       // Agent 可能正在初始化/销毁，安全忽略
     }
-    // ② 写入文件
+    // ② 大小保护（2026-08-02 事故：巨型工具结果撑爆 scraper_sessions.json 至 8MB，
+    //    连带下次流程 LLM 请求超限 400）：
+    //    - 每条消息 text 截断到 50KB（防御性，UI 气泡通常已限 500 字符）
+    //    - agentSessionJson 序列化超 1MB 的丢弃（下次从 messages 重建上下文）
     try {
+      const maxMsgLen = 50000;
+      const maxAgentJsonLen = 1024 * 1024;
+      for (final s in _sessions) {
+        for (var i = 0; i < s.messages.length; i++) {
+          final m = s.messages[i];
+          if (m.text.length > maxMsgLen) {
+            s.messages[i] = ChatMessage(
+              role: m.role,
+              text: '${m.text.substring(0, maxMsgLen)}\n…[已截断 ${m.text.length - maxMsgLen} 字符]',
+            );
+          }
+        }
+        if (s.agentSessionJson != null) {
+          final len = jsonEncode(s.agentSessionJson).length;
+          if (len > maxAgentJsonLen) {
+            s.agentSessionJson = null;
+            debugPrint('[ScraperAIPanel] ⚠ agentSessionJson 过大(${len ~/ 1024}KB)已丢弃，下次从 messages 重建');
+          }
+        }
+      }
+      // ③ 写入文件
       final file = File(_sessionsPath);
       file.writeAsStringSync(jsonEncode(_sessions.map((s) => s.toJson()).toList()));
     } catch (e) {
@@ -405,7 +429,9 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
         setState(() => _currentTool = '');
         final tool = event.tool;
         if (tool != null) {
-          final output = (tool.output ?? tool.error ?? '').trim();
+          // ⚠️ 截断：巨型工具输出（曾达 2.1MB）会撑爆 UI 气泡与 Agent 上下文
+          // → DeepSeek API 400 死循环。校验判断用截断后文本即可。
+          final output = truncateToolOutput((tool.output ?? tool.error ?? '').trim());
           if (tool.isError) {
             _pendingText.writeln('\n⚠️ **${tool.name} 执行失败**\n');
             _pendingText.writeln('```\n${output.length > 500 ? '${output.substring(0, 500)}...' : output}\n```\n');
@@ -679,7 +705,8 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
       widget.workspaceDir,
       () => resolvePythonExe(),
     );
-    // .exe 编译后附加 manifest（script 自动切换为 scraper.exe）
+    // .exe 编译后附加 manifest（script 恒为 scraper.py + runtime: python，
+    // .exe 仅是用户显式导出的独立产物，不参与数据源注册）
     if (exeResult.success) {
       final schema = await _facade.analyzeSelection(widget.workflow.logs);
       await _facade.generateAsDataPlugin(
@@ -786,13 +813,13 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
     return '${diff.inDays} 天前';
   }
 
-  // ── ③ 生成插件（编译 .exe + 三件套 + 放入 plugins/）──
+  // ── ③ 生成插件（打包 scraper.py + 三件套 + 放入 plugins/）──
 
-  /// 导出插件（编译 .exe + 三件套 + 放入 plugins/）并热注册、验证数据中心拉取。
+  /// 导出插件（打包 scraper.py + 三件套 + 放入 plugins/）并热注册、验证数据中心拉取。
   ///
   /// 返回**完整结果日志**（每步成功/失败详情）。日志既写入 UI 气泡（_messages），
   /// 也作为返回值——后者被 `export_and_register_scraper` 工具作为工具结果回灌给 AI，
-  /// 让 `.exe 编译失败`、`lastError`、`拉取异常` 等平台期「检验失败」对 AI 可见（root cause B）。
+  /// 让 `scraper.py 打包失败`、`lastError`、`拉取异常` 等平台期「检验失败」对 AI 可见（root cause B）。
   Future<String> _generatePlugin() async {
     setState(() => _isRunning = true);
     final buf = StringBuffer();
@@ -815,7 +842,8 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
       _pluginDir = pluginDir;
       debugPrint('[ScraperAIPanel] 🏷 插件目录: $pluginDir (data=$dataName)');
 
-      // Step 1: 注入 JSON 验证器 + 编译 .exe（PyInstaller）
+      // Step 1: 注入 JSON 验证器，直接打包 scraper.py（统一 .py 契约——
+      // 不再编译 .exe：PyInstaller 产物在安卓无法 exec PE，桌面亦白背打包负担）。
       // pythonCode 常为空（AI 经 run_python_scraper 直接写盘），回退读取磁盘 scraper.py。
       var baseCode = widget.workflow.pythonCode;
       if (baseCode.trim().isEmpty) {
@@ -830,36 +858,34 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
         return buf.toString();
       }
       final validatedCode = injectValidatorIntoCode(baseCode);
-      final exeResult = await exportAsExe(
-        validatedCode,
-        workspaceDir,
-        () => resolvePythonExe(),
-      );
-      if (!exeResult.success) {
-        say('❌ .exe 编译失败: ${exeResult.message}');
-        if (mounted) setState(() => _isRunning = false);
-        return buf.toString();
-      }
-      say('✅ .exe 编译完成（含 JSON 验证器）');
 
-      // Step 2: 复制 .exe 到 data/ 目录
-      final dataDir = Directory(p.join(workspaceDir, 'data'));
-      dataDir.createSync(recursive: true);
-      final exeSrc = File(p.join(workspaceDir, 'dist', 'scraper.exe'));
-      final exeDst = File(p.join(dataDir.path, 'scraper.exe'));
-      if (exeSrc.existsSync()) {
-        exeSrc.copySync(exeDst.path);
-        say('✅ scraper.exe → data/scraper.exe');
+      // Step 1.5: 清理旧 .exe 残留（新契约只注册 .py）
+      final staleExe = File(p.join(workspaceDir, 'data', 'scraper.exe'));
+      if (staleExe.existsSync()) {
+        try {
+          staleExe.deleteSync();
+          say('🧹 已清理旧 data/scraper.exe（新契约不再使用 .exe）');
+        } catch (e) {
+          debugPrint('[ScraperAIPanel] ⚠ 清理旧 scraper.exe 失败: $e');
+        }
       }
 
-      // Step 3: 生成 data/manifest.json（script: scraper.exe）
+      // Step 2: 打包 scraper.py + 生成 data/manifest.json
+      //（facade 写入 workspaceDir/scraper.py → data/scraper.py，
+      //  manifest 使用新契约 script: scraper.py + runtime: python）
       final dataResult = await _facade.generateAsDataPlugin(
         schema: schema,
         pluginName: dataName,
         outputDir: workspaceDir,
+        pythonCode: validatedCode,
         dataTypeName: dataName,
       );
-      say('${dataResult.success ? "✅" : "❌"} data/manifest.json');
+      if (!dataResult.success) {
+        say('❌ scraper.py 打包失败: ${dataResult.message}');
+        if (mounted) setState(() => _isRunning = false);
+        return buf.toString();
+      }
+      say('✅ scraper.py 已打包（含 JSON 验证器，script: scraper.py / runtime: python）');
 
       // Step 4: 生成 config/config.json
       final configReg = ConfigRegister();
@@ -1048,7 +1074,7 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
     _saveSessions();
     _assembly!.controller.send(
       '【$title 检验失败】以下是导出/注册与数据中心验证的完整日志。'
-      '请分析失败原因（如 lastError、.exe 编译失败、orch.get 返回 null/拉取异常），'
+      '请分析失败原因（如 lastError、scraper.py 写入失败、orch.get 返回 null/拉取异常），'
       '修改 scraper 代码或凭证后，重新调用 export_and_register_scraper 工具重试'
       '（最多 5 轮）：\n\n$log',
     );
@@ -1231,17 +1257,19 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
                 style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6)),
               ),
             ),
-            const SizedBox(width: 4),
-            // 导出 .exe
-            SizedBox(
-              height: 24,
-              child: TextButton.icon(
-                onPressed: () => uiOp('ScraperAIPanel', '导出.exe', () => exportExe()),
-                icon: const Icon(Icons.desktop_windows, size: 12),
-                label: const Text('.exe', style: TextStyle(fontSize: 10)),
-                style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6)),
+            // 导出 .exe（仅桌面：PyInstaller 子进程在安卓不可用）
+            if (!Platform.isAndroid) ...[
+              const SizedBox(width: 4),
+              SizedBox(
+                height: 24,
+                child: TextButton.icon(
+                  onPressed: () => uiOp('ScraperAIPanel', '导出.exe', () => exportExe()),
+                  icon: const Icon(Icons.desktop_windows, size: 12),
+                  label: const Text('.exe', style: TextStyle(fontSize: 10)),
+                  style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6)),
+                ),
               ),
-            ),
+            ],
             const SizedBox(width: 4),
             // ③ 生成插件（ConfigRegister）
             SizedBox(

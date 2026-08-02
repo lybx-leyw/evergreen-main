@@ -28,6 +28,9 @@ class _FakeOrch extends DataOrchestrator {
 
   @override
   Future<T?> refresh<T>(DataType<T> type) async => _data[type.name] as T?;
+
+  @override
+  Future<T?> fastRead<T>(DataType<T> type) async => _data[type.name] as T?;
 }
 
 DataSourceDescriptor _src(String name) =>

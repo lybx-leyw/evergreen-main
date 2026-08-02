@@ -1,6 +1,6 @@
 /// scraper.py stdout JSON 格式验证器。
 ///
-/// 在 PyInstaller 编译后自动注入到生成的 scraper.py 中，
+/// 在打包（导出 data 插件）前自动注入到生成的 scraper.py 中，
 /// 确保 stdout 输出合法 JSON。
 ///
 /// 使用方式：在生成的 scraper.py 的 `if __name__ == "__main__"` 之前插入:
@@ -9,6 +9,25 @@
 library scraper_json_validator;
 
 import 'dart:convert';
+
+/// 工具返回给 AI 的结果上限（字符）。
+///
+/// ⚠️ 2026-08-02 事故：AI 生成的诊断代码读取了 8MB 的 scraper_sessions.json，
+/// `run_terminal_command` 把 2.1MB 输出全量回灌 Agent → DeepSeek API 400
+/// → 流程死循环。所有回传 AI 的工具输出必须经 [truncateToolOutput] 截断。
+const int maxToolResultChars = 8000;
+
+/// 截断工具输出到 [maxToolResultChars]，保留头部 80% + 尾部 20%。
+///
+/// 校验类逻辑（如 [validateScraperStdout]）请使用原始完整输出，仅回传前截断。
+String truncateToolOutput(String output) {
+  if (output.length <= maxToolResultChars) return output;
+  final headLen = (maxToolResultChars * 0.8).round();
+  final tailLen = maxToolResultChars - headLen;
+  return '${output.substring(0, headLen)}\n'
+      '…[输出过长，已截断 ${output.length - maxToolResultChars} 字符]…\n'
+      '${output.substring(output.length - tailLen)}';
+}
 
 // ═══════ Dart 侧 stdout JSON 校验（AI 调试循环用） ═══════
 //
@@ -108,8 +127,8 @@ bool isScraperRunCommand(String command) =>
 
 /// 判断导出/热注册日志是否包含「检验失败」标记。
 ///
-/// 背景（root cause B）：导出插件（.exe 编译）、热注册、数据中心 orch.get 验证
-/// 的失败（如 `.exe 编译失败`、`lastError`、`拉取异常`、`返回 null`）过去只弹在 UI，
+/// 背景（root cause B）：导出插件（.py 打包）、热注册、数据中心 orch.get 验证
+/// 的失败（如 `scraper.py 打包失败`、`lastError`、`拉取异常`、`返回 null`）过去只弹在 UI，
 /// AI 永远看不到、无法自修。此纯函数用于判定日志中是否存在失败，
 /// 命中则把完整日志回灌给隔离 Agent 让其自我修正。
 ///

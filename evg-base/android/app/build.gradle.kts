@@ -56,17 +56,32 @@ flutter {
 // P1b：Chaquopy 配置（进程内 Python 运行时）。
 // 仅用标准库即可运行纯 Python 插件；若某插件需要第三方包（numpy / requests 等），
 // 在此 pip { install("包名") } 声明，Chaquopy 会在构建期打包对应 wheel。
+// ⚠️ buildPython 探测：环境变量 CHAQUOPY_BUILD_PYTHON 优先（CI / 他人机器），
+// 否则回退 PATH 上的 python 命令（Windows: python，Unix: python3）——
+// **不硬编码本机用户路径**（仓库可移植性；本机路径由 PATH 解析）。
+// buildPython 缺失时 chaquopy 只会警告并**静默跳过** src/main/python 打包
+// （2026-08-02 事故：pdf_translate.py 等未进 APK），
+// 故对**文件路径**形态的值做存在性检查，把静默失败变成构建期硬失败；
+// 命令名形态（python/python3）交给 OS 按 PATH 解析，无法预检。
+val chaquopyBuildPython = System.getenv("CHAQUOPY_BUILD_PYTHON")
+    ?: (if (System.getProperty("os.name").lowercase().contains("win")) "python" else "python3")
+val chaquopyBuildPythonIsPath =
+    chaquopyBuildPython.contains('/') || chaquopyBuildPython.contains('\\')
+if (chaquopyBuildPythonIsPath && !file(chaquopyBuildPython).exists()) {
+    error("Chaquopy buildPython 不存在: $chaquopyBuildPython。请安装 Python 3.11 或设置环境变量 CHAQUOPY_BUILD_PYTHON，否则 src/main/python 依赖会静默不进 APK。")
+}
+
 chaquopy {
     defaultConfig {
         version = "3.11"
-        // 本机 buildPython（chaquopy 用它把 src/main/python 编译成 .pyc 打包进 APK）。
-        // ⚠️ 缺失时 chaquopy 警告 "Couldn't find Python 3.11" 并整体跳过源打包
-        // （2026-08-02 事故：pdf_translate.py 等未进 APK，运行时 getAssetPath 找不到）。
-        buildPython = listOf("C:/Users/19389/AppData/Local/Programs/Python/Python311/python.exe")
-        // pip 依赖已通过手动方式放入 src/main/python/（避免 buildPython 需求）。
-        // pip {
-        //     install("requests")
-        // }
+        buildPython = listOf(chaquopyBuildPython)
+        // pip 依赖：requests 全家桶（requests/urllib3/certifi/idna/charset_normalizer）
+        // 已手动放入 src/main/python/（纯 Python 源码，构建期由 buildPython 编译打包）。
+        // pycryptodome 含 C 扩展（无法手动拷贝源码），必须由 chaquopy 构建期装 wheel 进 APK，
+        // 供爬虫脚本 `import Crypto.*`（RSA/AES 加密登录）使用。
+        pip {
+            install("pycryptodome")
+        }
     }
     // Python 源目录默认 src/main/python（动态插件由 MethodChannel 从设备路径按需加载，无需打包进 APK）。
 }

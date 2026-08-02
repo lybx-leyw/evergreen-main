@@ -3,7 +3,7 @@ library;
 
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter_test/flutter_test.dart';
+import 'package:test/test.dart';
 import 'package:path/path.dart' as p;
 
 import '../theme_descriptor.dart';
@@ -22,12 +22,10 @@ const _requiredKeys = <String>[
   'others',
 ];
 
-/// 各示例主题相对仓库根的路径（my_theme 与 ocean_theme 分处不同目录）。
+/// 各示例主题相对**子包根**（lib/core/theme）的路径。
+/// my_theme 在 theme 子包 example 内；ocean_theme 在 core 根 example 内。
 const _themePaths = <String, List<String>>{
   'my_theme': [
-    'lib',
-    'core',
-    'theme',
     'example',
     'plugins',
     'my_theme',
@@ -35,8 +33,7 @@ const _themePaths = <String, List<String>>{
     'theme.json',
   ],
   'ocean_theme': [
-    'lib',
-    'core',
+    '..',
     'example',
     'plugins',
     'ocean_theme',
@@ -45,8 +42,8 @@ const _themePaths = <String, List<String>>{
   ],
 };
 
-String _exampleThemePath(String plugin) =>
-    p.joinAll([Directory.current.path, ..._themePaths[plugin]!]);
+String _exampleThemePath(String plugin) => p.normalize(
+    p.joinAll([Directory.current.path, ..._themePaths[plugin]!]));
 
 Map<String, dynamic> _loadJson(String path) {
   final raw = File(path).readAsStringSync();

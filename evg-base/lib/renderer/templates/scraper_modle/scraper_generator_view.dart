@@ -114,6 +114,12 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
   }
 
   String _findProjectRoot() {
+    // 安卓：进程 CWD=/ 且无 pubspec.yaml，greenix 根 = 插件目录的父级
+    //（与 AppBootstrap._stepGreenixPaths 一致：.config_port 写在这里）。
+    // 若按桌面逻辑返回 '/'，SaveCredentialTool 等会去读 /.config_port → 找不到。
+    if (Platform.isAndroid) {
+      return p.dirname(androidPluginsDir);
+    }
     var dir = Directory.current;
     while (true) {
       if (File(p.join(dir.path, 'pubspec.yaml')).existsSync()) {
