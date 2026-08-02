@@ -67,8 +67,6 @@ dependencies:
   # 文件监控 —— 全流程插件创作流：监控 plugins/ 目录变化，触发热加载
   watcher: ^1.1.0
 
-  # PDF 渲染（M3 pdf-viewer：纯 Dart 跨平台，含 Windows 桌面）
-  pdfx: ^2.9.2
   # 扫码（M3 scanner：Android/iOS/Web 摄像头；桌面无相机 → 优雅降级，R5/R9）
   mobile_scanner: ^6.0.0
 
