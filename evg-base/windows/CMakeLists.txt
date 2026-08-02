@@ -53,6 +53,10 @@ add_subdirectory(${FLUTTER_MANAGED_DIR})
 add_subdirectory("runner")
 
 
+# webview_windows 使用 <experimental/coroutine> + /await，新版 MSVC（14.5x）
+# 已将其弃用提升为硬错误（STL1011）。此全局定义可抑制，传播到所有插件目标。
+add_compile_definitions(_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
+
 # Generated plugin build rules, which manage building the plugins and adding
 # them to the application.
 include(flutter/generated_plugins.cmake)
