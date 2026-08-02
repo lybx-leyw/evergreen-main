@@ -1,44 +1,47 @@
-/// Android 插件资产释放器纯 Dart 测试 —— 规划 §3.4。
+/// 运行时资产释放器测试。
 ///
-/// 验证 releasePluginsAssetsIfNeeded() 的跨平台分支逻辑：
-/// - 非 Android 平台应返回 null（不执行任何资产操作）
-/// - 常量 kPluginAssetPrefix 值正确
+/// 验证：
+/// - 插件/脚本资产前缀常量与 pubspec.yaml 一致
+/// - releaseBundledAssets() 在无资产环境下安全空跑（不抛异常、不落盘）
 ///
-/// 注意：Android 真机分支（rootBundle API + 文件系统写入）在 Windows
-/// dart test 环境不可测试，需在模拟器/真机端到端验证。
+/// 注意：真机分支（rootBundle 实际资产 + 文件系统写入）需在模拟器/真机
+/// 端到端验证（见 lib/core/utils/plugin_asset_releaser.dart）。
 library;
 
 import 'package:evergreen_base/core/utils/plugin_asset_releaser.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  group('kPluginAssetPrefix', () {
-    test('值应为 assets/plugins_bundle/（与 pubspec.yaml 一致）', () {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  group('资产前缀常量', () {
+    test('kPluginAssetPrefix 值应为 assets/plugins_bundle/（与 pubspec.yaml 一致）', () {
       expect(kPluginAssetPrefix, 'assets/plugins_bundle/');
     });
 
-    test('以 assets/ 开头，以 / 结尾', () {
-      expect(kPluginAssetPrefix.startsWith('assets/'), isTrue);
-      expect(kPluginAssetPrefix.endsWith('/'), isTrue);
+    test('kScriptsAssetPrefix 值应为 assets/scripts_bundle/', () {
+      expect(kScriptsAssetPrefix, 'assets/scripts_bundle/');
     });
 
-    test('不包含连续斜杠', () {
-      expect(kPluginAssetPrefix.contains('//'), isFalse);
+    test('两个前缀均以 assets/ 开头、以 / 结尾、不含连续斜杠', () {
+      for (final p in [kPluginAssetPrefix, kScriptsAssetPrefix]) {
+        expect(p.startsWith('assets/'), isTrue);
+        expect(p.endsWith('/'), isTrue);
+        expect(p.contains('//'), isFalse);
+      }
     });
   });
 
-  group('releasePluginsAssetsIfNeeded', () {
-    test('非 Android 平台（Windows/Linux/macOS）应返回 null', () async {
-      // 测试运行在 Windows dart test 环境，Platform.isAndroid=false，
-      // 函数应立即返回 null 而不触碰任何文件系统。
-      final result = await releasePluginsAssetsIfNeeded();
-      expect(result, isNull);
+  group('releaseBundledAssets', () {
+    test('无资产环境下安全空跑（不抛异常）', () async {
+      // 测试环境无 plugins/scripts 资产，函数应安全返回。
+      await releaseBundledAssets();
     });
 
-    test('返回值类型签名匹配', () async {
-      final result = await releasePluginsAssetsIfNeeded();
-      // 确保签名是 Future<String?>（null 也是有效返回值）
-      expect(result is String?, isTrue);
+    test('返回 Future<void>，可 await 完成', () async {
+      final future = releaseBundledAssets();
+      expect(future, isA<Future<void>>());
+      await future;
     });
   });
 }

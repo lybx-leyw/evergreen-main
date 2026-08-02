@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:path/path.dart' as p;
 
 import '../log.dart';
+import '../utils/greenix_path.dart';
 import '../utils/python_env.dart';
 import 'deepseek_ocr_service.dart';
 
@@ -112,14 +113,14 @@ class OcrPipeline {
     // 1. PDF → images
     final tmpDir = Directory.systemTemp;
     final outDir = '${tmpDir.path}${Platform.pathSeparator}ocr_ds_${DateTime.now().millisecondsSinceEpoch}';
-    final pdfScript = p.join(Directory.current.path, 'scripts', 'pdf_to_images.py');
+    final pdfScript = p.join(greenixScriptsDir, 'pdf_to_images.py');
 
     if (!File(pdfScript).existsSync()) {
       Log().warn('OcrPipeline: pdf_to_images.py not found');
       return null;
     }
 
-    final imgProc = await runOcrProcess('python', [
+    final imgProc = await runOcrProcess(await resolvePythonExe() ?? 'python', [
       pdfScript, '--path', pdfPath, '--output_dir', outDir, '--dpi', '150',
     ]).timeout(const Duration(seconds: 120));
 
@@ -223,7 +224,7 @@ class OcrPipeline {
         return null;
       }
 
-      final script = p.join(Directory.current.path, 'scripts', 'ocr_file.py');
+      final script = p.join(greenixScriptsDir, 'ocr_file.py');
       if (!File(script).existsSync()) {
         Log().error('OcrPipeline: ocr_file.py missing',
             data: {'path': script});
@@ -231,7 +232,7 @@ class OcrPipeline {
       }
 
       final result = await runOcrProcess(
-        'python', [script, '--path', filePath],
+        await resolvePythonExe() ?? 'python', [script, '--path', filePath],
       ).timeout(const Duration(seconds: 120));
 
       if (result.exitCode != 0) {
@@ -252,8 +253,8 @@ class OcrPipeline {
     try {
       final exeName = Platform.isWindows ? 'ocr_slides.exe' : 'ocr_slides';
       final candidates = <String>[
-        p.join(Directory.current.path, 'scripts', 'dist', exeName),
-        p.join(Directory.current.path, 'scripts', exeName),
+        p.join(greenixScriptsDir, 'dist', exeName),
+        p.join(greenixScriptsDir, exeName),
       ];
 
       String? ocrExe;
@@ -264,13 +265,13 @@ class OcrPipeline {
       // 回退到 python 脚本
       String? pythonScript;
       if (ocrExe == null) {
-        final pyPath = p.join(Directory.current.path, 'scripts', 'ocr_slides.py');
+        final pyPath = p.join(greenixScriptsDir, 'ocr_slides.py');
         if (File(pyPath).existsSync()) pythonScript = pyPath;
         if (pythonScript == null) return '';
       }
 
       final result = await runOcrProcess(
-        ocrExe ?? 'python',
+        ocrExe ?? await resolvePythonExe() ?? 'python',
         ocrExe != null
             ? ['--urls', imageUrl]
             : [pythonScript!, '--urls', imageUrl],

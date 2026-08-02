@@ -40,7 +40,7 @@ class PdfTranslateService {
     return resolvePythonExe(configuredPath: _configuredPython);
   }
 
-  /// scripts/translate/ 目录（pdf2zh_next 所在位置）。
+  /// .greenix/scripts/translate/ 目录（pdf2zh_next 所在位置）。
   String get _translateDir => File(_scriptPath).parent.path;
 
   /// 翻译单个 PDF。

@@ -1,12 +1,14 @@
-; Inno Setup — Evergreen Multi-Tools
+; Inno Setup — Evergreen
 ; 用法: flutter build windows --release 之后运行 ISCC.exe scripts\installer.iss
+; 打包内容: Release 构建产物（含 data/flutter_assets 的插件/脚本资产）
+;           + .greenix/python（嵌入 Python，CI 预置到 build/greenix_dist/python）
 
-#define MyAppName "Evergreen Multi-Tools"
+#define MyAppName "Evergreen"
 #ifndef MyAppVersion
-#define MyAppVersion "0.0.0"
+#define MyAppVersion "2.0.0"
 #endif
 #define MyAppPublisher "Evergreen"
-#define MyAppExeName "evergreen_multi_tools.exe"
+#define MyAppExeName "evergreen_base.exe"
 
 [Setup]
 AppId={{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}}
@@ -29,16 +31,14 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Shortcuts:"
 
 [Files]
-; Flutter 构建产物
+; Flutter Release 构建产物（exe + dll + data/，data/flutter_assets 含插件与脚本资产，
+; App 启动时释放到 .greenix/plugins 与 .greenix/scripts）
 Source: "..\build\windows\x64\runner\Release\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs; Excludes: ".env,.env.example,*.cookies"
+Source: "..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
-; Python OCR 脚本
-Source: "..\scripts\*.py"; DestDir: "{app}\scripts"; Flags: ignoreversion
-Source: "..\scripts\requirements.txt"; DestDir: "{app}\scripts"; Flags: ignoreversion
-
-; 嵌入式 Python 运行时
-Source: "..\scripts\python\*"; DestDir: "{app}\scripts\python"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+; 嵌入式 Python 运行时（CI 预置：官方 embeddable + pip 依赖装好后放到
+; build\greenix_dist\python）。App 运行时从 .greenix\python 解析（greenixPythonDir）。
+Source: "..\build\greenix_dist\python\*"; DestDir: "{app}\.greenix\python"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 
 [Icons]
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
@@ -46,7 +46,3 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
-
-[Dirs]
-; 插件目录——安装后为空占位，用户放入插件即可热加载
-Name: "{app}\plugins"

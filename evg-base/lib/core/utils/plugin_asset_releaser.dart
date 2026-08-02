@@ -1,14 +1,13 @@
-/// 安卓插件资产释放器。
+/// 运行时资产释放器（插件 + 管线脚本）。
 ///
-/// 安卓端无文件系统级的 `plugins/` 目录（桌面靠项目根平级目录），
-/// 故把 `plugins/` 作为 flutter assets（`assets/plugins_bundle/`）打进 APK，
-/// 本模块在启动期将其递归释放到应用可写目录：
+/// 把 flutter 资产 `assets/plugins_bundle/` 与 `assets/scripts_bundle/`
+/// 递归释放到 `.greenix/plugins` 与 `.greenix/scripts`（全平台）：
 ///
-///   getApplicationSupportDirectory()/.greenix/plugins
+///   - Android：app 私有可写目录下（`getApplicationSupportDirectory()/.greenix`）
+///   - 桌面：`Directory.current/.greenix`（与 greenix_path 的 baseDir 一致）
 ///
-/// 释放后，`greenix_path.resolvePluginsRoot()` 与 `main._pluginsDir` 在安卓
-/// 均指向该目录，所有插件消费者（module_loader / plugin_bridge / data
-/// orchestrator / marketplace / skill loader …）自然受益。
+/// 释放后 `greenix_path.resolvePluginsRoot()` 与 `greenixScriptsDir` 均指向
+/// 对应目录，所有插件 / 脚本消费者自然受益。
 ///
 /// 复用 [agent_runtime] 中 skill 资产释放的同一范式（rootBundle → File）。
 import 'dart:convert';
@@ -18,52 +17,47 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show AssetManifest, rootBundle;
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
+
+import 'greenix_path.dart';
 
 /// assets 中插件资产的前缀（与 pubspec.yaml 的 `- assets/plugins_bundle/` 对应）。
 const String kPluginAssetPrefix = 'assets/plugins_bundle/';
 
-/// 释放插件资产到设备可写目录（仅安卓执行；其他平台返回 null 且不触碰资产）。
-///
-/// ⚠️ 策略：始终覆盖写入（不作幂等缓存）。
-///
-/// 旧版用 `.released` 标记 + 文件数量做幂等判断，但该方案无法检测**存量文件内容变更**
-///（如 scraper.py 改了代码但未增删文件 → 文件数不变 → 跳过重提取 → 旧代码残留）。
-/// 按键集指纹也同理：内容变更（同键不同值）无法被键集捕获。
-///
-/// 资产总量小（~2MB），每次启动覆盖写入 <1s，远好于内容不一致的隐蔽 bug。
-///
-/// 返回释放后的插件根目录绝对路径。
-Future<String?> releasePluginsAssetsIfNeeded() async {
-  if (!Platform.isAndroid) return null;
+/// assets 中管线脚本资产的前缀（与 pubspec.yaml 的 SCRIPTS 标记块对应）。
+const String kScriptsAssetPrefix = 'assets/scripts_bundle/';
 
-  final support = await getApplicationSupportDirectory();
-  final target = p.join(support.path, '.greenix', 'plugins');
-  debugPrint('[PluginRelease] target=$target');
+/// 释放插件 + 管线脚本资产到 `.greenix/`（全平台）。
+///
+/// ⚠️ 策略：始终覆盖写入（不作幂等缓存）。旧版用 `.released` 标记 + 文件数做
+/// 幂等判断，但无法检测**存量文件内容变更**（同键不同值）。资产总量小
+/// （~2MB），每次启动覆盖写入 <1s，远好于内容不一致的隐蔽 bug。
+Future<void> releaseBundledAssets() async {
+  await _releaseBundle(kPluginAssetPrefix, greenixPluginsDir);
+  await _releaseBundle(kScriptsAssetPrefix, greenixScriptsDir);
+}
 
-  // 读取 AssetManifest，筛选插件资产键。
-  // 新版 Flutter 已用 AssetManifest.bin 取代 AssetManifest.json，手动
-  // loadString('.json') 会抛异常导致插件资产释放失败（安卓空目录）。用
-  // 官方 API 解析，自动兼容 .json / .bin 两种格式。
+/// 释放单个资产束（[assetPrefix] 前缀 → [targetDir]）。
+Future<void> _releaseBundle(String assetPrefix, String targetDir) async {
+  debugPrint('[AssetRelease] target=$targetDir (prefix=$assetPrefix)');
+
+  // 读取 AssetManifest，筛选该束资产键。
+  // 新版 Flutter 用 AssetManifest.bin，需用官方 API 解析（兼容 .json/.bin）。
   final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
-  final pluginKeys = manifest.listAssets()
-      .where((k) => k.startsWith(kPluginAssetPrefix))
-      .where((k) => k.substring(kPluginAssetPrefix.length).isNotEmpty)
+  final keys = manifest.listAssets()
+      .where((k) => k.startsWith(assetPrefix))
+      .where((k) => k.substring(assetPrefix.length).isNotEmpty)
       .toList();
-  debugPrint('[PluginRelease] AssetManifest 总键: ${manifest.listAssets().length},'
-      ' 插件资产键: ${pluginKeys.length}');
+  debugPrint('[AssetRelease] AssetManifest 总键: ${manifest.listAssets().length},'
+      ' 本束($assetPrefix)键: ${keys.length}');
 
   // 本次清单（相对路径，用于差异清理）。
-  final currentRels = pluginKeys
-      .map((k) => k.substring(kPluginAssetPrefix.length))
-      .toSet();
+  final currentRels = keys.map((k) => k.substring(assetPrefix.length)).toSet();
 
-  // ── 差异清理：删除"上次由 bundle 释放、本次已下线"的文件 ──
-  // 覆盖写入只增不减：旧 APK 打包过的插件（如已下线的 ai-planner）会
-  // 残留在设备目录并被模块扫描加载。此处依据上次释放快照做减法，
-  // 只删 bundle 曾经释放过的文件；marketplace 下载安装的插件不在快照内，
-  // 不会被误删。
-  final manifestFile = File(p.join(target, '.released_manifest.json'));
+  // ── 差异清理：删除"上次由本束释放、本次已下线"的文件 ──
+  // 覆盖写入只增不减：旧包打包过、现已下线的文件会残留并被模块扫描加载。
+  // 依据上次释放快照做减法，只删本束释放过的文件；marketplace 下载的插件
+  // 不在快照内，不会被误删。
+  final manifestFile = File(p.join(targetDir, '.released_manifest.json'));
   Set<String> previousRels = {};
   if (manifestFile.existsSync()) {
     try {
@@ -78,14 +72,14 @@ Future<String?> releasePluginsAssetsIfNeeded() async {
     var removed = 0;
     for (final rel in stale) {
       try {
-        final f = File(p.join(target, rel));
+        final f = File(p.join(targetDir, rel));
         if (f.existsSync()) {
           f.deleteSync();
           removed++;
         }
-        // 清理因删文件而变空的父目录链（不越过插件根）。
+        // 清理因删文件而变空的父目录链（不越过释放根）。
         var dir = f.parent;
-        while (dir.path != target &&
+        while (dir.path != targetDir &&
             dir.existsSync() &&
             dir.listSync().isEmpty) {
           dir.deleteSync();
@@ -93,15 +87,15 @@ Future<String?> releasePluginsAssetsIfNeeded() async {
         }
       } catch (_) {}
     }
-    debugPrint('[PluginRelease] 🧹 差异清理: 删除 ${removed} 个已下线资产'
-        '（插件残留: ${stale.take(5).join(', ')}${stale.length > 5 ? ', ...' : ''}）');
+    debugPrint('[AssetRelease] 🧹 差异清理: 删除 ${removed} 个已下线资产'
+        '（残留: ${stale.take(5).join(', ')}${stale.length > 5 ? ', ...' : ''}）');
   }
 
   var count = 0;
   var skipped = 0;
-  for (final key in pluginKeys) {
-    final rel = key.substring(kPluginAssetPrefix.length);
-    final out = File(p.join(target, rel));
+  for (final key in keys) {
+    final rel = key.substring(assetPrefix.length);
+    final out = File(p.join(targetDir, rel));
     try {
       await out.parent.create(recursive: true);
       final ByteData data = await rootBundle.load(key);
@@ -112,17 +106,16 @@ Future<String?> releasePluginsAssetsIfNeeded() async {
     } on Exception catch (e) {
       // 单个资产加载失败（如打包器未实际包含该文件）不应中断整体释放。
       skipped++;
-      debugPrint('[PluginRelease] 跳过资产 $key: $e');
+      debugPrint('[AssetRelease] 跳过资产 $key: $e');
     }
   }
-  debugPrint('[PluginRelease] 释放完成: $count 个文件'
-      '（跳过 $skipped）→ $target');
+  debugPrint('[AssetRelease] 释放完成: $count 个文件'
+      '（跳过 $skipped）→ $targetDir');
 
   // 写入本次释放快照（供下次启动做差异清理）。
   try {
     await manifestFile.writeAsString(jsonEncode(currentRels.toList()..sort()));
   } catch (e) {
-    debugPrint('[PluginRelease] ⚠ 写入释放快照失败: $e');
+    debugPrint('[AssetRelease] ⚠ 写入释放快照失败: $e');
   }
-  return target;
 }

@@ -9,8 +9,11 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:path/path.dart' as path_pkg;
 import 'package:evergreen_base/providers.dart';
 import 'package:evergreen_base/core/config/settings.dart';
+import 'package:evergreen_base/core/utils/greenix_path.dart';
+import 'package:evergreen_base/core/utils/python_env.dart';
 import '../paper_reading_models.dart';
 import '../paper_reading_state.dart';
 import '../services/paper_service.dart';
@@ -237,8 +240,8 @@ class _StarfieldViewState extends ConsumerState<StarfieldView>
               debugPrint('[Starfield] workDir=$workDir');
 
               final service = PaperVisionService(
-                pythonPath: 'python',
-                scriptPath: '${Directory.current.path}/scripts/paper_vision.py',
+                pythonPath: await resolvePythonExe() ?? 'python',
+                scriptPath: path_pkg.join(greenixScriptsDir, 'paper_vision.py'),
                 apiKey: apiKey,
               );
 
