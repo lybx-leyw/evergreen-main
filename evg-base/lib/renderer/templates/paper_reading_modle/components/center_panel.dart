@@ -6,7 +6,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path/path.dart' as p;
+import 'package:path/path.dart' as path;
 import 'package:evergreen_base/providers.dart';
 import 'package:evergreen_base/core/config/settings.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
@@ -77,7 +77,7 @@ class _CenterPanelState extends ConsumerState<CenterPanel> {
     try {
       final svc = PaperVisionService(
           pythonPath: await resolvePythonExe() ?? 'python',
-          scriptPath: p.join(greenixScriptsDir, 'paper_vision.py'),
+          scriptPath: path.join(greenixScriptsDir, 'paper_vision.py'),
           apiKey: apiKey);
       final result = await svc.translateText(p.content);
       svc.dispose();
