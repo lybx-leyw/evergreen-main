@@ -15,7 +15,11 @@ build/
 *.userosscache
 
 # Greenix 运行时数据（sessions/memories/skills/workspaces/python）
-.greenix/
+# 仅放行内置 skill 资产 acceptance.md（app 启动时从 asset 物化到运行时目录）
+.greenix/*
+!.greenix/skills/
+.greenix/skills/*
+!.greenix/skills/acceptance.md
 
 # 插件目录：源码进版本库；仅排除构建/运行时中间产物与敏感文件
 plugins/**/__pycache__/
