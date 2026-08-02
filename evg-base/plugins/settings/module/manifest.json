@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "2.0",
+  "renderMode": "dart",
+  "type": "module",
+  "id": "settings",
+  "name": "设置",
+  "description": "Evergreen 应用设置——API Key、模型、主题等全局配置",
+  "icon": "settings",
+  "route": "/settings",
+  "version": "2.0.0",
+  "dependencies": [],
+  "nav": {
+    "sidebar": { "section": "base系统", "order": 20 }
+  },
+  "pages": [
+    {
+      "id": "settings_page",
+      "label": "⚙️ 设置",
+      "default": true,
+      "layout": {
+        "type": "grid",
+        "preset": { "columns": 1, "gap": 0 },
+        "slots": {
+          "main": {
+            "component": {
+              "type": "settings"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

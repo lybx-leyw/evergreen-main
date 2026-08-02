@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "html-creator",
+  "name": "HTML 插件创作中心",
+  "description": "三栏 IDE：数据中枢浏览 → HTML/CSS/JS 编辑 → 实时预览 → AI 辅助生成 → 一键导出",
+  "icon": "code",
+  "template": "html",
+  "version": "1.0.0",
+  "route": "/html-creator",
+  "nav": {
+    "sidebar": { "section": "base主功能", "order": 10 }
+  }
+}

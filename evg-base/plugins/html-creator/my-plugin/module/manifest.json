@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "my-plugin",
+  "name": "我的数据面板",
+  "template": "html",
+  "version": "1.0.0",
+  "route": "/my-plugin",
+  "nav": {
+    "sidebar": {
+      "section": "自定义",
+      "sectionOrder": 99,
+      "order": 99
+    }
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "type": "data-source",
+  "runtime": "python",
+  "script": "scraper.py",
+  "dataTypes": [
+        {
+      "name": "zdbk_all",
+      "typeArg": "all",
+      "ttl": "5m",
+      "persistentKey": "custom-zdbk:all",
+      "category": "zdbk",
+      "displayName": "zdbk all"
+    },
+    {
+      "name": "zdbk_timetable",
+      "typeArg": "zdbk_timetable",
+      "ttl": "5m",
+      "persistentKey": "custom-zdbk:timetable",
+      "category": "zdbk",
+      "displayName": "zdbk 课表"
+    },
+    {
+      "name": "zdbk_transcript",
+      "typeArg": "zdbk_transcript",
+      "ttl": "5m",
+      "persistentKey": "custom-zdbk:transcript",
+      "category": "zdbk",
+      "displayName": "zdbk 成绩单"
+    },
+    {
+      "name": "zdbk_major_grade",
+      "typeArg": "zdbk_major_grade",
+      "ttl": "5m",
+      "persistentKey": "custom-zdbk:major_grade",
+      "category": "zdbk",
+      "displayName": "zdbk 主修成绩"
+    },
+    {
+      "name": "zdbk_exams",
+      "typeArg": "zdbk_exams",
+      "ttl": "5m",
+      "persistentKey": "custom-zdbk:exams",
+      "category": "zdbk",
+      "displayName": "zdbk 考试安排"
+    },
+    {
+      "name": "zdbk_course_offerings",
+      "typeArg": "zdbk_course_offerings",
+      "ttl": "5m",
+      "persistentKey": "custom-zdbk:course_offerings",
+      "category": "zdbk",
+      "displayName": "zdbk 开课情况"
+    },
+    {
+      "name": "zdbk_training_plans",
+      "typeArg": "zdbk_training_plans",
+      "ttl": "5m",
+      "persistentKey": "custom-zdbk:training_plans",
+      "category": "zdbk",
+      "displayName": "zdbk 培养方案"
+    },
+    {
+      "name": "zdbk_practice_scores",
+      "typeArg": "zdbk_practice_scores",
+      "ttl": "5m",
+      "persistentKey": "custom-zdbk:practice_scores",
+      "category": "zdbk",
+      "displayName": "zdbk 二三四课堂"
+    },
+    {
+      "name": "zdbk_notifications",
+      "typeArg": "zdbk_notifications",
+      "ttl": "5m",
+      "persistentKey": "custom-zdbk:notifications",
+      "category": "zdbk",
+      "displayName": "zdbk 通知公告"
+    }
+  ]
+}

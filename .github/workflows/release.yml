@@ -1,0 +1,147 @@
+# Evergreen Release 工作流
+# 打 tag v* 或手动触发，构建 APK + Windows 产物并发布 GitHub Release
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '发布版本号 (如 2.0.0-alpha.1)'
+        required: true
+        default: '2.0.0-alpha.1'
+
+jobs:
+  # ─────────────────────────── 1. 安卓 APK ───────────────────────────
+  build-apk:
+    name: 构建 Android APK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: evg-base
+    steps:
+      - uses: actions/checkout@v4
+
+      # Chaquopy 构建期需要 Python 3.11
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: 定位 buildPython 路径
+        run: echo "CHAQUOPY_BUILD_PYTHON=$(command -v python3)" >> "$GITHUB_ENV"
+
+      - name: 接受 Android SDK licenses
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+
+      - name: 缓存 Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('evg-base/android/**/*.gradle*', 'evg-base/android/**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
+      - name: 生成插件资产清单 + pub get
+        env:
+          EVERGREEN_WORKSPACE: ${{ github.workspace }}/evg-base
+        run: |
+          flutter pub get
+          dart run tool/bundle_plugins.dart
+
+      - name: 构建 APK (debug)
+        run: flutter build apk --debug
+
+      - name: 上传 APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: evergreen-android-debug
+          path: evg-base/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+
+  # ─────────────────────────── 2. Windows 桌面 ───────────────────────────
+  build-windows:
+    name: 构建 Windows 桌面
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: evg-base
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: 构建 Windows (debug)
+        run: |
+          flutter pub get
+          flutter build windows --debug
+
+      - name: 打包产物 (zip)
+        run: |
+          Compress-Archive -Path "build/windows/x64/runner/Debug/*" -DestinationPath "evergreen-windows-debug.zip"
+
+      - name: 上传 Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: evergreen-windows-debug
+          path: evg-base/evergreen-windows-debug.zip
+          if-no-files-found: error
+
+  # ─────────────────────────── 3. 创建 Release ───────────────────────────
+  create-release:
+    name: 创建 GitHub Release
+    runs-on: ubuntu-latest
+    needs: [build-apk, build-windows]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 下载所有 artifact
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: 生成 Release Notes
+        id: notes
+        run: |
+          echo '## 变更' > release-notes.md
+          echo '' >> release-notes.md
+          # 提取 tag 之后的所有提交
+          PREV_TAG=$(git tag --sort=-creatordate | sed -n '2p')
+          if [ -z "$PREV_TAG" ]; then
+            echo "首个正式发布" >> release-notes.md
+          else
+            echo "**${PREV_TAG} → ${GITHUB_REF_NAME}**" >> release-notes.md
+            echo '' >> release-notes.md
+            git log "$PREV_TAG"..HEAD --pretty=format:"- %s" >> release-notes.md
+          fi
+          echo "release_notes<<EOF" >> "$GITHUB_OUTPUT"
+          cat release-notes.md >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: 创建 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Evergreen ${{ github.ref_name }}
+          body: ${{ steps.notes.outputs.release_notes }}
+          files: |
+            artifacts/evergreen-android-debug/app-debug.apk
+            artifacts/evergreen-windows-debug/evergreen-windows-debug.zip
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

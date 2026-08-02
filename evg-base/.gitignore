@@ -17,8 +17,13 @@ build/
 # Greenix 运行时数据（sessions/memories/skills/workspaces/python）
 .greenix/
 
-# 插件目录（含凭证 config 与运行时状态，不进版本库）
-plugins/
+# 插件目录：源码进版本库；仅排除构建/运行时中间产物与敏感文件
+plugins/**/__pycache__/
+plugins/**/*.pyc
+plugins/**/*.exe
+plugins/**/*.png
+plugins/**/render_log.html
+plugins/**/*.data_port
 
 # OS
 .DS_Store
@@ -26,6 +31,9 @@ Thumbs.db
 
 # Reference
 .reference
+
+# 测试用假反馈数据（截图为自己截的，非真实用户反馈）
+test/feedback/
 
 # Agent 运行时数据（本次会话产物：分析输出/截断结果缓存）
 .reasonix/

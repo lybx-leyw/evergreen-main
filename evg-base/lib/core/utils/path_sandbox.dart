@@ -96,7 +96,14 @@ class PathSandbox {
         out.insert(0, driveMatch.group(1)!);
       }
     }
-    final result = '${out.join(sep)}${abs.endsWith(sep) ? sep : ''}'.replaceAll('$sep$sep', sep);
+    // 保留根分隔符：split(sep) 会过滤掉 POSIX 绝对路径开头的空段，
+    // join 后不补回会把绝对路径降级成相对路径——Linux/Android 上
+    // 相对路径会按进程 cwd 解析，导致 confine() 返回的路径找不到文件。
+    final rooted = abs.startsWith(sep);
+    final joined = out.join(sep);
+    final result =
+        '${rooted && !joined.startsWith(sep) ? sep : ''}$joined'
+        '${abs.endsWith(sep) ? sep : ''}'.replaceAll('$sep$sep', sep);
     return result;
   }
 

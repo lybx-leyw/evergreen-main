@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "theme-creator",
+  "name": "主题创作中心",
+  "description": "可视化编辑主题：8 色语义色板 + Dart 实时预览 + AI 生成 + 一键导出主题插件",
+  "icon": "palette",
+  "template": "theme-creator",
+  "version": "1.0.0",
+  "route": "/theme-creator",
+  "nav": {
+    "sidebar": { "section": "base主功能", "order": 10 }
+  }
+}
