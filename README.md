@@ -6,27 +6,87 @@
 
 ---
 
-## 特性
+## 内置插件资产
+
+> 2.0-alpha 预览版已集成 **12 个模块插件** + **15 个内置 Agent 工具**，覆盖 AI 对话、数据采集、学术研读、效率工具、创作定制全场景。
+
+### AI 工具
+
+| 插件 | 能力 |
+|------|------|
+| **AI 助手** `ai-assistant` | 全功能聊天界面：多级深度思考、联网搜索（Bing）、工具调用、多会话管理 |
+| **Python 运行器** `python-runner` | Agent 可调用的本地 Python 3.10 环境：执行任意代码、pip 包管理、系统诊断 |
+| **HTML 创作中心** `html-creator` | 三栏 IDE：数据中枢浏览 → HTML/CSS/JS 编辑 → 实时预览 → AI 辅助生成 → 一键导出 |
+
+### 数据与采集
+
+| 插件 | 能力 |
+|------|------|
+| **所见即所得爬虫** `scraper` | 内嵌浏览器抓包 → AI 自动生成 Python 爬虫 → 导出 `.py` / `.exe` |
+| **数据中枢** `data-dashboard` | 数据源状态总览：连通性检测、新鲜度检查、一键拉取 |
+| **浙大教务网数据源** `data-zdbk` | 浙大教务网对接，提供 9 种数据类型：课表、成绩、考试、培养方案…… |
+
+### 效率工具
+
+| 插件 | 能力 |
+|------|------|
+| **PDF 翻译** `pdf_translate` | DeepSeek API 驱动，中/英/日/韩/法/德/西 7 语言互译，双语对照 PDF 输出，多文件并行翻译 |
+| **插件市场** `marketplace` | 插件全生命周期管理：浏览、搜索、安装、启用/停用、卸载 |
+| **设置面板** `settings` | API Key、模型、主题等全局配置，附带 HTTP 设置页面 |
+| **成绩 View** `view` | HTML 模板渲染的成绩查看器 |
+
+### 创作定制
+
+| 插件 | 能力 |
+|------|------|
+| **主题创作中心** `theme-creator` | 8 色语义色板可视化编辑 + Dart 实时预览 + AI 生成 + 一键导出主题插件 |
+| **温馨学习** `warm_study` | 暖色调主题（#FAF3E7 背景 + 8 色语义色板） |
+
+### Agent 工具体系
+
+AI Agent 可调用 **15 个内置工具**，均通过 `function calling` 自动调度：
+
+| 类别 | 工具 | 权限 |
+|------|------|------|
+| 文件操作 | `read_file` `write_file` `read_head` `read_tail` `file_info` `grep` | 写操作需确认 |
+| 记忆管理 | `read_global_memory` `write_global_memory` | 写操作需确认 |
+| 网络 | `web_search`（Bing 零 API Key） `web_fetch` | 只读 |
+| 数据 | `data_query` `get_user_info` | 只读 |
+| 技能 | `list_skills` `run_skill` | 只读 |
+| 执行 | `python_runner`（本地 Python 解释器） | 需确认 |
+
+### 截图一览
+
+<table>
+<tr>
+<td align="center" width="50%"><b>AI 助手</b><br><img src="docs/features/ai-assistant.png" alt="AI 助手" width="100%"></td>
+<td align="center" width="50%"><b>HTML 创作中心</b><br><img src="docs/features/html-creator.png" alt="HTML 创作中心" width="100%"></td>
+</tr>
+<tr>
+<td align="center" width="50%"><b>爬虫生成器</b><br><img src="docs/features/scraper.png" alt="爬虫生成器" width="100%"></td>
+<td align="center" width="50%"><b>数据中枢</b><br><img src="docs/features/data-dashboard.png" alt="数据中枢" width="100%"></td>
+</tr>
+<tr>
+<td align="center" width="50%"><b>PDF 翻译</b><br><img src="docs/features/pdf-translate.png" alt="PDF 翻译" width="100%"></td>
+<td align="center" width="50%"><b>插件市场</b><br><img src="docs/features/marketplace.png" alt="插件市场" width="100%"></td>
+</tr>
+<tr>
+<td align="center" width="50%"><b>设置面板</b><br><img src="docs/features/settings.png" alt="设置面板" width="100%"></td>
+<td align="center" width="50%"><b>主题创作中心</b><br><img src="docs/features/theme-creator.png" alt="主题创作中心" width="100%"></td>
+</tr>
+</table>
+
+---
+
+## 架构特性
 
 - **双轨架构** — `PluginBridge`（Agent Tool 调 Python 插件）+ `ModuleLoader`（Flutter 模块插件），两种扩展方式解耦
 - **声明式模块** — `ModuleDescriptor` JSON 注册 → `TemplateRegistry` 分派路由，未知字段静默忽略
-- **AI Agent 引擎** — function calling / 多级深度思考 / SSE 流式 / web_search（Bing 抓取，零 API key）/ 多 Agent 协作视图
-- **多模板共存** — 同一份 `ModuleDescriptor` 可路由到不同 UI 模板
-
-| 模板 | 适用场景 | 特点 |
-|------|---------|------|
-| **v4_modle** | 通用模块 | composite 布局、卡片/表格/图表/代码、AI 助手抽屉、插件市场 |
-| **paper_reading_modle** | 学术论文研读 | 书架 → 星空 → 三栏终端（原文/译文/草稿 + AI 答疑） |
-| **html_modle** | HTML 内嵌渲染 | 内嵌 WebView 或 HTML 解析渲染 |
-| **scraper_modle** | 爬虫生成器 | 可视化爬虫配置与数据抓取 |
-| **theme_creator_modle** | 主题创建器 | 可视化编辑 + 热预览主题方案 |
-| **zdbk_modle** | 知大百科 | 知识库浏览器 |
-| **zju_modle** | ZJU 校园 | 浙大校园场景适配 |
-
-- **全流程插件系统** — 插件定义 → PyInstaller 打包 → 插件市场安装/卸载，完整闭环
+- **多模板共存** — v4（通用 composite）、paper_reading（论文三栏）、html（内嵌渲染）、scraper（爬虫生成）、theme_creator（主题编辑）、zju（浙大校园）等 7 套模板
+- **全流程插件系统** — 插件定义 → 打包 → 插件市场安装/卸载，完整闭环
 - **本地优先** — 数据走 `.greenix/` 工作区文件系统 + SharedPreferences，零服务端依赖
 - **三层架构** — `core/`（纯 Dart 服务层）→ `plugins/`（JSON 声明 + .exe）→ `renderer/`（纯 UI 渲染层），严格分层禁止跨层耦合
-- **CI/CD 就绪** — GitHub Actions 自动执行子包测试、Flutter 测试、Android APK 构建、Windows 桌面构建
+- **CI/CD 就绪** — `Test` 工作流（push/PR 快速验证）+ `Release` 工作流（tag v* 触发或手动构建发布）
 
 ---
 
@@ -47,7 +107,7 @@ flutter run -d windows   # 或 -d android
 
 ```
 evergreen-main/
-├── .github/workflows/ci.yml    GitHub Actions CI（子包测试 + Flutter 测试 + APK + Windows 构建）
+├── .github/workflows/          GitHub Actions（test.yml + release.yml）
 ├── evg-base/
 │   ├── lib/
 │   │   ├── main.dart           启动入口
@@ -75,19 +135,19 @@ evergreen-main/
 │   │   │
 │   │   └── theme/              根级兼容性 stub
 │   │
-│   ├── plugins/                插件仓库（17 个内置插件）
+│   ├── plugins/                插件仓库（12 个内置插件）
 │   │   ├── ai-assistant/       AI 助手
 │   │   ├── data-dashboard/     数据看板
-│   │   ├── data-zdbk/          知大百科数据源
+│   │   ├── data-zdbk/          浙大教务网数据源
+│   │   ├── html-creator/       HTML 创作中心
 │   │   ├── marketplace/        插件市场
 │   │   ├── pdf_translate/      PDF 翻译
 │   │   ├── python-runner/      Python 运行器
 │   │   ├── scraper/            爬虫生成器
 │   │   ├── settings/           设置面板
 │   │   ├── theme-creator/      主题创建器
-│   │   ├── warm_study/         温馨学习主题
-│   │   └── liyu_weiyang_hongfen/ 丽语未央红粉主题
-│   │
+│   │   ├── view/               成绩 View
+│   │   └── warm_study/         温馨学习主题
 │   ├── scripts/                Python 管线脚本
 │   │   ├── paper_reader.py     PDF 提取 + pdf2zh_next 翻译
 │   │   ├── paper_vision.py     OCR + 章节拆分 + 段落重排 + 翻译
@@ -116,7 +176,7 @@ evergreen-main/
 
 **AI**: DeepSeek API（Chat + FIM）· Bing 搜索引擎
 
-**Python 管线**: PyInstaller · pdf2zh_next · pymupdf · Chaquopy（Android 端内嵌 Python 3.11）
+**Python 管线**: pdf2zh_next · pymupdf · Chaquopy（Android 端内嵌 Python 3.11）
 
 ---
 
@@ -144,41 +204,51 @@ renderer 通过 Riverpod 从 core 取数据，不直调 HTTP；core 不引用任
 
 ---
 
-## 插件系统
+## 创建新插件
+
+只需一个 JSON 声明文件即可注册模块：
 
 ```jsonc
-// plugins/<id>/config/config.json — JSON 声明即可注册
+// plugins/<id>/module/manifest.json
 {
   "id": "my-tool",
   "name": "My Tool",
   "version": "1.0.0",
   "template": "v4",
+  "description": "...",
   "pages": [
     {
       "id": "main",
       "title": "主页",
       "layout": { "type": "composite", "slots": [...] }
     }
-  ],
-  "actions": [
-    { "id": "do-sth", "label": "执行", "exec": "tool.exe --input {data}" }
   ]
 }
 ```
 
-Python 可执行体通过 `PluginBridge` 被 Agent Tool 调用（本地子进程，JSON Lines 协议），或打包为 `.exe` 供插件市场安装。Agent 工具体系内置 12+ 工具（calculator、password-gen、uuid-gen、base64、unit-convert、json-format、qr-text 等）。
+Python 脚本通过 `PluginBridge` 注册为 Agent 工具（本地子进程，JSON Lines 协议），或用 PyInstaller 打包为 `.exe` 供插件市场分发。
 
 ---
 
-## CI
+## CI / CD
 
-推送到 `main` 分支或发起 PR 时，GitHub Actions 自动运行：
+### Test 工作流（`test.yml`）
+
+`push` 到 `main` 或发起 `pull_request` 时自动触发，5-10 分钟出结果：
 
 | Job | 说明 | 环境 |
 |-----|------|------|
-| 子包测试 | core 6 个子模块 dart test | ubuntu-latest |
-| Flutter 测试 | 根级 testWidgets + 集成测试 | ubuntu-latest |
-| 构建 APK | Android debug APK（Chaquopy Python 3.11） | ubuntu-latest |
-| 构建 Windows | Windows 桌面 debug 构建 | windows-latest |
+| 子包测试 | core 子模块 dart test | ubuntu-latest |
+| Flutter 测试 | 根级 flutter test（含 widget 测试） | ubuntu-latest |
 
-APK 和 Windows 构建产物自动上传为 artifact。
+### Release 工作流（`release.yml`）
+
+打 `v*` tag 或手动触发（`workflow_dispatch`），构建产物并创建 GitHub Release：
+
+| Job | 说明 | 环境 |
+|-----|------|------|
+| 构建 Android APK | debug APK（Chaquopy Python 3.11） | ubuntu-latest |
+| 构建 Windows | 桌面 debug 构建 → zip | windows-latest |
+| 创建 Release | 自动生成 Release Notes + 附件上传 | ubuntu-latest |
+
+> Alpha/Beta/RC 版本自动标记为 pre-release。

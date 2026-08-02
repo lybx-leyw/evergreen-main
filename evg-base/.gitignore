@@ -27,6 +27,9 @@ Thumbs.db
 # Reference
 .reference
 
+# 测试用假反馈数据（截图为自己截的，非真实用户反馈）
+test/feedback/
+
 # Agent 运行时数据（本次会话产物：分析输出/截断结果缓存）
 .reasonix/
 

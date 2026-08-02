@@ -1,0 +1,65 @@
+# Evergreen 测试工作流
+# 每次 push/PR 触发，快速验证代码质量，5-10 分钟内出结果
+#
+#   1. subpackage-tests — core 子模块纯 Dart 测试
+#   2. flutter-tests    — 根 Flutter widget 测试
+
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─────────────────────────── 1. 子包测试 ───────────────────────────
+  subpackage-tests:
+    name: 子包测试 (core 子模块)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: evg-base
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: dart test（. / config / data / agent / theme / module）
+        run: |
+          set -euo pipefail
+          for pkg in . config data agent theme module; do
+            echo "===== lib/core/$pkg ====="
+            (cd "lib/core/$pkg" && dart pub get && dart test)
+          done
+
+  # ─────────────────────────── 2. 根 Flutter 测试 ───────────────────────────
+  flutter-tests:
+    name: Flutter 测试
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: evg-base
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: 生成插件资产清单
+        env:
+          EVERGREEN_WORKSPACE: ${{ github.workspace }}
+        run: |
+          flutter pub get
+          dart run tool/bundle_plugins.dart
+
+      - name: flutter test
+        run: flutter test
