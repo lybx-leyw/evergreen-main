@@ -21,6 +21,7 @@ build/
 plugins/**/__pycache__/
 plugins/**/*.pyc
 plugins/**/*.exe
+plugins/**/*.png
 plugins/**/render_log.html
 plugins/**/*.data_port
 
