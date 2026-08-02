@@ -106,8 +106,8 @@ jobs:
           Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\python-embed.zip"
           Expand-Archive -Path "$env:TEMP\python-embed.zip" -DestinationPath $dest -Force
           # embeddable 默认注释掉 import site → pip 无法工作，启用之
-          # （PowerShell -replace 的 ^ 默认非 multiline，不能带行首锚点）
-          Get-ChildItem $dest -Filter "*.pth" | ForEach-Object {
+          # （文件名是 pythonNNN._pth，扩展名 _pth 而非 pth）
+          Get-ChildItem $dest -Filter "*._pth" | ForEach-Object {
             $c = Get-Content $_.FullName -Raw
             $c = $c -replace "#import site", "import site"
             [IO.File]::WriteAllText($_.FullName, $c)
