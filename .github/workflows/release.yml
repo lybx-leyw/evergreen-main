@@ -106,14 +106,16 @@ jobs:
           Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\python-embed.zip"
           Expand-Archive -Path "$env:TEMP\python-embed.zip" -DestinationPath $dest -Force
           # embeddable 默认注释掉 import site → pip 无法工作，启用之
+          # （PowerShell -replace 的 ^ 默认非 multiline，不能带行首锚点）
           Get-ChildItem $dest -Filter "*.pth" | ForEach-Object {
             $c = Get-Content $_.FullName -Raw
-            $c = $c -replace "^#import site", "import site"
+            $c = $c -replace "#import site", "import site"
             [IO.File]::WriteAllText($_.FullName, $c)
           }
           # embeddable 不带 pip，先经 get-pip.py 引导
           Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile "$env:TEMP\get-pip.py"
           & "$dest\python.exe" "$env:TEMP\get-pip.py"
+          & "$dest\python.exe" -m pip --version
           & "$dest\python.exe" -m pip install -r scripts\requirements.txt
 
       - name: 构建 Inno Setup 安装包
