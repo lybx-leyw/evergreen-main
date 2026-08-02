@@ -54,7 +54,7 @@ jobs:
 
       - name: 生成插件资产清单 + pub get
         env:
-          EVERGREEN_WORKSPACE: ${{ github.workspace }}
+          EVERGREEN_WORKSPACE: ${{ github.workspace }}/evg-base
         run: |
           flutter pub get
           dart run tool/bundle_plugins.dart
