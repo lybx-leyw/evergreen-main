@@ -141,8 +141,11 @@ evg-base/tmp_*.txt
 # ──────────────────────────────────────────────────────────
 build/
 coverage/
-# 仅根目录的 .greenix（evg-base/.greenix 由 evg-base/.gitignore 精确豁免内置 skill）
-/greenix/
+# .greenix 运行时数据：整体忽略（根 + evg-base）；仅放行内置 skill 资产
+.greenix/*
+!.greenix/skills/
+.greenix/skills/*
+!.greenix/skills/acceptance.md
 .pytest_cache/
 config_debug.txt
 data_slot_test.txt
