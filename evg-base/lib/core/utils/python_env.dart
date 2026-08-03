@@ -2,7 +2,6 @@
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:evergreen_base/core/log.dart';
-import 'package:evergreen_base/core/utils/greenix_path.dart';
 
 /// 按优先级自动发现 Python 可执行文件路径。
 ///
@@ -21,7 +20,8 @@ Future<String?> resolvePythonExe({String? configuredPath}) async {
   }
 
   // ② 应用数据目录下的嵌入式 Python（`.greenix/python/python.exe`）
-  final greenixPy = p.join(greenixPythonDir, 'python.exe');
+  // 用内联 cwd 路径（子包测试隔离，无法 import greenix_path；桌面 cwd 通常即安装目录）。
+  final greenixPy = p.join(Directory.current.path, '.greenix', 'python', 'python.exe');
   try {
     if (await File(greenixPy).exists()) {
       Log().info('PythonEnv: using greenix embedded Python', data: {'path': greenixPy});
