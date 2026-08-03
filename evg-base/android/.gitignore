@@ -12,3 +12,7 @@ GeneratedPluginRegistrant.java
 key.properties
 **/*.keystore
 **/*.jks
+
+# 例外：android/app/debug.keystore 需提交进版本库，
+# 让 CI 与本地用同一个 debug 签名（否则每次 CI 新生成 → 签名不同 → 无法 install -r 覆盖）。
+!**/debug.keystore
