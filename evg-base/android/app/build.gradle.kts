@@ -80,14 +80,23 @@ chaquopy {
         // pycryptodome 含 C 扩展（无法手动拷贝源码），必须由 chaquopy 构建期装 wheel 进 APK，
         // 供爬虫脚本 `import Crypto.*`（RSA/AES 加密登录）使用。
         // 安卓 PDF 翻译（pdf_translate_pure.py，纯 Python 管线）：
-        // pdfminer.six 读布局 + reportlab 写 PDF + pypdf 合并 + openai(httpx) 调 DeepSeek。
-        // 全部纯 Python，Chaquopy 可装（区别于 babeldoc 依赖的 pymupdf/freetype/cv2 等 C 库）。
+        // pdfminer.six 读布局 + reportlab 写 PDF + pypdf 合并。
+        // 复用 pdf2zh_next 翻译引擎（DeepSeek→OpenAI 兼容）需 openai/httpx/pydantic/
+        // tomlkit/peewee/tenacity/rich/requests；babeldoc 的 AtomicInteger 由
+        // scripts/babeldoc/ shim 提供（babeldoc 本体依赖 pymupdf 无法安装）。
+        // 全部纯 Python，Chaquopy 可装（区别于 babeldoc 的 pymupdf/freetype/cv2 等 C 库）。
         pip {
             install("pycryptodome")
             install("pdfminer.six")
             install("reportlab")
             install("pypdf")
             install("openai")
+            install("httpx")
+            install("pydantic")
+            install("tomlkit")
+            install("peewee")
+            install("tenacity")
+            install("rich")
         }
     }
     // Python 源目录默认 src/main/python（动态插件由 MethodChannel 从设备路径按需加载，无需打包进 APK）。
