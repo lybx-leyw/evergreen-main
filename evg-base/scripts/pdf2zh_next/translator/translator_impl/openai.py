@@ -1,8 +1,8 @@
 import logging
+import threading
 
 import httpx
 import openai
-from babeldoc.utils.atomic_integer import AtomicInteger
 from pdf2zh_next.config.model import SettingsModel
 from pdf2zh_next.translator.base_rate_limiter import BaseRateLimiter
 from pdf2zh_next.translator.base_translator import BaseTranslator
@@ -13,6 +13,33 @@ from tenacity import stop_after_attempt
 from tenacity import wait_exponential
 
 logger = logging.getLogger(__name__)
+
+
+class _AtomicInteger:
+    """局部替代 babeldoc.utils.atomic_integer.AtomicInteger（安卓无 babeldoc）。"""
+
+    def __init__(self, value=0):
+        self._value = int(value)
+        self._lock = threading.Lock()
+
+    def inc(self, d=1):
+        with self._lock:
+            self._value += int(d)
+            return self._value
+
+    def dec(self, d=1):
+        return self.inc(-d)
+
+    @property
+    def value(self):
+        with self._lock:
+            return self._value
+
+    @value.setter
+    def value(self, v):
+        with self._lock:
+            self._value = int(v)
+            return self._value
 
 
 class OpenAITranslator(BaseTranslator):
@@ -62,10 +89,10 @@ class OpenAITranslator(BaseTranslator):
         self.model = settings.translate_engine_settings.openai_model
         self.add_cache_impact_parameters("model", self.model)
         self.add_cache_impact_parameters("prompt", self.prompt(""))
-        self.token_count = AtomicInteger()
-        self.prompt_token_count = AtomicInteger()
-        self.completion_token_count = AtomicInteger()
-        self.cache_hit_prompt_token_count = AtomicInteger()
+        self.token_count = _AtomicInteger()
+        self.prompt_token_count = _AtomicInteger()
+        self.completion_token_count = _AtomicInteger()
+        self.cache_hit_prompt_token_count = _AtomicInteger()
 
         self.enable_json_mode = (
             settings.translate_engine_settings.openai_enable_json_mode

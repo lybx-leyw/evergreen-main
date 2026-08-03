@@ -23,10 +23,13 @@ from pdf2zh_next.config.model import PDFSettings
 from pdf2zh_next.config.model import SettingsModel
 from pdf2zh_next.config.model import TranslationSettings
 from pdf2zh_next.config.model import WatermarkOutputMode
-from pdf2zh_next.high_level import create_babeldoc_config
-from pdf2zh_next.high_level import do_translate_async_stream
-from pdf2zh_next.high_level import do_translate_file
-from pdf2zh_next.high_level import do_translate_file_async
+# ⚠️ Android 兼容：high_level 依赖 babeldoc.format（需 pymupdf，安卓无法安装）。
+# 纯 Python 翻译只用到 config + translator，故不再在此 re-export high_level。
+# Windows 端 pdf_translate.py 直接 `from pdf2zh_next.high_level import ...` 不受影响。
+# from pdf2zh_next.high_level import create_babeldoc_config
+# from pdf2zh_next.high_level import do_translate_async_stream
+# from pdf2zh_next.high_level import do_translate_file
+# from pdf2zh_next.high_level import do_translate_file_async
 
 # from pdf2zh_next.high_level import translate, translate_stream
 
