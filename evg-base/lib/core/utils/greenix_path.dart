@@ -22,7 +22,11 @@ Future<void> initGreenixPaths() async {
     final support = await getApplicationSupportDirectory();
     _greenixBaseDir = p.join(support.path, '.greenix');
   } else {
-    _greenixBaseDir = p.join(Directory.current.path, '.greenix');
+    // 桌面：优先可执行文件目录下的 .greenix（已安装 App，cwd 可能非安装目录）；
+    // 否则退回当前工作目录（开发模式，cwd = 项目根）。
+    final exeBase = p.join(p.dirname(Platform.resolvedExecutable), '.greenix');
+    _greenixBaseDir =
+        Directory(exeBase).existsSync() ? exeBase : p.join(Directory.current.path, '.greenix');
   }
 }
 

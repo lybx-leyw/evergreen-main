@@ -41,10 +41,11 @@ bool _shouldSkip(String relative) {
   final parts = p.split(relative);
   final name = parts.isNotEmpty ? parts.last : '';
 
-  // 任意层级的缓存 / 版本控制 / 点文件 / 下划线前缀（测试与临时产物）
+  // 任意层级的缓存 / 版本控制 / 点文件 / 单下划线前缀（测试与临时产物）。
+  // ⚠️ 双下划线（__init__.py / __main__.py）是 Python 包必需文件，不能跳过。
   for (final part in parts) {
     if (part == '__pycache__' || part == '.git') return true;
-    if (part.startsWith('_')) return true;
+    if (part.startsWith('_') && !part.startsWith('__')) return true;
   }
   if (name.startsWith('.')) return true;
 

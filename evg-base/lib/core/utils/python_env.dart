@@ -6,8 +6,9 @@ import 'package:evergreen_base/core/log.dart';
 /// 按优先级自动发现 Python 可执行文件路径。
 ///
 /// 1. [configuredPath] 用户/项目指定的路径（如 `.greenix/python/python.exe`）
-/// 2. 系统 PATH：`python3` → `python` → `py -3`
-/// 3. 安卓：Chaquopy 进程内解释器
+/// 2. `.greenix/python/python.exe`（嵌入式 Python，应用数据目录）
+/// 3. 系统 PATH：`python3` → `python` → `py -3`
+/// 4. 安卓：Chaquopy 进程内解释器
 Future<String?> resolvePythonExe({String? configuredPath}) async {
   // ① 优先使用调用方指定的路径（嵌入式 Python 统一走 `.greenix/python/python.exe`）
   if (configuredPath != null && configuredPath.isNotEmpty) {
@@ -18,7 +19,17 @@ Future<String?> resolvePythonExe({String? configuredPath}) async {
     }
   }
 
-  // ② 系统 PATH 回退
+  // ② 应用数据目录下的嵌入式 Python（`.greenix/python/python.exe`）
+  // 用内联 cwd 路径（子包测试隔离，无法 import greenix_path；桌面 cwd 通常即安装目录）。
+  final greenixPy = p.join(Directory.current.path, '.greenix', 'python', 'python.exe');
+  try {
+    if (await File(greenixPy).exists()) {
+      Log().info('PythonEnv: using greenix embedded Python', data: {'path': greenixPy});
+      return greenixPy;
+    }
+  } catch (_) {}
+
+  // ③ 系统 PATH 回退
   for (final candidate in ['python3', 'python', 'py']) {
     try {
       final checkArgs = candidate == 'py' ? ['-3', '--version'] : ['--version'];
@@ -30,7 +41,7 @@ Future<String?> resolvePythonExe({String? configuredPath}) async {
     } catch (_) {}
   }
 
-  // ③ 安卓：进程内 Chaquopy 解释器（不走 Process）。
+  // ④ 安卓：进程内 Chaquopy 解释器（不走 Process）。
   // 返回哨兵字符串 'chaquopy' 仅作标识；实际执行由 [ChaquopyRunner]
   // 经 MethodChannel 完成。桌面不应触达此分支。
   if (Platform.isAndroid) {
