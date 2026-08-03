@@ -79,8 +79,14 @@ chaquopy {
         // 已手动放入 src/main/python/（纯 Python 源码，构建期由 buildPython 编译打包）。
         // pycryptodome 含 C 扩展（无法手动拷贝源码），必须由 chaquopy 构建期装 wheel 进 APK，
         // 供爬虫脚本 `import Crypto.*`（RSA/AES 加密登录）使用。
+        // PDF 翻译（pdf2zh_next）：babeldoc 为重型文档翻译引擎，含 C 扩展/ML，只能构建期
+        // 装 wheel；pymupdf 有安卓 wheel；openai/tomlkit 为纯 Python。APK 显著变大（已确认取舍）。
         pip {
             install("pycryptodome")
+            install("babeldoc")
+            install("pymupdf")
+            install("openai")
+            install("tomlkit")
         }
     }
     // Python 源目录默认 src/main/python（动态插件由 MethodChannel 从设备路径按需加载，无需打包进 APK）。

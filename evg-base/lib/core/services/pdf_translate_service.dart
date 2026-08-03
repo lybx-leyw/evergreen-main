@@ -325,8 +325,14 @@ class PdfTranslateService {
     );
   }
 
-  /// 安卓：解析 pdf_translate.py 在设备上的 chaquopy 资源路径。
+  /// 安卓：解析 pdf_translate.py 在设备上的路径。
+  ///
+  /// 优先使用启动期释放到 `.greenix/scripts/` 的脚本（打包进 flutter 资产，
+  /// 与 pdf2zh_next 同目录 → runScript 的 searchDir 可导入）；回退到
+  /// Chaquopy 打包的 python 资产。
   Future<String> _resolveAndroidScriptPath() async {
+    final released = p.join(greenixScriptsDir, 'pdf_translate.py');
+    if (File(released).existsSync()) return released;
     try {
       final assetPath = await const MethodChannel('evergreen/python')
           .invokeMethod<String>('getAssetPath', {'name': 'pdf_translate.py'});
