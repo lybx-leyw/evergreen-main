@@ -331,8 +331,11 @@ class PdfTranslateService {
   /// 与 pdf2zh_next 同目录 → runScript 的 searchDir 可导入）；回退到
   /// Chaquopy 打包的 python 资产。
   Future<String> _resolveAndroidScriptPath() async {
-    final released = p.join(greenixScriptsDir, 'pdf_translate.py');
-    if (File(released).existsSync()) return released;
+    // 优先纯 Python 管线脚本（安卓专用：pdfminer/reportlab，不依赖 pymupdf/babeldoc）
+    final pure = p.join(greenixScriptsDir, 'pdf_translate_pure.py');
+    if (File(pure).existsSync()) return pure;
+    final legacy = p.join(greenixScriptsDir, 'pdf_translate.py');
+    if (File(legacy).existsSync()) return legacy;
     try {
       final assetPath = await const MethodChannel('evergreen/python')
           .invokeMethod<String>('getAssetPath', {'name': 'pdf_translate.py'});
@@ -346,6 +349,12 @@ class PdfTranslateService {
   /// 检查翻译环境是否就绪。  ///
   /// 返回 [EnvStatus.ready] / [EnvStatus.missingPython] / [EnvStatus.missingDeps]。
   Future<EnvStatus> checkEnvironment() async {
+    // 安卓：翻译依赖已随 APK 打包（Chaquopy pip{}），仅需确认纯 Python 脚本释放就位。
+    if (Platform.isAndroid) {
+      final script = p.join(greenixScriptsDir, 'pdf_translate_pure.py');
+      if (File(script).existsSync()) return EnvStatus.ready;
+      return EnvStatus.missingDeps;
+    }
     try {
       final python = await _resolvePython();
       if (python == null) return EnvStatus.missingPython;
