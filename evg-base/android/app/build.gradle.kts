@@ -40,11 +40,26 @@ android {
         }
     }
 
+    // 统一 debug 签名：本地 flutter run 与 CI（release.yml 的 flutter build apk --debug）
+    // 都使用仓库内 android/app/debug.keystore（标准 debug 密钥）。
+    // 否则 CI runner 每次全新 → 每次新生成 ~/.android/debug.keystore → 签名每次不同
+    // → adb install -r 覆盖升级报签名不匹配。
+    signingConfigs {
+        create("evergreenDebug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("evergreenDebug")
+        }
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // 正式发布仍暂用同一 debug 密钥（后续可换独立 release key）。
+            signingConfig = signingConfigs.getByName("evergreenDebug")
         }
     }
 }
