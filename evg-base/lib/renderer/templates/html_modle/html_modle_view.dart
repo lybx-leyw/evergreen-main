@@ -2,13 +2,18 @@
 ///
 /// JS Bridge API (插件侧)：
 ///   platform.data.get(name)      → 从数据中枢获取数据
-///   platform.data.subscribe(name, fn) → 订阅数据变化
-///   platform.ai.chat(prompt)     → AI 对话
+///   platform.data.refresh(name)  → 强制刷新数据源（POST /data/types/:name/refresh）
+///   platform.data.testConnectivity() → 测试全部数据源连通性（POST /data/connectivity/test）
+///   platform.data.subscribe(name, fn) → 订阅数据变化（Dart 侧 5s 轮询，变化触发 data:changed）
+///   platform.ai.chat(prompt, [style]) → AI 对话（接 AgentHttpServer POST /agent/chat）
+///   platform.api.call(service, path, {method, body}) → 通用 core 服务 HTTP 转发
+///     - service: agent/config/data/module/theme/core（6 组 core 服务）
+///     - 端口来自 `.xxx_port` 端口文件（CoreApiDiscovery）
 ///   platform.settings.get(key)   → 读取设置
 ///   platform.settings.set(k, v)  → 写入设置
 ///   platform.theme.getColors()   → 获取当前主题色板（Promise<Object>）
-///   platform.emit(event, data)   → 发出事件
-///   platform.on(event, fn)       → 监听事件（含 'theme:changed'）
+///   platform.emit(event, data)   → 发出事件（PageEventBus 广播）
+///   platform.on(event, fn)       → 监听事件（PageEventBus 订阅 + 'theme:changed'）
 ///
 /// 平台：Windows 用 webview_windows（chrome.webview 通道），
 /// Android 用 webview_flutter（evgBridge JS 通道），bridge 双通道兼容。
@@ -43,6 +48,8 @@ import 'package:evergreen_base/core/module/page_event_bus.dart';
 import 'package:evergreen_base/providers.dart';
 import 'package:evergreen_base/renderer/app/service/theme/render_tokens.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/creative/html-creator/html_creator_view.dart';
+import 'bridge_script.dart';
+import 'core_api_discovery.dart';
 
 /// HTML 模板主视图。
 class HtmlModleView extends ConsumerStatefulWidget {
@@ -69,21 +76,52 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
   int _httpPort = 0;
   bool _initialized = false;
 
+  /// 页级事件总线：插件 `emit`/`on` 的桥接通道（Dart 侧广播 ↔ JS 侧回调）。
+  late final PageEventBus _eventBus = PageEventBus(pageId: widget.descriptor.id);
+  StreamSubscription<SlotEvent>? _eventBusSub;
+
+  /// 数据订阅轮询：dataName → 5s 拉取，值变化推送 data:changed（共享实现）。
+  late final DataSubscriptionPoller _poller;
+
   @override
   void initState() {
     super.initState();
     _startServer();
+    _poller = DataSubscriptionPoller(
+      fetch: (name) async {
+        final orch = ref.read(dataOrchestratorProvider);
+        final dt = orch.typeByName(name);
+        if (dt == null) return null; // 未注册：跳过本轮
+        return await orch.fastRead(dt) ?? await orch.get(dt);
+      },
+      executeJs: _executeJs,
+    );
     // 主题切换时把新色板推送到页面：更新 CSS 变量 + 触发 'theme:changed' 事件。
     ref.listenManual(themeStoreProvider, (prev, next) {
       if (_initialized) {
         _executeJs('window.__evgApplyTheme(${jsonEncode(_themeColors())})');
       }
     });
+    // PageEventBus → JS：Dart 侧（其他栏/模块）发出的事件推送给页面 `platform.on`。
+    _eventBusSub = _eventBus.all.listen((evt) {
+      if (!_initialized) return;
+      final payload = jsonEncode({
+        'event': evt.event,
+        'source': evt.sourceSlot,
+        'data': evt.data,
+        'timestamp': evt.timestamp.toIso8601String(),
+      });
+      debugPrint('[HtmlModleView] PageEventBus → JS: ${evt.event}');
+      _executeJs('window.__evgFireEvent(${jsonEncode(evt.event)}, $payload)');
+    });
   }
 
   @override
   void dispose() {
     _httpServer?.close();
+    _poller.dispose();
+    _eventBusSub?.cancel();
+    _eventBus.dispose();
     if (!Platform.isAndroid) {
       _controller.dispose();
     }
@@ -216,109 +254,7 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
     return _controller.executeScript(script);
   }
 
-  String _bridgeScript() {
-    return r'''
-(function() {
-  if (window.__evgBridgeInjected) return;
-  window.__evgBridgeInjected = true;
-  var _nextId = 1;
-  var _pending = {};
-  var _listeners = {};
-
-  function _call(method, args) {
-    return new Promise(function(resolve, reject) {
-      var id = _nextId++;
-      _pending[id] = { resolve: resolve, reject: reject };
-      _postToDart(JSON.stringify({
-        id: id, method: method, args: args || []
-      }));
-    });
-  }
-
-  // 双通道发送：Windows chrome.webview / Android evgBridge JS 通道。
-  function _postToDart(payload) {
-    if (window.chrome && window.chrome.webview) {
-      window.chrome.webview.postMessage(payload);
-    } else if (window.evgBridge && window.evgBridge.postMessage) {
-      window.evgBridge.postMessage(payload);
-    }
-  }
-
-  function _resolve(id, result) {
-    var cb = _pending[id];
-    if (cb) { cb.resolve(result); delete _pending[id]; }
-  }
-
-  function _reject(id, message) {
-    var cb = _pending[id];
-    if (cb) { cb.reject(new Error(message)); delete _pending[id]; }
-  }
-
-  function _fireEvent(name, payload) {
-    var handlers = _listeners[name];
-    if (handlers) handlers.forEach(function(h) { h(payload); });
-  }
-
-  window.platform = {
-    data: {
-      get: function(name) { return _call('data.get', [name]); },
-      subscribe: function(name, fn) {
-        if (!_listeners['data:changed']) _listeners['data:changed'] = [];
-        _listeners['data:changed'].push(fn);
-        return _call('data.subscribe', [name]);
-      },
-    },
-    ai: {
-      chat: function(prompt) { return _call('ai.chat', [prompt]); },
-    },
-    settings: {
-      get: function(key) { return _call('settings.get', [key]); },
-      set: function(key, value) { return _call('settings.set', [key, value]); },
-    },
-    theme: {
-      getColors: function() { return _call('theme.getColors', []); },
-    },
-    emit: function(event, payload) { return _call('emit', [event, payload]); },
-    on: function(event, fn) {
-      if (!_listeners[event]) _listeners[event] = [];
-      _listeners[event].push(fn);
-    },
-  };
-
-  // 把主题色板应用到 CSS 变量（--evg-*），并触发 'theme:changed' 事件。
-  window.__evgApplyTheme = function(colors) {
-    if (!colors) return;
-    var root = document.documentElement.style;
-    var map = {
-      '--evg-background': colors.background,
-      '--evg-surface': colors.surface,
-      '--evg-border': colors.border,
-      '--evg-text': colors.text,
-      '--evg-text-secondary': colors.textSecondary,
-      '--evg-accent': colors.accent,
-      '--evg-accent-bg': colors.accentBg,
-      '--evg-accent-border': colors.accentBorder,
-      '--evg-error': colors.error,
-      '--evg-others': colors.others,
-    };
-    for (var k in map) root.setProperty(k, map[k]);
-    _fireEvent('theme:changed', colors);
-  };
-
-  // 文档创建时即拉取主题色板并应用，插件 CSS 可立即使用 --evg-* 变量。
-  _call('theme.getColors', []).then(function(c) {
-    window.__evgApplyTheme(c);
-  });
-
-  // 暴露回调和事件触发器到全局作用域
-  window.__evgResolve = _resolve;
-  window.__evgReject = _reject;
-  window.__evgFireEvent = _fireEvent;
-
-  console.log('Evergreen bridge ready');
-})();
-''';
-  }
+  String _bridgeScript() => buildBridgeScript();
 
   void _onBridgeMessage(dynamic message) {
     try {
@@ -358,11 +294,62 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
         return await orch.fastRead(dt) ?? await orch.get(dt);
 
       case 'data.subscribe':
-        // TODO: 真正的订阅机制
+        // 真正的订阅：Dart 侧 5s 轮询，值变化推 data:changed 事件。
+        _poller.subscribe(args[0] as String);
         return 'ok';
 
+      case 'data.refresh':
+        // POST /data/types/:name/refresh —— 强制重抓并写回中枢缓存。
+        return await _httpForward(
+          CoreService.data, 'POST', '/data/types/${args[0] as String}/refresh');
+
+      case 'data.testConnectivity':
+        // POST /data/connectivity/test —— 测试全部数据源连通性。
+        return await _httpForward(CoreService.data, 'POST', '/data/connectivity/test');
+
       case 'ai.chat':
-        return 'AI chat 待接入';
+        // POST /agent/chat —— 非流式对话，返回事件数组 + 拼接文本。
+        final prompt = (args[0] ?? '').toString();
+        final style = args.length > 1 && args[1] != null
+            ? args[1].toString()
+            : null;
+        final result = await _httpForward(
+          CoreService.agent,
+          'POST',
+          '/agent/chat',
+          {
+            'input': prompt,
+            if (style != null && style.isNotEmpty) 'style': style,
+          },
+        );
+        final map = (result as Map<String, dynamic>?) ?? const {};
+        final events = (map['events'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        final text = events
+            .map((e) => e['text'])
+            .whereType<String>()
+            .where((t) => t.isNotEmpty)
+            .join('\n');
+        return {'text': text, 'events': events};
+
+      case 'api.call':
+        // 通用 core 服务 HTTP 转发：api.call('agent', '/agent/tools', {method:'GET', body:{...}})
+        final serviceId = args[0] as String;
+        final path = args[1] as String;
+        final opts = args.length > 2 && args[2] is Map
+            ? Map<String, dynamic>.from(args[2] as Map)
+            : <String, dynamic>{};
+        final service = CoreService.values.firstWhere(
+          (s) => s.id == serviceId,
+          orElse: () => throw Exception('未知服务: $serviceId'),
+        );
+        final method = ((opts['method'] as String?) ?? 'GET').toUpperCase();
+        final body = opts['body'];
+        return await _httpForward(
+          service,
+          method,
+          path,
+          body is Map ? Map<String, dynamic>.from(body as Map) : null,
+        );
 
       case 'settings.get':
         return ref.read(sharedPreferencesProvider).getString(args[0] as String);
@@ -376,13 +363,31 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
         return _themeColors();
 
       case 'emit':
-        // TODO: 接入 PageEventBus
+        // 事件桥接：插件 emit → PageEventBus 广播 → 同页其他栏/模块可订阅。
+        final event = args[0] as String;
+        final payload = args.length > 1 && args[1] is Map
+            ? Map<String, dynamic>.from(args[1] as Map)
+            : <String, dynamic>{};
+        _eventBus.emit(event, sourceSlot: 'html-plugin', data: payload);
         return 'ok';
 
       default:
         throw Exception('未知 API: $method');
     }
   }
+
+  // ═══════ core 服务 HTTP 转发 ═══════
+
+  /// 委托共享 [forwardCoreHttp]（bridge_script.dart）——端口发现 + HTTP 转发。
+  Future<dynamic> _httpForward(
+    CoreService service,
+    String method,
+    String path, [
+    Map<String, dynamic>? body,
+  ]) =>
+      forwardCoreHttp(service, method, path, body);
+
+  // ═══════ UI ═══════
 
   /// 当前主题色板（HTML 插件消费）。
   ///

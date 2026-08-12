@@ -95,8 +95,31 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
       final (descriptors, dirs) = scanPluginManifests(_pluginsDir);
       debugPrint('[Marketplace] 扫描完成: 解析 ${descriptors.length} 个插件');
 
-      // 按名称排序
-      descriptors.sort((a, b) => a.name.compareTo(b.name));
+      // 合并内置模块（随应用分发，非 plugins/ 目录插件，如 zju 9 个校园模块）：
+      // 从 ModuleRegistry 读取已注册模块，与磁盘扫描结果按 id 去重后追加，
+      // 标 isBuiltin 供卡片显示「内置」徽标并隐藏「卸载」按钮。
+      final scannedIds = descriptors.map((p) => p.id).toSet();
+      var builtinCount = 0;
+      try {
+        final registry = ref.read(moduleRegistryProvider);
+        for (final m in registry.modules) {
+          if (scannedIds.contains(m.id)) continue;
+          descriptors.add(pluginInfoFromBuiltinModule(m));
+          builtinCount++;
+        }
+      } catch (e) {
+        // 未注入 registry（如独立运行/测试环境）→ 仅展示磁盘插件，不影响市场可用。
+        debugPrint('[Marketplace] 读取内置模块失败（降级为仅磁盘插件）: $e');
+      }
+      if (builtinCount > 0) {
+        debugPrint('[Marketplace] 合并内置模块: $builtinCount 个（zju 等）');
+      }
+
+      // 排序：磁盘插件在前，内置模块在后；同组按名称。
+      descriptors.sort((a, b) {
+        if (a.isBuiltin != b.isBuiltin) return a.isBuiltin ? 1 : -1;
+        return a.name.compareTo(b.name);
+      });
 
       setState(() {
         _allPlugins = descriptors;
@@ -139,6 +162,13 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
   }
 
   void _uninstall(PluginInfo plugin) {
+    // 内置模块不可卸载（无磁盘目录，随应用分发）。
+    if (plugin.isBuiltin) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('内置模块不可卸载（随应用分发）')),
+      );
+      return;
+    }
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(

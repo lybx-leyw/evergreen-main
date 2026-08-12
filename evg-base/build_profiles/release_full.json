@@ -1,0 +1,14 @@
+{
+  "name": "release_full",
+  "description": "全量版：装入全部模板（含浙大 zju / classroom / zdbk 场景）。",
+  "templates": [
+    "v4",
+    "zju",
+    "classroom",
+    "zdbk",
+    "paper_reading",
+    "html",
+    "scraper",
+    "theme-creator"
+  ]
+}

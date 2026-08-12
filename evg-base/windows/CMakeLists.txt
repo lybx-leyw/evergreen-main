@@ -57,6 +57,18 @@ add_subdirectory("runner")
 # 已将其弃用提升为硬错误（STL1011）。此全局定义可抑制，传播到所有插件目标。
 add_compile_definitions(_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS)
 
+# media_kit 视频后端防复发保护（bug-0002）：
+# 历史问题：CMakeCache 曾残留 MEDIA_KIT_LIBS_AVAILABLE=OFF（某次 libmpv/ANGLE 归档
+# 缺失时被 media_kit_libs_windows_video/windows/CMakeLists.txt 以 FORCE 写入缓存），
+# 此后即使归档补齐，option() 也不覆盖缓存 → media_kit_video 插件长期按 stub 编译
+# （仅 c_api 转发层，无 channel handler）→ 运行时抛
+# MissingPluginException(VideoOutputManager.Create on com.alexmercerind/media_kit_video)。
+# 此处先于插件 include 执行：只要 libmpv/ANGLE 解压产物完整就强制 ON，覆盖残留缓存。
+# 若产物确实缺失则保持 OFF（media_kit_video 回退 stub，构建不中断）。
+if(EXISTS "${CMAKE_BINARY_DIR}/libmpv/include/client.h" AND EXISTS "${CMAKE_BINARY_DIR}/ANGLE/include")
+  set(MEDIA_KIT_LIBS_AVAILABLE ON CACHE BOOL "package:media_kit libraries are available." FORCE)
+endif()
+
 # Generated plugin build rules, which manage building the plugins and adding
 # them to the application.
 include(flutter/generated_plugins.cmake)

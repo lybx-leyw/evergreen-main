@@ -1,4 +1,12 @@
-from pdf2zh_next.config.main import ConfigManager
+import os
+
+# LITE 模式（安卓纯 Python 翻译）：跳过 config.main / cli_env_model。
+# 它们用 pydantic v2 的 API（model_dump 等），而安卓 Chaquopy 只能装 v1，
+# import 时直接崩。纯翻译路径只用到 model + translate_engine_model，不需要它们。
+# Windows 端（pdf_translate.py，走 high_level/babeldoc）不设该标志，行为不变。
+if not os.environ.get("EVERGREEN_PDF2ZH_LITE"):
+    from pdf2zh_next.config.main import ConfigManager
+
 from pdf2zh_next.config.model import BasicSettings
 from pdf2zh_next.config.model import PDFSettings
 from pdf2zh_next.config.model import SettingsModel

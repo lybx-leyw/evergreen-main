@@ -1,0 +1,13 @@
+{
+  "description": "模板清单（tool/gen_template_registry.dart 的输入）。新增模板 = 在 lib/renderer/templates/ 下新建文件夹 + 在此登记一条。",
+  "templates": [
+    { "name": "v4",            "entry": "v4_modle/v4_modle_template.dart",                         "renderer": "V4ModleTemplate" },
+    { "name": "zju",           "entry": "zju_modle/zju_modle_template.dart",                       "renderer": "ZjuModleTemplate" },
+    { "name": "classroom",     "entry": "zju_modle/zju_modle_template.dart",                       "renderer": "ZjuModleTemplate" },
+    { "name": "zdbk",          "entry": "zju_modle/zju_modle_template.dart",                       "renderer": "ZjuModleTemplate" },
+    { "name": "paper_reading", "entry": "paper_reading_modle/paper_reading_modle_template.dart",   "renderer": "PaperReadingModleTemplate" },
+    { "name": "html",          "entry": "html_modle/html_modle_template.dart",                     "renderer": "HtmlModleTemplate" },
+    { "name": "scraper",       "entry": "scraper_modle/scraper_template.dart",                     "renderer": "ScraperTemplate" },
+    { "name": "theme-creator", "entry": "theme_creator_modle/theme_creator_modle_template.dart",   "renderer": "ThemeCreatorModleTemplate" }
+  ]
+}

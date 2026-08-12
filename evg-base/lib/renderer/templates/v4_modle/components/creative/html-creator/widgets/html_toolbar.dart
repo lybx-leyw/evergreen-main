@@ -4,6 +4,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/creative/html-creator/models/html_project.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/creative/html-creator/services/canvas_manager.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/creative/html-creator/widgets/platform_status_indicator.dart';
 
 class HtmlToolbar extends StatelessWidget {
   final HtmlProject project;
@@ -135,6 +136,10 @@ class HtmlToolbar extends StatelessWidget {
               minimumSize: Size.zero,
             ),
           ),
+          const SizedBox(width: 12),
+
+          // ── 平台服务状态（B6：端口可达性体检）──
+          const PlatformStatusIndicator(),
         ],
       ),
     ),

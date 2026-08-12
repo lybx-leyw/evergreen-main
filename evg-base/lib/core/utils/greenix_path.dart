@@ -168,6 +168,18 @@ void _ensureDir(String path) {
 /// Python scraper 的 `_get_config()` 将此作为 Tier 2 降级路径。
 String get greenixConfigPath => p.join(_greenixBaseDir, 'config.json');
 
+/// SSO cookie jar（PersistCookieJar FileStorage）路径——zju_modle 会话持久化。
+///
+/// PersistCookieJar 会在此目录下按域名分文件存储 cookie，跨重启保持登录态。
+/// 与 CookieStore（[zjuCookiesPath]）各司其职：本路径服务 Dio 的 CookieManager。
+String get cookieJarPath => p.join(_greenixBaseDir, '.cookies');
+
+/// ZJU SSO cookie JSON 存储路径（CookieStore：iPlanetDirectoryPro / synjones-auth）。
+///
+/// 独立于 PersistCookieJar，供 SSO 会话恢复（[CookieStore.ssoCookie]）与
+/// 一卡通 synjones-auth token 存取。
+String get zjuCookiesPath => p.join(_greenixBaseDir, 'zju_cookies.json');
+
 /// 记忆存储目录。
 String get greenixMemoriesDir => p.join(_greenixBaseDir, 'memories');
 

@@ -18,6 +18,9 @@ dependencies:
   dio: ^5.9.2
   shared_preferences: ^2.3.0
   path_provider: ^2.1.0
+  # SSO 会话持久化（zju_modle 认证层，PersistCookieJar 跨重启保活）
+  cookie_jar: ^4.0.8
+  dio_cookie_manager: ^3.2.0
 
   # ── Windows 平台实现（显式依赖，避免 pub cache 损坏导致缺失） ──
   shared_preferences_windows: ^2.1.0
@@ -45,6 +48,8 @@ dependencies:
   media_kit_libs_video: ^1.0.5
 
   # 渲染——Markdown / 数学 / 代码 / HTML / 图表 / 字体
+  # fl_chart: zju_modle scores GPA 仪表盘图表（B3-scores，抄参考工程 core/features/scores）
+  fl_chart: ^0.69.0
   flutter_markdown: ^0.7.6
   flutter_math_fork: ^0.7.0
   markdown: ^7.0.0
@@ -80,15 +85,15 @@ flutter:
   assets:
     - .greenix/skills/
     - assets/video/
+    # 查老师（zju teachers）：内置完整教师评分数据集（chalaoshi.top 抓取）。
+    # 注意：勿放入下方 >>>PLUGIN_ASSETS_START>>> 标记块（该块由 bundle_plugins.dart 自动生成）。
+    - assets/data/teacher_ratings.json
     # 安卓适配：插件目录整体作为资产，启动期释放到设备可写目录。
     # 注意：本环境 Flutter 版本的目录资产包含不递归子目录，故由
     # tool/bundle_plugins.dart 在打包时显式列出每个文件（见下方标记块）。
     # >>>PLUGIN_ASSETS_START>>>
     - assets/plugins_bundle/ai-assistant/module/manifest.json
     - assets/plugins_bundle/data-dashboard/module/manifest.json
-    - assets/plugins_bundle/data-zdbk/config/config.json
-    - assets/plugins_bundle/data-zdbk/data/manifest.json
-    - assets/plugins_bundle/data-zdbk/data/scraper.py
     - assets/plugins_bundle/html-creator/module/manifest.json
     - assets/plugins_bundle/html-creator/my-plugin/module/index.html
     - assets/plugins_bundle/html-creator/my-plugin/module/manifest.json

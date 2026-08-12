@@ -139,3 +139,23 @@ String _defaultTypeForSub(String subType) {
       return 'unknown';
   }
 }
+
+/// 内置模块（ModuleRegistry 注册的随应用分发模块，如 zju 9 个校园模块）
+/// → 插件市场信息。
+///
+/// 与 [scanPluginManifests] 扫描出的磁盘插件不同：
+/// - `isBuiltin: true` → 卡片显示「内置」徽标、隐藏「卸载」按钮；
+/// - `dirPath: ''` → 无磁盘目录，卸载/定位操作应被 UI 拦截。
+PluginInfo pluginInfoFromBuiltinModule(ModuleDescriptor d) => PluginInfo(
+      id: d.id,
+      name: d.name,
+      description: d.description,
+      type: 'module',
+      version: d.version,
+      iconCode: d.icon,
+      dirPath: '',
+      isModule: true,
+      hasSidebar: d.hasSidebar,
+      pageCount: d.pages.length,
+      isBuiltin: true,
+    );

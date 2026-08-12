@@ -1,0 +1,11 @@
+{
+  "name": "release_std",
+  "description": "标准版：不含浙大内容（排除 zju / classroom / zdbk 模板路由）。声明这些 template 的插件将回退到 v4。",
+  "templates": [
+    "v4",
+    "paper_reading",
+    "html",
+    "scraper",
+    "theme-creator"
+  ]
+}

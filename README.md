@@ -42,8 +42,7 @@ v2.0-alpha 作为 Evergreen 2.0 的预览版，我们近乎重写了整个 App�
 | 插件 | 能力 |
 |------|------|
 | **所见即所得爬虫** `scraper` | 内嵌浏览器抓包 → AI 自动生成 Python 爬虫 → 导出 `.py` / `.exe` |
-| **数据中枢** `data-dashboard` | 数据源状态总览：连通性检测、新鲜度检查、一键拉取 |
-| **浙大教务网数据源** `data-zdbk` | 浙大教务网对接，提供 9 种数据类型：课表、成绩、考试、培养方案…… |
+| **数据中枢** `data-dashboard` | 数据源状态总览：连通性检测、新鲜度检查、一键拉取（浙大教务/智云课堂数据为内置 Dart fetcher，见「浙大针对性改造」） |
 
 ### 效率工具
 
@@ -109,6 +108,64 @@ AI Agent 可调用 **15 个内置工具**，均通过 `function calling` 自动�
 
 ---
 
+## 浙大针对性改造（v2.0）
+
+v2.0 将浙大校园功能从「外部插件」收敛为「内置模块 + 内置数据源」，并引入双版构建机制，让通用用户不再背负浙大专属代码体积。
+
+### 双版构建：浙大专用版 / 通用版
+
+同一仓库、构建期选择性装入，产物区分：
+
+| 版本 | profile | 模板路由 | 产物 |
+|------|---------|----------|------|
+| **浙大专用版**（zju） | `release_full` | 全部 8 套，含 zju / classroom / zdbk | `EvergreenSetup-Zju-*.exe` / `evergreen-zju-*` |
+| **通用版**（std） | `release_std` | 5 套，浙大路由回退 v4 | `EvergreenSetup-Std-*.exe` / `evergreen-std-*` |
+
+双通道控制（缺一不可）：
+
+- **模板路由**：`templates_index.json` 模板清单 + `build_profiles/<profile>.json` → `tool/gen_template_registry.dart --profile` 生成 `generated/template_registry.g.dart`，未选中模板被 AOT tree-shaker 剔除出产物
+- **运行注册**：`app_bootstrap.dart` 编译期常量 `kZjuEnabled`（`--dart-define=EVERGREEN_ZJU=false`）控制浙大数据源/内置模块注册，通用版调用不可达、浙大依赖整体剔除
+
+每个版本同时发布 **debug / release** 两套（Release 共 8 个附件）：release 为 AOT + tree-shake 的日常版本；debug 保留完整日志（logcat/stderr），用于调试与复现问题。
+
+### 教务数据源内置化
+
+删除 `data-zdbk` 外部插件（scraper.py + manifest + config），教务数据改为内置 Dart fetcher（`zju_modle/zju_data_sources.dart`）注册进数据中枢，9+ 个 DataType（`zju_courses` / `zju_scores` / `zju_exams` / `zdbk_*` …）：
+
+```
+renderer UI → resolveDataSource(orch://zju_*) → DataOrchestrator → Dart fetcher
+```
+
+缓存 / 状态 / 刷新 / 连通性由数据中枢统一管理；凭证迁移至设置面板（`ZJU_USERNAME` / `ZJU_PASSWORD`，教务、智云课堂、图书馆、一卡通共用）。
+
+### 内置校园模块（9 个）
+
+`zju_builtin_modules.dart` 注册 9 个内置模块，`template: 'zju'` → `ZjuModleView` 按 `modleRoute` 分派，侧边栏分组：
+
+| 分组 | 模块 | 说明 |
+|------|------|------|
+| 浙大·学习 | 我的课程 `courses` | 课程列表 + 周课表（SSO 直连教务） |
+| | 我的成绩 `scores` | 成绩查询 + GPA 仪表盘（fl_chart） |
+| | 考试安排 `exams` | 考试日程 |
+| 浙大·校园 | 教务中心 `zdbk` | 开课情况 / 培养方案 / 教务通知（TabBar 三页） |
+| | 智云课堂 `classroom` | 录播回看：课程列表 → 视频 + PPT 同步 + 带时间戳字幕 |
+| | 图书馆 `library` | 借阅（建设中） |
+| | 一卡通 `ecard` | 消费流水（建设中） |
+| | 查老师 `teachers` | 教师评价（内置 chalaoshi 数据集，离线可用） |
+| | 课表 `schedule` | iCal 导出（建设中） |
+
+### 统一认证（SSO）
+
+`zju_modle/zju_auth/` 自研统一认证层：登录拦截 → 认证服务 → 会话持久化（`cookie_jar` + `dio_cookie_manager` 跨重启保活），业务模块共享同一登录态；cookie 落盘 `.greenix/.cookies` 与 `.greenix/zju_cookies.json`。
+
+### 其他
+
+- **智云课堂播放链路**：video_player_panel / ppt_viewer / subtitle_timeline 重构，PPT 文本 + 带时间戳字幕聚合为 AI 可读内容
+- **media_kit 防复发**：`windows/CMakeLists.txt` 校验 libmpv/ANGLE 产物完整后强制 `MEDIA_KIT_LIBS_AVAILABLE=ON`（bug-0002）
+- **新增依赖**：`cookie_jar` / `dio_cookie_manager`（SSO）、`fl_chart`（GPA 仪表盘）
+
+---
+
 ## 快速开始
 
 ```bash
@@ -150,14 +207,13 @@ evergreen-main/
 │   │   │   ├── module/         模块调度（ModuleDispatch / ModulePage）
 │   │   │   ├── multi_agent/    多 Agent 协作视图
 │   │   │   ├── page/           页面视图（市场 / 设置 / 数据看板 / 文件查看器 / 全局记忆）
-│   │   │   └── templates/      模块模板（v4 / paper_reading / html / scraper / theme_creator / zdbk / zju）
+│   │   │   └── templates/      模块模板（v4 / zju（含 zdbk、classroom 别名）/ paper_reading / html / scraper / theme_creator）
 │   │   │
 │   │   └── theme/              根级兼容性 stub
 │   │
 │   ├── plugins/                插件仓库（12 个内置插件）
 │   │   ├── ai-assistant/       AI 助手
 │   │   ├── data-dashboard/     数据看板
-│   │   ├── data-zdbk/          浙大教务网数据源
 │   │   ├── html-creator/       HTML 创作中心
 │   │   ├── marketplace/        插件市场
 │   │   ├── pdf_translate/      PDF 翻译
@@ -262,12 +318,12 @@ Python 脚本通过 `PluginBridge` 注册为 Agent 工具（本地子进程，JS
 
 ### Release 工作流（`release.yml`）
 
-打 `v*` tag 或手动触发（`workflow_dispatch`），构建产物并创建 GitHub Release：
+打 `v*` tag 或手动触发（`workflow_dispatch`），构建 **双版 × 双模式** 产物（浙大专用版 / 通用版 × debug / release，共 8 个附件）并创建 GitHub Release：
 
 | Job | 说明 | 环境 |
 |-----|------|------|
-| 构建 Android APK | debug APK（Chaquopy Python 3.11） | ubuntu-latest |
-| 构建 Windows | 桌面 debug 构建 → zip | windows-latest |
-| 创建 Release | 自动生成 Release Notes + 附件上传 | ubuntu-latest |
+| 构建 Android APK | 双版 × debug/release 共 4 个 APK（Chaquopy Python 3.11） | ubuntu-latest |
+| 构建 Windows | 双版 × debug/release 共 4 个安装包（Inno Setup + 嵌入式 Python） | windows-latest |
+| 创建 Release | 自动生成 Release Notes + 8 个附件上传 | ubuntu-latest |
 
 > Alpha/Beta/RC 版本自动标记为 pre-release。

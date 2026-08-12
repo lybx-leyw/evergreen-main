@@ -139,6 +139,14 @@ class LocalPluginCard extends StatelessWidget {
                     icon: plugin.typeIcon,
                   ),
                   const SizedBox(width: 8),
+                  // 内置模块（如 zju 校园模块）：随应用分发、不可卸载。
+                  if (plugin.isBuiltin) ...[
+                    _InfoBadge(
+                      label: '内置',
+                      icon: Icons.system_update_alt,
+                    ),
+                    const SizedBox(width: 8),
+                  ],
                   if (plugin.isModule)
                     _InfoBadge(
                       label: plugin.hasSidebar ? '侧栏可见' : '无侧栏',
@@ -173,17 +181,19 @@ class LocalPluginCard extends StatelessWidget {
                       ),
                     ),
                   const SizedBox(width: 4),
-                  TextButton.icon(
-                    onPressed: _enabled ? onUninstall : null,
-                    icon: const Icon(Icons.delete_outline, size: 16),
-                    label: const Text('卸载', style: TextStyle(fontSize: 11)),
-                    style: TextButton.styleFrom(
-                      foregroundColor: Theme.of(context).colorScheme.error,
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  // 卸载按钮仅对磁盘插件显示；内置模块（isBuiltin）不可卸载。
+                  if (!plugin.isBuiltin)
+                    TextButton.icon(
+                      onPressed: _enabled ? onUninstall : null,
+                      icon: const Icon(Icons.delete_outline, size: 16),
+                      label: const Text('卸载', style: TextStyle(fontSize: 11)),
+                      style: TextButton.styleFrom(
+                        foregroundColor: Theme.of(context).colorScheme.error,
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),

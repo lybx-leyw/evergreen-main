@@ -70,6 +70,13 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     if (!mounted) return;
     final rawUrl = widget.fileUrl;
 
+    // player/controller 提到 try 外：VideoController 构造器内部是 fire-and-forget
+    // async（等 postFrame 后调 NativeVideoController.create → VideoOutputManager.Create
+    // channel），插件缺失/初始化失败时经 completeError 抛出。若调用方不 await
+    // platform.future 消费该错误，会以 unhandled async error 逃逸到全局 zone，
+    // 表现为 main.dart zone 打印的 `[BOOT] 未捕获异步异常`（MissingPluginException）。
+    Player? player;
+    VideoController? videoController;
     try {
       if (rawUrl == null || rawUrl.isEmpty) {
         if (mounted) {
@@ -78,8 +85,9 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
         return;
       }
 
-      final player = Player();
-      final videoController = VideoController(player);
+      player = Player();
+      videoController = VideoController(player);
+      await videoController.platform.future;
 
       String mediaPath;
 
@@ -119,6 +127,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       if (mounted) setState(() => _initialized = true);
     } catch (e) {
       debugPrint('[VideoPlayerWidget] 初始化失败: $e');
+      player?.dispose();
       _player?.dispose();
       _player = null;
       _videoController = null;

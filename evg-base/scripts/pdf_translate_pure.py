@@ -23,6 +23,13 @@ import sys
 import time
 import traceback
 
+# LITE 模式：安卓 Chaquopy 只能装 pydantic v1，pdf2zh_next 的 config.main /
+# cli_env_model 用 pydantic v2 API（model_dump 等）会在 import 时崩。纯翻译路径
+# 只需 config.model + translate_engine_model + translator，不依赖 main/cli_env_model，
+# 故置此标志让 pdf2zh_next 跳过加载它们（见 pdf2zh_next/config/__init__.py）。
+# 必须在任何 pdf2zh_next import 之前设置。
+os.environ.setdefault("EVERGREEN_PDF2ZH_LITE", "1")
+
 
 def _emit(event: dict):
     print(json.dumps(event, ensure_ascii=False), flush=True)

@@ -282,6 +282,11 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
   }
 
   /// 将刚导出的插件热注册到 moduleRegistryProvider，侧边栏和路由实时可见。
+  ///
+  /// B1 重构：走 [ModuleRegistry.reloadModule] 正规 API（seal 后仍可用，
+  /// 幂等替换同 id 模块），消除此前「重建 ModuleRegistry」的 workaround——
+  /// 重建会丢失 _capabilities 能力维度，且重复导出同 id 时 register 抛
+  /// 重复异常被静默吞掉，导致侧边栏不刷新。
   void _registerToSidebar() {
     try {
       final manifestPath = p.join(_pluginsRoot!, _project.pluginId, 'module', 'manifest.json');
@@ -290,33 +295,24 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
 
       final manifestJson = jsonDecode(manifestFile.readAsStringSync()) as Map<String, dynamic>;
 
-      // 1. 更新 v2ManifestProvider
+      // 1. 更新 v2ManifestProvider（manifest 快照，供外部查询）
       ref.read(v2ManifestProvider.notifier).update((current) {
         final updated = Map<String, Map<String, dynamic>>.from(current);
         updated[_project.pluginId] = manifestJson;
         return updated;
       });
 
-      // 2. 构造 ModuleDescriptor 并注册到 ModuleRegistry
+      // 2. reloadModule 正规 API：同 id 移除旧 + 追加新（保持 seal 状态，
+      //    能力维度不受影响）；StateProvider 赋值无条件通知监听方重建。
       final descriptor = ModuleDescriptor.fromJson(manifestJson);
       final registry = ref.read(moduleRegistryProvider);
-      // 先移除旧条目（如果存在），再通过替换 State 触发重建
-      registry.unregister(_project.pluginId);
-      // 直接操作内部列表并替换 State 以触发监听
-      final modules = List<ModuleDescriptor>.from(registry.modules)..add(descriptor);
-      ref.read(moduleRegistryProvider.notifier).state = registry;
-      // 注意：上面的 state = registry 不会触发新的 modules 列表生效，
-      // 因为 registry 内部的 _modules 没有重新赋值。
-      // 实际上需要直接构造新的 ModuleRegistry 或利用 unregister 后的间隙。
-      // 这里用更可靠的方式：重建一个新的 ModuleRegistry（复制所有现有模块 + 新模块）
-      final newRegistry = ModuleRegistry();
-      for (final m in modules) {
-        try { newRegistry.register(m); } catch (_) {}
+      final ok = registry.reloadModule(descriptor);
+      if (ok) {
+        ref.read(moduleRegistryProvider.notifier).state = registry;
+        debugPrint('[HtmlCreator] 🔗 热注册到侧边栏: ${_project.pluginId} (reloadModule)');
+      } else {
+        debugPrint('[HtmlCreator] ⚠ 热注册被拒绝（依赖缺失）: ${_project.pluginId}');
       }
-      newRegistry.seal();
-      ref.read(moduleRegistryProvider.notifier).state = newRegistry;
-
-      debugPrint('[HtmlCreator] 🔗 热注册到侧边栏: ${_project.pluginId}');
     } catch (e) {
       debugPrint('[HtmlCreator] ⚠ 热注册失败: $e');
     }
