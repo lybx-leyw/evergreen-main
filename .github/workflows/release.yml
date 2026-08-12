@@ -69,6 +69,8 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
+            # media_kit mpv 预编译 jar（预下载步骤生成，避免每次从 GitHub releases 下载断流）
+            ~/.pub-cache/hosted/pub.dev/media_kit_libs_android_video-*/android/build
           key: gradle-${{ runner.os }}-${{ hashFiles('evg-base/android/**/*.gradle*', 'evg-base/android/**/gradle-wrapper.properties') }}
           restore-keys: |
             gradle-${{ runner.os }}-
@@ -81,6 +83,50 @@ jobs:
           dart run tool/gen_template_registry.dart --profile ${{ matrix.profile }}
           dart run tool/bundle_plugins.dart
           dart run tool/bundle_scripts.dart
+
+      - name: 预下载 media_kit mpv 原生库 (避免 GitHub 下载断流)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # media_kit_libs_android_video 的 build.gradle 在配置阶段会从 GitHub releases
+          # 下载 4 个 ABI 的 libmpv jar（v1.1.7），CI 网络偶发 "Unexpected end of file from server"。
+          # 此处提前用 curl（带重试）下载到插件期望的位置并做 md5 校验，
+          # Gradle 配置阶段检测到文件已存在且 md5 匹配即跳过下载。
+          BASE=$(ls -d "$HOME/.pub-cache/hosted/pub.dev/media_kit_libs_android_video-"* 2>/dev/null | head -1)
+          if [ -z "$BASE" ]; then
+            echo "::error::未找到 media_kit_libs_android_video 插件目录，请先 flutter pub get"
+            exit 1
+          fi
+          DEST="$BASE/android/build/v1.1.7"
+          mkdir -p "$DEST"
+          # 以下 URL 与 md5 与插件 build.gradle (1.3.8) 硬编码完全一致
+          declare -A JARS=(
+            [default-arm64-v8a]="83df25b61193af8fa815e373143ac9af"
+            [default-armeabi-v7a]="22e21526fefc0a2b8f17adbec9f57590"
+            [default-x86_64]="6fa26bf0459b11f1c0b0dbc29e5b940d"
+            [default-x86]="0d742b756dc9d1fcd84ea271d8b68f32"
+          )
+          for name in "${!JARS[@]}"; do
+            want="${JARS[$name]}"
+            file="$DEST/$name.jar"
+            for attempt in 1 2 3; do
+              if [ -f "$file" ] && [ "$(md5sum "$file" | awk '{print $1}')" = "$want" ]; then
+                echo "OK: $name.jar 已就绪 (命中缓存)"
+                break
+              fi
+              echo "下载 $name.jar (第 $attempt/3 次): .../releases/download/v1.1.7/$name.jar"
+              curl -fL --retry 5 --retry-delay 3 --retry-all-errors -o "$file" \
+                "https://github.com/media-kit/libmpv-android-video-build/releases/download/v1.1.7/$name.jar"
+              if [ "$(md5sum "$file" | awk '{print $1}')" = "$want" ]; then
+                echo "OK: $name.jar 下载并校验通过"
+                break
+              fi
+              echo "警告: $name.jar md5 校验失败，删除重下"
+              rm -f "$file"
+            done
+            [ -f "$file" ] || { echo "::error::$name.jar 三次下载均失败"; exit 1; }
+          done
+          echo "media_kit mpv 原生库预下载完成 ($DEST)"
 
       - name: 构建 APK (${{ matrix.mode }}, ${{ matrix.label }})
         run: flutter build apk --${{ matrix.mode }} --dart-define=EVERGREEN_ZJU=${{ matrix.zju }}
