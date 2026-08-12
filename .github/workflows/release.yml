@@ -91,26 +91,37 @@ jobs:
           DIR_NAME="${ZIP_NAME%.zip}"                    # gradle-8.14-bin
           HASH=$(printf '%s' "$DIST_URL" | md5sum | awk '{print $1}')
           DIR="$HOME/.gradle/wrapper/dists/$DIR_NAME/$HASH"
-          INSTALLED="$DIR/$DIR_NAME"
+          # 注意：Gradle 发行版 zip 内部顶层目录固定为 gradle-<version>
+          # （如 gradle-8.14，不带 -bin/-all 后缀），与 zip 文件名不同。
+          # 因此禁止用文件名推断解压目录，必须解压后扫描定位真实根目录。
+          find_gradle_home() {
+            for d in "$DIR"/*/; do
+              if [ -x "$d/bin/gradle" ]; then echo "${d%/}"; return 0; fi
+            done
+            return 1
+          }
           mkdir -p "$DIR"
-          for attempt in 1 2 3; do
-            if [ -d "$INSTALLED" ] && [ -f "$DIR/$ZIP_NAME.ok" ] && [ -x "$INSTALLED/bin/gradle" ]; then
-              echo "OK: Gradle 已就绪 (命中缓存, $DIR)"
-              break
-            fi
-            echo "下载 $ZIP_NAME (第 $attempt/3 次): $DIST_URL"
-            curl -fL --retry 5 --retry-delay 3 --retry-all-errors -o "$DIR/$ZIP_NAME" "$DIST_URL"
-            unzip -q -o "$DIR/$ZIP_NAME" -d "$DIR"
-            if [ -x "$INSTALLED/bin/gradle" ]; then
-              touch "$DIR/$ZIP_NAME.ok"
-              echo "OK: Gradle 预安装完成 ($DIR)"
-              break
-            fi
-            echo "警告: 解压校验失败，删除重下"
-            rm -rf "$DIR"
-            mkdir -p "$DIR"
-          done
-          [ -x "$INSTALLED/bin/gradle" ] || { echo "::error::Gradle 预下载三次均失败"; exit 1; }
+          if INSTALLED=$(find_gradle_home) && [ -f "$DIR/$ZIP_NAME.ok" ]; then
+            echo "OK: Gradle 已就绪 (命中缓存, $INSTALLED)"
+          else
+            for attempt in 1 2 3; do
+              echo "下载 $ZIP_NAME (第 $attempt/3 次): $DIST_URL"
+              curl -fL --retry 5 --retry-delay 3 --retry-all-errors -o "$DIR/$ZIP_NAME" "$DIST_URL"
+              rm -f "$DIR/$ZIP_NAME.ok"
+              # 仅删除解压出的子目录（含 gradle-<version>/），绝不碰 zip 文件本身——
+              # zip 文件名同样以 gradle- 开头，用 gradle-* 通配会把刚下载的 zip 一并删掉。
+              find "$DIR" -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} + 2>/dev/null || true
+              if unzip -q -o "$DIR/$ZIP_NAME" -d "$DIR" && INSTALLED=$(find_gradle_home); then
+                touch "$DIR/$ZIP_NAME.ok"
+                echo "OK: Gradle 预安装完成 ($INSTALLED)"
+                break
+              fi
+              echo "警告: 解压校验失败，删除重下"
+              rm -rf "$DIR"
+              mkdir -p "$DIR"
+            done
+          fi
+          INSTALLED=$(find_gradle_home) || { echo "::error::Gradle 预下载三次均失败"; exit 1; }
           "$INSTALLED/bin/gradle" --version | head -3
 
       - name: 生成模板注册表 (profile) + 插件/脚本资产 + pub get
