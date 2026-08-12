@@ -69,9 +69,60 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
+            # media_kit mpv 预编译 jar（预下载步骤生成，避免每次从 GitHub releases 下载断流）
+            ~/.pub-cache/hosted/pub.dev/media_kit_libs_android_video-*/android/build
           key: gradle-${{ runner.os }}-${{ hashFiles('evg-base/android/**/*.gradle*', 'evg-base/android/**/gradle-wrapper.properties') }}
           restore-keys: |
             gradle-${{ runner.os }}-
+
+      - name: 预下载 Gradle 发行版 (避免 wrapper 下载断流)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Gradle wrapper 用 Java HttpURLConnection 下载发行版，CI 网络偶发
+          # "Unexpected end of file from server"（Download.java:58）。
+          # 此处用 curl（带重试）预下载、预解压并打 .ok 标记，
+          # wrapper 检测到 dists/<name>/<hash>/<name>.ok 即认为已安装，不再走 Java 下载。
+          # dists 子目录 hash = MD5(distributionUrl)，从 gradle-wrapper.properties 动态解析。
+          WRAPPER_PROP="android/gradle/wrapper/gradle-wrapper.properties"
+          DIST_URL=$(grep '^distributionUrl' "$WRAPPER_PROP" | cut -d= -f2- | sed 's/\\:/:/g')
+          echo "distributionUrl: $DIST_URL"
+          ZIP_NAME=$(basename "$DIST_URL")               # gradle-8.14-bin.zip
+          DIR_NAME="${ZIP_NAME%.zip}"                    # gradle-8.14-bin
+          HASH=$(printf '%s' "$DIST_URL" | md5sum | awk '{print $1}')
+          DIR="$HOME/.gradle/wrapper/dists/$DIR_NAME/$HASH"
+          # 注意：Gradle 发行版 zip 内部顶层目录固定为 gradle-<version>
+          # （如 gradle-8.14，不带 -bin/-all 后缀），与 zip 文件名不同。
+          # 因此禁止用文件名推断解压目录，必须解压后扫描定位真实根目录。
+          find_gradle_home() {
+            for d in "$DIR"/*/; do
+              if [ -x "$d/bin/gradle" ]; then echo "${d%/}"; return 0; fi
+            done
+            return 1
+          }
+          mkdir -p "$DIR"
+          if INSTALLED=$(find_gradle_home) && [ -f "$DIR/$ZIP_NAME.ok" ]; then
+            echo "OK: Gradle 已就绪 (命中缓存, $INSTALLED)"
+          else
+            for attempt in 1 2 3; do
+              echo "下载 $ZIP_NAME (第 $attempt/3 次): $DIST_URL"
+              curl -fL --retry 5 --retry-delay 3 --retry-all-errors -o "$DIR/$ZIP_NAME" "$DIST_URL"
+              rm -f "$DIR/$ZIP_NAME.ok"
+              # 仅删除解压出的子目录（含 gradle-<version>/），绝不碰 zip 文件本身——
+              # zip 文件名同样以 gradle- 开头，用 gradle-* 通配会把刚下载的 zip 一并删掉。
+              find "$DIR" -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} + 2>/dev/null || true
+              if unzip -q -o "$DIR/$ZIP_NAME" -d "$DIR" && INSTALLED=$(find_gradle_home); then
+                touch "$DIR/$ZIP_NAME.ok"
+                echo "OK: Gradle 预安装完成 ($INSTALLED)"
+                break
+              fi
+              echo "警告: 解压校验失败，删除重下"
+              rm -rf "$DIR"
+              mkdir -p "$DIR"
+            done
+          fi
+          INSTALLED=$(find_gradle_home) || { echo "::error::Gradle 预下载三次均失败"; exit 1; }
+          "$INSTALLED/bin/gradle" --version | head -3
 
       - name: 生成模板注册表 (profile) + 插件/脚本资产 + pub get
         env:
@@ -82,8 +133,60 @@ jobs:
           dart run tool/bundle_plugins.dart
           dart run tool/bundle_scripts.dart
 
+      - name: 预下载 media_kit mpv 原生库 (避免 GitHub 下载断流)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # media_kit_libs_android_video 的 build.gradle 在配置阶段会从 GitHub releases
+          # 下载 4 个 ABI 的 libmpv jar（v1.1.7），CI 网络偶发 "Unexpected end of file from server"。
+          # 此处提前用 curl（带重试）下载到插件期望的位置并做 md5 校验，
+          # Gradle 配置阶段检测到文件已存在且 md5 匹配即跳过下载。
+          BASE=$(ls -d "$HOME/.pub-cache/hosted/pub.dev/media_kit_libs_android_video-"* 2>/dev/null | head -1)
+          if [ -z "$BASE" ]; then
+            echo "::error::未找到 media_kit_libs_android_video 插件目录，请先 flutter pub get"
+            exit 1
+          fi
+          DEST="$BASE/android/build/v1.1.7"
+          mkdir -p "$DEST"
+          # 以下 URL 与 md5 与插件 build.gradle (1.3.8) 硬编码完全一致
+          declare -A JARS=(
+            [default-arm64-v8a]="83df25b61193af8fa815e373143ac9af"
+            [default-armeabi-v7a]="22e21526fefc0a2b8f17adbec9f57590"
+            [default-x86_64]="6fa26bf0459b11f1c0b0dbc29e5b940d"
+            [default-x86]="0d742b756dc9d1fcd84ea271d8b68f32"
+          )
+          for name in "${!JARS[@]}"; do
+            want="${JARS[$name]}"
+            file="$DEST/$name.jar"
+            for attempt in 1 2 3; do
+              if [ -f "$file" ] && [ "$(md5sum "$file" | awk '{print $1}')" = "$want" ]; then
+                echo "OK: $name.jar 已就绪 (命中缓存)"
+                break
+              fi
+              echo "下载 $name.jar (第 $attempt/3 次): .../releases/download/v1.1.7/$name.jar"
+              curl -fL --retry 5 --retry-delay 3 --retry-all-errors -o "$file" \
+                "https://github.com/media-kit/libmpv-android-video-build/releases/download/v1.1.7/$name.jar"
+              if [ "$(md5sum "$file" | awk '{print $1}')" = "$want" ]; then
+                echo "OK: $name.jar 下载并校验通过"
+                break
+              fi
+              echo "警告: $name.jar md5 校验失败，删除重下"
+              rm -f "$file"
+            done
+            [ -f "$file" ] || { echo "::error::$name.jar 三次下载均失败"; exit 1; }
+          done
+          echo "media_kit mpv 原生库预下载完成 ($DEST)"
+
       - name: 构建 APK (${{ matrix.mode }}, ${{ matrix.label }})
-        run: flutter build apk --${{ matrix.mode }} --dart-define=EVERGREEN_ZJU=${{ matrix.zju }}
+        shell: bash
+        run: |
+          # release 默认开启 icon tree shaking，但本项目大量使用运行时动态
+          # IconData(codePoint)（模块/插件图标来自注册表配置），编译期无法静态
+          # 分析 → 报 "Avoid non-constant invocations of IconData"。显式关闭
+          # （仅 release 生效；debug 默认不 tree shake，无需处理）。
+          EXTRA=""
+          [ "${{ matrix.mode }}" = "release" ] && EXTRA="--no-tree-shake-icons"
+          flutter build apk --${{ matrix.mode }} --dart-define=EVERGREEN_ZJU=${{ matrix.zju }} $EXTRA
 
       - name: 上传 APK artifact (${{ matrix.mode }}, ${{ matrix.label }})
         uses: actions/upload-artifact@v4
@@ -125,7 +228,14 @@ jobs:
           dart run tool/bundle_scripts.dart
 
       - name: 构建 Windows (${{ matrix.mode }}, ${{ matrix.label }})
-        run: flutter build windows --${{ matrix.mode }} --dart-define=EVERGREEN_ZJU=${{ matrix.zju }}
+        shell: pwsh
+        run: |
+          # release 默认开启 icon tree shaking，本项目大量使用运行时动态
+          # IconData(codePoint)（模块/插件图标来自注册表配置）→ 报
+          # "Avoid non-constant invocations of IconData"。显式关闭（仅 release）。
+          $extra = ""
+          if ("${{ matrix.mode }}" -eq "release") { $extra = "--no-tree-shake-icons" }
+          flutter build windows --${{ matrix.mode }} --dart-define=EVERGREEN_ZJU=${{ matrix.zju }} $extra
 
       - name: 下载嵌入 Python 并安装依赖
         shell: pwsh
