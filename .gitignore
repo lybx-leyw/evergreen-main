@@ -206,11 +206,12 @@ evg-base/assets/scripts_bundle/
 **/._debug.txt
 evg-base/analyze_*.txt
 evg-base/*_output.txt
-# evg-base — 工具脚本整体忽略，仅放行 CI 需要的 bundle_plugins.dart
+# evg-base — 工具脚本整体忽略，仅放行 CI 需要的构建脚本
 # （其余 tool/ 脚本为本地开发辅助，不需要进版本库）
 evg-base/tool/*
 !evg-base/tool/bundle_plugins.dart
 !evg-base/tool/bundle_scripts.dart
+!evg-base/tool/gen_template_registry.dart
 analyze_*.txt
 _*.txt
 build_*.txt
