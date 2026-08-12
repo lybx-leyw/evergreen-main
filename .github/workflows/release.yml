@@ -1,5 +1,17 @@
 # Evergreen Release 工作流
-# 打 tag v* 或手动触发，构建 APK + Windows 产物并发布 GitHub Release
+# 打 tag v* 或手动触发，构建双版（浙大专用版 + 通用版）× 双模式（debug + release）
+# 的 APK + Windows 产物并发布 GitHub Release（每平台 4 个 artifact，共 8 个）
+#
+# 双版区分（同一仓库，构建期选择性装入）：
+#   - 浙大专用版（zju）: profile=release_full + EVERGREEN_ZJU=true  → 内置浙大校园/教务/智云课堂模板与数据源
+#   - 通用版（std）:     profile=release_std  + EVERGREEN_ZJU=false → 不含浙大内容，模板路由回退 v4，产物更小
+# 模板路由由 tool/gen_template_registry.dart 按 profile 生成（未选中模板被 AOT tree-shaker 剔除）；
+# 浙大数据源/内置模块注册由 lib/app_bootstrap.dart 的 kZjuEnabled 编译期开关控制。
+#
+# 双模式区分（同 edition，两套构建）：
+#   - release: AOT + tree-shake，浙大代码被真正剔除，产物小、性能好 → 最终用户
+#   - debug:   JIT，不 tree-shake，保留完整日志（logcat/stderr），体积大 → 开发者调试/复现问题
+# 注：--dart-define 对两种模式均生效；debug 产物内浙大代码仍在包中但不注册、不运行。
 
 name: Release
 
@@ -14,11 +26,20 @@ on:
         required: true
         default: '2.0.0-alpha.1'
 
+# 双版矩阵：edition 名 / build profile / EVERGREEN_ZJU 开关 / 产物后缀与展示名
 jobs:
   # ─────────────────────────── 1. 安卓 APK ───────────────────────────
   build-apk:
-    name: 构建 Android APK
+    name: 构建 Android APK (${{ matrix.label }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { edition: zju, profile: release_full, zju: 'true',  label: 浙大专用版, mode: debug }
+          - { edition: zju, profile: release_full, zju: 'true',  label: 浙大专用版, mode: release }
+          - { edition: std, profile: release_std,  zju: 'false', label: 通用版,     mode: debug }
+          - { edition: std, profile: release_std,  zju: 'false', label: 通用版,     mode: release }
     defaults:
       run:
         working-directory: evg-base
@@ -52,28 +73,37 @@ jobs:
           restore-keys: |
             gradle-${{ runner.os }}-
 
-      - name: 生成插件 + 脚本资产清单 + pub get
+      - name: 生成模板注册表 (profile) + 插件/脚本资产 + pub get
         env:
           EVERGREEN_WORKSPACE: ${{ github.workspace }}/evg-base
         run: |
           flutter pub get
+          dart run tool/gen_template_registry.dart --profile ${{ matrix.profile }}
           dart run tool/bundle_plugins.dart
           dart run tool/bundle_scripts.dart
 
-      - name: 构建 APK (debug)
-        run: flutter build apk --debug
+      - name: 构建 APK (${{ matrix.mode }}, ${{ matrix.label }})
+        run: flutter build apk --${{ matrix.mode }} --dart-define=EVERGREEN_ZJU=${{ matrix.zju }}
 
-      - name: 上传 APK artifact
+      - name: 上传 APK artifact (${{ matrix.mode }}, ${{ matrix.label }})
         uses: actions/upload-artifact@v4
         with:
-          name: evergreen-android-debug
-          path: evg-base/build/app/outputs/flutter-apk/app-debug.apk
+          name: evergreen-${{ matrix.edition }}-android-${{ matrix.mode }}
+          path: evg-base/build/app/outputs/flutter-apk/app-${{ matrix.mode }}.apk
           if-no-files-found: error
 
   # ─────────────────────────── 2. Windows 桌面 ───────────────────────────
   build-windows:
-    name: 构建 Windows 安装包
+    name: 构建 Windows 安装包 (${{ matrix.label }})
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { edition: zju, profile: release_full, zju: 'true',  label: 浙大专用版, suffix: '-Zju', appName: 'Evergreen',       mode: debug,   modeName: Debug }
+          - { edition: zju, profile: release_full, zju: 'true',  label: 浙大专用版, suffix: '-Zju', appName: 'Evergreen',       mode: release, modeName: Release }
+          - { edition: std, profile: release_std,  zju: 'false', label: 通用版,     suffix: '-Std', appName: 'Evergreen Std',   mode: debug,   modeName: Debug }
+          - { edition: std, profile: release_std,  zju: 'false', label: 通用版,     suffix: '-Std', appName: 'Evergreen Std',   mode: release, modeName: Release }
     defaults:
       run:
         working-directory: evg-base
@@ -85,16 +115,17 @@ jobs:
           channel: stable
           cache: true
 
-      - name: 生成插件 + 脚本资产清单 + pub get
+      - name: 生成模板注册表 (profile) + 插件/脚本资产 + pub get
         env:
           EVERGREEN_WORKSPACE: ${{ github.workspace }}/evg-base
         run: |
           flutter pub get
+          dart run tool/gen_template_registry.dart --profile ${{ matrix.profile }}
           dart run tool/bundle_plugins.dart
           dart run tool/bundle_scripts.dart
 
-      - name: 构建 Windows (Release)
-        run: flutter build windows --release
+      - name: 构建 Windows (${{ matrix.mode }}, ${{ matrix.label }})
+        run: flutter build windows --${{ matrix.mode }} --dart-define=EVERGREEN_ZJU=${{ matrix.zju }}
 
       - name: 下载嵌入 Python 并安装依赖
         shell: pwsh
@@ -118,19 +149,19 @@ jobs:
           & "$dest\python.exe" -m pip --version
           & "$dest\python.exe" -m pip install -r scripts\requirements.txt
 
-      - name: 构建 Inno Setup 安装包
+      - name: 构建 Inno Setup 安装包 (${{ matrix.label }})
         shell: pwsh
         run: |
           choco install innosetup -y --no-progress
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { $iscc = "${env:ProgramFiles}\Inno Setup 6\ISCC.exe" }
-          & $iscc scripts\installer.iss
+          & $iscc scripts\installer.iss "/DMyAppName=${{ matrix.appName }}" "/DMyAppSuffix=${{ matrix.suffix }}" "/DMyBuildMode=${{ matrix.modeName }}"
 
-      - name: 上传 Windows 安装包
+      - name: 上传 Windows 安装包 (${{ matrix.mode }}, ${{ matrix.label }})
         uses: actions/upload-artifact@v4
         with:
-          name: evergreen-windows-setup
-          path: evg-base/build/installer/EvergreenSetup-*.exe
+          name: evergreen-${{ matrix.edition }}-windows-${{ matrix.mode }}
+          path: evg-base/build/installer/EvergreenSetup*.exe
           if-no-files-found: error
 
   # ─────────────────────────── 3. 创建 Release ───────────────────────────
@@ -151,7 +182,16 @@ jobs:
       - name: 生成 Release Notes
         id: notes
         run: |
-          echo '## 变更' > release-notes.md
+          echo '## 版本说明' > release-notes.md
+          echo '' >> release-notes.md
+          echo '- **浙大专用版**（EvergreenSetup-Zju-*.exe / evergreen-zju-*）: 内置浙大校园、教务、智云课堂等模板与数据源，面向浙大学生' >> release-notes.md
+          echo '- **通用版**（EvergreenSetup-Std-*.exe / evergreen-std-*）: 不含浙大内容，模板回退 v4，产物更小，面向一般用户' >> release-notes.md
+          echo '' >> release-notes.md
+          echo '**构建模式**（每个版本同时发布 debug / release 两套）：' >> release-notes.md
+          echo '- **release**: AOT 编译 + tree-shake（浙大代码被真正剔除），产物小、性能好，日常使用请安装此版' >> release-notes.md
+          echo '- **debug**: JIT 编译、保留完整日志（logcat/stderr 可见），体积大，用于开发者调试/复现问题' >> release-notes.md
+          echo '' >> release-notes.md
+          echo '## 变更' >> release-notes.md
           echo '' >> release-notes.md
           # 提取 tag 之后的所有提交
           PREV_TAG=$(git tag --sort=-creatordate | sed -n '2p')
@@ -172,8 +212,14 @@ jobs:
           name: Evergreen ${{ github.ref_name }}
           body: ${{ steps.notes.outputs.release_notes }}
           files: |
-            artifacts/evergreen-android-debug/app-debug.apk
-            artifacts/evergreen-windows-setup/*.exe
+            artifacts/evergreen-zju-android-debug/app-debug.apk
+            artifacts/evergreen-zju-android-release/app-release.apk
+            artifacts/evergreen-std-android-debug/app-debug.apk
+            artifacts/evergreen-std-android-release/app-release.apk
+            artifacts/evergreen-zju-windows-debug/EvergreenSetup*.exe
+            artifacts/evergreen-zju-windows-release/EvergreenSetup*.exe
+            artifacts/evergreen-std-windows-debug/EvergreenSetup*.exe
+            artifacts/evergreen-std-windows-release/EvergreenSetup*.exe
           draft: false
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
         env:

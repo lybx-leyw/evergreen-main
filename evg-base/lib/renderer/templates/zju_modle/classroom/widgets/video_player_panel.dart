@@ -1,7 +1,8 @@
-/// 可折叠视频播放面板——基于 media_kit。
+/// 可折叠的视频播放面板（智云课堂录播）。
 ///
-/// 适配自 `.refer_ui/widget/lib/features/classroom/widgets/video_player_panel.dart`。
-/// 关键差异：移除 SharedPreferences 持久化，改用内存状态；无 Riverpod。
+/// B3-classroom（2026-08-12）自参考工程 `cp_evergreen_push/lib/features/
+/// classroom/widgets/video_player_panel.dart` 移植（media_kit 跨平台播放）。
+/// 保持原样：倍速记忆、进度记忆（shared_preferences）、错误重试。
 library;
 
 import 'dart:async';
@@ -9,20 +10,22 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-/// 视频播放器面板。
+/// 可折叠视频播放面板：顶部折叠条 + 展开后视频区 + 控制条。
 class VideoPlayerPanel extends StatefulWidget {
-  final String? videoUrl;
-  /// 视频路径解析函数（相对路径 → 绝对文件路径）。
-  final String Function(String raw)? resolvePath;
-  /// 远程视频所需的请求头（如智云课堂录播的登录态 Cookie：{name: value}）。
-  /// 仅对 http/https 地址生效，本地文件忽略。
+  final String videoUrl;
+  final String title;
+
+  /// 播放时注入的 HTTP 请求头（如 `Cookie`/`Referer`）——media_kit 的
+  /// 播放器进程不携带 Dio cookie jar，智云课堂视频流（CMC 域）必须手动
+  /// 注入登录会话，否则 401/403 → 黑屏。
   final Map<String, String>? httpHeaders;
 
   const VideoPlayerPanel({
     super.key,
-    this.videoUrl,
-    this.resolvePath,
+    required this.videoUrl,
+    this.title = '',
     this.httpHeaders,
   });
 
@@ -32,377 +35,402 @@ class VideoPlayerPanel extends StatefulWidget {
 
 class _VideoPlayerPanelState extends State<VideoPlayerPanel> {
   Player? _player;
-  VideoController? _videoCtrl;
-  bool _expanded = false;
+  VideoController? _controller;
   bool _initialized = false;
-  bool _loading = true;
-  bool _disposed = false;
+  bool _isExpanded = false;
   String? _error;
-  // 诊断订阅：捕获 media_kit 的加载错误与 mpv 内部日志，避免「静默黑屏」。
-  StreamSubscription<String>? _errSub;
-  StreamSubscription<dynamic>? _logSub;
+  double _playbackRate = 1.0;
+  bool _isPlaying = false;
+  StreamSubscription<double>? _rateSub;
+  StreamSubscription<bool>? _playingSub;
 
   @override
   void initState() {
     super.initState();
-    // 关键修复：原实现用 build 内的「懒初始化」守卫 `!_initialized && !_loading`，
-    // 但 _loading 初始值被误设为 true，导致该守卫恒为 false → _init 永远不被调用 →
-    // 播放器始终未初始化，点击「播放录播」折叠条无任何反应（UI 无任何变化）。
-    // 改为在 initState 直接初始化（对齐 .refer_ui 参考实现）。_loading 初始 true
-    // 仅用于在初始化完成前显示加载圈。
-    final url = widget.videoUrl;
-    if (url != null && url.isNotEmpty) {
-      // 仅对本地相对路径做插件路径解析；远程播放地址（http/https）必须原样交给
-      // media_kit——否则 resolvePluginAssetPath 会把 URL 拼成垃圾文件系统路径，
-      // 导致视频无法打开（「视频无法播放」）。
-      final isRemote =
-          url.startsWith('http://') || url.startsWith('https://');
-      final resolved = (!isRemote && widget.resolvePath != null)
-          ? widget.resolvePath!(url)
-          : url;
-      _init(resolved);
-    }
+    _initPlayer();
   }
 
   @override
-  void dispose() {
-    _disposed = true;
-    _safeDisposePlayer();
+  void dispose() async {
+    _rateSub?.cancel();
+    _playingSub?.cancel();
+    if (_player != null && widget.videoUrl.isNotEmpty) {
+      try {
+        final pos = await _player!.stream.position.first;
+        final key = 'video_progress_${widget.videoUrl.hashCode}';
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setDouble(key, pos.inSeconds.toDouble());
+      } catch (_) {}
+    }
+    _player?.dispose();
     super.dispose();
   }
 
-  /// 安全释放播放器：避免重复 dispose / 在已卸载时访问 State。
-  void _safeDisposePlayer() {
+  Future<void> _initPlayer() async {
+    debugPrint('[VideoPlayer:D] _initPlayer() URL=${widget.videoUrl}'
+        ' UriScheme=${Uri.tryParse(widget.videoUrl)?.scheme ?? "?"}'
+        ' httpHeaders=${widget.httpHeaders?.keys ?? const {}}');
+    // player/controller 提到 try 外：VideoController 构造器内部是 fire-and-forget
+    // async（等 postFrame 后调 NativeVideoController.create → VideoOutputManager.Create
+    // channel），插件缺失/初始化失败时经 completeError 抛出。若调用方不 await
+    // platform.future 消费该错误，会以 unhandled async error 逃逸到全局 zone，
+    // 表现为 main.dart zone 打印的 `[BOOT] 未捕获异步异常`（MissingPluginException）。
+    Player? player;
+    VideoController? controller;
     try {
-      _errSub?.cancel();
-      _logSub?.cancel();
-      _videoCtrl = null;
+      player = Player();
+      controller = VideoController(player);
+      await controller.platform.future;
+
+      _playingSub = player.stream.playing.listen((playing) {
+        debugPrint('[VideoPlayer:D] playing: $playing');
+        if (mounted) setState(() => _isPlaying = playing);
+      });
+      player.stream.buffering.listen((buffering) {
+        debugPrint('[VideoPlayer:D] buffering: $buffering');
+      });
+      player.stream.error.listen((error) {
+        debugPrint('[VideoPlayer:D] ⛔ Player error event: $error');
+        if (mounted) setState(() => _error = error.toString());
+      });
+      _rateSub = player.stream.rate.listen((rate) {
+        if (mounted) setState(() => _playbackRate = rate);
+      });
+
+      final media = Media(
+        widget.videoUrl,
+        httpHeaders: widget.httpHeaders ?? const {},
+      );
+      debugPrint('[VideoPlayer:D] Media created, opening...');
+      await player.open(media);
+      debugPrint('[VideoPlayer:D] player.open() completed');
+
+      // 恢复上次播放位置
+      if (widget.videoUrl.isNotEmpty) {
+        final key = 'video_progress_${widget.videoUrl.hashCode}';
+        final prefs = await SharedPreferences.getInstance();
+        final saved = prefs.getDouble(key);
+        if (saved != null && saved > 0) {
+          await player.seek(Duration(seconds: saved.toInt()));
+        }
+      }
+
+      // 恢复全局偏好倍速
+      if (widget.videoUrl.isNotEmpty) {
+        final prefs = await SharedPreferences.getInstance();
+        final savedRate = prefs.getDouble('video_playback_rate');
+        if (savedRate != null && savedRate > 0) {
+          _playbackRate = savedRate;
+          await player.setRate(savedRate);
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _player = player;
+          _controller = controller;
+          _initialized = true;
+          _error = null;
+        });
+      }
+    } catch (e) {
+      debugPrint('[VideoPlayer:D] _initPlayer() 异常: $e');
+      player?.dispose();
       _player?.dispose();
-    } catch (_) {
-      // 释放失败不致命，忽略。
+      _player = null;
+      _controller = null;
+      if (mounted) setState(() => _error = e.toString());
     }
-    _errSub = null;
-    _logSub = null;
-    _player = null;
   }
 
-  Future<void> _init(String url) async {
-    if (_initialized || _disposed) return;
-    try {
-      MediaKit.ensureInitialized();
-      _player ??= Player();
-      // 捕获 media_kit 的加载错误与 mpv 内部日志——视频拉不到流（链接失效 /
-      // 需鉴权 / 编码不支持）时，native 纹理 rect 始终停在 0x0，Flutter 侧只会
-      // 显示 Container 的黑色 fill，属于「静默黑屏」。把这些信号打出来才能定位。
-      _errSub = _player!.stream.error.listen((e) {
-        debugPrint('[VideoPlayerPanel] player.error: $e');
-        // 诊断增强：把 media_kit 加载/解码错误**上屏**，不再只打日志。
-        // 之前 HEVC/H.265 这类「无 error 事件、仅 width=null」的失败是静默黑屏，
-        // 与本文件顶部「黑屏必须可诊断」原则相悖。这里让真实 error 也能触发错误 UI。
-        if (!mounted || _disposed) return;
-        if (_error == null) {
-          setState(() {
-            _error = '视频解码/加载失败：$e';
-          });
-        }
-      });
-      _logSub = _player!.stream.log.listen((e) {
-        // e 为 PlayerLog(prefix/level/text)
-        debugPrint('[VideoPlayerPanel][mpv] ${e.level}: ${e.text}');
-      });
-      // 仅对远程地址注入请求头（如 ZJU 课堂录播需要的登录态 Cookie）；本地文件忽略。
-      final isRemote = url.startsWith('http://') || url.startsWith('https://');
-      final Media media;
-      if (isRemote && widget.httpHeaders != null && widget.httpHeaders!.isNotEmpty) {
-        final cookie = widget.httpHeaders!
-            .entries
-            .map((kv) => '${kv.key}=${kv.value}')
-            .join('; ');
-        media = Media(url, httpHeaders: {'Cookie': cookie});
-        debugPrint('[VideoPlayerPanel] 远程地址注入 Cookie 头（${widget.httpHeaders!.length} 项），打开: $url');
-      } else {
-        media = Media(url);
-        debugPrint('[VideoPlayerPanel] 打开: $url (remote=$isRemote, hasCookie=${widget.httpHeaders?.isNotEmpty ?? false})');
-      }
-      // 必须 play:true：media_kit 在 Windows 上对「暂停打开」的视频不会解码首帧，
-      // 纹理停留 1px 黑色占位层（video_texture.dart rect<=1px 分支）→ 黑屏。
-      await _player!.open(media, play: true);
-      if (!mounted || _disposed) return;
-      _videoCtrl = VideoController(_player!);
-      if (!mounted || _disposed) {
-        _safeDisposePlayer();
-        return;
-      }
-      // 探针：2 秒后若仍无视频尺寸，说明源未解出帧（链接失效/需鉴权/编码不支持）。
-      // 此时 native 纹理 rect 停在 0x0，UI 只会显示黑色 fill。
-      // 诊断增强：**本地源**已 open 却 width==null/0 → 编码不被内置 libmpv 解码
-      // （如 HEVC/H.265）→ 置 _error 上屏，把「静默黑屏」变可操作提示。
-      // 仅对本地源做此激进判定：远程流首帧可能 >2s 才到达，避免误报。
-      Future.delayed(const Duration(seconds: 2), () {
-        if (_disposed || _player == null) return;
-        final s = _player!.state;
-        debugPrint('[VideoPlayerPanel] probe@2s playing=${s.playing} '
-            'w=${s.width} h=${s.height} dur=${s.duration} '
-            'pos=${s.position} buf=${s.buffer} buffering=${s.buffering}');
-        if (!isRemote && (s.width == null || s.width == 0)) {
-          if (!mounted || _disposed) return;
-          setState(() {
-            _error =
-                '当前播放器不支持该视频编码（疑似 HEVC/H.265 等不被内置解码器支持），'
-                '请转码为 H.264 后重试。\n源：$url';
-          });
-          // 无视频帧却可能在放音频，暂停避免黑屏时背景音突兀。
-          _player?.pause();
-        }
-      });
-      setState(() {
-        _initialized = true;
-        _loading = false;
-        _expanded = true;
-      });
-    } catch (e) {
-      if (!mounted || _disposed) return;
-      debugPrint('[VideoPlayerPanel] init 异常: $e');
-      setState(() {
-        _error = e.toString();
-        _loading = false;
-      });
+  /// 设置播放倍速并持久化到全局偏好。
+  Future<void> _setPlaybackRate(double rate) async {
+    if (_player == null) return;
+    await _player!.setRate(rate);
+    if (mounted) setState(() => _playbackRate = rate);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('video_playback_rate', rate);
+  }
+
+  /// 切换播放/暂停。
+  void _togglePlayPause() {
+    if (_player == null) return;
+    if (_isPlaying) {
+      _player!.pause();
+    } else {
+      _player!.play();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final url = widget.videoUrl;
-    if (url == null || url.isEmpty) {
-      return _noVideoState(context);
-    }
-
-    final theme = Theme.of(context);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // 折叠/展开切换条
+        // Toggle bar
         InkWell(
-          onTap: () => setState(() => _expanded = !_expanded),
+          onTap: () => setState(() => _isExpanded = !_isExpanded),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            color: theme.colorScheme.surfaceContainerLow,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerLow,
+              border: Border(
+                bottom: BorderSide(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                ),
+              ),
+            ),
             child: Row(
               children: [
                 Icon(
-                  _expanded ? Icons.expand_less : Icons.play_circle_outline,
-                  size: 18,
+                  _isExpanded ? Icons.expand_less : Icons.play_circle_outline,
+                  size: 20,
                 ),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    _expanded ? '收起视频' : '播放录播',
-                    style: theme.textTheme.bodySmall,
-                  ),
+                const SizedBox(width: 8),
+                Text(
+                  _isExpanded ? '收起视频' : '播放录播',
+                  style: Theme.of(context).textTheme.bodyMedium,
                 ),
-                if (_loading)
-                  const SizedBox(
-                      width: 16, height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2)),
+                const Spacer(),
                 if (_error != null)
-                  Icon(Icons.error, size: 16, color: theme.colorScheme.error),
+                  const Icon(Icons.error_outline, size: 16, color: Colors.red),
+                if (!_initialized && _error == null)
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
               ],
             ),
           ),
         ),
-        // 错误状态
-        if (_error != null && _expanded)
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              children: [
-                const Icon(Icons.videocam_off, size: 36, color: Colors.red),
-                const SizedBox(height: 4),
-                Text(
-                  _error!.length > 80
-                      ? '${_error!.substring(0, 80)}...'
-                      : _error!,
-                  style: theme.textTheme.bodySmall,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                ElevatedButton.icon(
-                  onPressed: () {
-                    // 彻底重置：先释放旧播放器，下一帧用全新 Player 重新打开，
-                    // 避免复用处于错误态的旧实例导致重试仍失败。
-                    _safeDisposePlayer();
-                    setState(() {
-                      _error = null;
-                      _initialized = false;
-                      _loading = true;
-                      _expanded = true;
-                    });
-                    final url = widget.videoUrl;
-                    if (url != null && url.isNotEmpty) {
-                      final isRemote =
-                          url.startsWith('http://') || url.startsWith('https://');
-                      final resolved = (!isRemote && widget.resolvePath != null)
-                          ? widget.resolvePath!(url)
-                          : url;
-                      _init(resolved);
-                    }
-                  },
-                  icon: const Icon(Icons.refresh, size: 16),
-                  label: const Text('重试'),
-                ),
-              ],
-            ),
-          ),
-        // 视频区域：MaterialVideoControls 提供进度条（主体）+ 全屏按钮；
-        // 但 media_kit 1.3.1 无公开的倍速/音量按钮类，默认 bottomButtonBar 仅
-        // [进度, Spacer, 全屏]。故用 MaterialVideoControlsTheme 注入 normal 与
-        // fullscreen 两个主题，并在底部栏追加自定义 _VolumeButton / _SpeedButton
-        // （通过 VideoStateInheritedWidget 拿到 player 调用 setVolume/setRate）。
-        if (_expanded && _initialized && _error == null && _videoCtrl != null) ...[
-          ClipRect(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                // 按宽度比值自适应高度（16:9），避免绝对高度在不同宽度下变形/留白。
-                // 用 LayoutBuilder+SizedBox 而非 AspectRatio：media_kit 的 Video 在
-                // AspectRatio 的 tight 约束下偶发纹理尺寸为 0（首帧占位黑层常驻，见
-                // media_kit_video video_texture.dart rect<=1px 分支），导致整块黑屏；
-                // 回到与之前可正常显示的 SizedBox 等价形态，仅高度改为比值。
-                // 关键修复：必须给 Video 显式非零宽高，否则 media_kit 纹理 rect=0x0
-                // （日志 VideoOutput.Resize rect:{height:0,width:0}）落到黑色占位分支。
-                // 宽度优先级：父级有限宽 → MediaQuery 视口宽 → 兜底 640。
-                double w = 640.0;
-                if (constraints.maxWidth.isFinite && constraints.maxWidth > 0) {
-                  w = constraints.maxWidth;
-                } else {
-                  final mq = MediaQuery.maybeOf(context)?.size.width ?? 0;
-                  if (mq > 0) w = mq;
-                }
-                final videoHeight = w * 9 / 16;
-                debugPrint('[VideoPlayerPanel] 视频区域尺寸 w=$w h=$videoHeight');
-                return SizedBox(
-                  width: w,
-                  height: videoHeight,
-                  child: MaterialVideoControlsTheme(
-                    normal: MaterialVideoControlsThemeData(
-                      bottomButtonBar: [
-                        MaterialPositionIndicator(),
-                        Spacer(),
-                        _VolumeButton(),
-                        _SpeedButton(),
-                        MaterialFullscreenButton(),
-                      ],
-                    ),
-                    fullscreen: MaterialVideoControlsThemeData(
-                      bottomButtonBar: [
-                        MaterialPositionIndicator(),
-                        Spacer(),
-                        _VolumeButton(),
-                        _SpeedButton(),
-                        MaterialFullscreenButton(),
-                      ],
-                    ),
-                    child: Video(
-                      // 直接给 Video 显式宽高：即便父级 SizedBox 偶发塌缩，
-                      // media_kit 也能拿到非零尺寸解码首帧，避免 0x0 黑屏。
-                      width: w,
-                      height: videoHeight,
-                      controller: _videoCtrl!,
-                      controls: MaterialVideoControls,
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
+        if (_isExpanded && _error == null) _buildVideoArea(context),
+        if (_isExpanded && _error != null) _buildError(context),
       ],
     );
   }
 
-  Widget _noVideoState(BuildContext context) => Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            Icon(Icons.videocam_off, size: 16,
-                color: Theme.of(context).colorScheme.onSurfaceVariant),
-            const SizedBox(width: 6),
-            Text('无视频',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant)),
-          ],
-        ),
+  Widget _buildVideoArea(BuildContext context) {
+    if (_controller == null) {
+      return const SizedBox(
+        height: 200,
+        child: Center(child: CircularProgressIndicator()),
       );
-}
-
-/// 倍速按钮：借 MaterialVideoControls 的 bottomButtonBar 注入。
-/// 通过 [VideoStateInheritedWidget] 拿到 [Player] 后调用 [Player.setRate]。
-class _SpeedButton extends StatelessWidget {
-  const _SpeedButton();
-
-  static const List<double> _rates = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
-
-  @override
-  Widget build(BuildContext context) {
-    final player = VideoStateInheritedWidget.of(context).state.widget.controller.player;
-    return PopupMenuButton<double>(
-      icon: const Icon(Icons.speed, color: Color(0xFFFFFFFF), size: 24.0),
-      tooltip: '倍速',
-      initialValue: 1.0,
-      itemBuilder: (ctx) => _rates
-          .map((r) => PopupMenuItem<double>(
-                value: r,
-                child: Text(
-                    '${r.toStringAsFixed(r == r.roundToDouble() ? 0 : 2)}x'),
-              ))
-          .toList(),
-      onSelected: (r) => player.setRate(r),
+    }
+    return Container(
+      color: Colors.black,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: double.infinity,
+            height: 300,
+            child: Video(controller: _controller!),
+          ),
+          _buildControlBar(context),
+        ],
+      ),
     );
   }
-}
 
-/// 音量按钮：借 MaterialVideoControls 的 bottomButtonBar 注入。
-/// 通过 [VideoStateInheritedWidget] 拿到 [Player]，弹出滑块调用 [Player.setVolume]。
-class _VolumeButton extends StatelessWidget {
-  const _VolumeButton();
+  Widget _buildControlBar(BuildContext context) {
+    const allSpeeds = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0];
+    const quickSpeeds = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+    final theme = Theme.of(context);
 
-  @override
-  Widget build(BuildContext context) {
-    final player = VideoStateInheritedWidget.of(context).state.widget.controller.player;
-    return StreamBuilder<double>(
-      stream: player.stream.volume,
-      builder: (ctx, snapshot) {
-        final vol = (snapshot.data ?? 100.0).clamp(0.0, 100.0);
-        final icon = vol == 0
-            ? Icons.volume_off
-            : vol < 50
-                ? Icons.volume_down
-                : Icons.volume_up;
-        return PopupMenuButton<double>(
-          icon: Icon(icon, color: const Color(0xFFFFFFFF), size: 24.0),
-          tooltip: '音量',
-          itemBuilder: (ctx) => [
-            PopupMenuItem<double>(
-              enabled: false,
-              child: SizedBox(
-                width: 220,
-                child: Row(
-                  children: [
-                    const Icon(Icons.volume_up, size: 18),
-                    Expanded(
-                      child: Slider(
-                        value: vol,
-                        min: 0,
-                        max: 100,
-                        onChanged: (v) => player.setVolume(v),
-                      ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.grey[900],
+        border: Border(top: BorderSide(color: Colors.grey[800]!)),
+      ),
+      child: Row(
+        children: [
+          // Backward 10s
+          IconButton(
+            icon: const Icon(Icons.replay_10, color: Colors.white70, size: 20),
+            onPressed: () {
+              if (_player != null) {
+                _player!.stream.position.first.then((pos) {
+                  final target = pos - const Duration(seconds: 10);
+                  _player!.seek(target < Duration.zero ? Duration.zero : target);
+                });
+              }
+            },
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            splashRadius: 18,
+            tooltip: '后退 10 秒',
+          ),
+          // Play / Pause
+          IconButton(
+            icon: Icon(
+              _isPlaying ? Icons.pause : Icons.play_arrow,
+              color: Colors.white70,
+              size: 20,
+            ),
+            onPressed: _togglePlayPause,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            splashRadius: 18,
+            tooltip: _isPlaying ? '暂停' : '播放',
+          ),
+          // Forward 10s
+          IconButton(
+            icon: const Icon(Icons.forward_10, color: Colors.white70, size: 20),
+            onPressed: () {
+              if (_player != null) {
+                _player!.stream.position.first.then((pos) {
+                  _player!.seek(pos + const Duration(seconds: 10));
+                });
+              }
+            },
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+            splashRadius: 18,
+            tooltip: '快进 10 秒',
+          ),
+          const SizedBox(width: 4),
+          // Quick speed chips
+          ...quickSpeeds.map((speed) {
+            final isActive = (_playbackRate - speed).abs() < 0.01;
+            return Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(4),
+                onTap: () => _setPlaybackRate(speed),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isActive
+                        ? theme.colorScheme.primary
+                        : Colors.grey[800],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    '${speed}x',
+                    style: TextStyle(
+                      color: isActive ? Colors.white : Colors.white70,
+                      fontSize: 12,
+                      fontWeight:
+                          isActive ? FontWeight.bold : FontWeight.normal,
                     ),
-                  ],
+                  ),
                 ),
               ),
+            );
+          }),
+          // More speeds
+          PopupMenuButton<double>(
+            icon: const Icon(Icons.more_horiz, color: Colors.white70, size: 20),
+            tooltip: '更多倍速',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            splashRadius: 16,
+            offset: const Offset(0, -300),
+            color: Colors.grey[850],
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            initialValue: _playbackRate,
+            onSelected: (rate) => _setPlaybackRate(rate),
+            itemBuilder: (_) => allSpeeds.map((speed) {
+              final isActive = (_playbackRate - speed).abs() < 0.01;
+              return PopupMenuItem<double>(
+                value: speed,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isActive)
+                      Icon(Icons.check,
+                          size: 16, color: theme.colorScheme.primary)
+                    else
+                      const SizedBox(width: 16),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${speed}x',
+                      style: TextStyle(
+                        color: isActive
+                            ? theme.colorScheme.primary
+                            : Colors.white70,
+                        fontWeight:
+                            isActive ? FontWeight.bold : FontWeight.normal,
+                        fontSize: 13,
+                      ),
+                    ),
+                    if (speed == 1.0)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 4),
+                        child: Text('(正常)',
+                            style: TextStyle(
+                                color: Colors.grey[500], fontSize: 11)),
+                      ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+          const Spacer(),
+          // Current rate indicator
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: Colors.grey[800],
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              '${_playbackRate}x',
+              style: TextStyle(
+                color: _playbackRate != 1.0
+                    ? theme.colorScheme.primary
+                    : Colors.white70,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildError(BuildContext context) {
+    return Container(
+      height: 200,
+      color: Colors.grey[900],
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.videocam_off, size: 48, color: Colors.grey),
+            const SizedBox(height: 8),
+            const Text('视频加载失败', style: TextStyle(color: Colors.grey)),
+            const SizedBox(height: 4),
+            Text(
+              _error!.length > 80
+                  ? '${_error!.substring(0, 80)}...'
+                  : _error!,
+              style: const TextStyle(color: Colors.grey, fontSize: 11),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () {
+                setState(() {
+                  _error = null;
+                  _initialized = false;
+                  _player?.dispose();
+                  _player = null;
+                  _controller = null;
+                  _initPlayer();
+                });
+              },
+              icon: const Icon(Icons.refresh, size: 16),
+              label: const Text('重试'),
             ),
           ],
-        );
-      },
+        ),
+      ),
     );
   }
 }

@@ -2,17 +2,18 @@
 ///
 /// 按 manifest 顶层 `template` 字段路由到对应 [ModleRenderer]。
 /// 未知/缺失 → 回退 'v4'（兼容现有全部 pages 模块）。
+///
+/// 注册表内容由生成器按 release profile 生成（多套打包支持）：
+///   1. 编辑 `templates/templates_index.json`（模板清单）与 `build_profiles/<profile>.json`
+///   2. 运行 `dart tool/gen_template_registry.dart --profile <name>`
+///   3. 生成的 `generated/template_registry.g.dart` 只 import 选中模板，
+///      其余模板由 Dart AOT tree-shaker 自动剔除出产物。
 library;
 
 import 'package:flutter/widgets.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'template.dart';
-import 'package:evergreen_base/renderer/templates/v4_modle/v4_modle_template.dart';
-import 'package:evergreen_base/renderer/templates/zju_modle/zju_modle_template.dart';
-import 'package:evergreen_base/renderer/templates/paper_reading_modle/paper_reading_modle_template.dart';
-import 'package:evergreen_base/renderer/templates/html_modle/html_modle_template.dart';
-import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_template.dart';
-import 'package:evergreen_base/renderer/templates/theme_creator_modle/theme_creator_modle_template.dart';
+import 'generated/template_registry.g.dart';
 
 /// 模板路由注册表。
 ///
@@ -21,21 +22,11 @@ import 'package:evergreen_base/renderer/templates/theme_creator_modle/theme_crea
 /// // 渲染某模块（自动按 descriptor.template 选择模板）
 /// TemplateRegistry.render(context, descriptor: descriptor, workingDirectory: wd);
 ///
-/// // 扩展新模板
-/// TemplateRegistry.register('zju', const ZjuModleTemplate());
+/// // 运行时扩展新模板（不推荐：请走生成器，否则 tree-shaker 无法裁剪）
+/// TemplateRegistry.register('xxx', const XxxModleTemplate());
 /// ```
 class TemplateRegistry {
-  static final Map<String, ModleRenderer> _renderers = {
-    'v4': const V4ModleTemplate(),
-    'zju': const ZjuModleTemplate(),
-    // 兼容别名：旧插件 manifest 若声明 classroom/zdbk，仍路由到合并后的 zju 渲染器。
-    'classroom': const ZjuModleTemplate(),
-    'zdbk': const ZjuModleTemplate(),
-    'paper_reading': const PaperReadingModleTemplate(),
-    'html': const HtmlModleTemplate(),
-    'scraper': const ScraperTemplate(),
-    'theme-creator': const ThemeCreatorModleTemplate(),
-  };
+  static final Map<String, ModleRenderer> _renderers = buildTemplateRegistry();
 
   /// 注册自定义模板渲染器（插件 / 新模板扩展点）。
   static void register(String name, ModleRenderer renderer) {

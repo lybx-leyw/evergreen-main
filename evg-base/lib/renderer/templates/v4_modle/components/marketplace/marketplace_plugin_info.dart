@@ -27,6 +27,11 @@ class PluginInfo {
   /// module 的页面数（非 module 为 0）。
   final int pageCount;
 
+  /// 是否为内置模块（随应用分发，非 plugins/ 目录插件）——不可卸载。
+  /// 内置模块由启动期注册进 ModuleRegistry（如 zju 9 个校园模块），
+  /// 市场合并展示时置 true，卡片隐藏「卸载」按钮。
+  final bool isBuiltin;
+
   const PluginInfo({
     required this.id,
     required this.name,
@@ -38,6 +43,7 @@ class PluginInfo {
     required this.isModule,
     required this.hasSidebar,
     required this.pageCount,
+    this.isBuiltin = false,
   });
 
   /// 根据插件类型返回展示图标（manifest 无 icon 时回退）。

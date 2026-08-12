@@ -64,13 +64,28 @@ import 'package:evergreen_base/core/utils/plugin_asset_releaser.dart';
 import 'package:evergreen_base/core/utils/python_env.dart';
 import 'package:evergreen_base/providers.dart';
 import 'package:evergreen_base/renderer/app/service/providers/renderer_providers.dart';
+import 'package:evergreen_base/renderer/templates/zju_modle/zju_builtin_modules.dart';
+import 'package:evergreen_base/renderer/templates/zju_modle/zju_data_sources.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:webview_windows/webview_windows.dart';
 import 'package:window_manager/window_manager.dart';
+
+/// 是否装入浙大（zju）专用内容（编译期常量，由 `--dart-define` 决定）。
+///
+/// 双版 release：
+/// - 浙大专用版（build_profiles/release_full.json）：默认 true，装入全部
+///   浙大数据源 + 内置模块（与当前行为一致，本地开发/现有构建不受影响）；
+/// - 通用版（build_profiles/release_std.json）：`flutter build
+///   --dart-define=EVERGREEN_ZJU=false` → 常量折叠为 false，下方浙大注册
+///   调用不可达，浙大依赖被 AOT tree-shaker 整体剔除出产物（与
+///   template_registry 的 profile 机制同一思路）。
+const bool kZjuEnabled =
+    bool.fromEnvironment('EVERGREEN_ZJU', defaultValue: true);
 
 /// 一个启动步骤。
 class BootStep {
@@ -341,14 +356,34 @@ class AppBootstrap {
     return _ok();
   }
 
-  /// media_kit（安卓跳过：libmpv 初始化即原生崩溃，安卓走 video_player）。
+  /// media_kit 初始化（全平台，对齐参考 main.dart：Android 同样需要
+  /// `MediaKit.ensureInitialized()` 加载 libmpv，跳过后 Video 黑屏）。
+  /// media_kit_libs_android_video 已由 media_kit_libs_video 引入，native 库
+  /// 会随 APK 打包，不会出现参考早期「libmpv 未打包即崩溃」的问题。
   Future<Result<void>> _stepMediaKit() async {
-    if (Platform.isAndroid) return _ok();
     try {
       MediaKit.ensureInitialized();
       Log().info('[BOOT] media_kit 初始化成功（libmpv 视频播放）');
     } catch (e) {
       Log().warn('[BOOT] ⚠ media_kit 初始化失败，视频播放不可用: $e', error: e);
+    }
+    // 探测 media_kit_video 原生插件是否注册（仅 Windows）：
+    // handler 存在时 `Utils.ExitNativeFullscreen` 返回成功；插件未注册（旧构建 /
+    // hot restart 不重载原生插件）时抛 MissingPluginException。这能把「视频黑屏 +
+    // 神秘 [BOOT] 未捕获异步异常」变成启动时一行明确日志。
+    if (Platform.isWindows) {
+      try {
+        const probe = MethodChannel('com.alexmercerind/media_kit_video');
+        await probe.invokeMethod<void>('Utils.ExitNativeFullscreen');
+        Log().info('[BOOT] media_kit_video 原生插件注册正常（视频可用）');
+      } on MissingPluginException {
+        Log().warn(
+            '[BOOT] ⚠ media_kit_video 原生插件未注册：当前进程未包含该插件，视频播放不可用。'
+            '请完全退出 flutter run 进程后重新运行（hot restart 不重载原生插件），'
+            '或 flutter clean 后重新构建。');
+      } catch (e) {
+        Log().debug('[BOOT] media_kit_video 插件探测异常（可忽略）: $e');
+      }
     }
     return _ok();
   }
@@ -637,6 +672,12 @@ class AppBootstrap {
   Future<Result<void>> _stepDataSources() async {
     Log().info('[BOOT] 开始扫描数据插件: pluginsDir=$pluginsDir');
     _scanAndRegisterDataSources(pluginsDir, orchestrator!);
+    // zju 内置数据源（Dart fetcher，不依赖插件）：B2 注册 zdbk 6 类型骨架，
+    // B3 移植 service 后替换 fetcher。双版 release：通用版（kZjuEnabled=false）
+    // 时本调用不可达，浙大依赖被 AOT tree-shaker 整体剔除出产物。
+    if (kZjuEnabled) {
+      registerZjuDataSources(orchestrator!, prefs!);
+    }
     Log().info('[BOOT] 数据插件扫描完成');
     return _ok();
   }
@@ -651,6 +692,13 @@ class AppBootstrap {
         ports[loader.manifest.id] = loader.port!;
         Log().info('[BOOT] 模块 ${loader.manifest.id} → http://127.0.0.1:${loader.port}');
       }
+    }
+    // zju 内置模块（B4）：9 个校园 feature，template='zju'，不依赖插件 manifest。
+    // 插件市场（MarketplaceSlot）经 ModuleRegistry 合并展示为「内置」卡片。
+    // 双版 release：通用版（kZjuEnabled=false）时不注册浙大模块，与
+    // template_registry 的 release_std profile 同一机制。
+    if (kZjuEnabled) {
+      registerZjuBuiltinModules(registry);
     }
     registry.seal();
     this.registry = registry;

@@ -1,3 +1,9 @@
+# 必须先于 config 的 import 应用 pydantic v1 兼容 shim（translate_engine_model 在
+# 模块加载时就访问类级 model_fields，v1 无此属性会直接崩）。
+from pdf2zh_next import _pydantic_compat  # noqa: E402,F401
+
+import os  # noqa: E402
+
 from pdf2zh_next.config import AnythingLLMSettings
 from pdf2zh_next.config import AzureOpenAISettings
 from pdf2zh_next.config import AzureSettings
@@ -17,7 +23,9 @@ from pdf2zh_next.config import SiliconFlowSettings
 from pdf2zh_next.config import TencentSettings
 from pdf2zh_next.config import XinferenceSettings
 from pdf2zh_next.config import ZhipuSettings
-from pdf2zh_next.config.main import ConfigManager
+if not os.environ.get("EVERGREEN_PDF2ZH_LITE"):
+    from pdf2zh_next.config.main import ConfigManager
+
 from pdf2zh_next.config.model import BasicSettings
 from pdf2zh_next.config.model import PDFSettings
 from pdf2zh_next.config.model import SettingsModel

@@ -25,6 +25,8 @@
     {"key":"WEB_SEARCH_ENABLED",   "label":"联网搜索",           "type":"bool",   "default":"false", "hint":"允许 AI 使用 web_search 工具查找实时信息"},
     {"key":"DEEPSEEK_OCR_API_KEY", "label":"DeepSeek OCR Key",  "type":"string", "isSecure":true,  "hint":"用于 OCR 管线的 Level 1"},
     {"key":"PYTHON_EXE",           "label":"Python 解释器路径",   "type":"path",   "hint":"默认使用内置 .greenix/python/python.exe"},
-    {"key":"MATERIAL_DOWNLOAD_PATH","label":"下载目录",           "type":"path",   "hint":"素材/文件下载保存目录"}
+    {"key":"MATERIAL_DOWNLOAD_PATH","label":"下载目录",           "type":"path",   "hint":"素材/文件下载保存目录"},
+    {"key":"ZJU_USERNAME",         "label":"浙大统一认证账号",     "type":"string", "hint":"学号（如 3230XXXXXXXX），教务/智云课堂/图书馆/一卡通共用"},
+    {"key":"ZJU_PASSWORD",         "label":"浙大统一认证密码",     "type":"string", "isSecure":true, "hint":"统一认证密码，教务/智云课堂/图书馆/一卡通共用"}
   ]
 }
