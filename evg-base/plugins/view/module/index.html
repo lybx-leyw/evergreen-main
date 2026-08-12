@@ -114,6 +114,210 @@ body {
   padding: 1.875rem 1.75rem 3.5rem;
 }
 
+/* ---------- AI 学业分析 ---------- */
+.ai-card {
+  background:
+    linear-gradient(140deg, var(--evg-accent-bg), transparent 55%),
+    var(--card);
+  border: 1px solid var(--evg-accent-border);
+  border-radius: var(--radius-lg);
+  padding: 1.125rem 1.375rem;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(0.625rem);
+  -webkit-backdrop-filter: blur(0.625rem);
+  margin-bottom: 1.25rem;
+  position: relative;
+  overflow: hidden;
+}
+.ai-card::before {
+  content: "";
+  position: absolute;
+  top: 0; bottom: 0; left: 0;
+  width: 0.3125rem;
+  background: linear-gradient(180deg, var(--accent), transparent);
+  pointer-events: none;
+}
+.ai-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  pointer-events: none;
+}
+.ai-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.ai-head-text { min-width: 0; }
+.ai-title {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.ai-icon {
+  width: 1.75rem; height: 1.75rem;
+  border-radius: 0.5rem;
+  background: linear-gradient(145deg, var(--evg-accent), color-mix(in srgb, var(--evg-accent) 55%, var(--evg-background)));
+  color: var(--evg-text);
+  font-size: 0.9375rem;
+  display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), 0 0.25rem 0.625rem color-mix(in srgb, var(--evg-accent) 34%, transparent);
+  pointer-events: none;
+}
+.ai-sub { font-size: var(--fs-xs); color: var(--ink-faint); margin-top: 0.3125rem; }
+.ai-btn {
+  appearance: none;
+  -webkit-appearance: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--evg-text);
+  background: linear-gradient(145deg, var(--evg-accent), color-mix(in srgb, var(--evg-accent) 78%, var(--evg-background)));
+  border-radius: 999px;
+  padding: 0.625rem 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  box-shadow: 0 0.375rem 0.875rem color-mix(in srgb, var(--evg-accent) 38%, transparent), inset 0 1px 0 rgba(255,255,255,0.24);
+  transition: transform 0.16s ease, box-shadow 0.16s ease, opacity 0.16s ease;
+}
+.ai-btn:hover { transform: translateY(-0.125rem); box-shadow: 0 0.5rem 1.125rem color-mix(in srgb, var(--evg-accent) 44%, transparent), inset 0 1px 0 rgba(255,255,255,0.24); }
+.ai-btn:active { transform: translateY(0); }
+.ai-btn:disabled { opacity: 0.6; cursor: default; transform: none; box-shadow: none; }
+.ai-btn:focus-visible { outline: 2px solid var(--evg-accent-border); outline-offset: 2px; }
+
+.ai-body { margin-top: 1.125rem; border-top: 1px dashed var(--evg-accent-border); padding-top: 1.125rem; }
+
+/* 思考中状态 */
+.ai-thinking { text-align: center; padding: 1.75rem 1rem 1.5rem; }
+.ai-thinking-icon {
+  font-size: 1.625rem;
+  display: inline-block;
+  animation: spin 2.4s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.ai-thinking p { margin-top: 0.75rem; font-size: var(--fs-sm); color: var(--ink-soft); }
+.ai-dots { margin-top: 0.875rem; display: flex; justify-content: center; gap: 0.375rem; }
+.ai-dots i {
+  width: 0.4375rem; height: 0.4375rem;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: bounce 1s infinite ease-in-out;
+}
+.ai-dots i:nth-child(2) { animation-delay: 0.15s; }
+.ai-dots i:nth-child(3) { animation-delay: 0.3s; }
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); opacity: 0.45; }
+  50% { transform: translateY(-0.375rem); opacity: 1; }
+}
+
+/* 分析报告 */
+.ai-verdict {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.875rem;
+  background: color-mix(in srgb, var(--evg-surface) 78%, transparent);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 0.9375rem 1.125rem;
+  animation: aiReveal 0.4s ease both;
+}
+.ai-v-badge {
+  flex-shrink: 0;
+  font-size: var(--fs-2xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 0.3125rem 0.6875rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.ai-v-badge.vA { color: var(--A); background: color-mix(in srgb, var(--A) 14%, transparent); border: 1px solid color-mix(in srgb, var(--A) 34%, transparent); }
+.ai-v-badge.vB { color: var(--B); background: color-mix(in srgb, var(--B) 14%, transparent); border: 1px solid color-mix(in srgb, var(--B) 34%, transparent); }
+.ai-v-badge.vC { color: var(--C); background: color-mix(in srgb, var(--C) 14%, transparent); border: 1px solid color-mix(in srgb, var(--C) 34%, transparent); }
+.ai-v-badge.vD { color: var(--D); background: color-mix(in srgb, var(--D) 14%, transparent); border: 1px solid color-mix(in srgb, var(--D) 34%, transparent); }
+.ai-v-text { font-size: var(--fs-sm); color: var(--ink-soft); line-height: 1.65; }
+.ai-v-text b { color: var(--ink); font-weight: 700; }
+
+.ai-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.875rem;
+  margin-top: 0.875rem;
+}
+.ai-box {
+  background: color-mix(in srgb, var(--evg-surface) 68%, transparent);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 0.9375rem 1.0625rem;
+  animation: aiReveal 0.4s ease both;
+}
+.ai-box-title {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin-bottom: 0.625rem;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+.ai-chips { display: flex; flex-direction: column; gap: 0.4375rem; }
+.ai-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.625rem;
+  font-size: var(--fs-xs);
+  padding: 0.375rem 0.625rem;
+  border-radius: 0.4375rem;
+  background: color-mix(in srgb, var(--evg-background) 60%, transparent);
+  border: 1px solid color-mix(in srgb, var(--evg-text-secondary) 14%, transparent);
+}
+.ai-chip-name { color: var(--ink); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ai-chip-val { color: var(--ink-soft); font-weight: 600; flex-shrink: 0; }
+.ai-chip.up .ai-chip-val { color: var(--A); }
+.ai-chip.down .ai-chip-val { color: var(--D); }
+
+/* 迷你走势 / 学科结构 */
+.ai-bars { display: flex; flex-direction: column; gap: 0.5rem; }
+.ai-bar-row { display: flex; align-items: center; gap: 0.5rem; }
+.ai-bar-label { width: 4.75rem; font-size: var(--fs-2xs); color: var(--ink-faint); text-align: right; flex-shrink: 0; }
+.ai-bar-track { flex: 1; height: 0.5625rem; border-radius: 0.3125rem; background: color-mix(in srgb, var(--evg-text-secondary) 10%, transparent); overflow: hidden; }
+.ai-bar-fill { height: 100%; border-radius: 0.3125rem; background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 55%, var(--evg-background))); min-width: 0.25rem; }
+.ai-bar-val { width: 2.375rem; font-size: var(--fs-2xs); color: var(--ink-soft); font-weight: 600; flex-shrink: 0; }
+
+.ai-suggest {
+  margin-top: 0.875rem;
+  background: color-mix(in srgb, var(--evg-surface) 68%, transparent);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 0.9375rem 1.0625rem;
+  animation: aiReveal 0.4s ease both;
+}
+.ai-suggest ol { margin: 0.125rem 0 0 1.125rem; padding: 0; }
+.ai-suggest li {
+  font-size: var(--fs-sm);
+  color: var(--ink-soft);
+  line-height: 1.6;
+  margin-bottom: 0.375rem;
+}
+.ai-suggest li:last-child { margin-bottom: 0; }
+.ai-suggest li::marker { color: var(--accent); font-weight: 700; }
+.ai-suggest li b { color: var(--ink); }
+
+@keyframes aiReveal {
+  from { opacity: 0; transform: translateY(0.5rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* ---------- 概览统计（2×2） ---------- */
 .stats-row {
   display: grid;
@@ -524,6 +728,8 @@ body {
   .topbar-inner { padding: 1rem; }
   .stat-value { font-size: 1.625rem; }
   .stats-row { grid-template-columns: 1fr; }
+  .ai-grid { grid-template-columns: 1fr; }
+  .ai-bar-label { width: 4rem; }
   .course-card {
     grid-template-columns: 1fr;
     gap: 0.875rem;
@@ -550,6 +756,19 @@ body {
 </header>
 
 <main class="container">
+  <section class="ai-card" id="ai-card" aria-label="AI 学业分析">
+    <div class="ai-head">
+      <div class="ai-head-text">
+        <div class="ai-title"><span class="ai-icon">✦</span>AI 学业分析</div>
+        <div class="ai-sub">一键洞察强弱项 · 学期走势 · 学习建议</div>
+      </div>
+      <button type="button" class="ai-btn" id="ai-btn">
+        <span class="ai-btn-label">一键 AI 分析</span>
+      </button>
+    </div>
+    <div class="ai-body hidden" id="ai-body"></div>
+  </section>
+
   <section class="stats-row" id="stats" aria-label="成绩概览"></section>
   <section class="dist-card hidden" id="dist" aria-label="成绩等级分布"></section>
   <section class="dist-card hidden" id="trend" aria-label="学期绩点走势"></section>
@@ -586,16 +805,22 @@ body {
   </div>
 </main>
 
-<footer class="footer">Powered by Evergreen · 数据来源 zdbk_transcript</footer>
+<footer class="footer">Powered by Evergreen · 数据来源 zju_zdbk_transcript</footer>
 
 <script>
 (function () {
   'use strict';
 
-  var SOURCE = 'zdbk_transcript';
+  // 数据源：成绩单（已连通）— 修正为真实数据源名
+  var SOURCE = 'zju_zdbk_transcript';
   var sortMode = 'default';
   var termFilter = 'all';
   var allItems = [];
+
+  /* 显隐助手：CSS 中 .hidden { display:none !important } 优先级最高，
+     必须通过 classList 切换，否则 element.hidden=false 无效（bug 修复） */
+  function show(el) { if (el) el.classList.remove('hidden'); }
+  function hide(el) { if (el) el.classList.add('hidden'); }
 
   function toNum(v) {
     var n = parseFloat(v);
@@ -781,7 +1006,7 @@ body {
       var wasOpen = !menu.hidden;
       closeAllMenus();
       menu.hidden = wasOpen;
-      if (btn.getAttribute) btn.setAttribute('aria-expanded', String(!wasOpen));
+      if (btn.setAttribute) btn.setAttribute('aria-expanded', String(!wasOpen));
     });
 
     menu.addEventListener('click', function (e) {
@@ -834,7 +1059,7 @@ body {
     var el = document.getElementById('dist');
     if (!el) return;
     var total = buckets.A + buckets.B + buckets.C + buckets.D + buckets.F;
-    if (total === 0) { el.hidden = true; return; }
+    if (total === 0) { hide(el); return; }
     var meta = [
       { k: 'A', label: '优秀', cls: 'A' },
       { k: 'B', label: '良好', cls: 'B' },
@@ -856,7 +1081,7 @@ body {
       '</div>' +
       '<div class="dist-bar">' + segs + '</div>' +
       '<div class="dist-legend">' + legend + '</div>';
-    el.hidden = false;
+    show(el);
   }
 
   /* ---------- 渲染：学期绩点走势 ---------- */
@@ -889,7 +1114,7 @@ body {
   function renderTrend(series) {
     var el = document.getElementById('trend');
     if (!el) return;
-    if (series.length === 0) { el.hidden = true; return; }
+    if (series.length === 0) { hide(el); return; }
 
     var W = 1100, H = 250, padL = 46, padR = 24, padT = 30, padB = 42;
     var cw = W - padL - padR, ch = H - padT - padB;
@@ -932,7 +1157,7 @@ body {
       '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="学期绩点走势折线图">' +
         grid + chart +
       '</svg>';
-    el.hidden = false;
+    show(el);
   }
 
   /* ---------- 渲染：课程列表（一行一个 · 横向卡片） ---------- */
@@ -944,10 +1169,10 @@ body {
     var empty = document.getElementById('empty');
     if (items.length === 0) {
       grid.innerHTML = '';
-      if (empty) empty.hidden = false;
+      show(empty);
       return;
     }
-    if (empty) empty.hidden = true;
+    hide(empty);
 
     var html = items.map(function (it) {
       var name = it.kcmc || '未命名课程';
@@ -1015,15 +1240,301 @@ body {
         '<div class="stat-value">0<span class="unit">门</span></div>' +
         '<div class="stat-foot">暂无数据</div>' +
       '</div>';
-    document.getElementById('dist').hidden = true;
-    document.getElementById('trend').hidden = true;
+    hide(document.getElementById('dist'));
+    hide(document.getElementById('trend'));
     renderCourses([]);
+  }
+
+  /* ================= AI 学业分析 ================= */
+
+  // 学科分类（启发式关键词匹配）
+  var CATS = [
+    { name: '数理基础', keys: ['微积分', '线性代数', '高等数学', '数学', '概率', '统计', '物理', '化学', '力学', '电磁', '光学', '热学', '代数', '生物'] },
+    { name: '计算机', keys: ['程序', 'C语言', 'C++', 'Java', 'Python', '数据结构', '算法', '计算机', '软件', '网络', '人工智能', '机器学习', '数据库'] },
+    { name: '语言外语', keys: ['英语', '外语', '日语', '德语', '法语', '西班牙语', '写作', '语文', '阅读'] },
+    { name: '人文社科', keys: ['心理', '哲学', '历史', '社会', '政治', '经济', '管理', '法律', '文学', '音乐', '小提琴', '艺术', '美术', '体育', '形势与政策', '思修', '军事', '伦理'] },
+    { name: '工程实践', keys: ['实验', '工程', '设计', '实践', '制造', '电路', '电子', '机械'] }
+  ];
+
+  function catOf(name) {
+    var s = String(name || '');
+    for (var i = 0; i < CATS.length; i++) {
+      for (var k = 0; k < CATS[i].keys.length; k++) {
+        if (s.indexOf(CATS[i].keys[k]) !== -1) return CATS[i].name;
+      }
+    }
+    return '其他';
+  }
+
+  // 学期绩点序列 + 趋势方向
+  function analyzeTrend(items) {
+    var map = {};
+    items.forEach(function (it) {
+      var g = gpa5Of(it);
+      if (g === null) return;
+      var c = toNum(it.xf) || 0;
+      var t = termOf(it);
+      if (!map[t]) map[t] = { w: 0, c: 0 };
+      map[t].w += g * c;
+      map[t].c += c;
+    });
+    var terms = Object.keys(map);
+    terms.sort(function (a, b) {
+      var ka = termRank(a), kb = termRank(b);
+      if (ka >= 0 && kb >= 0) return ka - kb;
+      if (ka < 0) return 1;
+      if (kb < 0) return -1;
+      return a < b ? -1 : a > b ? 1 : 0;
+    });
+    var pts = terms.map(function (t) {
+      return { term: t, gpa: map[t].c > 0 ? map[t].w / map[t].c : null };
+    }).filter(function (p) { return p.gpa !== null; });
+
+    var dir = 'flat';
+    if (pts.length >= 2) {
+      var mid = Math.floor(pts.length / 2);
+      var avg = function (arr) {
+        var s = 0;
+        arr.forEach(function (p) { s += p.gpa; });
+        return s / arr.length;
+      };
+      var d = avg(pts.slice(mid)) - avg(pts.slice(0, mid));
+      if (d > 0.05) dir = 'up';
+      else if (d < -0.05) dir = 'down';
+    }
+    return { dir: dir, pts: pts };
+  }
+
+  function buildSuggestions(ctx) {
+    var s = [];
+    var w = ctx.weaknesses[0];
+    if (w) {
+      s.push('重点复盘「' + w.name + '」（' + Math.round(w.score) + ' 分）' + (w.major ? '，作为主修课程' : '') + '，建议整理错题、预约答疑，避免影响后续高阶课程。');
+    }
+    var weakCat = null;
+    for (var i = ctx.cats.length - 1; i >= 0; i--) {
+      if (ctx.cats[i].n >= 2 && (ctx.avgScore === null || ctx.cats[i].avg < ctx.avgScore - 2)) {
+        weakCat = ctx.cats[i];
+        break;
+      }
+    }
+    if (weakCat) {
+      s.push('「' + weakCat.name + '」类课程平均 ' + weakCat.avg.toFixed(1) + ' 分，低于整体平均，建议针对该方向增加练习量或调整学习方法。');
+    }
+    if (ctx.trend.dir === 'down' && ctx.trend.pts.length >= 2) {
+      var p = ctx.trend.pts;
+      s.push('学期绩点由 ' + shortTerm(p[0].term) + ' 的 ' + p[0].gpa.toFixed(2) + ' 降至 ' + p[p.length - 1].gpa.toFixed(2) + '，建议适当控制单学期学分，聚焦核心课程攻坚。');
+    } else if (ctx.trend.dir === 'up') {
+      var q = ctx.trend.pts;
+      s.push('学期绩点呈上升趋势（' + q[0].gpa.toFixed(2) + ' → ' + q[q.length - 1].gpa.toFixed(2) + '），节奏良好，可在有余力时挑战高阶课程或科研训练。');
+    }
+    var majorRatio = ctx.totalCredit > 0 ? ctx.majorCredit / ctx.totalCredit : null;
+    if (majorRatio !== null && majorRatio < 0.4 && ctx.totalCredit > 0) {
+      s.push('主修课程学分占比仅 ' + Math.round(majorRatio * 100) + '%，后续选课可向专业核心课程倾斜，夯实专业基础。');
+    }
+    if (s.length < 2 && ctx.avgGpa !== null && ctx.avgGpa >= 4.0) {
+      s.push('整体成绩亮眼，可尝试学科竞赛、科研训练等拓展性活动，把学业优势转化为竞争力。');
+    }
+    if (s.length === 0) {
+      s.push('整体学业表现平稳，保持现有节奏，并为下一学期制定明确的目标课程计划。');
+    }
+    return s.slice(0, 4);
+  }
+
+  function analyze(items) {
+    var totalCredit = 0, w5 = 0, c5 = 0, scoreSum = 0, scoreCount = 0, majorCredit = 0;
+    var maxS = -Infinity, maxC = null, minS = Infinity, minC = null;
+    var catStats = {};
+
+    items.forEach(function (it) {
+      var s = toNum(it.cj);
+      var c = toNum(it.xf) || 0;
+      var g = gpa5Of(it);
+      totalCredit += c;
+      if (it.major) majorCredit += c;
+      if (g !== null) { w5 += g * c; c5 += c; }
+      if (s !== null) {
+        scoreSum += s;
+        scoreCount++;
+        if (s > maxS) { maxS = s; maxC = it; }
+        if (s < minS) { minS = s; minC = it; }
+      }
+      var cat = catOf(it.kcmc);
+      if (!catStats[cat]) catStats[cat] = { w: 0, c: 0, n: 0 };
+      if (s !== null) {
+        catStats[cat].w += s * (c || 1);
+        catStats[cat].c += (c || 1);
+        catStats[cat].n++;
+      }
+    });
+
+    var avgGpa = c5 > 0 ? w5 / c5 : null;
+    var avgScore = scoreCount > 0 ? scoreSum / scoreCount : null;
+
+    var level, lvCls;
+    if (avgGpa !== null && avgGpa >= 4.5) { level = '顶尖'; lvCls = 'vA'; }
+    else if (avgGpa !== null && avgGpa >= 4.0) { level = '优秀'; lvCls = 'vA'; }
+    else if (avgGpa !== null && avgGpa >= 3.5) { level = '良好'; lvCls = 'vB'; }
+    else if (avgGpa !== null && avgGpa >= 3.0) { level = '中等'; lvCls = 'vC'; }
+    else { level = '基础待夯实'; lvCls = 'vD'; }
+
+    // 优势 / 待提升
+    var scored = items.filter(function (it) { return toNum(it.cj) !== null; })
+      .map(function (it) {
+        return { name: it.kcmc || '未命名课程', score: toNum(it.cj), major: !!it.major };
+      })
+      .sort(function (a, b) { return b.score - a.score; });
+    var strengths = scored.slice(0, 3);
+
+    var weaknesses = [];
+    var weakCut = avgScore !== null ? avgScore - 1 : 80;
+    for (var i = scored.length - 1; i >= 0; i--) {
+      if (weaknesses.length >= 3) break;
+      if (scored[i].score <= weakCut) weaknesses.push(scored[i]);
+    }
+    if (weaknesses.length === 0 && scored.length) weaknesses.push(scored[scored.length - 1]);
+
+    // 学科结构
+    var cats = Object.keys(catStats).map(function (k) {
+      var st = catStats[k];
+      return { name: k, avg: st.c > 0 ? st.w / st.c : null, n: st.n };
+    }).filter(function (c) { return c.avg !== null && c.n >= 1; })
+      .sort(function (a, b) { return b.avg - a.avg; });
+
+    var trend = analyzeTrend(items);
+
+    return {
+      n: items.length,
+      avgGpa: avgGpa,
+      avgScore: avgScore,
+      maxC: maxC, maxS: maxS, minC: minC, minS: minS,
+      majorCredit: majorCredit,
+      totalCredit: totalCredit,
+      level: level, lvCls: lvCls,
+      strengths: strengths,
+      weaknesses: weaknesses,
+      cats: cats,
+      trend: trend,
+      suggestions: buildSuggestions({
+        weaknesses: weaknesses, cats: cats, trend: trend,
+        avgScore: avgScore, avgGpa: avgGpa,
+        majorCredit: majorCredit, totalCredit: totalCredit
+      })
+    };
+  }
+
+  function renderAnalysis(r) {
+    var el = document.getElementById('ai-body');
+    if (!el) return;
+    var html = '';
+
+    // 总评
+    var verdict = '综合 ' + r.n + ' 门课程，加权绩点 <b>' +
+      (r.avgGpa !== null ? r.avgGpa.toFixed(2) : '—') + '</b>（5 分制），平均分 <b>' +
+      (r.avgScore !== null ? r.avgScore.toFixed(1) : '—') + '</b>。';
+    if (r.maxC && r.minC && r.maxS !== -Infinity && r.minS !== Infinity) {
+      verdict += '最高 <b>' + Math.round(r.maxS) + '</b> 分（' + esc(r.maxC.kcmc) + '），最低 <b>' + Math.round(r.minS) + '</b> 分（' + esc(r.minC.kcmc) + '）。';
+    }
+    html += '<div class="ai-verdict" style="animation-delay:0.02s">' +
+      '<span class="ai-v-badge ' + r.lvCls + '">学业评定 · ' + r.level + '</span>' +
+      '<p class="ai-v-text">' + verdict + '</p>' +
+    '</div>';
+
+    // 优势 / 待提升
+    var strengthHtml = r.strengths.map(function (x, i) {
+      return '<div class="ai-chip up" style="animation-delay:' + (0.08 + i * 0.05).toFixed(2) + 's">' +
+        '<span class="ai-chip-name">' + esc(x.name) + '</span>' +
+        '<span class="ai-chip-val">' + Math.round(x.score) + ' 分</span></div>';
+    }).join('');
+    if (!strengthHtml) strengthHtml = '<div class="ai-chip"><span class="ai-chip-name">暂无成绩记录</span></div>';
+
+    var weakHtml = r.weaknesses.map(function (x, i) {
+      return '<div class="ai-chip down" style="animation-delay:' + (0.08 + i * 0.05).toFixed(2) + 's">' +
+        '<span class="ai-chip-name">' + esc(x.name) + '</span>' +
+        '<span class="ai-chip-val">' + Math.round(x.score) + ' 分</span></div>';
+    }).join('');
+    if (!weakHtml) weakHtml = '<div class="ai-chip"><span class="ai-chip-name">无明显短板，表现均衡</span></div>';
+
+    html += '<div class="ai-grid">' +
+      '<div class="ai-box" style="animation-delay:0.1s"><div class="ai-box-title">💪 优势科目</div><div class="ai-chips">' + strengthHtml + '</div></div>' +
+      '<div class="ai-box" style="animation-delay:0.16s"><div class="ai-box-title">🎯 待提升</div><div class="ai-chips">' + weakHtml + '</div></div>' +
+    '</div>';
+
+    // 学期走势 / 学科结构
+    var trendHtml = '';
+    if (r.trend.pts.length > 0) {
+      trendHtml = '<div class="ai-bars">' + r.trend.pts.map(function (p) {
+        var w = Math.max(6, Math.round((p.gpa / 5) * 100)) + '%';
+        return '<div class="ai-bar-row">' +
+          '<span class="ai-bar-label">' + esc(shortTerm(p.term)) + '</span>' +
+          '<span class="ai-bar-track"><span class="ai-bar-fill" style="width:' + w + '"></span></span>' +
+          '<span class="ai-bar-val">' + p.gpa.toFixed(2) + '</span></div>';
+      }).join('') + '</div>';
+    } else {
+      trendHtml = '<div class="ai-chip"><span class="ai-chip-name">暂无学期数据</span></div>';
+    }
+
+    var catHtml = '';
+    if (r.cats.length > 0) {
+      var maxAvg = r.cats[0].avg || 1;
+      catHtml = '<div class="ai-bars">' + r.cats.slice(0, 4).map(function (c) {
+        var w = Math.max(8, Math.round((c.avg / maxAvg) * 100)) + '%';
+        return '<div class="ai-bar-row">' +
+          '<span class="ai-bar-label">' + esc(c.name) + '</span>' +
+          '<span class="ai-bar-track"><span class="ai-bar-fill" style="width:' + w + '"></span></span>' +
+          '<span class="ai-bar-val">' + c.avg.toFixed(1) + '</span></div>';
+      }).join('') + '</div>';
+    } else {
+      catHtml = '<div class="ai-chip"><span class="ai-chip-name">暂无分类数据</span></div>';
+    }
+
+    html += '<div class="ai-grid">' +
+      '<div class="ai-box" style="animation-delay:0.22s"><div class="ai-box-title">📈 学期走势</div>' + trendHtml + '</div>' +
+      '<div class="ai-box" style="animation-delay:0.28s"><div class="ai-box-title">🗂️ 学科结构</div>' + catHtml + '</div>' +
+    '</div>';
+
+    // 建议
+    var sugHtml = '<ol>' + r.suggestions.map(function (s) { return '<li>' + s + '</li>'; }).join('') + '</ol>';
+    html += '<div class="ai-suggest" style="animation-delay:0.34s"><div class="ai-box-title">💡 学习建议</div>' + sugHtml + '</div>';
+
+    el.innerHTML = html;
+    show(el); // 确保 AI 结果区域可见（修复 hidden 类冲突）
+  }
+
+  function runAI() {
+    var btn = document.getElementById('ai-btn');
+    var body = document.getElementById('ai-body');
+    if (!btn || !body || allItems.length === 0) return;
+    if (btn.getAttribute('data-busy') === '1') return;
+
+    var label = btn.querySelector('.ai-btn-label');
+    btn.setAttribute('data-busy', '1');
+    btn.disabled = true;
+    label.textContent = 'AI 分析中…';
+    show(body);
+    body.innerHTML =
+      '<div class="ai-thinking">' +
+        '<span class="ai-thinking-icon">✦</span>' +
+        '<p>正在读取成绩数据并生成洞察报告…</p>' +
+        '<div class="ai-dots"><i></i><i></i><i></i></div>' +
+      '</div>';
+
+    // 本地智能引擎即时计算，延时仅用于呈现"分析中"状态
+    setTimeout(function () {
+      renderAnalysis(analyze(allItems));
+      label.textContent = '重新分析';
+      btn.disabled = false;
+      btn.setAttribute('data-busy', '0');
+    }, 900);
   }
 
   /* ---------- 初始化 ---------- */
   function init() {
     document.getElementById('stats').innerHTML = skeletonStats();
     document.getElementById('course-grid').innerHTML = skeletonCards();
+
+    var aiBtn = document.getElementById('ai-btn');
+    if (aiBtn) aiBtn.addEventListener('click', runAI);
 
     setupDropdown('sort-btn', 'sort-menu', function (v) {
       sortMode = v;
@@ -1034,15 +1545,24 @@ body {
       renderAll();
     });
 
+    // 数据源结构：{ grades: [...] } — 修正字段名与数据源名
     platform.data.get(SOURCE).then(function (d) {
-      allItems = (d && Array.isArray(d.items)) ? d.items : [];
+      allItems = (d && Array.isArray(d.grades)) ? d.grades :
+                 (d && Array.isArray(d.items)) ? d.items : [];
       if (allItems.length === 0) {
         renderEmpty();
+        if (aiBtn) {
+          aiBtn.disabled = true;
+          var l = aiBtn.querySelector('.ai-btn-label');
+          if (l) l.textContent = '暂无数据可分析';
+        }
         return;
       }
       populateTermMenu(allItems);
       renderAll();
       renderTrend(buildTrend(allItems));
+      // 数据就绪后自动生成一次 AI 分析，结果立即可见
+      runAI();
     }).catch(function (e) {
       document.getElementById('stats').innerHTML =
         '<div class="error-card">' +
@@ -1050,6 +1570,11 @@ body {
           '<div class="error-msg">' + esc(e && e.message ? e.message : String(e)) + '</div>' +
         '</div>';
       document.getElementById('course-grid').innerHTML = '';
+      if (aiBtn) {
+        aiBtn.disabled = true;
+        var l = aiBtn.querySelector('.ai-btn-label');
+        if (l) l.textContent = '数据加载失败';
+      }
     });
   }
 

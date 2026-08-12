@@ -28,6 +28,21 @@ Evergreen 2.0 建立在大量优秀的开源项目之上。我们在此郑重致
 
 pdf2zh 使得 Evergreen 能够实现高质量的中英文学术论文翻译，特别感谢其作者 [Byaidu](https://github.com/Byaidu)。
 
+### 教师评分数据 — Lazuli（ZJU 教务增强）
+
+- **内置数据集（只读 asset）**: [`evg-base/assets/data/teacher_ratings.json`](evg-base/assets/data/teacher_ratings.json)（完整数据集，1.5 MB，随应用打包）
+- **原始冻结副本**: [`evg-base/docs/reference/teacher_ratings_original.json`](evg-base/docs/reference/teacher_ratings_original.json)（对照基准，永不被修改）
+- **来源**: Lazuli — 浙江大学教务系统增强插件
+- **作者**: [ADSR1042](https://github.com/ADSR1042)
+- **仓库**: https://github.com/ADSR1042/Lazuli
+- **许可证**: GNU General Public License v3.0
+
+该数据集包含浙江大学教师的公开评分信息，仅用于教学辅助用途。
+
+**运行时修改声明：** 本应用在运行时从 `chalaoshi.top` 在线抓取最新评分与热度，并写回**应用文档目录**下的 `teacher_ratings.json` 缓存副本（`_getCacheFile()` / `_saveToLocal()` 负责）；内置 asset 只读、永不被覆写。修改逻辑位于 [`evg-base/lib/renderer/templates/zju_modle/teachers/services/chalaoshi_service.dart`](evg-base/lib/renderer/templates/zju_modle/teachers/services/chalaoshi_service.dart) 的 `_mergeOnlineResults()` 和 `_saveToLocal()` 方法。文件结构、教师 `id`/`name`/`py`/`sx`/`xy` 字段及学院数据**保持不变**，仅 `rate`（评分）与 `hot`（热度）数值被更新。
+
+根据 GPL v3 第 5 条的要求：完整源代码可在上述仓库获取，任何修改必须标明，数据以"原样"提供且无任何担保。
+
 ---
 
 ## 二、所有第三方依赖致谢
@@ -145,4 +160,4 @@ the Free Software Foundation, either version 3 of the License, or
 
 ---
 
-*最后更新：2026-08-02*
+*最后更新：2026-08-13*

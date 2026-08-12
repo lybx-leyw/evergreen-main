@@ -12,11 +12,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:webview_windows/webview_windows.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:evergreen_base/core/data/data.dart';
+import 'package:evergreen_base/core/module/page_event_bus.dart';
 import 'package:evergreen_base/providers.dart';
 import 'package:evergreen_base/renderer/app/service/theme/render_tokens.dart';
+import 'package:evergreen_base/renderer/templates/html_modle/bridge_script.dart';
+import 'package:evergreen_base/renderer/templates/html_modle/core_api_discovery.dart';
 
-/// 预览模式。
-enum PreviewMode { desktop, mobile }
+/// 预览模式（B5：新增 tablet 档）。
+enum PreviewMode { desktop, tablet, mobile }
 
 /// 设备画布尺寸定义。
 class _DeviceCanvas {
@@ -27,6 +30,7 @@ class _DeviceCanvas {
 }
 
 const _desktopCanvas = _DeviceCanvas(1440, 900, 'Desktop 1440×900');
+const _tabletCanvas = _DeviceCanvas(768, 1024, 'Tablet 768×1024');
 const _mobileCanvas = _DeviceCanvas(375, 812, 'Mobile 375×812');
 
 class PreviewPanel extends ConsumerStatefulWidget {
@@ -59,12 +63,46 @@ class _PreviewPanelState extends ConsumerState<PreviewPanel> {
   bool _useHttpServer = false;
 
   PreviewMode _mode = PreviewMode.desktop;
-  _DeviceCanvas get _canvas => _mode == PreviewMode.desktop ? _desktopCanvas : _mobileCanvas;
+  _DeviceCanvas get _canvas => switch (_mode) {
+        PreviewMode.desktop => _desktopCanvas,
+        PreviewMode.tablet => _tabletCanvas,
+        PreviewMode.mobile => _mobileCanvas,
+      };
+
+  /// 是否为"手机"形态（刘海 + 窄边框样式）；tablet 按桌面样式渲染。
+  bool get _isPhone => _mode == PreviewMode.mobile;
+
+  /// 数据订阅轮询（共享 DataSubscriptionPoller）：5s 拉取，变化推 data:changed。
+  late final DataSubscriptionPoller _poller;
+
+  /// 页级事件总线：预览页 `emit`/`on` 桥接（同页自测回路）。
+  late final PageEventBus _eventBus = PageEventBus(pageId: 'preview');
+  StreamSubscription<SlotEvent>? _eventBusSub;
 
   @override
   void initState() {
     super.initState();
     _init();
+    _poller = DataSubscriptionPoller(
+      fetch: (name) async {
+        final orch = ref.read(dataOrchestratorProvider);
+        final dt = orch.typeByName(name);
+        if (dt == null) return null; // 未注册：跳过本轮
+        return await orch.fastRead(dt) ?? await orch.get(dt);
+      },
+      executeJs: _executeJs,
+    );
+    // PageEventBus → JS：预览页内 emit 的事件推送回 `platform.on`。
+    _eventBusSub = _eventBus.all.listen((evt) {
+      if (!_initialized) return;
+      final payload = jsonEncode({
+        'event': evt.event,
+        'source': evt.sourceSlot,
+        'data': evt.data,
+        'timestamp': evt.timestamp.toIso8601String(),
+      });
+      _executeJs('window.__evgFireEvent(${jsonEncode(evt.event)}, $payload)');
+    });
     // 全局主题切换时实时推送新色板到预览（CSS 变量 + body 底色）。
     ref.listenManual(themeStoreProvider, (prev, next) {
       if (_initialized) _pushTheme();
@@ -145,7 +183,7 @@ class _PreviewPanelState extends ConsumerState<PreviewPanel> {
               // 都可能晚于页面内联脚本）。
               try {
                 var html = utf8.decode(bytes);
-                final bridge = '<script>$_bridgeScriptJs</script>';
+                final bridge = '<script>${buildBridgeScript()}</script>';
                 html = '$bridge\n$html';
                 bytes = utf8.encode(html);
               } catch (_) {}
@@ -243,7 +281,7 @@ class _PreviewPanelState extends ConsumerState<PreviewPanel> {
   }
 
   String _buildFullHtml(String content) {
-    final bridge = '<script>$_bridgeScriptJs</script>';
+    final bridge = '<script>${buildBridgeScript()}</script>';
 
     if (content.contains('<meta name="viewport"')) {
       content = content.replaceAll(
@@ -294,85 +332,7 @@ class _PreviewPanelState extends ConsumerState<PreviewPanel> {
     await _executeJs(_bridgeScript());
   }
 
-  static const String _bridgeScriptJs = '''
-(function() {
-  if (window.__evgBridgeInjected) return;
-  window.__evgBridgeInjected = true;
-  var _nextId = 1, _pending = {}, _listeners = {};
-  function _call(method, args) {
-    return new Promise(function(resolve, reject) {
-      var id = _nextId++;
-      _pending[id] = { resolve: resolve, reject: reject };
-      _postToDart(JSON.stringify({
-        id: id, method: method, args: args || []
-      }));
-    });
-  }
-  // 双通道发送：Windows chrome.webview / Android evgBridge JS 通道。
-  function _postToDart(payload) {
-    if (window.chrome && window.chrome.webview) {
-      window.chrome.webview.postMessage(payload);
-    } else if (window.evgBridge && window.evgBridge.postMessage) {
-      window.evgBridge.postMessage(payload);
-    }
-  }
-  function _resolve(id, result) {
-    var cb = _pending[id];
-    if (cb) { cb.resolve(result); delete _pending[id]; }
-  }
-  function _reject(id, message) {
-    var cb = _pending[id];
-    if (cb) { cb.reject(new Error(message)); delete _pending[id]; }
-  }
-  window.platform = {
-    data: {
-      get: function(name) { return _call('data.get', [name]); },
-      list: function() { return _call('data.list', []); },
-    },
-    ai: { chat: function(prompt) { return _call('ai.chat', [prompt]); } },
-    settings: {
-      get: function(key) { return _call('settings.get', [key]); },
-      set: function(key, value) { return _call('settings.set', [key, value]); },
-    },
-    theme: {
-      getColors: function() { return _call('theme.getColors', []); },
-    },
-    emit: function(event, payload) { return _call('emit', [event, payload]); },
-    on: function(event, fn) {
-      if (!_listeners[event]) _listeners[event] = [];
-      _listeners[event].push(fn);
-    },
-  };
-  // 主题色板 → CSS 变量（--evg-*）+ 触发 'theme:changed'。
-  window.__evgApplyTheme = function(colors) {
-    if (!colors) return;
-    var root = document.documentElement.style;
-    var map = {
-      '--evg-background': colors.background,
-      '--evg-surface': colors.surface,
-      '--evg-border': colors.border,
-      '--evg-text': colors.text,
-      '--evg-text-secondary': colors.textSecondary,
-      '--evg-accent': colors.accent,
-      '--evg-accent-bg': colors.accentBg,
-      '--evg-accent-border': colors.accentBorder,
-      '--evg-error': colors.error,
-      '--evg-others': colors.others,
-    };
-    for (var k in map) root.setProperty(k, map[k]);
-    window.__evgFireEvent('theme:changed', colors);
-  };
-  window.__evgResolve = _resolve;
-  window.__evgReject = _reject;
-  window.__evgFireEvent = function(name, payload) {
-    var handlers = _listeners[name];
-    if (handlers) handlers.forEach(function(h) { h(payload); });
-  };
-  console.log('[Evergreen Bridge] ready');
-})();
-''';
-
-  String _bridgeScript() => _bridgeScriptJs;
+  String _bridgeScript() => buildBridgeScript();
 
   StreamSubscription? _msgSub;
 
@@ -409,6 +369,59 @@ class _PreviewPanelState extends ConsumerState<PreviewPanel> {
         return orch.allStatuses
             .map((s) => {'name': s.name, 'displayName': s.displayName, 'freshness': s.freshnessLabel})
             .toList();
+      case 'data.refresh':
+        // POST /data/types/:name/refresh —— 强制重抓并写回中枢缓存。
+        return await forwardCoreHttp(
+          CoreService.data, 'POST', '/data/types/${args[0] as String}/refresh');
+      case 'data.testConnectivity':
+        // POST /data/connectivity/test —— 测试全部数据源连通性。
+        return await forwardCoreHttp(CoreService.data, 'POST', '/data/connectivity/test');
+      case 'data.subscribe':
+        // 真实订阅：Dart 侧 5s 轮询，值变化推 data:changed 事件。
+        _poller.subscribe(args[0] as String);
+        return 'ok';
+      case 'ai.chat':
+        // POST /agent/chat —— 非流式对话，返回事件数组 + 拼接文本。
+        final prompt = (args[0] ?? '').toString();
+        final style = args.length > 1 && args[1] != null
+            ? args[1].toString()
+            : null;
+        final result = await forwardCoreHttp(
+          CoreService.agent,
+          'POST',
+          '/agent/chat',
+          {
+            'input': prompt,
+            if (style != null && style.isNotEmpty) 'style': style,
+          },
+        );
+        final map = (result as Map<String, dynamic>?) ?? const {};
+        final events = (map['events'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        final text = events
+            .map((e) => e['text'])
+            .whereType<String>()
+            .where((t) => t.isNotEmpty)
+            .join('\n');
+        return {'text': text, 'events': events};
+      case 'api.call':
+        // 通用 core 服务 HTTP 转发：api.call('agent', '/agent/tools', {method:'GET'})
+        final serviceId = args[0] as String;
+        final path = args[1] as String;
+        final opts = args.length > 2 && args[2] is Map
+            ? Map<String, dynamic>.from(args[2] as Map)
+            : <String, dynamic>{};
+        final service = CoreService.values.firstWhere(
+          (s) => s.id == serviceId,
+          orElse: () => throw Exception('未知服务: $serviceId'),
+        );
+        final method = ((opts['method'] as String?) ?? 'GET').toUpperCase();
+        final body = opts['body'];
+        return await forwardCoreHttp(
+          service,
+          method,
+          path,
+          body is Map ? Map<String, dynamic>.from(body as Map) : null,
+        );
       case 'settings.get':
         return ref.read(sharedPreferencesProvider).getString(args[0] as String);
       case 'settings.set':
@@ -416,7 +429,14 @@ class _PreviewPanelState extends ConsumerState<PreviewPanel> {
         return 'ok';
       case 'theme.getColors':
         return _themeColors();
-      case 'emit': return 'ok';
+      case 'emit':
+        // 事件桥接：预览页 emit → PageEventBus 广播 → 同页 platform.on。
+        final event = args[0] as String;
+        final payload = args.length > 1 && args[1] is Map
+            ? Map<String, dynamic>.from(args[1] as Map)
+            : <String, dynamic>{};
+        _eventBus.emit(event, sourceSlot: 'preview', data: payload);
+        return 'ok';
       default: throw Exception('未知 API: $method');
     }
   }
@@ -424,6 +444,9 @@ class _PreviewPanelState extends ConsumerState<PreviewPanel> {
   @override
   void dispose() {
     _msgSub?.cancel(); _httpServer?.close();
+    _poller.dispose();
+    _eventBusSub?.cancel();
+    _eventBus.dispose();
     if (!Platform.isAndroid) _controller.dispose();
     super.dispose();
   }
@@ -527,8 +550,8 @@ class _PreviewPanelState extends ConsumerState<PreviewPanel> {
                         frameH = frameW / canvasRatio;
                       }
 
-                      final borderW = _mode == PreviewMode.mobile ? 12.0 : 8.0;
-                      final radius = _mode == PreviewMode.mobile ? 24.0 : 12.0;
+                      final borderW = _isPhone ? 12.0 : 8.0;
+                      final radius = _isPhone ? 24.0 : 12.0;
 
                       return Center(
                         child: Container(
@@ -565,8 +588,8 @@ class _PreviewPanelState extends ConsumerState<PreviewPanel> {
                                       : Webview(_controller),
                                 ),
                               ),
-                              // Mobile 模式：顶部刘海
-                              if (_mode == PreviewMode.mobile)
+                              // Mobile 模式：顶部刘海（tablet/desktop 不渲染）
+                              if (_isPhone)
                                 Positioned(
                                   top: borderW + 8,
                                   left: 0, right: 0,
@@ -615,8 +638,10 @@ class _PreviewPanelState extends ConsumerState<PreviewPanel> {
           const SizedBox(width: 4),
           const Text('实时预览', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
           const SizedBox(width: 12),
-          // Desktop / Mobile 切换
+          // Desktop / Tablet / Mobile 切换（B5）
           _modeButton(PreviewMode.desktop, Icons.desktop_windows, '桌面'),
+          const SizedBox(width: 4),
+          _modeButton(PreviewMode.tablet, Icons.tablet_mac, '平板'),
           const SizedBox(width: 4),
           _modeButton(PreviewMode.mobile, Icons.phone_android, '手机'),
           if (_useHttpServer) ...[
