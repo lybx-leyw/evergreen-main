@@ -75,6 +75,44 @@ jobs:
           restore-keys: |
             gradle-${{ runner.os }}-
 
+      - name: 预下载 Gradle 发行版 (避免 wrapper 下载断流)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Gradle wrapper 用 Java HttpURLConnection 下载发行版，CI 网络偶发
+          # "Unexpected end of file from server"（Download.java:58）。
+          # 此处用 curl（带重试）预下载、预解压并打 .ok 标记，
+          # wrapper 检测到 dists/<name>/<hash>/<name>.ok 即认为已安装，不再走 Java 下载。
+          # dists 子目录 hash = MD5(distributionUrl)，从 gradle-wrapper.properties 动态解析。
+          WRAPPER_PROP="android/gradle/wrapper/gradle-wrapper.properties"
+          DIST_URL=$(grep '^distributionUrl' "$WRAPPER_PROP" | cut -d= -f2- | sed 's/\\:/:/g')
+          echo "distributionUrl: $DIST_URL"
+          ZIP_NAME=$(basename "$DIST_URL")               # gradle-8.14-bin.zip
+          DIR_NAME="${ZIP_NAME%.zip}"                    # gradle-8.14-bin
+          HASH=$(printf '%s' "$DIST_URL" | md5sum | awk '{print $1}')
+          DIR="$HOME/.gradle/wrapper/dists/$DIR_NAME/$HASH"
+          INSTALLED="$DIR/$DIR_NAME"
+          mkdir -p "$DIR"
+          for attempt in 1 2 3; do
+            if [ -d "$INSTALLED" ] && [ -f "$DIR/$ZIP_NAME.ok" ] && [ -x "$INSTALLED/bin/gradle" ]; then
+              echo "OK: Gradle 已就绪 (命中缓存, $DIR)"
+              break
+            fi
+            echo "下载 $ZIP_NAME (第 $attempt/3 次): $DIST_URL"
+            curl -fL --retry 5 --retry-delay 3 --retry-all-errors -o "$DIR/$ZIP_NAME" "$DIST_URL"
+            unzip -q -o "$DIR/$ZIP_NAME" -d "$DIR"
+            if [ -x "$INSTALLED/bin/gradle" ]; then
+              touch "$DIR/$ZIP_NAME.ok"
+              echo "OK: Gradle 预安装完成 ($DIR)"
+              break
+            fi
+            echo "警告: 解压校验失败，删除重下"
+            rm -rf "$DIR"
+            mkdir -p "$DIR"
+          done
+          [ -x "$INSTALLED/bin/gradle" ] || { echo "::error::Gradle 预下载三次均失败"; exit 1; }
+          "$INSTALLED/bin/gradle" --version | head -3
+
       - name: 生成模板注册表 (profile) + 插件/脚本资产 + pub get
         env:
           EVERGREEN_WORKSPACE: ${{ github.workspace }}/evg-base
