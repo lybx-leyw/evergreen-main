@@ -1,8 +1,10 @@
-# Evergreen 2.0-alpha
+# Evergreen 2.0-beta
 
-Evergreen 2.0-alpha，即 Evergreen 2.0 预览版，正式发布。
+Evergreen 2.0-beta，即 Evergreen 2.0 公开测试版（Beta），正式发布。
 
-## 背景
+## 背景（成文于 2.0-alpha 时期）
+
+> 以下背景描述的是 Evergreen 2.0-alpha 预览期的项目缘起与动机，作为版本演进说明保留不变。
 
 随着 AI 技术的快速发展，各种 AI+ 产品如潮水般涌出，但在 AI4Life 方面似乎仍有所欠缺。
 
@@ -27,7 +29,7 @@ v2.0-alpha 作为 Evergreen 2.0 的预览版，我们近乎重写了整个 App�
 
 ## 内置插件资产
 
-> 2.0-alpha 预览版已集成 **12 个模块插件** + **15 个内置 Agent 工具**，覆盖 AI 对话、数据采集、学术研读、效率工具、创作定制全场景。
+> 2.0-beta 已集成 **12 个模块插件** + **15 个内置 Agent 工具**，覆盖 AI 对话、数据采集、学术研读、效率工具、创作定制全场景。
 
 ### AI 工具
 
@@ -103,6 +105,7 @@ AI Agent 可调用 **15 个内置工具**，均通过 `function calling` 自动�
 - **多模板共存** — v4（通用 composite）、paper_reading（论文三栏）、html（内嵌渲染）、scraper（爬虫生成）、theme_creator（主题编辑）、zju（浙大校园）等 7 套模板
 - **全流程插件系统** — 插件定义 → 打包 → 插件市场安装/卸载，完整闭环
 - **本地优先** — 数据走 `.greenix/` 工作区文件系统 + SharedPreferences，零服务端依赖
+- **Core 端口暴露** — core 的 6 组 HttpServer（Agent/Config/Data/Module/Theme/Core）各自在 projectRoot 写入 `.xxx_port` 端口文件；`CoreApiDiscovery` 读取端口映射并做 HTTP health 探测，HTML 插件 bridge 的 `forwardCoreHttp` 据此把插件请求转发到对应 core 服务
 - **三层架构** — `core/`（纯 Dart 服务层）→ `plugins/`（JSON 声明 + .exe）→ `renderer/`（纯 UI 渲染层），严格分层禁止跨层耦合
 - **CI/CD 就绪** — `Test` 工作流（push/PR 快速验证）+ `Release` 工作流（tag v* 触发或手动构建发布）
 
@@ -111,6 +114,8 @@ AI Agent 可调用 **15 个内置工具**，均通过 `function calling` 自动�
 ## 浙大针对性改造（v2.0）
 
 v2.0 将浙大校园功能从「外部插件」收敛为「内置模块 + 内置数据源」，并引入双版构建机制，让通用用户不再背负浙大专属代码体积。
+
+**代码路径**：`evg-base/lib/renderer/templates/zju_modle/`（模板路由 `'zju'`，含 `zdbk`、`classroom` 别名；浙大专属数据源、SSO 认证、9 个校园模块均收敛于此目录）。
 
 ### 双版构建：浙大专用版 / 通用版
 
@@ -207,7 +212,7 @@ evergreen-main/
 │   │   │   ├── module/         模块调度（ModuleDispatch / ModulePage）
 │   │   │   ├── multi_agent/    多 Agent 协作视图
 │   │   │   ├── page/           页面视图（市场 / 设置 / 数据看板 / 文件查看器 / 全局记忆）
-│   │   │   └── templates/      模块模板（v4 / zju（含 zdbk、classroom 别名）/ paper_reading / html / scraper / theme_creator）
+│   │   │   └── templates/      模块模板（v4_modle / zju_modle（路由 'zju'，含 zdbk、classroom 别名）/ html_modle / paper_reading_modle / scraper_modle / theme_creator_modle）
 │   │   │
 │   │   └── theme/              根级兼容性 stub
 │   │
