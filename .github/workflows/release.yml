@@ -178,7 +178,15 @@ jobs:
           echo "media_kit mpv 原生库预下载完成 ($DEST)"
 
       - name: 构建 APK (${{ matrix.mode }}, ${{ matrix.label }})
-        run: flutter build apk --${{ matrix.mode }} --dart-define=EVERGREEN_ZJU=${{ matrix.zju }}
+        shell: bash
+        run: |
+          # release 默认开启 icon tree shaking，但本项目大量使用运行时动态
+          # IconData(codePoint)（模块/插件图标来自注册表配置），编译期无法静态
+          # 分析 → 报 "Avoid non-constant invocations of IconData"。显式关闭
+          # （仅 release 生效；debug 默认不 tree shake，无需处理）。
+          EXTRA=""
+          [ "${{ matrix.mode }}" = "release" ] && EXTRA="--no-tree-shake-icons"
+          flutter build apk --${{ matrix.mode }} --dart-define=EVERGREEN_ZJU=${{ matrix.zju }} $EXTRA
 
       - name: 上传 APK artifact (${{ matrix.mode }}, ${{ matrix.label }})
         uses: actions/upload-artifact@v4
@@ -220,7 +228,14 @@ jobs:
           dart run tool/bundle_scripts.dart
 
       - name: 构建 Windows (${{ matrix.mode }}, ${{ matrix.label }})
-        run: flutter build windows --${{ matrix.mode }} --dart-define=EVERGREEN_ZJU=${{ matrix.zju }}
+        shell: pwsh
+        run: |
+          # release 默认开启 icon tree shaking，本项目大量使用运行时动态
+          # IconData(codePoint)（模块/插件图标来自注册表配置）→ 报
+          # "Avoid non-constant invocations of IconData"。显式关闭（仅 release）。
+          $extra = ""
+          if ("${{ matrix.mode }}" -eq "release") { $extra = "--no-tree-shake-icons" }
+          flutter build windows --${{ matrix.mode }} --dart-define=EVERGREEN_ZJU=${{ matrix.zju }} $extra
 
       - name: 下载嵌入 Python 并安装依赖
         shell: pwsh
