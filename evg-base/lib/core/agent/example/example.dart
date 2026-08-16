@@ -23,7 +23,7 @@
 /// | 15 | 平台 | 在线 DeepSeek API — 真实的 HTTP 流式调用 | ★★★ |
 /// | 16 | 双方 | 文件 I/O 与工作区 — workspace / read_file / write_file 六种编辑 | ★★ |
 /// | 17 | 平台 | `AiUnavailableException` — 6 种工厂 + fromStatusCode 降级 | ★★ |
-/// | 18 | 平台 | `MockEventStream` — 全部 17 种 EventKind 的模拟流 | ★★ |
+/// | 18 | 平台 | `MockEventStream` — 全部 18 种 EventKind 的模拟流 | ★★ |
 ///
 /// ## API 覆盖总览
 /// | 类别 | 覆盖的类/函数 |
@@ -626,7 +626,7 @@ void _demoSession() {
 
 /// # 10. 事件系统 — Agent 如何与 UI 通信
 ///
-/// 学习目标：理解 AgentEvent（17 种事件类型）、TokenUsage、StreamEventSink。
+/// 学习目标：理解 AgentEvent（18 种事件类型）、TokenUsage、StreamEventSink。
 ///
 /// 核心概念：
 /// - Agent 运行时通过事件流（Stream<AgentEvent>）与 UI 通信
@@ -636,7 +636,7 @@ void _demoSession() {
 void _demoEvents() {
   _section('10. AgentEvent / TokenUsage / ToolEventPayload');
 
-  // ── EventKind 枚举（17 种） ──
+  // ── EventKind 枚举（18 种） ──
   // 完整列表：turnStarted, reasoning, text, message, toolDispatch, toolResult,
   //           usage, notice, phase, approvalRequest, askRequest, turnDone,
   //           compactionStarted, compactionDone, toolProgress, mcpSurfaceReady, retrying
@@ -1821,7 +1821,7 @@ void _demoAiUnavailableException() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Section 18 — MockEventStream（全部 17 种 EventKind 模拟）
+// Section 18 — MockEventStream（全部 18 种 EventKind 模拟）
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /// # 18. MockEventStream — 供渲染工程师开发 UI 的模拟事件流
@@ -1829,15 +1829,15 @@ void _demoAiUnavailableException() {
 /// 学习目标：理解 `MockEventStream.generate()` 和 `eventKindReference` 的用法。
 ///
 /// 核心概念：
-/// - `generate(delay:)` 返回覆盖全部 17 种 EventKind 的异步流
+/// - `generate(delay:)` 返回覆盖全部 18 种 EventKind 的异步流
 /// - `eventKindReference` 是静态参考表（List<Map<String,String>>）
 /// - 渲染工程师无需真实 Agent/Provider/Registry 即可开发 UI 渲染逻辑
 /// - 每个事件携带完整示例 payload（ToolEventPayload、TokenUsage、ApprovalPayload 等）
 Future<void> _demoMockEventStream() async {
   _section('18. MockEventStream（模拟事件流 + 参考表）');
 
-  // ── eventKindReference：全部 17 种参考表 ──
-  print('— eventKindReference（全部 17 种）—');
+  // ── eventKindReference：全部 18 种参考表 ──
+  print('— eventKindReference（全部 18 种）—');
   for (final entry in MockEventStream.eventKindReference) {
     print('  ${entry['kind']}: ${entry['说明']}');
   }
@@ -1868,7 +1868,7 @@ Future<void> _demoMockEventStream() async {
 
   print('\n— 统计 —');
   print('  总事件数: $count');
-  print('  覆盖 EventKind: ${kindsSeen.length}/17');
+  print('  覆盖 EventKind: ${kindsSeen.length}/18');
   print('  缺失: ${EventKind.values.where((k) => !kindsSeen.contains(k.name)).map((k) => k.name).join(", ")}');
 
   print('✓ Section 18 完成\n');

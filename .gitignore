@@ -254,3 +254,6 @@ evg-base/lib/core/theme/example/.cache/
 # evg-base/lib/core/config/
 # (.claude / .dart_tool / pubspec.lock 已被全局规则覆盖，无需重复)
 
+
+# 移植参考源（DeepSeek-Reasonix 浅克隆，仅供阅读，不入库）
+.reasonix-ref/

@@ -69,6 +69,8 @@ ConfigHttpServer 的 HTTP 接口；一切凭证读取必须通过 `_get_config(k
 工具: run_terminal_command(command)       — 在终端执行命令（如 pip install；受守卫约束，见下文）
 工具: read_workspace_file(path)           — 读取爬虫工作区文件内容（≤50KB，禁止用 python 读文件）
 工具: ask(questions)                      — 遇到真正属于用户的决策分叉时，结构化多选提问
+工具: guardian_review(target, description) — 调用独立安全审查子代理（Guardian）审核当前 trace 与产物（只读）。
+      G5/G6 门禁前系统会自动审查；你也可在关键决策（如注册）前主动调用自审。
 工具: export_and_register_scraper()       — 跑通后直接打包 scraper.py 为 data 插件（.py + manifest + config）、热注册并验证数据中心拉取
 ```
 
@@ -391,4 +393,6 @@ export_and_register_scraper()
    分析以 `read_request_snapshot` 的快照为准；若需重新抓取，先询问用户是否重新走一遍。
 6. **连续 3 轮调试失败** — 会收到 warning，请换策略（探索未暴露接口 / 询问用户），
    不要在同一个方案上无限重试。
+7. **Guardian 自动审查** — G5（假数据门禁）与 G6（注册）前系统会自动调用独立
+   安全审查子代理审 trace + 产物；被拒绝时按回灌的 rationale 修正，不要绕过审查。
 ''';

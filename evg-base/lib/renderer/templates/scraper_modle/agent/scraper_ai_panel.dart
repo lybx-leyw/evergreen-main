@@ -38,6 +38,10 @@ import 'package:evergreen_base/core/data/type.dart';
 import 'package:evergreen_base/core/services/ui_operation_log.dart';
 import 'package:evergreen_base/renderer/components/shared/widgets/markdown_renderer.dart';
 import 'package:evergreen_base/renderer/components/shared/widgets/agent_step_indicator.dart';
+import 'package:evergreen_base/renderer/components/shared/trace/agent_trace_recorder.dart';
+import 'package:evergreen_base/core/agent/guardian/guardian.dart';
+import 'package:evergreen_base/core/agent/guardian/guardian_policy.dart';
+import 'package:evergreen_base/core/agent/tools/guardian_review_tool.dart';
 
 // ═══════ ScraperAIPanel ═══════
 
@@ -89,6 +93,13 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
   late final ScraperFlowFacade _facade;
   AgentAssembly? _assembly;
   StreamSubscription<agent.AgentEvent>? _eventSub;
+
+  /// Trace 记录器（Phase 3 · C1-C5）：实现 TraceBuffer，订阅事件流，
+  /// 供 GeneratorView 的「轨迹」视图消费。
+  late final AgentTraceRecorder _traceRecorder;
+
+  /// Guardian 审查会话（Phase 3 · A12/A13）：G5/G6 门禁自动审查 + guardian_review 工具。
+  GuardianSession? _guardian;
 
   /// DeepSeek Provider（用于 AI 字段推断，P1 B3）。
   agent.DeepSeekProvider? _provider;
@@ -289,6 +300,10 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
   void initState() {
     super.initState();
     _facade = ScraperFlowFacade(workflow: widget.workflow);
+    _traceRecorder = AgentTraceRecorder(
+      // 复用 50KB 单消息 / 1MB 整体保护（防 8MB 事故，见 _saveSessions 注释）
+      jsonlPath: p.join(widget.workspaceDir, 'trace.jsonl'),
+    );
     _loadSessions();
     _initAgent();
   }
@@ -297,6 +312,7 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
   void dispose() {
     _saveSessions();
     _eventSub?.cancel();
+    _traceRecorder.dispose();
     _assembly?.dispose();
     _inputCtrl.dispose();
     _scrollCtrl.dispose();
@@ -348,12 +364,28 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
 
       // ── Phase 1 harness 接线：Gate + Hooks + AskTool ──
       final gate = ScraperGate(onConfirm: _confirmToolCall);
-      final hooks = ScraperHooks(workflow: widget.workflow);
+      final hooks =
+          ScraperHooks(workflow: widget.workflow, traceBuffer: _traceRecorder);
       // 工作流级回调接线（G5 弹窗 / 3 轮 warning / 快照锁定）
       widget.workflow.onUserConfirmRequest = _confirmFakeDataGate;
       widget.workflow.onWarning = (warn) {
         if (!mounted) return;
         _messages.add(ChatMessage.assistant('⚠️ **$warn**'));
+        _saveSessions();
+      };
+
+      // ── Phase 3 Guardian（A12/A13）：独立 LLM 会话 + 安全策略 prompt ──
+      // 先建会话（seedTools 需要），assembly 创建后再绑事件输出。
+      final guardian = GuardianSession(
+        llm: ProviderGuardianLlm(provider),
+        policyPrompt: guardianPolicyPrompt,
+      );
+      _guardian = guardian;
+      // G5/G6 门禁自动审查接线（A13 另调 API；fail-closed：失败走规则守卫）
+      widget.workflow.onGuardianReview = _guardianReview;
+      widget.workflow.onGuardianDenied = (rationale) {
+        if (!mounted || _currentIdx < 0) return; // 尚无会话时不注入气泡
+        _messages.add(ChatMessage.assistant('🛡️ **Guardian 审查拒绝**\n$rationale'));
         _saveSessions();
       };
 
@@ -391,8 +423,17 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
           ),
           // AskTool：AI 结构化 ask 用户（A11）
           agent.AskTool(asker: _asker),
+          // GuardianReviewTool（A13 显式 tool 审核）：AI 可主动调用自审
+          GuardianReviewTool(
+            session: guardian,
+            evidenceProvider: () => _buildGuardianEvidence(gate: 'tool'),
+          ),
         ],
       );
+
+      // Phase 3：Trace 订阅事件流（round 边界 / think / reply 兜底）+ Guardian 裁决事件
+      _traceRecorder.attach(_assembly!.eventSink.stream);
+      guardian.sink = _assembly!.eventSink;
 
       // 设置系统提示（从 Skill 文件加载）
       _assembly!.controller.setSystemPrompt(scraperSkillBody);
@@ -517,6 +558,86 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
 
   /// AskTool 的 Asker 实现：渲染多选问题弹窗。
   agent.Asker get _asker => _ScraperAsker(this);
+
+  // ── Phase 3：Trace 视图数据源（GeneratorView 的「轨迹」视图消费）──
+
+  /// Trace 记录器（共享组件）。
+  AgentTraceRecorder get traceRecorder => _traceRecorder;
+
+  // ── Phase 3：Guardian 自动审查（A12/A13）──
+
+  /// workflow.onGuardianReview 实现：G5/G6 门禁前自动调 Guardian。
+  /// 审查失败/未接线 → null（fail-closed：维持规则守卫 + 用户弹窗）。
+  Future<GuardianVerdict?> _guardianReview(
+      GuardianReviewRequest request) async {
+    final g = _guardian;
+    if (g == null) return null;
+    try {
+      final evidence = await _buildGuardianEvidence(gate: request.gate);
+      final merged = GuardianReviewRequest(
+        gate: request.gate,
+        action: request.action,
+        arguments: '${request.arguments.isEmpty ? '{}' : request.arguments}\n'
+            'Evidence:\n$evidence',
+        violations: request.violations,
+      );
+      return await g.review(
+        request: merged,
+        parentTranscript: _assembly?.controller.session.messages,
+      );
+    } catch (e) {
+      debugPrint('[ScraperAIPanel] ⚠ Guardian 审查失败（fail-closed 走规则守卫）: $e');
+      return null;
+    }
+  }
+
+  /// 拼装 Guardian 证据：关键 trace（最近 20 条工具序列）+ guard flags + 产物摘要。
+  Future<String> _buildGuardianEvidence({required String gate}) async {
+    final buf = StringBuffer();
+    // ① 关键 trace：工具序列摘要（含 [error] 标记）
+    final all = <TraceEvent>[];
+    for (final r in _traceRecorder.rounds) {
+      all.addAll(r.events);
+    }
+    final tail = all.length > 20 ? all.sublist(all.length - 20) : all;
+    buf.writeln('## 关键 trace（最近 ${tail.length} 条）');
+    if (tail.isEmpty) {
+      buf.writeln('（暂无工具/思考/回复记录）');
+    }
+    for (final e in tail) {
+      switch (e) {
+        case TraceToolEvent():
+          buf.writeln(
+              '[tool${e.isError ? '·error' : ''}] ${e.tool}(${e.argsSummary})'
+              ' → ${e.resultSummary}');
+          break;
+        case TraceThinkEvent():
+          buf.writeln('[think] ${e.elapsed.inMilliseconds}ms');
+          break;
+        case TraceReplyEvent():
+          buf.writeln('[reply] ${e.preview}');
+          break;
+      }
+    }
+    // ② 违规记录（guard flags）
+    final flags = widget.workflow.guardFlags;
+    if (flags.isNotEmpty) {
+      buf.writeln('## guard flags');
+      buf.writeln(flags.join(', '));
+    }
+    // ③ 产物（scraper.py，若已写盘）
+    if (gate != 'tool') {
+      final py = File(p.join(widget.workspaceDir, 'scraper.py'));
+      if (py.existsSync()) {
+        final code = py.readAsStringSync();
+        buf.writeln('## scraper.py（${code.length} 字符）');
+        buf.writeln(code.length > 1500
+            ? '${code.substring(0, 1500)}…'
+            : code);
+      }
+    }
+    return buf.toString();
+  }
 
   /// 当前 AI 最后一条澄清文本（G5 弹窗用）。
   String get _lastAiClarification {
@@ -1055,6 +1176,24 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
         widget.workflow.setLastError('G6 拒绝注册：疑似假数据未清除');
         if (mounted) setState(() => _isRunning = false);
         return buf.toString();
+      }
+
+      // ═══ G6 Guardian 自动审查（Phase 3 · A12/A13）：注册前审 trace + 产物 ═══
+      // 单次 LLM 调用（审产物 + 关键 trace）；deny → 拒绝注册 + rationale 回灌 AI；
+      // 失败/未接线 → null（fail-closed 走上方规则守卫，用户弹窗兜底）。
+      final g6Verdict = await _guardianReview(GuardianReviewRequest(
+        gate: 'G6',
+        action: '注册 data-$dataName 插件（scraper.py + manifest + config）到数据中心',
+        arguments: jsonEncode({'plugin_dir': pluginDirName, 'data_name': dataName}),
+      ));
+      if (g6Verdict != null && !g6Verdict.allow) {
+        say('🛡️ **Guardian 拒绝注册**\n${g6Verdict.reason}');
+        widget.workflow.setLastError('G6 Guardian 拒绝注册: ${g6Verdict.reason}');
+        if (mounted) setState(() => _isRunning = false);
+        return buf.toString();
+      }
+      if (g6Verdict != null && g6Verdict.allow) {
+        say('🛡️ Guardian 审查通过（risk=${g6Verdict.assessment.riskLevel}）');
       }
 
       final validatedCode = injectValidatorIntoCode(baseCode);

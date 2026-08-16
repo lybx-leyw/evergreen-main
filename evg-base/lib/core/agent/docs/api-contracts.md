@@ -83,7 +83,7 @@ abstract class Tool {
 Stream<AgentEvent> events  // Controller.events / StreamEventSink.stream
 ```
 
-### EventKind 全集（17 种）
+### EventKind 全集（18 种）
 
 | # | EventKind | 关键 payload | 渲染行为 |
 |---|-----------|-------------|---------|
@@ -104,6 +104,7 @@ Stream<AgentEvent> events  // Controller.events / StreamEventSink.stream
 | 15 | `compactionDone` | `.compaction` (CompactionPayload) | 压缩完成——摘要展示 |
 | 16 | `retrying` | `.retry` (RetryPayload) | 重试状态指示 |
 | 17 | `mcpSurfaceReady` | `.text` (server name) | 刷新可用工具列表 |
+| 18 | `guardianAssessment` | `.guardian` (GuardianResult) | Guardian 审查裁决（Phase 3：outcome/risk/rationale） |
 
 ### Mock 流
 

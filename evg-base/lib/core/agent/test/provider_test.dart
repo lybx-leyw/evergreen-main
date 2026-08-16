@@ -101,9 +101,9 @@ void main() {
   // ═══════ MockEventStream ═══════
 
   group('MockEventStream', () {
-    test('eventKindReference covers all 17 kinds', () {
+    test('eventKindReference covers all 18 kinds', () {
       final ref = MockEventStream.eventKindReference;
-      expect(ref.length, 17);
+      expect(ref.length, 18);
       final covered = ref.map((r) => r['kind']).toSet();
       for (final kind in EventKind.values) {
         expect(covered, contains(kind.name),

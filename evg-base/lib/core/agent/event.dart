@@ -59,6 +59,9 @@ enum EventKind {
 
   /// Provider 在临时故障后进行重试。
   retrying,
+
+  /// Guardian 审查裁决（Phase 3 · A12/A13）。Guardian 中携带裁决详情。
+  guardianAssessment,
 }
 
 // ═══════ NoticeLevel ═══════
@@ -216,6 +219,33 @@ class AskRequest {
   const AskRequest({required this.id, required this.questions});
 }
 
+// ═══════ GuardianResult ═══════
+
+/// Guardian 审查裁决（对应 Go 的 event.GuardianResult）。
+class GuardianResult {
+  final String id;
+  final String tool; // 触发点：G5 / G6 / guardian_review
+  final String subject; // 简短动作描述
+  final String outcome; // allow | deny
+  final String riskLevel; // low | medium | high | critical
+  final String userAuthorization; // unknown | low | medium | high
+  final String rationale;
+
+  /// true = 审查失败/超时/不可解析（fail-closed deny）。
+  final bool failed;
+
+  const GuardianResult({
+    required this.id,
+    required this.tool,
+    required this.subject,
+    required this.outcome,
+    required this.riskLevel,
+    required this.userAuthorization,
+    required this.rationale,
+    this.failed = false,
+  });
+}
+
 // ═══════ CompactionPayload ═══════
 
 /// 上下文压实结果负载。
@@ -275,6 +305,9 @@ class AgentEvent {
   final List<AskQuestion>? askQuestions;
   final String? askId;
 
+  // —— Guardian ——
+  final GuardianResult? guardian;
+
   // —— 压实 ——
   final CompactionPayload? compaction;
 
@@ -298,6 +331,7 @@ class AgentEvent {
     this.approval,
     this.askQuestions,
     this.askId,
+    this.guardian,
     this.compaction,
     this.retry,
     this.profile,
@@ -338,6 +372,9 @@ class AgentEvent {
 
   factory AgentEvent.turnDone({String? error}) =>
       AgentEvent(kind: EventKind.turnDone, error: error);
+
+  factory AgentEvent.guardianAssessment(GuardianResult result) =>
+      AgentEvent(kind: EventKind.guardianAssessment, guardian: result);
 
   factory AgentEvent.compactionStarted(String trigger) =>
       AgentEvent(kind: EventKind.compactionStarted, text: trigger);

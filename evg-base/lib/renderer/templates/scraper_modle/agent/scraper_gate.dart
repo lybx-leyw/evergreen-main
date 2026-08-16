@@ -27,6 +27,8 @@ class ScraperGate extends agent.InteractiveGate {
           agent.PermissionRule(toolName: 'read_request_snapshot', level: agent.PermissionLevel.always),
           agent.PermissionRule(toolName: 'ask', level: agent.PermissionLevel.always),
           agent.PermissionRule(toolName: 'list_skills', level: agent.PermissionLevel.always),
+          // 只读审查工具（Phase 3 · A13 显式 tool 审核）
+          agent.PermissionRule(toolName: 'guardian_review', level: agent.PermissionLevel.always),
           // 执行类 —— always（内容由 L2 lint 管）
           agent.PermissionRule(toolName: 'run_python_scraper', level: agent.PermissionLevel.always),
           agent.PermissionRule(toolName: 'export_and_register_scraper', level: agent.PermissionLevel.always),

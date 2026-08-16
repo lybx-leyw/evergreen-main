@@ -277,6 +277,7 @@ class _SingleAgentColumnState extends State<SingleAgentColumn> {
       case agent.EventKind.compactionStarted:
       case agent.EventKind.compactionDone:
       case agent.EventKind.mcpSurfaceReady:
+      case agent.EventKind.guardianAssessment:
         // 暂不处理的类型
         break;
     }

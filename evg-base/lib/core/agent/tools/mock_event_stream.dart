@@ -1,6 +1,6 @@
 /// Mock AgentEvent 流生成器 — 供渲染工程师开发 UI 使用。
 ///
-/// 覆盖全部 17 种 EventKind，每种事件携带完整示例 payload。
+/// 覆盖全部 18 种 EventKind，每种事件携带完整示例 payload。
 /// 渲染工程师通过 `MockEventStream.generate()` 获取模拟事件流，
 /// 无需真实 Agent/Provider/Registry 即可开发 UI 渲染逻辑。
 ///
@@ -26,7 +26,7 @@ import '../event.dart';
 /// 生成覆盖全部 EventKind 的模拟事件流。
 ///
 /// 每个事件之间间隔 [delay]，模拟真实流式延迟。
-/// 总事件数 ≈ 35（17 种类型 + 变体示例）。
+/// 总事件数 ≈ 36（18 种类型 + 变体示例）。
 class MockEventStream {
   /// 生成完整 mock 流。事件间隔 [delay]（默认 50ms）。
   static Stream<AgentEvent> generate({Duration delay = const Duration(milliseconds: 50)}) async* {
@@ -182,6 +182,18 @@ class MockEventStream {
     yield AgentEvent(kind: EventKind.mcpSurfaceReady, text: 'mcp-server-filesystem');
     await _pause(delay);
 
+    // ── 18.5 guardianAssessment (Phase 3 · A12/A13: Guardian 裁决) ──
+    yield AgentEvent.guardianAssessment(GuardianResult(
+      id: 'guardian-1',
+      tool: 'G6',
+      subject: '注册 data-courses 插件到数据中心',
+      outcome: 'deny',
+      riskLevel: 'high',
+      userAuthorization: 'low',
+      rationale: '产物含疑似硬编码假数据且用户未确认放行。',
+    ));
+    await _pause(delay);
+
     // ── 19. turnDone (success) ──
     yield AgentEvent.turnDone();
     await _pause(delay);
@@ -281,6 +293,11 @@ class MockEventStream {
           'kind': 'mcpSurfaceReady',
           'payload': 'text: String (server name)',
           '说明': 'MCP 服务器后台资源加载完成，前端可刷新可用工具列表',
+        },
+        {
+          'kind': 'guardianAssessment',
+          'payload': 'guardian: GuardianResult (outcome, riskLevel, rationale)',
+          '说明': 'Guardian 审查裁决（Phase 3），前端可展示安全审查结果',
         },
       ];
 

@@ -275,24 +275,29 @@ class Agent {
           case ProviderEventKind.content:
             textBuf.write(event.text ?? '');
             yield AgentEvent.text(event.text ?? '');
+            break;
           case ProviderEventKind.reasoning:
             final reasoningText = event.text;
             if (reasoningText != null && reasoningText.isNotEmpty) {
               reasoningBuf.write(reasoningText);
               yield AgentEvent.reasoning(reasoningText);
             }
+            break;
           case ProviderEventKind.toolCalls:
             pendingCalls = event.toolCalls;
             print('[Agent:D] ✅ received ${pendingCalls!.length} tool calls from LLM');
+            break;
           case ProviderEventKind.usage:
             if (event.usage != null) {
               _session.accumulateUsage(event.usage!);
               yield AgentEvent.usage(event.usage!);
             }
+            break;
           case ProviderEventKind.error:
             print('[Agent:D] ❌ Provider error: ${event.error}');
             yield AgentEvent.notice(
                 'API 错误: ${event.error}', level: NoticeLevel.warn);
+            break;
           case ProviderEventKind.done:
             break;
         }

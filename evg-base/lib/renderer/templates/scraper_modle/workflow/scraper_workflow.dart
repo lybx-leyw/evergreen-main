@@ -12,7 +12,9 @@
 /// - **awaitingUserConfirm 子状态**：弹窗期间事件流不丢
 library scraper_workflow;
 
-import 'dart:async';
+import 'dart:convert';
+
+import 'package:evergreen_base/core/agent/guardian/guardian.dart';
 
 // ═══════ 工作流状态 ═══════
 
@@ -254,6 +256,15 @@ class ScraperWorkflow {
   Future<bool> Function(String reason, String aiClarification)?
       onUserConfirmRequest;
 
+  /// **Guardian 自动审查回调（Phase 3 · A12/A13）**：G5/G6 门禁前由 UI 层注入。
+  /// 返回裁决；null = Guardian 未接线/不可用 → fail-closed 走既有规则守卫 + 用户弹窗。
+  Future<GuardianVerdict?> Function(GuardianReviewRequest request)?
+      onGuardianReview;
+
+  /// **Guardian deny 回灌回调（Phase 3）**：Guardian 拒绝后把 rationale
+  /// 回灌给 AI/UI（UI 展示 + AI 可见修正方向）。
+  void Function(String rationale)? onGuardianDenied;
+
   /// **WebView 锁定回调（A18）**：快照冻结后由 UI 层锁定 WebView。
   WorkflowCallback? onWebViewLock;
 
@@ -452,12 +463,29 @@ class ScraperWorkflow {
     _notify();
   }
 
-  /// **G5 门禁（A5/A10）**：请求完成。若存在假数据标记 → 弹窗用户裁决。
+  /// **G5 门禁（A5/A10 + Phase 3 Guardian）**：请求完成。若存在假数据标记 →
+  /// 先自动调 Guardian 审查（A13 另调 API），再弹窗用户裁决。
   ///
   /// [aiClarification]：AI 澄清文本（如"该站是静态 JSON 页，无 API 日志"）。
   /// 返回是否已进入 done（可能因弹窗异步而先返回 false，裁决后回调通知）。
   Future<bool> requestDone({String aiClarification = ''}) async {
     if (suspectedFakeData) {
+      // ── Phase 3：G5 前自动调 Guardian 审查（trace + 产物）──
+      final verdict = await onGuardianReview?.call(GuardianReviewRequest(
+        gate: 'G5',
+        action: '放行疑似硬编码假数据的 scraper 产物进入 done 阶段',
+        arguments: jsonEncode({
+          'guard_flags': _guardFlags.toList(),
+          'clarification': aiClarification,
+        }),
+      ));
+      if (verdict != null && !verdict.allow) {
+        _log('⚠ G5 Guardian 拒绝 → debugging（rationale: ${verdict.reason}）');
+        onGuardianDenied?.call(verdict.reason);
+        startDebugging();
+        return false;
+      }
+      // Guardian 放行 / 未接线 → 维持既有 A10 用户弹窗流程（用户是最终裁决者）
       _awaitingUserConfirm = true;
       _notify();
       final reason = '检测到疑似硬编码假数据：'
@@ -676,6 +704,8 @@ class ScraperWorkflow {
     _log('dispose');
     onChanged = null;
     onUserConfirmRequest = null;
+    onGuardianReview = null;
+    onGuardianDenied = null;
     onWebViewLock = null;
     onRestartCapture = null;
     onWarning = null;

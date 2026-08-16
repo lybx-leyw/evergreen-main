@@ -10,18 +10,10 @@
 library scraper_hooks;
 
 import 'package:evergreen_base/core/agent/agent.dart' as agent;
+import 'package:evergreen_base/renderer/components/shared/trace/agent_trace_recorder.dart';
 
 import '../workflow/scraper_guard.dart';
 import '../workflow/scraper_workflow.dart';
-
-/// Trace 缓冲接口（Phase 1 定义，Phase 3 落地持久化视图）。
-/// 记录三类事件供 Trace 消费（需求 C1）。
-abstract class TraceBuffer {
-  void recordTool(String tool, String argsSummary, String resultSummary,
-      {bool isError = false});
-  void recordThink(Duration elapsed);
-  void recordReply(String preview, int byteCount);
-}
 
 /// 爬虫 Agent 工具钩子。
 class ScraperHooks implements agent.ToolHooks {
