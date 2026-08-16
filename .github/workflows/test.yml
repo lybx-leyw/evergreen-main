@@ -8,7 +8,7 @@ name: Test
 
 on:
   push:
-    branches: [main]
+    branches: [main, v2.0] # v2.0：当前 scraper 重构开发分支（Phase 1-3 均在此验证）
   pull_request:
 
 concurrency:
