@@ -1,8 +1,8 @@
-/// zju 内置模块注册（B4）——9 个校园 feature 的 [ModuleDescriptor] 工厂。
+/// zju 内置模块注册（B4）——6 个校园 feature 的 [ModuleDescriptor] 工厂。
 ///
 /// 规划决策 3（激活方式）：内置模块注册，不再扫描 plugins/*.json。
 /// 由 [AppBootstrap._stepModules]（app_bootstrap.dart）在扫描外部插件后、
-/// `registry.seal()` 前调用 [registerZjuBuiltinModules]，9 个模块进入
+/// `registry.seal()` 前调用 [registerZjuBuiltinModules]，6 个模块进入
 /// [ModuleRegistry] → 侧边栏/路由/命令面板由现有注册中心自动生成
 /// （不改 app_shell / app / go_router）。
 ///
@@ -11,13 +11,13 @@
 ///
 /// 侧边栏分组：
 /// - 浙大·学习（sectionOrder 30）：courses / scores / exams
-/// - 浙大·校园（sectionOrder 40）：zdbk / classroom / library / ecard / teachers / schedule
+/// - 浙大·校园（sectionOrder 40）：zdbk / classroom / teachers
 library;
 
 import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'package:evergreen_base/core/module/module_registry.dart';
 
-/// 9 个内置模块列表（顺序即注册顺序）。
+/// 6 个内置模块列表（顺序即注册顺序）。
 ///
 /// icon 为 Material Icons codePoint（与 core/module_descriptor.dart 的
 /// `_iconMap` 保持一致，避免依赖 Flutter material 保证 core 纯 Dart 边界）。
@@ -95,34 +95,6 @@ List<ModuleDescriptor> zjuBuiltinModules() => const [
     ),
   ),
   ModuleDescriptor(
-    id: 'zju-library',
-    name: '图书馆',
-    description: '图书馆借阅查询（数据中枢 zju_library）',
-    icon: 0xe54b, // Icons.local_library
-    version: '2.0.0',
-    route: '/zju-library',
-    template: 'zju',
-    modleRoute: 'library',
-    nav: NavObjectDescriptor(
-      sidebar: SidebarDescriptor(
-          section: '浙大·校园', sectionOrder: 40, order: 30),
-    ),
-  ),
-  ModuleDescriptor(
-    id: 'zju-ecard',
-    name: '一卡通',
-    description: '一卡通消费流水（数据中枢 zju_ecard）',
-    icon: 0xe870, // Icons.credit_card
-    version: '2.0.0',
-    route: '/zju-ecard',
-    template: 'zju',
-    modleRoute: 'ecard',
-    nav: NavObjectDescriptor(
-      sidebar: SidebarDescriptor(
-          section: '浙大·校园', sectionOrder: 40, order: 40),
-    ),
-  ),
-  ModuleDescriptor(
     id: 'zju-teachers',
     name: '查老师',
     description: '教师评价查询（内置数据集，数据中枢 zju_teachers）',
@@ -133,26 +105,12 @@ List<ModuleDescriptor> zjuBuiltinModules() => const [
     modleRoute: 'teachers',
     nav: NavObjectDescriptor(
       sidebar: SidebarDescriptor(
-          section: '浙大·校园', sectionOrder: 40, order: 50),
-    ),
-  ),
-  ModuleDescriptor(
-    id: 'zju-schedule',
-    name: '课表导出',
-    description: '课表 iCal 导出（数据中枢 zju_timetable）',
-    icon: 0xebcc, // Icons.calendar_month
-    version: '2.0.0',
-    route: '/zju-schedule',
-    template: 'zju',
-    modleRoute: 'schedule',
-    nav: NavObjectDescriptor(
-      sidebar: SidebarDescriptor(
-          section: '浙大·校园', sectionOrder: 40, order: 60),
+          section: '浙大·校园', sectionOrder: 40, order: 30),
     ),
   ),
 ];
 
-/// 把 9 个 zju 内置模块注册进 [registry]。
+/// 把 6 个 zju 内置模块注册进 [registry]。
 ///
 /// 必须在 [ModuleRegistry.seal] 之前调用（启动期 _stepModules）。
 /// 幂等：已存在同 id（如外部插件撞名）则跳过该模块，不抛异常。

@@ -147,8 +147,13 @@ class MockEventStream {
     yield AgentEvent.askRequest('q1', [
       AskQuestion(
         id: 'q1_a',
+        header: '环境',
         question: '选择部署环境',
-        options: ['开发环境', '测试环境', '生产环境'],
+        options: const [
+          AskOption(label: '开发环境', description: '本地调试'),
+          AskOption(label: '测试环境', description: '联调验证'),
+          AskOption(label: '生产环境', description: '正式发布'),
+        ],
       ),
     ]);
     await _pause(delay);

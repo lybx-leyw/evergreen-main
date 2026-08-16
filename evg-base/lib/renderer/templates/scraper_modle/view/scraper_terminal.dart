@@ -13,8 +13,8 @@ import 'package:path/path.dart' as p;
 import 'package:evergreen_base/core/plugin/plugin_runner.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
 
-import 'scraper_workflow.dart';
-import 'scraper_json_validator.dart';
+import '../workflow/scraper_workflow.dart';
+import '../scraper_json_validator.dart';
 
 /// 仿 bash 终端输出面板。
 ///

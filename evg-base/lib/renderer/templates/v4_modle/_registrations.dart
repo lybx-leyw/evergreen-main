@@ -76,7 +76,7 @@ import 'package:evergreen_base/renderer/page/data_dashboard_view.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/interaction/chat/chat_controller_view.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/controls/nav_button.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/controls/button_bar.dart';
-import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_generator_view.dart';
+import 'package:evergreen_base/renderer/templates/scraper_modle/view/scraper_generator_view.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/plugin_designer_slot.dart';
 
 /// 注册所有 v4_modle 具名组件到 [SlotRegistry]。

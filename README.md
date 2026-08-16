@@ -115,7 +115,7 @@ AI Agent 可调用 **15 个内置工具**，均通过 `function calling` 自动�
 
 v2.0 将浙大校园功能从「外部插件」收敛为「内置模块 + 内置数据源」，并引入双版构建机制，让通用用户不再背负浙大专属代码体积。
 
-**代码路径**：`evg-base/lib/renderer/templates/zju_modle/`（模板路由 `'zju'`，含 `zdbk`、`classroom` 别名；浙大专属数据源、SSO 认证、9 个校园模块均收敛于此目录）。
+**代码路径**：`evg-base/lib/renderer/templates/zju_modle/`（模板路由 `'zju'`，含 `zdbk`、`classroom` 别名；浙大专属数据源、SSO 认证、6 个校园模块均收敛于此目录）。
 
 ### 双版构建：浙大专用版 / 通用版
 
@@ -141,11 +141,11 @@ v2.0 将浙大校园功能从「外部插件」收敛为「内置模块 + 内置
 renderer UI → resolveDataSource(orch://zju_*) → DataOrchestrator → Dart fetcher
 ```
 
-缓存 / 状态 / 刷新 / 连通性由数据中枢统一管理；凭证迁移至设置面板（`ZJU_USERNAME` / `ZJU_PASSWORD`，教务、智云课堂、图书馆、一卡通共用）。
+缓存 / 状态 / 刷新 / 连通性由数据中枢统一管理；凭证迁移至设置面板（`ZJU_USERNAME` / `ZJU_PASSWORD`，教务、智云课堂共用）。
 
-### 内置校园模块（9 个）
+### 内置校园模块（6 个）
 
-`zju_builtin_modules.dart` 注册 9 个内置模块，`template: 'zju'` → `ZjuModleView` 按 `modleRoute` 分派，侧边栏分组：
+`zju_builtin_modules.dart` 注册 6 个内置模块，`template: 'zju'` → `ZjuModleView` 按 `modleRoute` 分派，侧边栏分组：
 
 | 分组 | 模块 | 说明 |
 |------|------|------|
@@ -154,10 +154,7 @@ renderer UI → resolveDataSource(orch://zju_*) → DataOrchestrator → Dart fe
 | | 考试安排 `exams` | 考试日程 |
 | 浙大·校园 | 教务中心 `zdbk` | 开课情况 / 培养方案 / 教务通知（TabBar 三页） |
 | | 智云课堂 `classroom` | 录播回看：课程列表 → 视频 + PPT 同步 + 带时间戳字幕 |
-| | 图书馆 `library` | 借阅（建设中） |
-| | 一卡通 `ecard` | 消费流水（建设中） |
 | | 查老师 `teachers` | 教师评价（内置 chalaoshi 数据集，离线可用） |
-| | 课表 `schedule` | iCal 导出（建设中） |
 
 ### 统一认证（SSO）
 

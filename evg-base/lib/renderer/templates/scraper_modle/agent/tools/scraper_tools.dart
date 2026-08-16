@@ -16,7 +16,7 @@ import 'package:evergreen_base/core/agent/tool.dart';
 import 'package:evergreen_base/core/plugin/plugin_runner.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
 import 'package:evergreen_base/core/utils/python_env.dart';
-import 'scraper_json_validator.dart';
+import '../../scraper_json_validator.dart';
 
 // ═══════ run_python_scraper ═══════
 
@@ -341,8 +341,11 @@ class RunTerminalCommandTool extends SimpleTool {
           description: '在左下角 bash 终端中执行命令并获取输出。'
               '将命令发送到终端可视化执行，等待执行完成后返回 stdout/stderr。'
               '用户可在终端中实时看到命令执行过程和结果。'
-              '用法：先用 write_file 写 scraper.py，再用 run_terminal_command 执行 `python scraper.py`。'
-              '若执行失败，分析错误输出后修改代码并重新执行（最多 5 轮）。',
+              '⚠️ 命令受守卫约束：仅白名单命令（python scraper.py / pip install <包名> / cd <目录>）'
+              '自动放行；其余需用户确认；破坏性/走私命令（rm、拼接、python -c 等）将被拒绝。'
+              '用法：先用 run_python_scraper 写并执行 scraper.py（没有 write_file），'
+              '再用 run_terminal_command 执行 `python scraper.py` 或安装依赖。'
+              '若执行失败，分析错误输出后修改代码并重新执行（连续 3 轮失败后换策略）。',
           schema: const {
             'type': 'object',
             'properties': {
@@ -501,6 +504,39 @@ class ReadWorkspaceFileTool extends SimpleTool {
         );
 }
 
+// ═══════ read_request_snapshot ═══════
+
+/// 工具：读取已冻结的日志快照（A26/A18）。
+///
+/// 用户点击「确认操作完毕」后日志快照冻结；AI 通过本工具随时阅读快照
+/// （快照冻结后不再更新，即便用户仍在 WebView 操作）。未冻结时读取活动日志。
+class ReadRequestSnapshotTool extends SimpleTool {
+  /// 获取快照摘要的回调（由 UI 层注入，返回 workflow.requestLogsSummary()）。
+  final String Function() getSnapshotSummary;
+
+  ReadRequestSnapshotTool({required this.getSnapshotSummary})
+      : super(
+          name: 'read_request_snapshot',
+          description: '读取用户确认操作完毕后冻结的 HTTP 请求日志快照'
+              '（包含 method/URL/headers/body/response）。'
+              'AI 分析目标 API、登录流程、认证方式时必须使用本工具。'
+              '快照在用户点击「确认操作完毕」后冻结，不再更新；'
+              '若需重新抓取，请先询问用户是否重新走一遍流程。',
+          schema: const {
+            'type': 'object',
+            'properties': {},
+          },
+          readOnly: true,
+          execute: (args) async {
+            final summary = getSnapshotSummary();
+            if (summary.isEmpty || summary == '(暂无请求日志)') {
+              return '(暂无请求日志快照) 请用户先在 WebView 中完成操作并点击「确认操作完毕」。';
+            }
+            return summary;
+          },
+        );
+}
+
 // ═══════ 工具集工厂 ═══════
 
 /// 为爬虫生成器 Agent 构造所有自定义工具。
@@ -538,5 +574,6 @@ List<Tool> createScraperTools({
       runExportAndRegister: exportAndRegister,
       dataNameProvider: dataNameProvider,
     ),
+    ReadRequestSnapshotTool(getSnapshotSummary: getLogsSummary),
   ];
 }

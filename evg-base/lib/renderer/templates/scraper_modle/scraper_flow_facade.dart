@@ -22,7 +22,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/data_pluginer.dart';
 import 'scraper_exporter.dart';
-import 'scraper_workflow.dart';
+import 'workflow/scraper_workflow.dart';
 
 /// AI 字段推断回调。
 ///

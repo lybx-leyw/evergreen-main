@@ -10,7 +10,7 @@ library request_log_panel;
 
 import 'package:flutter/material.dart';
 
-import 'scraper_workflow.dart';
+import '../workflow/scraper_workflow.dart';
 
 /// 请求日志面板。
 class RequestLogPanel extends StatelessWidget {

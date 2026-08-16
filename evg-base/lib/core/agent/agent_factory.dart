@@ -253,6 +253,10 @@ class AgentAssembly {
     required SkillIndex globalSkillIndex,
     required FileMemoryStore globalMemoryStore,
     List<Tool>? seedTools,
+    /// 可选工具权限门控（Phase 1：harness 接线）。
+    agent.Gate? gate,
+    /// 可选工具钩子（Phase 1：harness 接线）。
+    agent.ToolHooks? hooks,
   }) {
     // 解析预设（如果指定了）
     final resolvedConfig = _resolvePreset(config);
@@ -334,6 +338,8 @@ class AgentAssembly {
       skillIndexText: skillIndex.indexText(),
       skillIndex: skillIndex,
       moduleId: moduleId,
+      gate: gate,
+      hooks: hooks,
     );
 
     // 设置 system_prompt

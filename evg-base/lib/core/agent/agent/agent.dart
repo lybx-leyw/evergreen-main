@@ -46,14 +46,21 @@ abstract class Gate {
 
 // ═══════ ToolHooks ═══════
 
-/// 工具钩子接口。对应 Go 的 agent.ToolHooks。
+/// 工具钩子接口。对应 Go 的 agent.ToolHooks（增强版，对齐 reasonix/internal/hook/）。
 abstract class ToolHooks {
+  /// 可选：匹配的工具名正则（锚定）。"" 或 "*" 匹配全部工具。
+  String get match => '';
+
   /// 工具调用前。返回 (block, message)，block=true 阻止调用。
   Future<(bool block, String message)> preToolUse(
       String name, Map<String, dynamic> args);
 
-  /// 工具调用后。
+  /// 工具调用后（无论成功失败——旧接口，保留兼容）。
   Future<void> postToolUse(String name, Map<String, dynamic> args, String result);
+
+  /// 工具调用失败后（结果以 `[error:` 开头）。
+  Future<void> postToolUseFailure(
+      String name, Map<String, dynamic> args, String errorResult);
 }
 
 // ═══════ StormBreaker ═══════
@@ -433,7 +440,7 @@ class Agent {
             output: result,
           ));
 
-          // Post-hook
+          // Post-hook：失败走 postToolUseFailure，成功走 postToolUse
           if (_hooks != null) {
             Map<String, dynamic> args;
             try {
@@ -441,7 +448,12 @@ class Agent {
             } catch (_) {
               args = {};
             }
-            await _hooks!.postToolUse(call.name, args, result);
+            final isFailure = result.startsWith('[error:') || result.contains('❌');
+            if (isFailure) {
+              await _hooks!.postToolUseFailure(call.name, args, result);
+            } else {
+              await _hooks!.postToolUse(call.name, args, result);
+            }
           }
         }
 

@@ -62,11 +62,13 @@ ConfigHttpServer 的 HTTP 接口；一切凭证读取必须通过 `_get_config(k
 
 ```
 工具: get_request_logs()                  — 获取 WebView 捕获的 HTTP 请求日志
+工具: read_request_snapshot()             — 读取用户确认操作完毕后的冻结日志快照（A18：快照冻结后不再更新）
 工具: read_existing_credential(plugin_name)— 检查插件是否已有凭证配置（优先复用，无需重新注册）
-工具: save_credential(key, value)         — 写入/更新凭证到平台配置（仅旧凭证失败后用）
-工具: run_python_scraper(code)            — 写入并执行 scraper.py（自动做 JSON 校验）
-工具: run_terminal_command(command)       — 在终端执行命令（如 pip install）
+工具: save_credential(key, value)         — 写入/更新凭证到平台配置（仅旧凭证失败后用；key 建议含功能简写如 ZJU_USERNAME）
+工具: run_python_scraper(code)            — 写入并执行 scraper.py（自动做 JSON 校验；**写代码只能用本工具，没有 write_file**）
+工具: run_terminal_command(command)       — 在终端执行命令（如 pip install；受守卫约束，见下文）
 工具: read_workspace_file(path)           — 读取爬虫工作区文件内容（≤50KB，禁止用 python 读文件）
+工具: ask(questions)                      — 遇到真正属于用户的决策分叉时，结构化多选提问
 工具: export_and_register_scraper()       — 跑通后直接打包 scraper.py 为 data 插件（.py + manifest + config）、热注册并验证数据中心拉取
 ```
 
@@ -295,7 +297,8 @@ set SCRAPER_PASSWORD=<值>
 
 ### Step 4：生成 Python 代码
 
-使用 `write_file` 写入 `scraper.py`，必须包含：
+使用 `run_python_scraper(code)` 写入并执行 `scraper.py`（**没有 write_file 工具**，
+写代码只能通过 run_python_scraper 完成），必须包含：
 1. **模板区**：逐字包含上述锁定模板，只替换 `{CREDENTIAL_PLACEHOLDER}`
 2. **登录/认证函数**（如有）
 3. **数据拉取循环**（含分页）
@@ -315,7 +318,7 @@ set SCRAPER_PASSWORD=<值>
 1. 用 `run_terminal_command(command="python scraper.py")` 在终端执行
 2. 用户可在左下角终端面板实时看到输出
 3. **若成功** → 继续 Step 6
-4. **若失败** → 分析错误，修改后用 `write_file` 重新写入（确保模板完整保留），再执行。**最多重试 5 轮**。5 轮后仍失败 → 告知用户请求重新演示
+4. **若失败** → 分析错误，修改后用 `run_python_scraper` 重新写入并执行（确保模板完整保留），再执行。**连续 3 轮失败后**你会收到 warning，请换策略（探索未暴露接口 / 询问用户），避免自循环。
 5. 缺失依赖时用 `run_terminal_command(command="pip install xxx")` 安装（仅桌面端；
    安卓端依赖已预打包、pip 不可用，**禁止生成依赖未内置库的代码**）
 
@@ -350,7 +353,7 @@ export_and_register_scraper()
   1. 仔细阅读日志中的失败详情（`scraper.py 打包失败` / `lastError` / orch.get 异常）
   2. 定位根因（凭证缺失、SSL、字段解析、输出非法 JSON 等）
   3. 用 `run_python_scraper` 修改并重新跑通脚本
-  4. 再次调用 `export_and_register_scraper()` 重试（**最多 5 轮**）
+  4. 再次调用 `export_and_register_scraper()` 重试（连续 3 轮失败后换策略）
 
 > ⚠️ 关键：不要在 run_python_scraper 成功后就宣布完成。真正的「验证通过」以
 > export_and_register_scraper 返回的数据中心拉取结果为准——检验失败必须自我修正。
@@ -366,4 +369,26 @@ export_and_register_scraper()
 5. **编码处理** — 始终设置正确的字符编码
 6. **错误处理** — 所有网络请求加 try/except + 重试逻辑
 7. **JSON 输出** — `main()` 必须返回 dict/list，用 `json.dumps()` 输出，**不要输出人类可读文本到 stdout**
+
+---
+
+## 六、守卫红线（违反会被拦截并回灌错误）
+
+1. **终端命令守卫** — `run_terminal_command` 只允许白名单命令：
+   `python scraper.py` / `pip install <包名>` / `cd <目录>`。
+   **禁止**：`rm`/`del`/`format`/`shutdown` 等破坏性命令；命令拼接（`;`/`&&`/`|`/`>`）；
+   终端读文件（`type`/`cat`）；外联（`curl`/`wget`）；`python -c`（间接执行走私）。
+   读文件请用 `read_workspace_file` / `read_request_snapshot`。
+2. **代码 import 白名单** — 只允许 Python 标准库 + `requests`。
+   **禁止**：`os.system` / `subprocess` / `socket` / `ctypes` / `eval(` / `exec(` /
+   `__import__`；禁止 `open()` 读取工作区外路径或 scraper_sessions.json。
+3. **禁止硬编码假数据** — 必须真实抓取（requests/urllib 访问真实接口）。
+   **禁止** print 字面量数据冒充抓取结果、禁止用 example.com/占位符数据。
+   若目标站是纯静态 JSON 页（无 API 日志），需向用户说明并由用户确认放行。
+4. **禁止硬编码凭证** — 凭证必须 `VAR = _get_config('KEY')`，禁止 `VAR = "字面量"`。
+   凭证 key 建议含功能简写（如 `ZJU_USERNAME`、`COURSE_COOKIE`），不强制前缀。
+5. **日志快照** — 用户点击「操作完毕」后日志冻结不再更新（即便用户仍在操作）。
+   分析以 `read_request_snapshot` 的快照为准；若需重新抓取，先询问用户是否重新走一遍。
+6. **连续 3 轮调试失败** — 会收到 warning，请换策略（探索未暴露接口 / 询问用户），
+   不要在同一个方案上无限重试。
 ''';

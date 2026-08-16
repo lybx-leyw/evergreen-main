@@ -9,7 +9,7 @@
 /// - [ScraperPhase] — 工作流阶段枚举
 library scraper;
 
-export 'scraper_generator_view.dart';
-export 'scraper_workflow.dart';
-export 'scraper_tools.dart';
+export 'view/scraper_generator_view.dart';
+export 'workflow/scraper_workflow.dart';
+export 'agent/tools/scraper_tools.dart';
 export 'scraper_exporter.dart';

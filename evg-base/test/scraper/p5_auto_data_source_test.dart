@@ -13,7 +13,7 @@ import 'package:evergreen_base/renderer/templates/v4_modle/components/document/p
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/data_pluginer.dart';
 import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_exporter.dart';
 import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_flow_facade.dart';
-import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_workflow.dart';
+import 'package:evergreen_base/renderer/templates/scraper_modle/workflow/scraper_workflow.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
