@@ -1,6 +1,8 @@
 # Evergreen Release 工作流
 # 打 tag v* 或手动触发，构建双版（浙大专用版 + 通用版）× 双模式（debug + release）
-# 的 APK + Windows 产物并发布 GitHub Release（每平台 4 个 artifact，共 8 个）
+# 的 APK + Windows 产物并发布 GitHub Release（每平台 4 个 artifact，共 8 个）。
+# APK 构建后按 edition 重命名（evergreen-<edition>-<mode>.apk，如 evergreen-zju-release.apk），
+# 避免 zju/std 同名 app-release.apk 上传 Release 时相互覆盖。
 #
 # 双版区分（同一仓库，构建期选择性装入）：
 #   - 浙大专用版（zju）: profile=release_full + EVERGREEN_ZJU=true  → 内置浙大校园/教务/智云课堂模板与数据源
@@ -188,11 +190,20 @@ jobs:
           [ "${{ matrix.mode }}" = "release" ] && EXTRA="--no-tree-shake-icons"
           flutter build apk --${{ matrix.mode }} --dart-define=EVERGREEN_ZJU=${{ matrix.zju }} $EXTRA
 
+      - name: 重命名 APK (区分双版)
+        shell: bash
+        run: |
+          # Gradle 默认输出 app-<mode>.apk，zju/std 两版同名 → 上传 GitHub Release
+          # 时同名 asset 相互覆盖，只剩一份无法区分。构建后立即按 edition 重命名，
+          # 保证 artifact 与 Release asset 均带版本标识（evergreen-zju-release.apk 等）。
+          cd build/app/outputs/flutter-apk
+          mv app-${{ matrix.mode }}.apk evergreen-${{ matrix.edition }}-${{ matrix.mode }}.apk
+
       - name: 上传 APK artifact (${{ matrix.mode }}, ${{ matrix.label }})
         uses: actions/upload-artifact@v4
         with:
           name: evergreen-${{ matrix.edition }}-android-${{ matrix.mode }}
-          path: evg-base/build/app/outputs/flutter-apk/app-${{ matrix.mode }}.apk
+          path: evg-base/build/app/outputs/flutter-apk/evergreen-${{ matrix.edition }}-${{ matrix.mode }}.apk
           if-no-files-found: error
 
   # ─────────────────────────── 2. Windows 桌面 ───────────────────────────
@@ -316,16 +327,30 @@ jobs:
           cat release-notes.md >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
+      - name: 清理旧 Release (同名 tag)
+        run: |
+          # 覆盖 tag 触发时 softprops/action-gh-release 只会 update 已有 Release，
+          # 旧 asset（如早期覆盖产生的 app-release.apk）会残留。先删除旧 Release
+          # （保留 tag），使新 Release 的 assets 全量重建、无残留。
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release delete "$GITHUB_REF_NAME" --yes
+            echo "已删除旧 Release: $GITHUB_REF_NAME"
+          else
+            echo "无旧 Release，跳过清理"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: 创建 Release
         uses: softprops/action-gh-release@v2
         with:
           name: Evergreen ${{ github.ref_name }}
           body: ${{ steps.notes.outputs.release_notes }}
           files: |
-            artifacts/evergreen-zju-android-debug/app-debug.apk
-            artifacts/evergreen-zju-android-release/app-release.apk
-            artifacts/evergreen-std-android-debug/app-debug.apk
-            artifacts/evergreen-std-android-release/app-release.apk
+            artifacts/evergreen-zju-android-debug/evergreen-zju-debug.apk
+            artifacts/evergreen-zju-android-release/evergreen-zju-release.apk
+            artifacts/evergreen-std-android-debug/evergreen-std-debug.apk
+            artifacts/evergreen-std-android-release/evergreen-std-release.apk
             artifacts/evergreen-zju-windows-debug/EvergreenSetup*.exe
             artifacts/evergreen-zju-windows-release/EvergreenSetup*.exe
             artifacts/evergreen-std-windows-debug/EvergreenSetup*.exe
