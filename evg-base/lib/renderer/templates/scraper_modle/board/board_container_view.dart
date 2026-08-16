@@ -63,10 +63,118 @@ class BoardContainerViewState extends State<BoardContainerView> {
   }
 
   void _addBoard() {
-    final board = ScraperBoard.create('画板 ${_boards.length + 1}');
+    // Phase 4（A23）：新建画板时选择模式（定向 / 探索）
+    final nameCtrl = TextEditingController(text: '画板 ${_boards.length + 1}');
+    var mode = ScraperBoardMode.capture;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('新建画板'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                autofocus: true,
+                decoration: const InputDecoration(hintText: '画板名称'),
+                onSubmitted: (v) {
+                  if (v.trim().isNotEmpty) {
+                    _createBoard(ctx, v.trim(), mode);
+                  }
+                },
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Text('模式',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                      )),
+                  const SizedBox(width: 12),
+                  SegmentedButton<ScraperBoardMode>(
+                    segments: const [
+                      ButtonSegment(
+                        value: ScraperBoardMode.capture,
+                        icon: Icon(Icons.radar_rounded, size: 14),
+                        label: Text('定向抓取', style: TextStyle(fontSize: 11)),
+                      ),
+                      ButtonSegment(
+                        value: ScraperBoardMode.explore,
+                        icon: Icon(Icons.travel_explore_rounded, size: 14),
+                        label: Text('AI 探索', style: TextStyle(fontSize: 11)),
+                      ),
+                    ],
+                    selected: {mode},
+                    onSelectionChanged: (s) =>
+                        setDialogState(() => mode = s.first),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final v = nameCtrl.text.trim();
+                if (v.isNotEmpty) _createBoard(ctx, v, mode);
+              },
+              child: const Text('确定'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _createBoard(BuildContext ctx, String name, ScraperBoardMode mode) {
+    final board = ScraperBoard.create(name, mode: mode);
     setState(() {
       _boards.add(board);
       _currentIdx = _boards.length - 1;
+    });
+    _persist();
+    Navigator.pop(ctx);
+  }
+
+  /// 画板模式切换（Phase 4 · A23/D9：手动选择模式）。
+  ///
+  /// 模式变更会重建该画板工作区（两套工作流/harness 无法热切换），
+  /// 先弹确认框防误触丢状态。
+  Future<void> _toggleMode(int idx) async {
+    final board = _boards[idx];
+    final target = board.mode == ScraperBoardMode.capture
+        ? ScraperBoardMode.explore
+        : ScraperBoardMode.capture;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('切换画板模式？'),
+        content: Text(
+            '「${board.name}」将切换为${target == ScraperBoardMode.explore ? 'AI 探索' : '定向抓取'}模式。\n\n'
+            '两种模式是不同的工作流与守卫约束，切换会重建该画板工作区'
+            '（当前未提交的会话/日志状态将重置）。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('切换'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() {
+      board.mode = target;
+      board.updatedAt = DateTime.now();
     });
     _persist();
   }
@@ -149,11 +257,14 @@ class BoardContainerViewState extends State<BoardContainerView> {
             children: [
               for (var i = 0; i < _boards.length; i++)
                 ScraperGeneratorView(
-                  key: ValueKey('board-${_boards[i].id}'),
+                  // key 含 mode：切换模式重建画板工作区（两套 harness，D9）
+                  key: ValueKey('board-${_boards[i].id}-${_boards[i].mode.name}'),
                   descriptor: widget.descriptor,
                   config: widget.config,
                   slotKey: widget.slotKey,
                   initialUrl: widget.initialUrl,
+                  mode: _boards[i].mode,
+                  boardId: _boards[i].id,
                 ),
             ],
           ),
@@ -230,15 +341,26 @@ class BoardContainerViewState extends State<BoardContainerView> {
         ),
         child: Row(
           children: [
-            // 状态点（模式标识）
-            Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: board.mode == ScraperBoardMode.explore
-                    ? theme.colorScheme.tertiary
-                    : theme.colorScheme.primary,
+            // 模式标识（点击切换模式，A23/D9）
+            Tooltip(
+              message: board.mode == ScraperBoardMode.explore
+                  ? 'AI 探索模式（点击切换为定向抓取）'
+                  : '定向抓取模式（点击切换为 AI 探索）',
+              child: InkWell(
+                onTap: () => _toggleMode(i),
+                borderRadius: BorderRadius.circular(4),
+                child: Padding(
+                  padding: const EdgeInsets.all(2),
+                  child: Icon(
+                    board.mode == ScraperBoardMode.explore
+                        ? Icons.travel_explore_rounded
+                        : Icons.radar_rounded,
+                    size: 14,
+                    color: board.mode == ScraperBoardMode.explore
+                        ? theme.colorScheme.tertiary
+                        : theme.colorScheme.primary,
+                  ),
+                ),
               ),
             ),
             const SizedBox(width: 8),

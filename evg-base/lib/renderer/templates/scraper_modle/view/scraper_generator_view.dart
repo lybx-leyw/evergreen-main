@@ -27,11 +27,15 @@ import 'package:evergreen_base/core/module/page_event_bus.dart';
 import '../workflow/scraper_workflow.dart';
 import '../workflow/scraper_workflow_stepper.dart';
 import '../workflow/scraper_workflow_graph.dart';
+import '../explore/explore_workflow.dart';
+import '../explore/explore_panel.dart';
+import '../board/scraper_board.dart';
 import '../web/scraper_webview.dart';
 import 'request_log_panel.dart';
 import '../agent/scraper_ai_panel.dart';
 import 'scraper_terminal.dart';
 import 'scraper_view_switch.dart';
+import 'package:evergreen_base/renderer/components/shared/trace/agent_trace_view.dart';
 
 /// 爬虫脚本生成器组件视图。
 ///
@@ -45,6 +49,12 @@ class ScraperGeneratorView extends StatefulWidget {
   /// Optional: override the initial URL (set by wizard from step ①).
   final String? initialUrl;
 
+  /// 画板模式（Phase 4 · A23）：定向 capture / 探索 explore。
+  final ScraperBoardMode mode;
+
+  /// 画板 id（Phase 4：探索会话按画板隔离，A21）。
+  final String? boardId;
+
   const ScraperGeneratorView({
     super.key,
     required this.descriptor,
@@ -52,6 +62,8 @@ class ScraperGeneratorView extends StatefulWidget {
     required this.slotKey,
     this.pageEventBus,
     this.initialUrl,
+    this.mode = ScraperBoardMode.capture,
+    this.boardId,
   });
 
   @override
@@ -61,6 +73,14 @@ class ScraperGeneratorView extends StatefulWidget {
 class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
   late final ScraperWorkflow _workflow;
   final GlobalKey<ScraperAIPanelState> _aiPanelKey = GlobalKey();
+
+  /// Phase 4：探索模式工作流（D9 与定向并列的第二个状态机）。
+  late final ExploreWorkflow _exploreWorkflow = ExploreWorkflow();
+
+  /// Phase 4：浏览器 JS/导航执行通道（WebView 填充，探索工具消费）。
+  final ScraperWebViewBridge _webBridge = ScraperWebViewBridge();
+
+  bool get _isExplore => widget.mode == ScraperBoardMode.explore;
 
   /// WebView 初始化完成门控——命名弹窗等它放行后再弹出，
   /// 避免 Webview 在弹窗覆盖期间才挂载 → WebView2 纹理丢帧 → 黑屏。
@@ -93,6 +113,10 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
     _workflow = ScraperWorkflow();
     // 工作流状态变更时触发重建
     _workflow.onChanged = () {
+      if (mounted) setState(() {});
+    };
+    // Phase 4：探索工作流状态变更同样触发重建（ExplorePanel/状态栏消费）
+    _exploreWorkflow.onChanged = () {
       if (mounted) setState(() {});
     };
     // A18：快照冻结 → 锁定 WebView
@@ -134,6 +158,7 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
   void dispose() {
     if (!_webViewReady.isCompleted) _webViewReady.complete();
     _workflow.dispose();
+    _exploreWorkflow.dispose();
     super.dispose();
   }
 
@@ -202,27 +227,45 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // ── 视图切换栏（Phase 2 · B1）──
+        // ── 视图切换栏（Phase 2 · B1 + Phase 3 轨迹）──
         ScraperViewSwitch(
           current: _view,
           onChanged: (v) => setState(() => _view = v),
+          traceEnabled: true, // Phase 3：轨迹视图可用（C2 随时切换进出）
         ),
         // ── 非 workflow 视图：顶部常驻紧凑步骤条（用户 UI 决策）──
         if (_view != ScraperMainView.workflow)
           ScraperWorkflowStepper(workflow: _workflow, compact: true),
-        // ── workflow 视图：完整流程图 ──
-        if (_view == ScraperMainView.workflow)
-          Expanded(
-            child: ScraperWorkflowGraph(workflow: _workflow),
-          )
-        else
-          Expanded(
-            child: _buildWorkspace(context),
+        // ── 主视图区：IndexedStack 保状态（C2：切换不销毁 AI 面板/WebView）──
+        Expanded(
+          child: IndexedStack(
+            index: _viewIndex(_view),
+            children: [
+              // 0 工作区（含 WebView / 终端 / AI 面板——始终保活）
+              _buildWorkspace(context),
+              // 1 workflow 流程图
+              ScraperWorkflowGraph(workflow: _workflow),
+              // 2 轨迹（Phase 3）：消费 AI 面板的 Trace 记录器
+              _TraceSlot(aiPanelKey: _aiPanelKey),
+            ],
           ),
+        ),
         // ── 底部状态栏 ──
         if (_view != ScraperMainView.workflow) _buildStatusBar(context),
       ],
     );
+  }
+
+  /// ScraperMainView → IndexedStack index（与枚举顺序解耦，显式映射）。
+  static int _viewIndex(ScraperMainView v) {
+    switch (v) {
+      case ScraperMainView.workspace:
+        return 0;
+      case ScraperMainView.workflow:
+        return 1;
+      case ScraperMainView.trace:
+        return 2;
+    }
   }
 
   /// 主工作区（现有 dock 布局，含窄屏适配）。
@@ -255,6 +298,7 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
                       locked: _webViewLocked,
                       onRestartCapture: _requestRestartCapture,
                       onInitialized: _onWebViewInitialized,
+                      bridge: _webBridge,
                       onRequestCaptured: (log) {
                         if (!_webViewLocked) _workflow.addLog(log);
                       },
@@ -262,9 +306,12 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
                     // 1 日志
                     RequestLogPanel(
                       workflow: _workflow,
-                      onAnalyze: () {
-                        _aiPanelKey.currentState?.triggerAnalyze();
-                      },
+                      // 探索模式没有"分析日志"流程（不同工作流，D9）
+                      onAnalyze: _isExplore
+                          ? null
+                          : () {
+                              _aiPanelKey.currentState?.triggerAnalyze();
+                            },
                     ),
                     // 2 终端
                     ScraperTerminal(
@@ -282,6 +329,10 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
                       projectRoot: _projectRoot,
                       startupGate: _webViewReady.future,
                       onFirstNamingDone: _onFirstNamingDone,
+                      mode: widget.mode,
+                      boardId: widget.boardId,
+                      exploreWorkflow: _exploreWorkflow,
+                      webBridge: _webBridge,
                     ),
                   ],
                 ),
@@ -309,6 +360,7 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
                             locked: _webViewLocked,
                             onRestartCapture: _requestRestartCapture,
                             onInitialized: _onWebViewInitialized,
+                            bridge: _webBridge,
                             onRequestCaptured: (log) {
                               if (!_webViewLocked) _workflow.addLog(log);
                             },
@@ -333,15 +385,24 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
                     width: rightWidth.clamp(200, double.infinity),
                     child: Column(
                       children: [
-                        // 请求日志面板（上半部分 35%）
+                        // 上半部分 35%：探索模式 → 探索进度面板；定向模式 → 请求日志面板
                         Expanded(
                           flex: 35,
-                          child: RequestLogPanel(
-                            workflow: _workflow,
-                            onAnalyze: () {
-                              _aiPanelKey.currentState?.triggerAnalyze();
-                            },
-                          ),
+                          child: _isExplore
+                              ? ExplorePanel(
+                                  exploreWorkflow: _exploreWorkflow,
+                                  onStartExplore: () async =>
+                                      _aiPanelKey.currentState?.startExplore(),
+                                  onReselectSources: () =>
+                                      _aiPanelKey.currentState
+                                          ?.reopenSourcePicker(),
+                                )
+                              : RequestLogPanel(
+                                  workflow: _workflow,
+                                  onAnalyze: () {
+                                    _aiPanelKey.currentState?.triggerAnalyze();
+                                  },
+                                ),
                         ),
                         _buildDivider(context, horizontal: true),
                         // AI 工作区（下半部分 65%）
@@ -356,6 +417,10 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
                             projectRoot: _projectRoot,
                             startupGate: _webViewReady.future,
                             onFirstNamingDone: _onFirstNamingDone,
+                            mode: widget.mode,
+                            boardId: widget.boardId,
+                            exploreWorkflow: _exploreWorkflow,
+                            webBridge: _webBridge,
                           ),
                         ),
                       ],
@@ -436,8 +501,14 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
   Widget _buildStatusBar(BuildContext context) {
     final theme = Theme.of(context);
     final phase = _workflow.phase;
-    final phaseLabel = _phaseLabel(phase);
-    final phaseIcon = _phaseIcon(phase);
+    final isExplore = _isExplore;
+    final phaseLabel =
+        isExplore ? _explorePhaseLabel(_exploreWorkflow.phase) : _phaseLabel(phase);
+    final phaseIcon =
+        isExplore ? _explorePhaseIcon(_exploreWorkflow.phase) : _phaseIcon(phase);
+    final phaseColor = isExplore
+        ? _explorePhaseColor(_exploreWorkflow.phase, theme.colorScheme)
+        : _phaseColor(phase, theme.colorScheme);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
@@ -450,13 +521,13 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
       child: Row(
         children: [
           // 阶段标识
-          Icon(phaseIcon, size: 12, color: _phaseColor(phase, theme.colorScheme)),
+          Icon(phaseIcon, size: 12, color: phaseColor),
           const SizedBox(width: 4),
           Text(
             phaseLabel,
             style: TextStyle(
               fontSize: 10,
-              color: _phaseColor(phase, theme.colorScheme),
+              color: phaseColor,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -470,6 +541,21 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
             ),
           ),
           const SizedBox(width: 8),
+          // Phase 4：探索计数（页数/请求/同域）
+          if (isExplore) ...[
+            Text(
+              '🧭 ${_exploreWorkflow.uniquePages}/${_exploreWorkflow.limits.maxPages} 页 · '
+              '${_exploreWorkflow.requestsCaptured}/${_exploreWorkflow.limits.maxRequests} 请求'
+              '${_exploreWorkflow.baseHost.isNotEmpty ? ' · ${_exploreWorkflow.baseHost}' : ''}',
+              style: TextStyle(
+                fontSize: 10,
+                color: _exploreWorkflow.phase == ExplorePhase.failed
+                    ? theme.colorScheme.error
+                    : theme.colorScheme.tertiary,
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
           // 调试轮次（A15：连续失败计数；3 轮后 warning）
           if (_workflow.debugCount > 0)
             Text(
@@ -550,4 +636,60 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
         ScraperPhase.failed => scheme.error,
         _ => scheme.outline,
       };
+
+  // ── Phase 4：探索阶段状态栏映射 ──
+
+  String _explorePhaseLabel(ExplorePhase p) => switch (p) {
+        ExplorePhase.idle => '探索待机',
+        ExplorePhase.exploring => '探索中',
+        ExplorePhase.categorizing => '归类中',
+        ExplorePhase.confirming => '等待确认',
+        ExplorePhase.building => '构建中',
+        ExplorePhase.registering => '注册中',
+        ExplorePhase.done => '✅ 探索完成',
+        ExplorePhase.failed => '❌ 探索失败',
+      };
+
+  IconData _explorePhaseIcon(ExplorePhase p) => switch (p) {
+        ExplorePhase.idle => Icons.travel_explore_rounded,
+        ExplorePhase.exploring => Icons.radar_rounded,
+        ExplorePhase.categorizing => Icons.category_rounded,
+        ExplorePhase.confirming => Icons.checklist_rounded,
+        ExplorePhase.building => Icons.construction_rounded,
+        ExplorePhase.registering => Icons.link_rounded,
+        ExplorePhase.done => Icons.check_circle_rounded,
+        ExplorePhase.failed => Icons.error_rounded,
+      };
+
+  Color _explorePhaseColor(ExplorePhase p, ColorScheme scheme) => switch (p) {
+        ExplorePhase.exploring => scheme.tertiary,
+        ExplorePhase.categorizing ||
+        ExplorePhase.confirming ||
+        ExplorePhase.building ||
+        ExplorePhase.registering =>
+          scheme.secondary,
+        ExplorePhase.done => scheme.primary,
+        ExplorePhase.failed => scheme.error,
+        _ => scheme.outline,
+      };
+}
+
+/// 「轨迹」视图槽：每次 build 实时读取 AI 面板的 Trace 记录器
+/// （面板在 IndexedStack 中保活；未挂载时显示空态）。
+class _TraceSlot extends StatelessWidget {
+  final GlobalKey<ScraperAIPanelState> aiPanelKey;
+
+  const _TraceSlot({required this.aiPanelKey});
+
+  @override
+  Widget build(BuildContext context) {
+    final recorder = aiPanelKey.currentState?.traceRecorder;
+    if (recorder == null) {
+      return const Center(
+        child: Text('暂无轨迹，开始一次对话后自动记录'),
+      );
+    }
+    return AgentTraceView(recorder: recorder);
+  }
+}
 }
