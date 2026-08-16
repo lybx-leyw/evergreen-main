@@ -288,9 +288,10 @@ class _ScraperWebViewState extends State<ScraperWebView> {
   ///   求值结果，见 flutter-webview-windows #69/#161）→ 用包装脚本把结果经
   ///   `chrome.webview.postMessage` 回传，由 [_handleWebMessage] 路由到
   ///   对应 Completer（带 10s 超时，超时返回 null 由调用方降级提示）。
-  Future<String?> _evaluateJs(String script) {
+  Future<String?> _evaluateJs(String script) async {
     if (Platform.isAndroid) {
-      return _androidController.runJavaScriptReturningResult(script);
+      final result = await _androidController.runJavaScriptReturningResult(script);
+      return result == null ? null : result.toString();
     }
     final id = ++_jsRequestSeq;
     final completer = Completer<String?>();

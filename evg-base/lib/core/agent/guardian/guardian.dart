@@ -407,9 +407,9 @@ class GuardianSession {
   GuardianSession({
     required this.llm,
     required this.policyPrompt,
-    this.maxConsecutiveDenials = maxConsecutiveDenials,
-    this.maxRecentDenials = maxRecentDenials,
-    this.recentWindow = recentWindow,
+    this.maxConsecutiveDenials = 3,
+    this.maxRecentDenials = 10,
+    this.recentWindow = 50,
     this.timeout = guardianReviewTimeout,
     this.sink,
   });

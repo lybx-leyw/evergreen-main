@@ -37,6 +37,8 @@ class FakeScraperFlowFacade extends ScraperFlowFacade {
     required String outputDir,
     String pythonCode = '',
     String? dataTypeName,
+    String? category,
+    String? displayName,
   }) async {
     return ExportResult(success: true, message: 'ok');
   }

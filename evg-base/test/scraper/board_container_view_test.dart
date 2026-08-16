@@ -9,11 +9,13 @@
 import 'dart:io';
 
 import 'package:evergreen_base/core/module/module_descriptor.dart';
+import 'package:evergreen_base/providers.dart' show sharedPreferencesProvider;
 import 'package:evergreen_base/renderer/templates/scraper_modle/board/board_container_view.dart';
 import 'package:evergreen_base/renderer/templates/scraper_modle/board/scraper_board.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 const _descriptor = ModuleDescriptor(
   id: 'test-scraper',
@@ -30,6 +32,12 @@ const _config = ComponentDescriptor(
 
 Widget _wrap() {
   return ProviderScope(
+    overrides: [
+      // Phase 4：BoardContainerView 挂载的 ScraperAIPanel 会读
+      // sharedPreferencesProvider，测试环境需注入 mock（无 DEEPSEEK_API_KEY，
+      // _initAgent 提前 return，不继续读其它 provider）。
+      sharedPreferencesProvider.overrideWithValue(prefs),
+    ],
     child: MaterialApp(
       home: Scaffold(
         body: BoardContainerView(
@@ -44,7 +52,14 @@ Widget _wrap() {
   );
 }
 
+late final SharedPreferences prefs;
+
 void main() {
+  setUpAll(() async {
+    SharedPreferences.setMockInitialValues({});
+    prefs = await SharedPreferences.getInstance();
+  });
+
   group('BoardContainerView 布局', () {
     testWidgets('显示左侧画板列表 + 右侧工作区', (tester) async {
       await tester.binding.setSurfaceSize(const Size(1200, 800));
@@ -66,12 +81,14 @@ void main() {
       await tester.pump();
       // Phase 4：新建画板弹窗（名称 + 模式选择）
       await tester.tap(find.byIcon(Icons.add_rounded));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
       expect(find.text('新建画板'), findsOneWidget);
       expect(find.text('定向抓取'), findsOneWidget);
       expect(find.text('AI 探索'), findsOneWidget);
       await tester.tap(find.text('确定'));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
       expect(find.text('画板 2'), findsOneWidget);
       expect(find.text('画板 1'), findsOneWidget);
     });
@@ -82,11 +99,14 @@ void main() {
       await tester.pumpWidget(_wrap());
       await tester.pump();
       await tester.tap(find.byIcon(Icons.add_rounded));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.tap(find.text('AI 探索'));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.tap(find.text('确定'));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
       // 新画板为探索模式 → 工作区出现探索面板 + 模式标识（tile + 面板头均有 travel_explore）
       expect(find.text('探索模式'), findsOneWidget);
       expect(find.byIcon(Icons.travel_explore_rounded), findsWidgets);
@@ -103,9 +123,11 @@ void main() {
       expect(find.byIcon(Icons.close_rounded), findsNothing);
       // 新建一个再删（Phase 4：走弹窗确认）
       await tester.tap(find.byIcon(Icons.add_rounded));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.tap(find.text('确定'));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
       expect(find.byIcon(Icons.close_rounded), findsNWidgets(2));
       await tester.tap(find.byIcon(Icons.close_rounded).last);
       await tester.pump();
