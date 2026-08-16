@@ -173,19 +173,47 @@ class ApprovalPayload {
   });
 }
 
-// ═══════ AskQuestion ═══════
+// ═══════ AskQuestion / AskOption / AskAnswer ═══════
+
+/// 一个可选项（对应 Go 的 event.AskOption）。
+class AskOption {
+  final String label;
+  final String description; // 可选的一行说明
+
+  const AskOption({required this.label, this.description = ''});
+}
 
 /// 对应 Go 的 event.AskQuestion。
 class AskQuestion {
   final String id;
+  final String header; // 短标签（tab 标题）
   final String question;
-  final List<String> options;
+  final List<AskOption> options;
+  final bool multiSelect; // 是否允许多选
 
   const AskQuestion({
     required this.id,
+    this.header = '',
     required this.question,
     this.options = const [],
+    this.multiSelect = false,
   });
+}
+
+/// 用户对 [AskQuestion] 的回答（对应 Go 的 event.AskAnswer）。
+class AskAnswer {
+  final String questionId;
+  final List<String> selected; // 选中的 option label（可空 = 未答）
+
+  const AskAnswer({required this.questionId, this.selected = const []});
+}
+
+/// 一次 ask 请求：一批问题 + 关联 ID。
+class AskRequest {
+  final String id;
+  final List<AskQuestion> questions;
+
+  const AskRequest({required this.id, required this.questions});
 }
 
 // ═══════ CompactionPayload ═══════

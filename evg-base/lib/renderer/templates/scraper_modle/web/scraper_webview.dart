@@ -21,7 +21,7 @@ import 'package:flutter/material.dart';
 import 'package:webview_windows/webview_windows.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
-import 'scraper_workflow.dart';
+import '../workflow/scraper_workflow.dart';
 import 'cdp_network_client.dart';
 
 /// JS 注入脚本——三层 HTTP 请求捕获。
@@ -194,12 +194,20 @@ class ScraperWebView extends StatefulWidget {
   /// 丢失的 WebView2 纹理帧。
   final int refreshTick;
 
+  /// 是否锁定（A18：日志快照冻结后锁定，禁止继续操作）。
+  final bool locked;
+
+  /// 重抓按钮回调（A18：用户确认后回首页重启抓取）。
+  final VoidCallback? onRestartCapture;
+
   const ScraperWebView({
     super.key,
     this.initialUrl = 'https://www.baidu.com',
     this.onRequestCaptured,
     this.onInitialized,
     this.refreshTick = 0,
+    this.locked = false,
+    this.onRestartCapture,
   });
 
   @override
@@ -607,10 +615,58 @@ class _ScraperWebViewState extends State<ScraperWebView> {
                   right: 0,
                   child: LinearProgressIndicator(minHeight: 2),
                 ),
+              // 锁定遮罩（A18）
+              if (widget.locked) _buildLockOverlay(theme),
             ],
           ),
         ),
       ],
+    );
+  }
+
+  /// 快照冻结后的锁定遮罩（A18）：阻止继续操作，提供重抓入口。
+  Widget _buildLockOverlay(ThemeData theme) {
+    return Positioned.fill(
+      child: Container(
+        color: theme.colorScheme.scrim.withValues(alpha: 0.55),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surface,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.2),
+                  blurRadius: 12,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.lock_rounded,
+                    size: 32, color: theme.colorScheme.primary),
+                const SizedBox(height: 10),
+                const Text('日志快照已冻结，浏览器已锁定',
+                    style: TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 4),
+                Text('AI 正在基于快照分析。如需重新抓取，请点击下方按钮。',
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: theme.colorScheme.onSurfaceVariant)),
+                const SizedBox(height: 14),
+                FilledButton.tonalIcon(
+                  onPressed: widget.onRestartCapture,
+                  icon: const Icon(Icons.restart_alt_rounded, size: 16),
+                  label: const Text('重新抓取'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -634,6 +690,7 @@ class _ScraperWebViewState extends State<ScraperWebView> {
                   right: 0,
                   child: LinearProgressIndicator(minHeight: 2),
                 ),
+              if (widget.locked) _buildLockOverlay(theme),
             ],
           ),
         ),

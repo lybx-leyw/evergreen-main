@@ -15,8 +15,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:evergreen_base/renderer/templates/scraper_modle/cdp_network_client.dart';
-import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_workflow.dart';
+import 'package:evergreen_base/renderer/templates/scraper_modle/web/cdp_network_client.dart';
+import 'package:evergreen_base/renderer/templates/scraper_modle/workflow/scraper_workflow.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// 伪 CDP 服务端：模拟 WebView2 的 `/json` 目标发现 + `/cdp` WebSocket 端点。

@@ -63,6 +63,12 @@ class Controller {
 
   bool _globalMemoryReadThisTurn = false;
 
+  /// 工具权限门控（Phase 1：接线 core 已有 Gate 能力）。
+  final Gate? _gate;
+
+  /// 工具钩子（Phase 1：接线 core 已有 ToolHooks 能力）。
+  final ToolHooks? _hooks;
+
   // 批准回调
   Completer<bool>? _approvalCompleter;
 
@@ -76,6 +82,8 @@ class Controller {
     String skillIndexText = '',
     SkillIndex? skillIndex,
     String? moduleId,
+    Gate? gate,
+    ToolHooks? hooks,
   })  : _provider = provider,
         _registry = registry,
         _sink = sink,
@@ -84,7 +92,9 @@ class Controller {
         _memoryAgent = memoryAgent,
         _skillIndexText = skillIndexText,
         _skillIndex = skillIndex,
-        _moduleId = moduleId;
+        _moduleId = moduleId,
+        _gate = gate,
+        _hooks = hooks;
 
   // ── 属性 ──
 
@@ -199,6 +209,8 @@ class Controller {
       registry: _registry,
       session: _session,
       sink: _sink,
+      gate: _gate,
+      hooks: _hooks,
     );
 
     _currentAgent = agent;

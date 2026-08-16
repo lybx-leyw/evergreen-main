@@ -24,11 +24,14 @@ import 'package:evergreen_base/core/utils/python_env.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'package:evergreen_base/core/module/page_event_bus.dart';
 
-import 'scraper_workflow.dart';
-import 'scraper_webview.dart';
+import '../workflow/scraper_workflow.dart';
+import '../workflow/scraper_workflow_stepper.dart';
+import '../workflow/scraper_workflow_graph.dart';
+import '../web/scraper_webview.dart';
 import 'request_log_panel.dart';
-import 'scraper_ai_panel.dart';
+import '../agent/scraper_ai_panel.dart';
 import 'scraper_terminal.dart';
+import 'scraper_view_switch.dart';
 
 /// 爬虫脚本生成器组件视图。
 ///
@@ -66,8 +69,14 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
   /// 命名弹窗关闭后 +1，强制 Webview 重挂载恢复纹理帧。
   int _refreshTick = 0;
 
+  /// WebView 是否被锁定（A18：日志快照冻结后锁定，重抓时解锁）。
+  bool _webViewLocked = false;
+
   /// 竖版窄屏：当前激活的 Tab（0=浏览 1=日志 2=终端 3=AI）
   int _narrowTab = 0;
+
+  /// 主视图模式（Phase 2 · B1：工作区 / workflow 流程图 / trace 占位）。
+  ScraperMainView _view = ScraperMainView.workspace;
 
   /// Public access to the workflow for external consumers (e.g., wizard
   /// reads captured logs after step ②).
@@ -85,6 +94,21 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
     // 工作流状态变更时触发重建
     _workflow.onChanged = () {
       if (mounted) setState(() {});
+    };
+    // A18：快照冻结 → 锁定 WebView
+    _workflow.onWebViewLock = () {
+      if (!mounted) return;
+      setState(() => _webViewLocked = true);
+      debugPrint('[ScraperGeneratorView] 🔒 WebView 已锁定（快照冻结）');
+    };
+    // A18：重抓确认 → 回首页解锁重启抓取
+    _workflow.onRestartCapture = () {
+      if (!mounted) return;
+      setState(() {
+        _webViewLocked = false;
+        _refreshTick++; // 强制 WebView 重挂载
+      });
+      debugPrint('[ScraperGeneratorView] 🔓 WebView 解锁，重启抓取');
     };
 
     _moduleId = widget.descriptor.id;
@@ -146,77 +170,131 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
         '[ScraperGeneratorView] 命名弹窗关闭，WebView 表面重同步 (tick=$_refreshTick)');
   }
 
+  /// 重抓确认（A18）：确认框 → 同意后回首页解锁重启抓取。
+  Future<void> _requestRestartCapture() async {
+    if (!mounted) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('重新抓取？'),
+        content: const Text('将清空当前日志快照，浏览器回到首页并重新开始抓取。'
+            '请重新完成目标操作后再点「确认操作完毕」。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('重新抓取'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true && mounted) {
+      // 通知 AI 面板重置会话状态，再重启 workflow
+      _aiPanelKey.currentState?.onRestartCaptureConfirmed();
+      _workflow.restartCapture();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final totalWidth = constraints.maxWidth;
+        // ── 视图切换栏（Phase 2 · B1）──
+        ScraperViewSwitch(
+          current: _view,
+          onChanged: (v) => setState(() => _view = v),
+        ),
+        // ── 非 workflow 视图：顶部常驻紧凑步骤条（用户 UI 决策）──
+        if (_view != ScraperMainView.workflow)
+          ScraperWorkflowStepper(workflow: _workflow, compact: true),
+        // ── workflow 视图：完整流程图 ──
+        if (_view == ScraperMainView.workflow)
+          Expanded(
+            child: ScraperWorkflowGraph(workflow: _workflow),
+          )
+        else
+          Expanded(
+            child: _buildWorkspace(context),
+          ),
+        // ── 底部状态栏 ──
+        if (_view != ScraperMainView.workflow) _buildStatusBar(context),
+      ],
+    );
+  }
 
-              // 左右分栏 —— 左侧 60% WebView + 终端 / 右侧 40% 面板
-              // 窄屏（<500px）自动切换为上下布局
-              final isNarrow = totalWidth < 500;
+  /// 主工作区（现有 dock 布局，含窄屏适配）。
+  Widget _buildWorkspace(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final totalWidth = constraints.maxWidth;
 
-              final terminalHeight = constraints.maxHeight * 0.28;
+        // 左右分栏 —— 左侧 60% WebView + 终端 / 右侧 40% 面板
+        // 窄屏（<500px）自动切换为上下布局
+        final isNarrow = totalWidth < 500;
 
-              if (isNarrow) {
-                // 竖版窄屏：Tab 切换 + 全宽渲染（保持各面板原有风格）。
-                // IndexedStack 保证切换 Tab 不销毁面板——WebView 不重新加载、
-                // AI 会话/终端日志/请求列表状态全部保留。
-                return Column(
+        final terminalHeight = constraints.maxHeight * 0.28;
+
+        if (isNarrow) {
+          // 竖版窄屏：Tab 切换 + 全宽渲染（保持各面板原有风格）。
+          // IndexedStack 保证切换 Tab 不销毁面板——WebView 不重新加载、
+          // AI 会话/终端日志/请求列表状态全部保留。
+          return Column(
+            children: [
+              _buildNarrowTabBar(),
+              Expanded(
+                child: IndexedStack(
+                  index: _narrowTab,
                   children: [
-                    _buildNarrowTabBar(),
-                    Expanded(
-                      child: IndexedStack(
-                        index: _narrowTab,
-                        children: [
-                          // 0 浏览：WebView 全高
-                          ScraperWebView(
-                            initialUrl: _initialUrl,
-                            refreshTick: _refreshTick,
-                            onInitialized: _onWebViewInitialized,
-                            onRequestCaptured: (log) {
-                              _workflow.addLog(log);
-                            },
-                          ),
-                          // 1 日志
-                          RequestLogPanel(
-                            workflow: _workflow,
-                            onAnalyze: () {
-                              _aiPanelKey.currentState?.triggerAnalyze();
-                            },
-                          ),
-                          // 2 终端
-                          ScraperTerminal(
-                            workflow: _workflow,
-                            workspaceDir: _workspaceDir,
-                            resolvePython: () => resolvePythonExe(),
-                          ),
-                          // 3 AI
-                          ScraperAIPanel(
-                            key: _aiPanelKey,
-                            workflow: _workflow,
-                            moduleId: _moduleId,
-                            slotKey: widget.slotKey,
-                            workspaceDir: _workspaceDir,
-                            projectRoot: _projectRoot,
-                            startupGate: _webViewReady.future,
-                            onFirstNamingDone: _onFirstNamingDone,
-                          ),
-                        ],
-                      ),
+                    // 0 浏览：WebView 全高
+                    ScraperWebView(
+                      initialUrl: _initialUrl,
+                      refreshTick: _refreshTick,
+                      locked: _webViewLocked,
+                      onRestartCapture: _requestRestartCapture,
+                      onInitialized: _onWebViewInitialized,
+                      onRequestCaptured: (log) {
+                        if (!_webViewLocked) _workflow.addLog(log);
+                      },
+                    ),
+                    // 1 日志
+                    RequestLogPanel(
+                      workflow: _workflow,
+                      onAnalyze: () {
+                        _aiPanelKey.currentState?.triggerAnalyze();
+                      },
+                    ),
+                    // 2 终端
+                    ScraperTerminal(
+                      workflow: _workflow,
+                      workspaceDir: _workspaceDir,
+                      resolvePython: () => resolvePythonExe(),
+                    ),
+                    // 3 AI
+                    ScraperAIPanel(
+                      key: _aiPanelKey,
+                      workflow: _workflow,
+                      moduleId: _moduleId,
+                      slotKey: widget.slotKey,
+                      workspaceDir: _workspaceDir,
+                      projectRoot: _projectRoot,
+                      startupGate: _webViewReady.future,
+                      onFirstNamingDone: _onFirstNamingDone,
                     ),
                   ],
-                );
-              }
+                ),
+              ),
+            ],
+          );
+        }
 
-              // 宽屏：左右分栏
-              final leftWidth = totalWidth * 0.6;
-              final rightWidth = totalWidth - leftWidth - 4; // 4 = 分割线
+        // 宽屏：左右分栏
+        final leftWidth = totalWidth * 0.6;
+        final rightWidth = totalWidth - leftWidth - 4; // 4 = 分割线
 
-              return Row(
+        return Row(
                 children: [
                   // ── 左侧：WebView（上）+ 终端（下）──
                   SizedBox(
@@ -228,9 +306,11 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
                           child: ScraperWebView(
                             initialUrl: _initialUrl,
                             refreshTick: _refreshTick,
+                            locked: _webViewLocked,
+                            onRestartCapture: _requestRestartCapture,
                             onInitialized: _onWebViewInitialized,
                             onRequestCaptured: (log) {
-                              _workflow.addLog(log);
+                              if (!_webViewLocked) _workflow.addLog(log);
                             },
                           ),
                         ),
@@ -283,13 +363,8 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
                   ),
                 ],
               );
-            },
-          ),
-        ),
-        // ── 底部状态栏 ──
-        _buildStatusBar(context),
-      ],
-    );
+        },
+      );
   }
 
   // ── 竖版窄屏 Tab 导航 ──
@@ -375,13 +450,13 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
       child: Row(
         children: [
           // 阶段标识
-          Icon(phaseIcon, size: 12, color: _phaseColor(phase)),
+          Icon(phaseIcon, size: 12, color: _phaseColor(phase, theme.colorScheme)),
           const SizedBox(width: 4),
           Text(
             phaseLabel,
             style: TextStyle(
               fontSize: 10,
-              color: _phaseColor(phase),
+              color: _phaseColor(phase, theme.colorScheme),
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -395,13 +470,28 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
             ),
           ),
           const SizedBox(width: 8),
-          // 调试轮数
+          // 调试轮次（A15：连续失败计数；3 轮后 warning）
           if (_workflow.debugCount > 0)
             Text(
-              '🔧 调试 $_debugPhase/${ScraperWorkflow.maxDebugRounds}',
+              _workflow.warningSent3
+                  ? '🔧 连续失败 ${_workflow.consecutiveFailures} 轮 ⚠️'
+                  : '🔧 调试 ${_workflow.consecutiveFailures}/'
+                      '${ScraperWorkflow.debugWarningThreshold} 轮',
               style: TextStyle(
                 fontSize: 10,
-                color: theme.colorScheme.onSurfaceVariant,
+                color: _workflow.warningSent3
+                    ? theme.colorScheme.error
+                    : theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          const SizedBox(width: 8),
+          // refining 轮次（A19：仅展示）
+          if (_workflow.refineCount > 0)
+            Text(
+              '🔄 优化第 ${_workflow.refineCount} 轮',
+              style: TextStyle(
+                fontSize: 10,
+                color: theme.colorScheme.primary,
               ),
             ),
           const Spacer(),
@@ -448,20 +538,16 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
         ScraperPhase.failed => Icons.error_rounded,
       };
 
-  Color _phaseColor(ScraperPhase p) => switch (p) {
-        ScraperPhase.capturing => Colors.green,
+  /// 阶段色——从全局 colorScheme 派生（主题规约：不硬编码）。
+  Color _phaseColor(ScraperPhase p, ColorScheme scheme) => switch (p) {
+        ScraperPhase.capturing => scheme.tertiary,
         ScraperPhase.running ||
         ScraperPhase.analyzing ||
         ScraperPhase.generating ||
         ScraperPhase.debugging =>
-          Colors.orange,
-        ScraperPhase.done => const Color(0xFF52C41A),
-        ScraperPhase.failed => Colors.red,
-        _ => Colors.grey,
+          scheme.secondary,
+        ScraperPhase.done => scheme.primary,
+        ScraperPhase.failed => scheme.error,
+        _ => scheme.outline,
       };
-
-  String get _debugPhase =>
-      _workflow.debugCount > ScraperWorkflow.maxDebugRounds
-          ? '${ScraperWorkflow.maxDebugRounds}+'
-          : '${_workflow.debugCount}';
 }

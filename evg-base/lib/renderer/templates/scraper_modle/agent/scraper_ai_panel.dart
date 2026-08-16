@@ -20,12 +20,15 @@ import 'package:evergreen_base/providers.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
 import 'package:evergreen_base/core/utils/python_env.dart';
 
-import 'scraper_workflow.dart';
-import 'scraper_tools.dart';
-import 'scraper_skill_const.dart' show scraperSkillBody;
-import 'scraper_exporter.dart';
-import 'scraper_json_validator.dart';
-import 'scraper_flow_facade.dart';
+import '../workflow/scraper_workflow.dart';
+import 'tools/scraper_tools.dart';
+import '../workflow/scraper_guard.dart';
+import 'scraper_gate.dart';
+import 'scraper_hooks.dart';
+import '../scraper_skill_const.dart' show scraperSkillBody;
+import '../scraper_exporter.dart';
+import '../scraper_json_validator.dart';
+import '../scraper_flow_facade.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/data_pluginer.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/config_register.dart';
 import 'package:evergreen_base/core/config/register_config.dart';
@@ -34,6 +37,7 @@ import 'package:evergreen_base/core/data/orchestrator.dart';
 import 'package:evergreen_base/core/data/type.dart';
 import 'package:evergreen_base/core/services/ui_operation_log.dart';
 import 'package:evergreen_base/renderer/components/shared/widgets/markdown_renderer.dart';
+import 'package:evergreen_base/renderer/components/shared/widgets/agent_step_indicator.dart';
 
 // ═══════ ScraperAIPanel ═══════
 
@@ -94,6 +98,9 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
   final StringBuffer _pendingReasoning = StringBuffer();
   bool _isRunning = false;
   String _currentTool = '';
+
+  /// 本轮已执行工具步骤数（AgentStepIndicator 显示"第 N 步"）。
+  int _stepCount = 0;
 
   bool _initialized = false;
   String _error = '';
@@ -339,35 +346,52 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
         'temperature': 0.3,
       };
 
+      // ── Phase 1 harness 接线：Gate + Hooks + AskTool ──
+      final gate = ScraperGate(onConfirm: _confirmToolCall);
+      final hooks = ScraperHooks(workflow: widget.workflow);
+      // 工作流级回调接线（G5 弹窗 / 3 轮 warning / 快照锁定）
+      widget.workflow.onUserConfirmRequest = _confirmFakeDataGate;
+      widget.workflow.onWarning = (warn) {
+        if (!mounted) return;
+        _messages.add(ChatMessage.assistant('⚠️ **$warn**'));
+        _saveSessions();
+      };
+
       _assembly = AgentAssembly.fromConfig(
         moduleId: assemblyModuleId,
         config: agentConfig,
         sharedProvider: provider,
         globalSkillIndex: skillIdx,
         globalMemoryStore: memStore,
-        seedTools: createScraperTools(
-          workspaceDir: widget.workspaceDir,
-          projectRoot: widget.projectRoot,
-          resolvePython: () => resolvePythonExe(),
-          getLogsSummary: () => widget.workflow.requestLogsSummary(),
-          enqueueCommand: (cmd) => widget.workflow.setTerminalCommand(cmd),
-          getTerminalResult: () async {
-            // 轮询等待终端执行完成并写入 terminalResult
-            String result = '';
-            final deadline = DateTime.now().add(const Duration(seconds: 30));
-            while (result.isEmpty && DateTime.now().isBefore(deadline)) {
-              result = widget.workflow.consumeTerminalResult();
-              if (result.isEmpty) {
-                await Future.delayed(const Duration(milliseconds: 200));
+        gate: gate,
+        hooks: hooks,
+        seedTools: [
+          ...createScraperTools(
+            workspaceDir: widget.workspaceDir,
+            projectRoot: widget.projectRoot,
+            resolvePython: () => resolvePythonExe(),
+            getLogsSummary: () => widget.workflow.requestLogsSummary(),
+            enqueueCommand: (cmd) => widget.workflow.setTerminalCommand(cmd),
+            getTerminalResult: () async {
+              // 轮询等待终端执行完成并写入 terminalResult
+              String result = '';
+              final deadline = DateTime.now().add(const Duration(seconds: 30));
+              while (result.isEmpty && DateTime.now().isBefore(deadline)) {
+                result = widget.workflow.consumeTerminalResult();
+                if (result.isEmpty) {
+                  await Future.delayed(const Duration(milliseconds: 200));
+                }
               }
-            }
-            return result.isEmpty ? '[error: 终端命令执行超时（30s）]' : result;
-          },
-          // root cause B：让 AI 能主动触发导出+注册并看到「检验失败」日志。
-          exportAndRegister: () => _generatePlugin(),
-          // 三层名称防护：将用户命名注入 tool，强制校验/纠正 AI 传参
-          dataNameProvider: () => _dataName,
-        ),
+              return result.isEmpty ? '[error: 终端命令执行超时（30s）]' : result;
+            },
+            // root cause B：让 AI 能主动触发导出+注册并看到「检验失败」日志。
+            exportAndRegister: () => _generatePlugin(),
+            // 三层名称防护：将用户命名注入 tool，强制校验/纠正 AI 传参
+            dataNameProvider: () => _dataName,
+          ),
+          // AskTool：AI 结构化 ask 用户（A11）
+          agent.AskTool(asker: _asker),
+        ],
       );
 
       // 设置系统提示（从 Skill 文件加载）
@@ -394,6 +418,116 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
     }
   }
 
+  // ── Phase 1 harness UI 回调 ──
+
+  /// Gate 确认弹窗（命令白名单外 / save_credential）。
+  Future<bool> _confirmToolCall(
+      String toolName, Map<String, dynamic> args, String subject) async {
+    if (!mounted) return false;
+    final approved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('AI 请求确认'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('工具: `$toolName`',
+                  style: const TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              Text(subject, style: const TextStyle(fontSize: 13)),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('拒绝'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('允许'),
+          ),
+        ],
+      ),
+    );
+    return approved ?? false;
+  }
+
+  /// G5 假数据门禁弹窗（A10）：展示守卫原因 + AI 澄清文本，用户裁决放行/拒绝。
+  Future<bool> _confirmFakeDataGate(String reason, String aiClarification) async {
+    if (!mounted) return false;
+    final approved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('⚠️ 疑似硬编码假数据'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('守卫检测：', style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(ctx).colorScheme.error,
+                  fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              Text(reason, style: const TextStyle(fontSize: 13)),
+              if (aiClarification.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Text('AI 澄清：', style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(ctx).colorScheme.primary,
+                    fontWeight: FontWeight.w600)),
+                const SizedBox(height: 4),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Theme.of(ctx).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(aiClarification,
+                      style: const TextStyle(fontSize: 12)),
+                ),
+              ],
+              const SizedBox(height: 12),
+              Text('若确认是真实抓取（如静态 JSON 页无 API 日志），可放行；'
+                  '否则拒绝并要求 AI 修正为真实抓取。',
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('拒绝，要求修正'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('放行'),
+          ),
+        ],
+      ),
+    );
+    return approved ?? false;
+  }
+
+  /// AskTool 的 Asker 实现：渲染多选问题弹窗。
+  agent.Asker get _asker => _ScraperAsker(this);
+
+  /// 当前 AI 最后一条澄清文本（G5 弹窗用）。
+  String get _lastAiClarification {
+    for (final m in _messages.reversed) {
+      if (m.role == 'assistant' && m.text.trim().isNotEmpty) {
+        return m.text.length > 500 ? '${m.text.substring(0, 500)}…' : m.text;
+      }
+    }
+    return '';
+  }
+
   void _onAgentEvent(agent.AgentEvent event) {
     if (!mounted) return;
 
@@ -403,6 +537,7 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
           _isRunning = true;
           _pendingText.clear();
           _pendingReasoning.clear();
+          _stepCount = 0;
         });
         break;
 
@@ -421,7 +556,10 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
 
       case agent.EventKind.toolDispatch:
         if (event.tool != null) {
-          setState(() => _currentTool = event.tool!.name);
+          setState(() {
+            _currentTool = event.tool!.name;
+            _stepCount++;
+          });
         }
         break;
 
@@ -435,31 +573,35 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
           if (tool.isError) {
             _pendingText.writeln('\n⚠️ **${tool.name} 执行失败**\n');
             _pendingText.writeln('```\n${output.length > 500 ? '${output.substring(0, 500)}...' : output}\n```\n');
+            // 守卫拦截（lint/命令黑名单/凭证非法）→ 调试计数（R5 不消耗？）
+            // 守卫 block 消息含 "[error:"，此处回灌 AI 已由 hook 完成，UI 仅展示。
+            widget.workflow.setLastError(output);
           } else if (tool.name == 'run_python_scraper') {
             // 根据退出码判断成功/失败（不再依赖特定字符串）
             final success = output.contains('✅ 爬虫执行成功') ||
                 output.contains('✅ 命令执行成功') ||
                 (!output.contains('❌') && !output.contains('Traceback') && output.isNotEmpty);
             if (success) {
-              widget.workflow.markDone();
+              // G5 门禁：假数据标记存在 → 弹窗裁决；成功则重置调试计数
+              widget.workflow.resetDebugLoop();
+              unawaited(widget.workflow
+                  .requestDone(aiClarification: _lastAiClarification));
               _pendingText.writeln('\n🎉 **爬虫执行成功！**');
             } else if (output.contains('❌') || output.contains('Traceback')) {
               widget.workflow.setPythonOutput(output);
-              if (widget.workflow.canDebug) {
-                widget.workflow.startDebugging();
-              }
+              widget.workflow.startDebugging();
             }
           } else if (tool.name == 'run_terminal_command') {
             final success = output.contains('✅ 命令执行成功') ||
                 (!output.contains('❌') && !output.contains('Traceback') && output.isNotEmpty);
             if (success) {
-              widget.workflow.markDone();
+              widget.workflow.resetDebugLoop();
+              unawaited(widget.workflow
+                  .requestDone(aiClarification: _lastAiClarification));
               _pendingText.writeln('\n🎉 **终端命令执行成功！**');
             } else if (output.contains('❌') || output.contains('Traceback')) {
               widget.workflow.setPythonOutput(output);
-              if (widget.workflow.canDebug) {
-                widget.workflow.startDebugging();
-              }
+              widget.workflow.startDebugging();
             }
           } else if (tool.name == 'save_credential') {
             if (output.contains('✅') || output.contains('registered')) {
@@ -599,6 +741,14 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
     final text = _inputCtrl.text.trim();
     if (text.isEmpty || _assembly == null || _isRunning) return;
 
+    // A16：done 状态下用户对话反馈 → refining（debugging 路线，不重新抓包）
+    if (widget.workflow.phase == ScraperPhase.done) {
+      widget.workflow.feedbackTriggered();
+      _messages.add(ChatMessage.assistant(
+          '🔄 **收到反馈**：已进入优化模式第 ${widget.workflow.refineCount} 轮'
+          '（保留快照与产物），AI 将基于你的反馈调整。'));
+    }
+
     _inputCtrl.clear();
     setState(() {
       _messages.add(ChatMessage.user(text));
@@ -610,11 +760,32 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
     _assembly!.controller.send(text);
   }
 
+  /// 停止当前 AI 运行（A17：停止按钮 + 阶段保留）。
+  void _cancelRunning() {
+    _assembly?.controller.cancel();
+    setState(() => _isRunning = false);
+    _messages.add(ChatMessage.assistant('⏹ **已停止**（当前阶段保留，可继续补充要求）'));
+    _saveSessions();
+    _scrollToBottom();
+  }
+
+  /// 确认操作完毕（A18：冻结日志快照 + 锁定 WebView）。
+  void _confirmCaptureDone() {
+    widget.workflow.confirmCaptureDone();
+    _messages.add(ChatMessage.assistant(
+        '📸 **日志快照已冻结**（${widget.workflow.snapshot.length} 条），WebView 已锁定。'
+        '\n现在可以点击「分析日志」让 AI 基于快照分析，或继续对话。'));
+    _saveSessions();
+    _scrollToBottom();
+  }
+
   /// 触发分析流程。
   ///
   /// 分析日志：先强制选择会话，再发起 AI 分析。
   void triggerAnalyze() async {
-    if (_assembly == null || _isRunning || !widget.workflow.hasLogs) return;
+    // A18 快照语义：快照冻结后以快照为准；未冻结用活动日志
+    final hasData = widget.workflow.hasSnapshot || widget.workflow.hasLogs;
+    if (_assembly == null || _isRunning || !hasData) return;
 
     // ⚠️ 分析前强制选择会话（确保数据名称与会话一致）
     final picked = await _showSessionPicker();
@@ -857,6 +1028,35 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
         if (mounted) setState(() => _isRunning = false);
         return buf.toString();
       }
+
+      // ═══ G6 注册防线（A3/A5）：注册前强制 lint 磁盘/内存代码 ═══
+      // violation → 拒绝注册（格式/安全硬伤）；suspectedFakeData 未清除 → 拒绝注册。
+      final lintResult = lintScraperCode(
+        baseCode,
+        capturedUrls: widget.workflow.logs
+            .map((l) => l.url)
+            .where((u) => u.startsWith('http'))
+            .toSet(),
+      );
+      if (lintResult.hasViolations) {
+        say('❌ **代码审查未通过，拒绝注册**\n${lintResult.toMessage()}'
+            '\n\n请修正后重新执行 scraper.py，再调用 export_and_register_scraper。');
+        widget.workflow.setLastError(lintResult.toMessage());
+        if (mounted) setState(() => _isRunning = false);
+        return buf.toString();
+      }
+      if (lintResult.suspectedFakeData) {
+        // 同步 guardFlags（若 hooks 漏标，这里兜底）
+        widget.workflow.setGuardFlag(GuardFlags.suspectedFakeData);
+      }
+      if (widget.workflow.suspectedFakeData) {
+        say('❌ **检测到疑似硬编码假数据未澄清/未修正，拒绝注册**。'
+            '\n请向用户说明数据来源（如静态 JSON 页），经用户确认放行后再注册。');
+        widget.workflow.setLastError('G6 拒绝注册：疑似假数据未清除');
+        if (mounted) setState(() => _isRunning = false);
+        return buf.toString();
+      }
+
       final validatedCode = injectValidatorIntoCode(baseCode);
 
       // Step 1.5: 清理旧 .exe 残留（新契约只注册 .py）
@@ -1094,6 +1294,19 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
     // 下次 _ensureNamed 将自动创建新会话或切换回同名会话（旧记录保留）
   }
 
+  /// 重抓确认后回调（A18）：由 generator_view 在用户确认重抓时调用。
+  void onRestartCaptureConfirmed() {
+    if (!mounted) return;
+    setState(() {
+      _pendingText.clear();
+      _pendingReasoning.clear();
+    });
+    _messages.add(ChatMessage.assistant(
+        '🔄 **重新抓取开始**：请重新完成目标操作，完成后点击「操作完毕」。'));
+    _saveSessions();
+    _scrollToBottom();
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -1110,7 +1323,7 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.error_outline, size: 40, color: Colors.red),
+              Icon(Icons.error_outline, size: 40, color: theme.colorScheme.error),
               const SizedBox(height: 8),
               Text(_error, textAlign: TextAlign.center,
                   style: TextStyle(color: theme.colorScheme.error)),
@@ -1225,7 +1438,8 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
                             Navigator.pop(ctx);
                             _deleteSession(i);
                           },
-                          child: const Icon(Icons.delete_outline, size: 16, color: Colors.red),
+                          child: Icon(Icons.delete_outline, size: 16,
+                              color: theme.colorScheme.error),
                         ),
                       ],
                     ),
@@ -1234,11 +1448,13 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
               onSelected: _switchSession,
             ),
           if (_isRunning) ...[
-            const SizedBox(width: 4),
-            const SizedBox(
-              width: 8,
-              height: 8,
-              child: CircularProgressIndicator(strokeWidth: 1.5),
+            const SizedBox(width: 8),
+            // B2：事件驱动的统一进度指示（真实反映 AI 步骤）
+            AgentStepIndicator(
+              running: true,
+              currentTool: _currentTool,
+              step: _stepCount,
+              maxSteps: 50,
             ),
           ],
           // ⚠️ 禁止在此 Row 内使用 Spacer/Expanded：外层是横向
@@ -1416,16 +1632,59 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
             ),
           ),
           const SizedBox(width: 6),
-          // 发送
-          SizedBox(
-            height: 30,
-            child: IconButton.filled(
-              onPressed:
-                  (_assembly != null && !_isRunning) ? _sendMessage : null,
-              icon: const Icon(Icons.send_rounded, size: 14),
-              style: IconButton.styleFrom(
-                minimumSize: const Size(30, 30),
-                padding: EdgeInsets.zero,
+          // 发送 / 停止（A17：AI 运行时停止按钮，阶段保留）
+          if (_isRunning)
+            SizedBox(
+              height: 30,
+              child: IconButton(
+                onPressed: _cancelRunning,
+                icon: Icon(Icons.stop_rounded, size: 16,
+                    color: theme.colorScheme.error),
+                tooltip: '停止（保留当前阶段）',
+                style: IconButton.styleFrom(
+                  minimumSize: const Size(30, 30),
+                  padding: EdgeInsets.zero,
+                  backgroundColor:
+                      theme.colorScheme.errorContainer.withValues(alpha: 0.4),
+                ),
+              ),
+            )
+          else
+            SizedBox(
+              height: 30,
+              child: IconButton.filled(
+                onPressed:
+                    (_assembly != null && !_isRunning) ? _sendMessage : null,
+                icon: const Icon(Icons.send_rounded, size: 14),
+                style: IconButton.styleFrom(
+                  minimumSize: const Size(30, 30),
+                  padding: EdgeInsets.zero,
+                ),
+              ),
+            ),
+          const SizedBox(width: 6),
+          // 确认操作完毕（A18：冻结日志快照 + 锁定 WebView）
+          Tooltip(
+            message: '确认操作完毕：冻结日志快照并锁定 WebView，AI 据此分析',
+            child: SizedBox(
+              height: 30,
+              child: OutlinedButton.icon(
+                onPressed: (_assembly != null &&
+                        !_isRunning &&
+                        widget.workflow.hasLogs &&
+                        !widget.workflow.snapshotFrozen)
+                    ? _confirmCaptureDone
+                    : null,
+                icon: const Icon(Icons.lock_rounded, size: 12),
+                label: Text(
+                  widget.workflow.snapshotFrozen
+                      ? '已锁定 (${widget.workflow.snapshot.length})'
+                      : '操作完毕',
+                  style: const TextStyle(fontSize: 10),
+                ),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                ),
               ),
             ),
           ),
@@ -1683,5 +1942,122 @@ class _SessionPickerDialogState extends State<_SessionPickerDialog> {
         ),
       ],
     );
+  }
+}
+
+// ═══════ _ScraperAsker ═══════
+
+/// AskTool 的 UI 实现（A11）：把结构化问题渲染为多选弹窗，返回用户选择。
+class _ScraperAsker implements agent.Asker {
+  final ScraperAIPanelState _state;
+
+  _ScraperAsker(this._state);
+
+  @override
+  Future<List<agent.AskAnswer>> ask(agent.AskRequest request) async {
+    final ctx = _state.context;
+    if (!_state.mounted) return const [];
+
+    // 构建每个问题的状态：当前选中项（多选集合 / 单选 index）
+    final selected = <String, Set<int>>{};
+    for (final q in request.questions) {
+      selected[q.id] = <int>{};
+    }
+
+    final result = await showDialog<bool>(
+      context: ctx,
+      barrierDismissible: false,
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (dialogCtx, setDialogState) {
+          return AlertDialog(
+            title: Text('AI 提问（${request.questions.length}）',
+                style: const TextStyle(fontSize: 16)),
+            content: SizedBox(
+              width: 420,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final q in request.questions) ...[
+                      if (q != request.questions.first)
+                        const Divider(height: 24),
+                      Text(q.header.isNotEmpty ? q.header : '问题',
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: Theme.of(dialogCtx)
+                                  .colorScheme
+                                  .primary,
+                              fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 4),
+                      Text(q.question,
+                          style: const TextStyle(
+                              fontSize: 14, fontWeight: FontWeight.w500)),
+                      const SizedBox(height: 8),
+                      for (var i = 0; i < q.options.length; i++)
+                        CheckboxListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          controlAffinity: ListTileControlAffinity.leading,
+                          title: Text(q.options[i].label,
+                              style: const TextStyle(fontSize: 13)),
+                          subtitle: q.options[i].description.isNotEmpty
+                              ? Text(q.options[i].description,
+                                  style: const TextStyle(fontSize: 11))
+                              : null,
+                          value: q.multiSelect
+                              ? selected[q.id]!.contains(i)
+                              : selected[q.id]!.length == 1 &&
+                                  selected[q.id]!.contains(i),
+                          onChanged: (checked) {
+                            setDialogState(() {
+                              if (q.multiSelect) {
+                                if (checked == true) {
+                                  selected[q.id]!.add(i);
+                                } else {
+                                  selected[q.id]!.remove(i);
+                                }
+                              } else {
+                                selected[q.id] = checked == true
+                                    ? {i}
+                                    : <int>{};
+                              }
+                            });
+                          },
+                        ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogCtx, false),
+                child: const Text('关闭（暂不回答）'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogCtx, true),
+                child: const Text('确认'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    if (result != true) {
+      // 用户关闭 → 不返回任何回答（AskTool 解释为"不要替我做决定"）
+      return const [];
+    }
+
+    return [
+      for (final q in request.questions)
+        agent.AskAnswer(
+          questionId: q.id,
+          selected: [
+            for (final i in selected[q.id] ?? <int>{}) q.options[i].label,
+          ],
+        ),
+    ];
   }
 }

@@ -13,7 +13,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
-import 'scraper_workflow.dart';
+import '../workflow/scraper_workflow.dart';
 
 // ═══════ CDP Network 事件类型 ═══════
 

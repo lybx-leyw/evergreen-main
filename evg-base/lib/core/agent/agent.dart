@@ -22,6 +22,7 @@ export 'tools/agent_http_server.dart';
 export 'tools/mock_event_stream.dart';
 export 'tools/ocr_attachment_handler.dart';
 export 'tools/scripted_agent_http_server.dart';
+export 'tools/ask_tool.dart';
 export 'agent_runtime.dart';
 export 'session_manager.dart';
 
