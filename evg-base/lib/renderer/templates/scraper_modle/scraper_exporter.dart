@@ -241,6 +241,10 @@ Future<ExportResult> exportDataManifest({
   required String outputDir,
   /// 显式指定的数据类型名称（如用户命名）。null 时回退到 [schema.title ?? name]。
   String? dataTypeName,
+  /// Phase 4：探索模式显式归类（manifest category，D3 细粒度归类）。
+  String? category,
+  /// Phase 4：探索模式显式展示名（manifest displayName）。
+  String? displayName,
 }) async {
   try {
     debugPrint('[ScraperExporter] 📝 生成 data manifest: $name → $outputDir');
@@ -266,8 +270,8 @@ Future<ExportResult> exportDataManifest({
           'typeArg': resolvedDataTypeName,
           'ttl': '5m',
           'persistentKey': 'custom-$name:$resolvedDataTypeName',
-          'category': dataTypeName ?? schema.title ?? '数据采集',
-          'displayName': dataTypeName ?? schema.title ?? name,
+          'category': category ?? dataTypeName ?? schema.title ?? '数据采集',
+          'displayName': displayName ?? dataTypeName ?? schema.title ?? name,
         }
       ],
     };

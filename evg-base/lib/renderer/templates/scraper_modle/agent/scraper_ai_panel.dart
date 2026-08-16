@@ -23,9 +23,14 @@ import 'package:evergreen_base/core/utils/python_env.dart';
 import '../workflow/scraper_workflow.dart';
 import 'tools/scraper_tools.dart';
 import '../workflow/scraper_guard.dart';
+import '../explore/explore_workflow.dart';
+import '../explore/scraper_explore_tools.dart';
+import '../explore/explore_panel.dart';
+import '../web/scraper_webview.dart';
+import '../board/scraper_board.dart';
 import 'scraper_gate.dart';
 import 'scraper_hooks.dart';
-import '../scraper_skill_const.dart' show scraperSkillBody;
+import '../scraper_skill_const.dart' show scraperSkillBody, scraperExploreSkillBody;
 import '../scraper_exporter.dart';
 import '../scraper_json_validator.dart';
 import '../scraper_flow_facade.dart';
@@ -62,6 +67,19 @@ class ScraperAIPanel extends ConsumerStatefulWidget {
   /// 首次命名弹窗关闭（无论确认/跳过）后回调——父级据此重同步 WebView 表面。
   final VoidCallback? onFirstNamingDone;
 
+  /// 画板模式（Phase 4 · A23：定向 capture / 探索 explore）。
+  /// explore 模式切换工具集、Skill、harness 约束（D9 两套工作流）。
+  final ScraperBoardMode mode;
+
+  /// 画板 id（探索会话命名隔离用；A21 沙盒）。
+  final String? boardId;
+
+  /// 探索工作流（Phase 4；探索模式由父级 GeneratorView 持有并传入）。
+  final ExploreWorkflow? exploreWorkflow;
+
+  /// 浏览器 JS/导航执行通道（Phase 4；探索工具消费）。
+  final ScraperWebViewBridge? webBridge;
+
   const ScraperAIPanel({
     super.key,
     required this.workflow,
@@ -71,6 +89,10 @@ class ScraperAIPanel extends ConsumerStatefulWidget {
     required this.projectRoot,
     this.startupGate,
     this.onFirstNamingDone,
+    this.mode = ScraperBoardMode.capture,
+    this.boardId,
+    this.exploreWorkflow,
+    this.webBridge,
   });
 
   @override
@@ -255,8 +277,8 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
       if (target.agentSessionJson != null) {
         final restored = agent.Session.fromJson(target.agentSessionJson!);
         _assembly!.controller.setSession(restored);
-        // 确保 system prompt 是当前最新版本（旧快照中的 prompt 可能过期）
-        _assembly!.controller.setSystemPrompt(scraperSkillBody);
+        // 确保 system prompt 是当前模式最新版本（旧快照中的 prompt 可能过期）
+        _assembly!.controller.setSystemPrompt(_skillBody);
         debugPrint('[ScraperAIPanel] ♻ 恢复 Agent Session (${restored.messages.length} 条)');
       } else {
         _assembly!.controller.newSession();
@@ -363,9 +385,19 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
       };
 
       // ── Phase 1 harness 接线：Gate + Hooks + AskTool ──
+      // Phase 4（D9）：探索模式接入 ExploreWorkflow（阶段白名单等探索约束）
+      final isExplore = widget.mode == ScraperBoardMode.explore;
+      final ew = widget.exploreWorkflow;
+      if (isExplore && ew == null) {
+        // 显式契约：探索画板必须由 GeneratorView 传入 ExploreWorkflow
+        throw StateError('探索模式缺少 ExploreWorkflow（GeneratorView 必须传入）');
+      }
       final gate = ScraperGate(onConfirm: _confirmToolCall);
-      final hooks =
-          ScraperHooks(workflow: widget.workflow, traceBuffer: _traceRecorder);
+      final hooks = ScraperHooks(
+        workflow: widget.workflow,
+        traceBuffer: _traceRecorder,
+        exploreWorkflow: isExplore ? ew : null,
+      );
       // 工作流级回调接线（G5 弹窗 / 3 轮 warning / 快照锁定）
       widget.workflow.onUserConfirmRequest = _confirmFakeDataGate;
       widget.workflow.onWarning = (warn) {
@@ -397,46 +429,76 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
         globalMemoryStore: memStore,
         gate: gate,
         hooks: hooks,
-        seedTools: [
-          ...createScraperTools(
-            workspaceDir: widget.workspaceDir,
-            projectRoot: widget.projectRoot,
-            resolvePython: () => resolvePythonExe(),
-            getLogsSummary: () => widget.workflow.requestLogsSummary(),
-            enqueueCommand: (cmd) => widget.workflow.setTerminalCommand(cmd),
-            getTerminalResult: () async {
-              // 轮询等待终端执行完成并写入 terminalResult
-              String result = '';
-              final deadline = DateTime.now().add(const Duration(seconds: 30));
-              while (result.isEmpty && DateTime.now().isBefore(deadline)) {
-                result = widget.workflow.consumeTerminalResult();
-                if (result.isEmpty) {
-                  await Future.delayed(const Duration(milliseconds: 200));
-                }
-              }
-              return result.isEmpty ? '[error: 终端命令执行超时（30s）]' : result;
-            },
-            // root cause B：让 AI 能主动触发导出+注册并看到「检验失败」日志。
-            exportAndRegister: () => _generatePlugin(),
-            // 三层名称防护：将用户命名注入 tool，强制校验/纠正 AI 传参
-            dataNameProvider: () => _dataName,
-          ),
-          // AskTool：AI 结构化 ask 用户（A11）
-          agent.AskTool(asker: _asker),
-          // GuardianReviewTool（A13 显式 tool 审核）：AI 可主动调用自审
-          GuardianReviewTool(
-            session: guardian,
-            evidenceProvider: () => _buildGuardianEvidence(gate: 'tool'),
-          ),
-        ],
+        seedTools: isExplore
+            ? [
+                // ── Phase 4 探索工具集（D1-D9）+ AskTool + GuardianReviewTool ──
+                ...createScraperExploreTools(
+                  exploreWorkflow: ew!,
+                  captureWorkflow: widget.workflow,
+                  evaluateJs: (script) async {
+                    final b = widget.webBridge;
+                    if (b == null || !b.ready) return null;
+                    return b.evaluateJavaScript!(script);
+                  },
+                  navigateTo: (url) async {
+                    final b = widget.webBridge;
+                    if (b == null || !b.ready) {
+                      throw StateError('浏览器导航通道不可用（WebView 未就绪）');
+                    }
+                    await b.navigateTo!(url);
+                  },
+                  presentSources: _presentExploreSources,
+                  buildSource: _buildExploreSource,
+                  registerBatch: _registerExploreBatch,
+                ),
+                // AskTool：AI 结构化 ask 用户（A11）
+                agent.AskTool(asker: _asker),
+                // GuardianReviewTool（A13 显式 tool 审核）：AI 可主动调用自审
+                GuardianReviewTool(
+                  session: guardian,
+                  evidenceProvider: () => _buildGuardianEvidence(gate: 'tool'),
+                ),
+              ]
+            : [
+                ...createScraperTools(
+                  workspaceDir: widget.workspaceDir,
+                  projectRoot: widget.projectRoot,
+                  resolvePython: () => resolvePythonExe(),
+                  getLogsSummary: () => widget.workflow.requestLogsSummary(),
+                  enqueueCommand: (cmd) => widget.workflow.setTerminalCommand(cmd),
+                  getTerminalResult: () async {
+                    // 轮询等待终端执行完成并写入 terminalResult
+                    String result = '';
+                    final deadline = DateTime.now().add(const Duration(seconds: 30));
+                    while (result.isEmpty && DateTime.now().isBefore(deadline)) {
+                      result = widget.workflow.consumeTerminalResult();
+                      if (result.isEmpty) {
+                        await Future.delayed(const Duration(milliseconds: 200));
+                      }
+                    }
+                    return result.isEmpty ? '[error: 终端命令执行超时（30s）]' : result;
+                  },
+                  // root cause B：让 AI 能主动触发导出+注册并看到「检验失败」日志。
+                  exportAndRegister: () => _generatePlugin(),
+                  // 三层名称防护：将用户命名注入 tool，强制校验/纠正 AI 传参
+                  dataNameProvider: () => _dataName,
+                ),
+                // AskTool：AI 结构化 ask 用户（A11）
+                agent.AskTool(asker: _asker),
+                // GuardianReviewTool（A13 显式 tool 审核）：AI 可主动调用自审
+                GuardianReviewTool(
+                  session: guardian,
+                  evidenceProvider: () => _buildGuardianEvidence(gate: 'tool'),
+                ),
+              ],
       );
 
       // Phase 3：Trace 订阅事件流（round 边界 / think / reply 兜底）+ Guardian 裁决事件
       _traceRecorder.attach(_assembly!.eventSink.stream);
       guardian.sink = _assembly!.eventSink;
 
-      // 设置系统提示（从 Skill 文件加载）
-      _assembly!.controller.setSystemPrompt(scraperSkillBody);
+      // 设置系统提示（探索模式 / 定向模式不同 Skill，D9）
+      _assembly!.controller.setSystemPrompt(_skillBody);
 
       // 订阅事件
       _eventSub = _assembly!.eventSink.stream.listen(_onAgentEvent);
@@ -454,10 +516,23 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
 
     if (mounted) {
       setState(() => _initialized = true);
-      // 页面打开后自动弹出命名对话框（仅此一次）→ 创建/切换会话
-      WidgetsBinding.instance.addPostFrameCallback((_) => _ensureNamed());
+      // 探索模式：无命名弹窗，按画板 id 隔离会话（A21）；
+      // 定向模式：自动弹出命名对话框（仅此一次）→ 创建/切换会话
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (widget.mode == ScraperBoardMode.explore) {
+          _ensureExploreSession();
+        } else {
+          _ensureNamed();
+        }
+      });
     }
   }
+
+  /// 当前模式的 Skill 内容（D9：探索 / 定向两套角色提示词）。
+  String get _skillBody =>
+      widget.mode == ScraperBoardMode.explore
+          ? scraperExploreSkillBody
+          : scraperSkillBody;
 
   // ── Phase 1 harness UI 回调 ──
 
@@ -904,6 +979,8 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
   ///
   /// 分析日志：先强制选择会话，再发起 AI 分析。
   void triggerAnalyze() async {
+    // 探索模式走 startExplore（不同工作流，D9），不触发定向分析
+    if (widget.mode == ScraperBoardMode.explore) return;
     // A18 快照语义：快照冻结后以快照为准；未冻结用活动日志
     final hasData = widget.workflow.hasSnapshot || widget.workflow.hasLogs;
     if (_assembly == null || _isRunning || !hasData) return;
@@ -961,6 +1038,328 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
     _saveSessions();
 
     _assembly!.controller.send(prompt + logsSummary);
+  }
+
+  // ── Phase 4：探索模式（D1-D9）──
+
+  /// 探索会话名（按画板 id 隔离，A21 沙盒）。
+  String get _exploreSessionName => 'explore_${widget.boardId ?? 'board'}';
+
+  /// 探索模式会话初始化（无命名弹窗；复用已有会话则恢复上下文）。
+  Future<void> _ensureExploreSession() async {
+    if (widget.mode != ScraperBoardMode.explore || !mounted) return;
+    final name = _exploreSessionName;
+    final existingIdx = _sessions.indexWhere((s) => s.name == name);
+    if (existingIdx >= 0) {
+      setState(() => _currentIdx = existingIdx);
+      _restoreAgentSession(existingIdx);
+    } else {
+      final session = _ScraperSession(name: name);
+      setState(() {
+        _sessions.add(session);
+        _currentIdx = _sessions.length - 1;
+      });
+      _assembly?.controller.newSession();
+      _messages.add(ChatMessage.assistant(
+        '🧭 **探索会话已就绪**\n\n'
+        '我可以探索当前网站的同域 GET 接口并归类为候选数据源，'
+        '由你勾选后批量构建注册。\n\n'
+        '1. 请先在左侧浏览器**登录目标网站**\n'
+        '2. 点击「开始探索」，或直接告诉我目标数据\n'
+        '3. 我探索完毕后会弹出多选框让你确认要构建的数据源',
+      ));
+    }
+    _saveSessions();
+  }
+
+  /// 「开始探索」入口（ExplorePanel 按钮，D1）。
+  ///
+  /// 确认弹窗（提示先登录）→ 锁定当前域名 → 进入 exploring →
+  /// 给 AI 发送探索任务 prompt。
+  Future<void> startExplore() async {
+    if (_assembly == null || _isRunning || !mounted) return;
+    final ew = widget.exploreWorkflow;
+    if (ew == null || ew.phase != ExplorePhase.idle) return;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('🧭 开始探索？'),
+        content: const Text(
+            'AI 将以纯 GET 方式探索当前网站的同域链接'
+            '（上限 20 页 / 50 请求 / 1s 节流），并把 GET 接口归类为候选数据源。\n\n'
+            '请确保已在浏览器中登录目标网站。'
+            '探索过程不会提交任何表单（POST）。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('开始探索'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    String? startUrl;
+    try {
+      startUrl = await widget.webBridge?.currentUrl?.call();
+    } catch (_) {}
+    if (!ew.startExploring(startUrl: startUrl)) {
+      _messages.add(ChatMessage.assistant(
+          '⚠️ 无法开始探索（${ew.errorMessage.isEmpty ? '状态异常' : ew.errorMessage}）'));
+      _saveSessions();
+      return;
+    }
+
+    setState(() {
+      _isRunning = true;
+      _pendingText.clear();
+      _pendingReasoning.clear();
+      _messages.add(ChatMessage.assistant(
+          '🔎 **开始探索**${ew.baseHost.isNotEmpty ? '（同域: ${ew.baseHost}）' : ''}\n'
+          'AI 将循环：枚举链接 → GET 导航 → 读取捕获日志，'
+          '直到无新链接或触达上限（${ew.limits.maxPages} 页 / ${ew.limits.maxRequests} 请求）。'));
+    });
+    _saveSessions();
+
+    _assembly!.controller.send('''
+【探索任务开始】请按探索 Skill 流程严格执行：
+
+Step 1 探索：explore_page_links() 枚举当前页链接；navigate_get(url) 逐页访问疑似
+数据接口（仅 GET、同域、注意 1s 节流与页数上限）；list_captured_requests() 阅读
+捕获的 GET 请求与响应体样本。直到无新链接或触达上限。
+Step 2 归类：把 GET 数据接口细粒度归类为候选数据源 JSON。
+Step 3 确认：调用 present_data_sources(sources) 弹出多选框让用户勾选（可改名）。
+Step 4 构建：对每个确认的数据源调用 build_selected_source(name, code)。
+Step 5 注册：全部构建完成后调用 register_batch(names) 批量注册并验证。
+
+当前锁定域名: ${ew.baseHost.isEmpty ? '（尚未锁定，首次导航自动锁定）' : ew.baseHost}
+''');
+  }
+
+  /// present_data_sources 工具回调：弹出多选弹窗（D4）。
+  Future<List<CandidateDataSource>> _presentExploreSources(
+      List<CandidateDataSource> candidates) async {
+    if (!mounted) return const [];
+    return showExploreSourcePicker(context, candidates);
+  }
+
+  /// ExplorePanel「重新打开选择框」按钮：用当前候选重新弹窗并确认。
+  Future<void> reopenSourcePicker() async {
+    if (!mounted) return;
+    final ew = widget.exploreWorkflow;
+    if (ew == null || ew.candidates.isEmpty) return;
+    final sel = await showExploreSourcePicker(context, ew.candidates);
+    if (sel.isNotEmpty) {
+      ew.confirmSelection(sel);
+      setState(() {});
+    }
+  }
+
+  /// 查找候选数据源定义（build 时回填 displayName/category/fields）。
+  CandidateDataSource? _findCandidate(String name) {
+    final ew = widget.exploreWorkflow;
+    if (ew == null) return null;
+    for (final c in ew.selected) {
+      if (c.name == name) return c;
+    }
+    for (final c in ew.candidates) {
+      if (c.name == name) return c;
+    }
+    return null;
+  }
+
+  /// build_selected_source 工具回调：逐源构建 data-{name} 插件（D5/D8）。
+  ///
+  /// 复用定向模式同一产物契约：lint 防线 → 注入 JSON 验证器 →
+  /// scraper.py + data/manifest.json（含 displayName/category）→ config/config.json。
+  Future<String> _buildExploreSource(String name, String code) async {
+    final buf = StringBuffer();
+    void say(String m) {
+      if (mounted) _messages.add(ChatMessage.assistant(m));
+      buf.writeln(m);
+    }
+
+    try {
+      final candidate = _findCandidate(name);
+      say('🔧 构建 data-$name（${candidate?.displayName ?? name}）…');
+
+      // G6 防线：lint（violation 拒绝；假数据 warning → guardFlags，注册前强制修正）
+      final urls = widget.workflow.logs
+          .map((l) => l.url)
+          .where((u) => u.startsWith('http'))
+          .toSet();
+      final lint = lintScraperCode(code, capturedUrls: urls);
+      if (lint.hasViolations) {
+        say('❌ data-$name 代码审查未通过\n${lint.toMessage()}');
+        widget.workflow.setLastError(lint.toMessage());
+        return buf.toString();
+      }
+      if (lint.suspectedFakeData) {
+        widget.workflow.setGuardFlag(GuardFlags.suspectedFakeData);
+        say('⚠️ data-$name 命中疑似假数据 warning（已记 guard flag，批量注册前必须修正）');
+      }
+
+      final fields = candidate?.fields
+              .map((f) => InferredField(
+                  name: f.name, type: f.type, description: f.description))
+              .toList() ??
+          const <InferredField>[];
+      final schema = InferredSchema(
+        sourceUrl: candidate?.url ?? '',
+        title: candidate?.displayName ?? name,
+        fields: fields,
+      );
+
+      final validated = injectValidatorIntoCode(code);
+      final pluginDir = p.join(resolvePluginsRoot(), 'data-$name');
+      final dataResult = await _facade.generateAsDataPlugin(
+        schema: schema,
+        pluginName: name,
+        outputDir: pluginDir,
+        pythonCode: validated,
+        dataTypeName: name,
+        category: candidate?.category,
+        displayName: candidate?.displayName,
+      );
+      if (!dataResult.success) {
+        say('❌ data-$name 打包失败: ${dataResult.message}');
+        return buf.toString();
+      }
+      say('✅ data-$name scraper.py + data/manifest.json 已生成');
+
+      final configReg = ConfigRegister();
+      final configResult = await configReg.generateConfig(
+        pluginDir: pluginDir,
+        fields: fields
+            .map((f) => {
+                  'name': f.name,
+                  'type': f.type,
+                  'description': f.description ?? '',
+                })
+            .toList(),
+      );
+      say('${configResult.success ? "✅" : "❌"} data-$name config/config.json');
+      say('📁 data-$name 构建完毕 → `$pluginDir`');
+    } catch (e) {
+      say('❌ data-$name 构建异常: $e');
+    }
+    _saveSessions();
+    return buf.toString();
+  }
+
+  /// register_batch 工具回调：批量热注册 + orch.get 验证（D6）。
+  Future<String> _registerExploreBatch(List<String> names) async {
+    final buf = StringBuffer();
+    void say(String m) {
+      if (mounted) _messages.add(ChatMessage.assistant(m));
+      buf.writeln(m);
+    }
+
+    try {
+      final ew = widget.exploreWorkflow;
+      if (ew != null && ew.phase != ExplorePhase.registering) {
+        ew.startRegistering();
+      }
+
+      // G6 Guardian 自动审查（Phase 3 复用）：注册前审 trace + 产物
+      final verdict = await _guardianReview(GuardianReviewRequest(
+        gate: 'G6',
+        action: '批量注册 ${names.length} 个探索数据源'
+            '（${names.map((n) => 'data-$n').join('/')}）到数据中心',
+        arguments: jsonEncode({'names': names, 'mode': 'explore'}),
+      ));
+      if (verdict != null && !verdict.allow) {
+        say('🛡️ Guardian 拒绝批量注册\n${verdict.reason}');
+        widget.workflow.setLastError('G6 Guardian 拒绝批量注册: ${verdict.reason}');
+        return buf.toString();
+      }
+      if (verdict != null && verdict.allow) {
+        say('🛡️ Guardian 审查通过（risk=${verdict.assessment.riskLevel}）');
+      }
+
+      final orch = ref.read(dataOrchestratorProvider);
+      var successCount = 0;
+      for (final name in names) {
+        final pluginDir = p.join(resolvePluginsRoot(), 'data-$name');
+        say('🔗 注册 data-$name …');
+        final lineBuf = StringBuffer();
+        lineBuf.writeln('**$name**:');
+        try {
+          final registered = registerDataSourcesFromManifest(
+            orch: orch,
+            pluginDir: pluginDir,
+            projectRoot: widget.projectRoot,
+          );
+          // 注册配置项 + 自动保存凭据默认值（复用 _hotRegister 逻辑）
+          final configPath = p.join(pluginDir, 'config', 'config.json');
+          if (File(configPath).existsSync()) {
+            final configServer = ref.read(configHttpServerProvider);
+            final cfg = registerConfigFromManifest(
+              configServer: configServer,
+              pluginDir: pluginDir,
+            );
+            if (cfg.count > 0) {
+              lineBuf.writeln('- 📝 配置项 ${cfg.count} 个: ${cfg.registered.join(', ')}');
+              if (cfg.savedDefaults.isNotEmpty) {
+                final prefs = ref.read(sharedPreferencesProvider);
+                for (final key in cfg.savedDefaults) {
+                  final configJson = jsonDecode(
+                      File(configPath).readAsStringSync()) as Map<String, dynamic>;
+                  final settingsList =
+                      (configJson['settings'] as List<dynamic>?) ?? [];
+                  for (final item in settingsList) {
+                    if (item is! Map<String, dynamic> || item['key'] != key) {
+                      continue;
+                    }
+                    final defaultValue = item['default'] as String? ?? '';
+                    if (defaultValue.isNotEmpty && !prefs.containsKey(key)) {
+                      await prefs.setString(key, defaultValue);
+                    }
+                    break;
+                  }
+                }
+                lineBuf.writeln('- 💾 凭据默认值已保存（${cfg.savedDefaults.length} 项）');
+              }
+            }
+          }
+          for (final typeName in registered) {
+            try {
+              final dataType = DataType<Map<String, dynamic>>(name: typeName);
+              final data = await orch.get(dataType);
+              if (data != null) {
+                lineBuf.writeln('- ✅ $typeName 拉取成功');
+                successCount++;
+              } else {
+                final status = orch.status(typeName);
+                lineBuf.writeln('- ⚠ $typeName 返回 null'
+                    '${status?.lastError != null ? ' · lastError: ${status!.lastError}' : ''}');
+              }
+            } catch (e) {
+              lineBuf.writeln('- ❌ $typeName 拉取异常: $e');
+            }
+          }
+        } catch (e) {
+          lineBuf.writeln('- ❌ 注册失败: $e');
+        }
+        say(lineBuf.toString());
+      }
+
+      if (successCount > 0 && ew != null && ew.phase == ExplorePhase.registering) {
+        ew.markDone();
+      }
+      say('🎉 批量注册完成：$successCount/${names.length} 个数据源验证通过'
+          '${ew != null && ew.phase == ExplorePhase.done ? '\n✅ 探索流程全部完成' : ''}');
+    } catch (e) {
+      say('❌ 批量注册异常: $e');
+    }
+    _saveSessions();
+    return buf.toString();
   }
 
   /// 导出爬虫（.py）+ data/manifest.json。
@@ -1430,6 +1829,7 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
       _pluginDir = null;
     });
     widget.workflow.reset();
+    widget.exploreWorkflow?.reset();
     // 下次 _ensureNamed 将自动创建新会话或切换回同名会话（旧记录保留）
   }
 
@@ -1731,21 +2131,39 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
       ),
       child: Row(
         children: [
-          // 分析日志按钮
-          SizedBox(
-            height: 30,
-            child: OutlinedButton.icon(
-              onPressed:
-                  (_assembly != null && !_isRunning && widget.workflow.hasLogs)
-                      ? triggerAnalyze
-                      : null,
-              icon: const Icon(Icons.analytics_rounded, size: 12),
-              label: const Text('分析日志', style: TextStyle(fontSize: 10)),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
+          // 探索模式：开始探索按钮（D1）；定向模式：分析日志按钮
+          if (widget.mode == ScraperBoardMode.explore)
+            SizedBox(
+              height: 30,
+              child: FilledButton.icon(
+                onPressed: (_assembly != null &&
+                        !_isRunning &&
+                        widget.exploreWorkflow?.phase == ExplorePhase.idle)
+                    ? startExplore
+                    : null,
+                icon: const Icon(Icons.travel_explore_rounded, size: 12),
+                label: const Text('开始探索', style: TextStyle(fontSize: 10)),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                ),
+              ),
+            )
+          else
+            SizedBox(
+              height: 30,
+              child: OutlinedButton.icon(
+                onPressed: (_assembly != null &&
+                        !_isRunning &&
+                        widget.workflow.hasLogs)
+                    ? triggerAnalyze
+                    : null,
+                icon: const Icon(Icons.analytics_rounded, size: 12),
+                label: const Text('分析日志', style: TextStyle(fontSize: 10)),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                ),
               ),
             ),
-          ),
           const SizedBox(width: 6),
           // 输入框
           Expanded(
@@ -1801,32 +2219,34 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
                 ),
               ),
             ),
-          const SizedBox(width: 6),
-          // 确认操作完毕（A18：冻结日志快照 + 锁定 WebView）
-          Tooltip(
-            message: '确认操作完毕：冻结日志快照并锁定 WebView，AI 据此分析',
-            child: SizedBox(
-              height: 30,
-              child: OutlinedButton.icon(
-                onPressed: (_assembly != null &&
-                        !_isRunning &&
-                        widget.workflow.hasLogs &&
-                        !widget.workflow.snapshotFrozen)
-                    ? _confirmCaptureDone
-                    : null,
-                icon: const Icon(Icons.lock_rounded, size: 12),
-                label: Text(
-                  widget.workflow.snapshotFrozen
-                      ? '已锁定 (${widget.workflow.snapshot.length})'
-                      : '操作完毕',
-                  style: const TextStyle(fontSize: 10),
-                ),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
+          // 确认操作完毕（A18：冻结日志快照 + 锁定 WebView）——仅定向模式
+          if (widget.mode != ScraperBoardMode.explore) ...[
+            const SizedBox(width: 6),
+            Tooltip(
+              message: '确认操作完毕：冻结日志快照并锁定 WebView，AI 据此分析',
+              child: SizedBox(
+                height: 30,
+                child: OutlinedButton.icon(
+                  onPressed: (_assembly != null &&
+                          !_isRunning &&
+                          widget.workflow.hasLogs &&
+                          !widget.workflow.snapshotFrozen)
+                      ? _confirmCaptureDone
+                      : null,
+                  icon: const Icon(Icons.lock_rounded, size: 12),
+                  label: Text(
+                    widget.workflow.snapshotFrozen
+                        ? '已锁定 (${widget.workflow.snapshot.length})'
+                        : '操作完毕',
+                    style: const TextStyle(fontSize: 10),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
                 ),
               ),
             ),
-          ),
+          ],
         ],
       ),
     );

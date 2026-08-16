@@ -182,6 +182,10 @@ class ScraperFlowFacade {
     String pythonCode = '',
     /// 显式指定的数据类型名称（如用户命名）。null 时回退到 [schema.title]。
     String? dataTypeName,
+    /// Phase 4：探索模式显式归类（manifest category）。
+    String? category,
+    /// Phase 4：探索模式显式展示名（manifest displayName）。
+    String? displayName,
   }) async {
     debugPrint('[ScraperFlowFacade] 🚀 generateAsDataPlugin: $pluginName → $outputDir');
 
@@ -212,6 +216,8 @@ class ScraperFlowFacade {
       schema: schema,
       outputDir: outputDir,
       dataTypeName: dataTypeName,
+      category: category,
+      displayName: displayName,
     );
 
     if (!manifestResult.success) {

@@ -5,6 +5,9 @@
 /// - `run_python_scraper` → lintScraperCode（violation block；warning 放行 + 写 workflow guardFlags）
 /// - `save_credential` → validateCredentialArgs（非法 block）
 /// - `export_and_register_scraper` → G6 注册前强制 lint（violation / 假数据未清除 → block）
+/// - **探索模式（Phase 4 · D9）**：接入 [exploreWorkflow] 后按阶段强制工具白名单；
+///   `navigate_get` URL 守卫预检；`build_selected_source` lint；
+///   `register_batch` 假数据未清除 → block
 ///
 /// L4 postToolUse / postToolUseFailure：结果摘要（行数/字节数/前 200 字符）→ TraceBuffer。
 library scraper_hooks;
@@ -12,6 +15,7 @@ library scraper_hooks;
 import 'package:evergreen_base/core/agent/agent.dart' as agent;
 import 'package:evergreen_base/renderer/components/shared/trace/agent_trace_recorder.dart';
 
+import '../explore/explore_workflow.dart';
 import '../workflow/scraper_guard.dart';
 import '../workflow/scraper_workflow.dart';
 
@@ -23,7 +27,14 @@ class ScraperHooks implements agent.ToolHooks {
   /// 可选的 Trace 缓冲（Phase 3 接入；Phase 1 可空）。
   final TraceBuffer? traceBuffer;
 
-  ScraperHooks({required this.workflow, this.traceBuffer});
+  /// 探索模式工作流（Phase 4；非空 = 探索画板，启用阶段白名单等探索约束）。
+  final ExploreWorkflow? exploreWorkflow;
+
+  ScraperHooks({
+    required this.workflow,
+    this.traceBuffer,
+    this.exploreWorkflow,
+  });
 
   @override
   String get match => '';
@@ -31,7 +42,53 @@ class ScraperHooks implements agent.ToolHooks {
   @override
   Future<(bool block, String message)> preToolUse(
       String name, Map<String, dynamic> args) async {
+    // ── Phase 4 探索模式：阶段工具白名单（D9 不同 harness 约束）──
+    final ew = exploreWorkflow;
+    if (ew != null) {
+      if (!exploreToolAllowedForPhase(name, ew.phase)) {
+        return (true, blockedExploreToolMessage(name, ew.phase));
+      }
+    }
+
     switch (name) {
+      case 'navigate_get':
+        // GET-only 导航守卫预检（同域/协议；上限/节流由工具内 recordNavigation 判定）
+        final url = args['url'] as String? ?? '';
+        final err = validateExploreUrl(url, baseHost: ew?.baseHost);
+        if (err != null) {
+          return (true, '[error: 探索导航被守卫拒绝: $err'
+              '（仅允许 http/https GET、同域）]');
+        }
+        return (false, '');
+
+      case 'build_selected_source':
+        // 逐源构建前 lint（violation block；假数据 warning 放行 + guardFlags，
+        // register_batch 时强制清除，A5 语义与定向模式一致）
+        final code = args['code'] as String? ?? '';
+        final urls = workflow.logs
+            .map((l) => l.url)
+            .where((u) => u.startsWith('http'))
+            .toSet();
+        final result = lintScraperCode(code, capturedUrls: urls);
+        if (result.hasViolations) {
+          return (true, '[error: 代码审查未通过]\n${result.toMessage()}');
+        }
+        if (result.suspectedFakeData) {
+          workflow.setGuardFlag(GuardFlags.suspectedFakeData);
+        } else if (workflow.suspectedFakeData) {
+          // A5 语义：修正为真实抓取后自动清除标记
+          workflow.clearGuardFlag(GuardFlags.suspectedFakeData);
+        }
+        return (false, '');
+
+      case 'register_batch':
+        // G6 语义：假数据未清除 → 拒绝批量注册
+        if (workflow.suspectedFakeData) {
+          return (true, '[error: 检测到疑似假数据未澄清/未修正，拒绝批量注册。'
+              '请用 build_selected_source 修正为真实抓取后重试]');
+        }
+        return (false, '');
+
       case 'run_terminal_command':
         final cmd = args['command'] as String? ?? '';
         if (isTerminalCommandBlocked(cmd)) {

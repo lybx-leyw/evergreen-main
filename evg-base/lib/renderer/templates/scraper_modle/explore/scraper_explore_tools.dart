@@ -1,0 +1,483 @@
+/// AI 探索模式自定义 Agent 工具（Phase 4 · D1-D9）。
+///
+/// 六个探索工具（与定向抓取的 [scraper_tools] 并列，D9 两套 harness）：
+/// - `explore_page_links()` — JS 枚举当前页所有 http(s) 链接
+/// - `navigate_get(url)` — 仅 GET 导航（同域/上限/1s 节流守卫）
+/// - `list_captured_requests()` — 只读捕获日志中 GET 请求（POST 一律不回灌）
+/// - `present_data_sources(sources)` — 呈现归类候选 → 用户多选（可改名）
+/// - `build_selected_source(name, code)` — 逐源构建 data-{name} 插件
+/// - `register_batch(names)` — 批量热注册 + orch.get 验证
+///
+/// 浏览器通道与产物流水线由 UI 层（ScraperAIPanel）注入回调；
+/// 阶段白名单由 ScraperHooks 依据 [ExploreWorkflow] 强制（本文件不重复判断）。
+library scraper_explore_tools;
+
+import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
+import 'package:evergreen_base/core/agent/tool.dart';
+
+import '../workflow/scraper_workflow.dart';
+import 'explore_workflow.dart';
+
+// ═══════ JS 脚本 ═══════
+
+/// 枚举当前页所有 `a[href]` 链接（http/https），返回 JSON：
+/// `{"count": N, "links": [{"url": "...", "text": "..."}]}`。
+///
+/// 结果通道（见 ScraperWebViewBridge）：
+/// - Windows：executeScript 不回传结果，由 postMessage 桥接回传**原始字符串**
+/// - Android：runJavaScriptReturningResult 回传 **JSON 编码后的字符串**
+/// 两种形态 [_decodeJsJson] 均兼容。
+const String explorePageLinksScript = r'''
+(function() {
+  var seen = {};
+  var out = [];
+  var links = document.querySelectorAll('a[href]');
+  for (var i = 0; i < links.length; i++) {
+    try {
+      var href = links[i].href || '';
+      if (!href || !/^https?:/i.test(href)) continue;
+      if (seen[href]) continue;
+      seen[href] = true;
+      var text = (links[i].innerText || links[i].title || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+      out.push({ url: href, text: text });
+    } catch (e) {}
+  }
+  return JSON.stringify({ count: out.length, links: out.slice(0, 200) });
+})()
+''';
+
+/// 解析 JS 通道返回的 JSON（兼容"结果本身是 JSON 字符串"与
+/// "结果被 JSON 编码多包一层"两种形态）。
+Map<String, dynamic>? _decodeJsJson(String? raw) {
+  if (raw == null) return null;
+  var s = raw.trim();
+  if (s.isEmpty) return null;
+  try {
+    final v = jsonDecode(s);
+    if (v is Map<String, dynamic>) return v;
+    if (v is String) {
+      final inner = jsonDecode(v);
+      if (inner is Map<String, dynamic>) return inner;
+    }
+    return null;
+  } catch (_) {
+    return null;
+  }
+}
+
+// ═══════ explore_page_links ═══════
+
+/// 工具：枚举当前页 http(s) 链接（GET 探索起点）。
+class ExplorePageLinksTool extends SimpleTool {
+  final ExploreWorkflow exploreWorkflow;
+  final Future<String?> Function(String script) evaluateJs;
+
+  ExplorePageLinksTool({
+    required this.exploreWorkflow,
+    required this.evaluateJs,
+  }) : super(
+          name: 'explore_page_links',
+          description: '枚举当前浏览页面的所有 http/https 链接（a[href]），'
+              '返回链接列表（url + 文本）。用于探索模式：配合 navigate_get '
+              '逐页探索同域 GET 接口。只返回链接清单，不触发任何请求。',
+          schema: const {
+            'type': 'object',
+            'properties': {},
+          },
+          readOnly: true,
+          execute: (args) async {
+            try {
+              final raw = await evaluateJs(explorePageLinksScript);
+              final json = _decodeJsJson(raw);
+              if (json == null) {
+                return '[error: 浏览器 JS 通道不可用或页面未就绪，请稍后重试]';
+              }
+              final count = json['count'] as int? ?? 0;
+              final links = (json['links'] as List<dynamic>? ?? const [])
+                  .whereType<Map<String, dynamic>>()
+                  .toList();
+              if (links.isEmpty) {
+                return '当前页共 0 个 http(s) 链接。'
+                    '可尝试 navigate_get 访问已知地址，或结束探索进入归类。';
+              }
+              final base = exploreWorkflow.baseHost;
+              final buf = StringBuffer();
+              buf.writeln('当前页共 $count 个链接'
+                  '${base.isNotEmpty ? '（已锁同域: $base）' : ''}：');
+              var shown = 0;
+              for (final l in links) {
+                final url = (l['url'] as String? ?? '').trim();
+                if (url.isEmpty) continue;
+                final err = validateExploreUrl(url, baseHost: base);
+                if (err != null) continue; // 非同域/非 http(s) 不回灌
+                final text = (l['text'] as String? ?? '').trim();
+                buf.writeln('- $url${text.isNotEmpty ? '  # $text' : ''}');
+                if (++shown >= 100) {
+                  buf.writeln('…（其余 ${count - shown} 个链接已截断）');
+                  break;
+                }
+              }
+              if (shown == 0) {
+                buf.writeln('（所有链接均为非同域/非 http(s)，已按守卫过滤）');
+              }
+              return buf.toString();
+            } catch (e) {
+              debugPrint('[ExplorePageLinks] 💥 $e');
+              return '[error: 枚举链接失败: $e]';
+            }
+          },
+        );
+}
+
+// ═══════ navigate_get ═══════
+
+/// 工具：仅 GET 导航（同域 + 上限 + 节流守卫，D2/D7）。
+class NavigateGetTool extends SimpleTool {
+  final ExploreWorkflow exploreWorkflow;
+  final Future<void> Function(String url) navigateTo;
+
+  NavigateGetTool({
+    required this.exploreWorkflow,
+    required this.navigateTo,
+  }) : super(
+          name: 'navigate_get',
+          description: '以 GET 方式导航内嵌浏览器到指定 URL（探索模式唯一导航通道）。'
+              '守卫约束：仅 http/https；同域（首次导航锁定域名）；'
+              '页数上限（默认 20 页）；请求上限（默认 50）；1s 节流。'
+              '被守卫拒绝时请换一个链接或结束探索进入归类。'
+              '禁止尝试 POST/表单提交/js: 伪协议。',
+          schema: const {
+            'type': 'object',
+            'properties': {
+              'url': {
+                'type': 'string',
+                'description': '要 GET 导航的完整 URL（http/https）',
+              },
+            },
+            'required': ['url'],
+          },
+          readOnly: false,
+          execute: (args) async {
+            final url = (args['url'] as String? ?? '').trim();
+            if (url.isEmpty) return '[error: url 参数为空]';
+            final err = exploreWorkflow.recordNavigation(url);
+            if (err != null) {
+              return '[error: 探索导航被守卫拒绝: $err]';
+            }
+            try {
+              await navigateTo(url);
+              return '✅ 已 GET 导航: $url\n'
+                  '页数 ${exploreWorkflow.uniquePages}/${exploreWorkflow.limits.maxPages}'
+                  ' · 请求 ${exploreWorkflow.requestsCaptured}/${exploreWorkflow.limits.maxRequests}'
+                  '${exploreWorkflow.pagesExhausted ? '\n⚠️ 已触达页数上限，请结束探索进入归类' : ''}'
+                  '${exploreWorkflow.requestsExhausted ? '\n⚠️ 已触达请求上限，请结束探索进入归类' : ''}';
+            } catch (e) {
+              debugPrint('[NavigateGet] 💥 $e');
+              return '[error: 导航执行失败: $e]';
+            }
+          },
+        );
+}
+
+// ═══════ list_captured_requests ═══════
+
+/// 工具：读取捕获日志中的 GET 请求（POST 等一律过滤，D2）。
+class ListCapturedRequestsTool extends SimpleTool {
+  final ScraperWorkflow captureWorkflow;
+  final ExploreWorkflow exploreWorkflow;
+
+  ListCapturedRequestsTool({
+    required this.captureWorkflow,
+    required this.exploreWorkflow,
+  }) : super(
+          name: 'list_captured_requests',
+          description: '读取浏览器捕获日志中的 GET 请求（仅 GET；POST/表单等'
+              '一律被过滤，不提供方法改写）。返回 AI 友好摘要'
+              '（method/URL/关键 headers/响应体样本），供归类候选数据源使用。',
+          schema: const {
+            'type': 'object',
+            'properties': {},
+          },
+          readOnly: true,
+          execute: (args) async {
+            final base = exploreWorkflow.baseHost;
+            final gets = captureWorkflow.logs.where((l) {
+              if (l.method != 'GET') return false;
+              if (!l.url.startsWith('http://') &&
+                  !l.url.startsWith('https://')) {
+                return false;
+              }
+              if (base.isNotEmpty) {
+                return validateExploreUrl(l.url, baseHost: base) == null;
+              }
+              return true;
+            }).toList();
+            if (gets.isEmpty) {
+              return '(暂无 GET 捕获日志) 请先在浏览器中浏览/探索目标页面。';
+            }
+            final buf = StringBuffer();
+            buf.writeln('## 捕获的 GET 请求（${gets.length} 条'
+                '${base.isNotEmpty ? ' · 同域 $base' : ''}）\n');
+            final shown = gets.length > 100 ? 100 : gets.length;
+            for (var i = 0; i < shown; i++) {
+              buf.writeln('### 请求 #${i + 1}');
+              buf.writeln(gets[i].toAiSummary());
+              buf.writeln();
+            }
+            if (gets.length > shown) {
+              buf.writeln('…（其余 ${gets.length - shown} 条已截断）');
+            }
+            return buf.toString();
+          },
+        );
+}
+
+// ═══════ present_data_sources ═══════
+
+/// 工具：呈现候选数据源 → 用户多选确认（D3/D4）。
+///
+/// AI 传入归类 JSON 数组；UI 弹出多选弹窗（勾选 + 可改名）；
+/// 返回用户最终选择（含改名结果）的 JSON 数组。
+class PresentDataSourcesTool extends SimpleTool {
+  final ExploreWorkflow exploreWorkflow;
+  final Future<List<CandidateDataSource>> Function(
+      List<CandidateDataSource> candidates) presentSources;
+
+  PresentDataSourcesTool({
+    required this.exploreWorkflow,
+    required this.presentSources,
+  }) : super(
+          name: 'present_data_sources',
+          description: '把归类好的候选数据源呈现给用户做多选确认。'
+              '参数 sources 为 JSON 数组，每项：'
+              '{name: 英文标识(仅字母数字_-、字母开头), displayName: 展示名, '
+              'category: 归类, url: GET URL, fields: [{name,type,description}]}。'
+              '调用后弹出多选框（用户可勾选并改名）；返回用户确认选择的数据源'
+              'JSON 数组（以用户改名为准）。用户取消时返回提示，请重新归类或询问用户。',
+          schema: const {
+            'type': 'object',
+            'properties': {
+              'sources': {
+                'type': 'string',
+                'description': '候选数据源 JSON 数组（序列化为字符串）',
+              },
+            },
+            'required': ['sources'],
+          },
+          readOnly: false,
+          execute: (args) async {
+            final raw = args['sources'];
+            List<dynamic> list;
+            try {
+              if (raw is List) {
+                list = raw;
+              } else if (raw is String) {
+                list = jsonDecode(raw) as List<dynamic>;
+              } else {
+                return '[error: sources 参数缺失]';
+              }
+            } catch (e) {
+              return '[error: sources JSON 解析失败: $e]';
+            }
+
+            final candidates = <CandidateDataSource>[];
+            for (final item in list.whereType<Map<String, dynamic>>()) {
+              final c = CandidateDataSource.fromJson(item);
+              final nameErr = sanitizeSourceName(c.name);
+              if (nameErr != null) {
+                return '[error: 数据源名称非法: $nameErr — name="${c.name}"]';
+              }
+              final urlErr = validateExploreUrl(c.url,
+                  baseHost: exploreWorkflow.baseHost);
+              if (urlErr != null) {
+                return '[error: 数据源 ${c.name} URL 被守卫拒绝: $urlErr]';
+              }
+              if (candidates.any((x) => x.name == c.name)) {
+                return '[error: 数据源名称重复: "${c.name}"]';
+              }
+              candidates.add(c.displayName.isEmpty
+                  ? c.copyWith(displayName: c.name)
+                  : c);
+            }
+            if (candidates.isEmpty) {
+              return '[error: 候选数据源列表为空]';
+            }
+            if (candidates.length > 30) {
+              return '[error: 候选数据源过多（${candidates.length} > 30），请合并归类后重试]';
+            }
+
+            debugPrint('[PresentDataSources] 呈现 ${candidates.length} 个候选'
+                '（阶段: ${exploreWorkflow.phase.name}）');
+            if (exploreWorkflow.phase == ExplorePhase.exploring) {
+              if (!exploreWorkflow.startCategorizing()) {
+                return '[error: 无法进入归类阶段]';
+              }
+            }
+            if (!exploreWorkflow.presentCandidates(candidates)) {
+              return '[error: 当前阶段（${exploreWorkflow.phase.name}）不允许呈现数据源，'
+                  '请先完成探索]';
+            }
+
+            final selected = await presentSources(candidates);
+            if (selected.isEmpty) {
+              return '[error: 用户未选择任何数据源。请重新归类（合并/拆分候选），'
+                  '或调用 ask 询问用户需求]';
+            }
+            if (!exploreWorkflow.confirmSelection(selected)) {
+              return '[error: 选择确认失败（阶段: ${exploreWorkflow.phase.name}）]';
+            }
+
+            final out = selected.map((s) => s.toJson()).toList();
+            return '✅ 用户已确认 ${selected.length} 个数据源：\n'
+                '${const JsonEncoder.withIndent('  ').convert(out)}\n\n'
+                '下一步：对每个数据源依次调用 build_selected_source(name, code) 构建，'
+                '全部构建完成后调用 register_batch(names) 批量注册。';
+          },
+        );
+}
+
+// ═══════ build_selected_source ═══════
+
+/// 工具：逐源构建 data-{name} 插件（D5/D8）。
+class BuildSelectedSourceTool extends SimpleTool {
+  final Future<String> Function(String name, String code) buildSource;
+
+  BuildSelectedSourceTool({required this.buildSource})
+      : super(
+          name: 'build_selected_source',
+          description: '为某个已确认的数据源构建插件目录 data-{name}/'
+              '（scraper.py + data/manifest.json + config/config.json）。'
+              'code 为该数据源的完整 Python 爬虫（必须逐字包含锁定配置模板，'
+              '只允许标准库 + requests，main 用 json.dumps 输出合法 JSON）。'
+              '返回构建结果日志；若含 ❌/lastError，请分析并重试（最多 3 轮后换策略）。'
+              '构建完成后统一用 register_batch 批量注册。',
+          schema: const {
+            'type': 'object',
+            'properties': {
+              'name': {
+                'type': 'string',
+                'description': '数据源名称（必须是用户确认选择中的 name）',
+              },
+              'code': {
+                'type': 'string',
+                'description': '该数据源的完整 Python 爬虫代码',
+              },
+            },
+            'required': ['name', 'code'],
+          },
+          readOnly: false,
+          execute: (args) async {
+            final name = (args['name'] as String? ?? '').trim();
+            final code = args['code'] as String? ?? '';
+            if (name.isEmpty) return '[error: name 参数为空]';
+            final nameErr = sanitizeSourceName(name);
+            if (nameErr != null) return '[error: 数据源名称非法: $nameErr]';
+            if (code.isEmpty) return '[error: code 参数为空]';
+            final log = await buildSource(name, code);
+            final base = log.trim().isEmpty ? '[error: 构建未产生任何日志]' : log;
+            return '📁 **data-$name**\n\n$base';
+          },
+        );
+}
+
+// ═══════ register_batch ═══════
+
+/// 工具：批量注册 + orch.get 验证（D6）。
+class RegisterBatchTool extends SimpleTool {
+  final Future<String> Function(List<String> names) registerBatch;
+
+  RegisterBatchTool({required this.registerBatch})
+      : super(
+          name: 'register_batch',
+          description: '批量热注册已构建的数据源插件（data-{name}）到数据中心，'
+              '并对每个类型执行 orch.get 拉取验证。'
+              'names 为数据源名称数组（JSON 数组字符串，或逗号分隔）。'
+              '返回完整结果日志（含 lastError/拉取异常/返回 null 等详情）；'
+              '若有失败项，用 build_selected_source 修正后再次调用本工具（最多 3 轮）。',
+          schema: const {
+            'type': 'object',
+            'properties': {
+              'names': {
+                'type': 'string',
+                'description': '数据源名称数组（JSON 数组字符串，如 ["a","b"]）',
+              },
+            },
+            'required': ['names'],
+          },
+          readOnly: false,
+          execute: (args) async {
+            final raw = args['names'];
+            final names = <String>[];
+            try {
+              if (raw is List) {
+                names.addAll(raw.whereType<String>());
+              } else if (raw is String) {
+                final decoded = jsonDecode(raw);
+                if (decoded is List) {
+                  names.addAll(decoded.whereType<String>());
+                } else {
+                  names.addAll(decoded.split(',').map((s) => s.trim())
+                      .where((s) => s.isNotEmpty));
+                }
+              }
+            } catch (_) {
+              if (raw is String) {
+                names.addAll(raw.split(',').map((s) => s.trim())
+                    .where((s) => s.isNotEmpty));
+              }
+            }
+            if (names.isEmpty) return '[error: names 参数为空]';
+            for (final n in names) {
+              final err = sanitizeSourceName(n);
+              if (err != null) return '[error: 数据源名称非法: $err — "$n"]';
+            }
+            final log = await registerBatch(names);
+            final base = log.trim().isEmpty ? '[error: 注册未产生任何日志]' : log;
+            return '🔗 **批量注册（${names.length} 个数据源）**\n\n$base';
+          },
+        );
+}
+
+// ═══════ 工具集工厂 ═══════
+
+/// 为探索模式 Agent 构造全部自定义工具。
+///
+/// UI 层注入回调：
+/// - [evaluateJs] — JS 执行通道（ScraperWebViewBridge）
+/// - [navigateTo] — GET 导航通道
+/// - [presentSources] — 候选多选弹窗（返回用户选择，可改名）
+/// - [buildSource] — 逐源构建插件并返回完整日志
+/// - [registerBatch] — 批量注册 + orch.get 验证并返回完整日志
+List<Tool> createScraperExploreTools({
+  required ExploreWorkflow exploreWorkflow,
+  required ScraperWorkflow captureWorkflow,
+  required Future<String?> Function(String script) evaluateJs,
+  required Future<void> Function(String url) navigateTo,
+  required Future<List<CandidateDataSource>> Function(
+      List<CandidateDataSource> candidates) presentSources,
+  required Future<String> Function(String name, String code) buildSource,
+  required Future<String> Function(List<String> names) registerBatch,
+}) {
+  return [
+    ExplorePageLinksTool(
+      exploreWorkflow: exploreWorkflow,
+      evaluateJs: evaluateJs,
+    ),
+    NavigateGetTool(
+      exploreWorkflow: exploreWorkflow,
+      navigateTo: navigateTo,
+    ),
+    ListCapturedRequestsTool(
+      captureWorkflow: captureWorkflow,
+      exploreWorkflow: exploreWorkflow,
+    ),
+    PresentDataSourcesTool(
+      exploreWorkflow: exploreWorkflow,
+      presentSources: presentSources,
+    ),
+    BuildSelectedSourceTool(buildSource: buildSource),
+    RegisterBatchTool(registerBatch: registerBatch),
+  ];
+}

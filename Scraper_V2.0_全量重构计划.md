@@ -174,8 +174,8 @@ workflow×harness 集成           多画板 + 可视化
 |---|---|---|---|---|---|
 | **1** | core 底座 + Workflow×Harness 一体化 | A1-A18, A20, A25, E | AskTool / Gate·Hooks 接线 / workflow 工程化 / 守卫规则 / G5·G6 门禁 / prompt 修正 | 无 | ✅ 完成（用户确认） |
 | **2** | 多画板 + 可视化 | A21-A24, B1, B2 | 画板沙盒（独立 WebView/会话/快照/持久化）+ Stepper + 统一进度 | Phase 1 | ✅ 完成（用户确认） |
-| **3** | Trace + Guardian | C1-C5, A12, A13 | TraceRecorder/View（共享）+ Guardian AI 审查 | Phase 1·2 | ⏳ 下一步 |
-| **4** | AI 探索模式 | D1-D9, A20 | JS 通道 + ExploreWorkflow + GET 守卫 + 归类多选 + 批量注册 | Phase 1·2·3 | 待定 |
+| **3** | Trace + Guardian | C1-C5, A12, A13 | TraceRecorder/View（共享）+ Guardian AI 审查 | Phase 1·2 | ✅ 完成（commit b40c876） |
+| **4** | AI 探索模式 | D1-D9, A20 | JS 通道 + ExploreWorkflow + GET 守卫 + 归类多选 + 批量注册 | Phase 1·2·3 | ⏳ 实现完成，待回归（见 Scraper_PHASE4_交接文档.md） |
 
 ---
 

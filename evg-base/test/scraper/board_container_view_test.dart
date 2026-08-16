@@ -59,15 +59,39 @@ void main() {
       expect(find.byIcon(Icons.add_rounded), findsOneWidget);
     });
 
-    testWidgets('新建画板 → 列表出现新画板并选中', (tester) async {
+    testWidgets('新建画板 → 弹窗确认后列表出现新画板并选中', (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1200, 800));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(_wrap());
+      await tester.pump();
+      // Phase 4：新建画板弹窗（名称 + 模式选择）
+      await tester.tap(find.byIcon(Icons.add_rounded));
+      await tester.pumpAndSettle();
+      expect(find.text('新建画板'), findsOneWidget);
+      expect(find.text('定向抓取'), findsOneWidget);
+      expect(find.text('AI 探索'), findsOneWidget);
+      await tester.tap(find.text('确定'));
+      await tester.pumpAndSettle();
+      expect(find.text('画板 2'), findsOneWidget);
+      expect(find.text('画板 1'), findsOneWidget);
+    });
+
+    testWidgets('新建探索画板 → 模式标识为探索图标（A23）', (tester) async {
       await tester.binding.setSurfaceSize(const Size(1200, 800));
       addTearDown(() => tester.binding.setSurfaceSize(null));
       await tester.pumpWidget(_wrap());
       await tester.pump();
       await tester.tap(find.byIcon(Icons.add_rounded));
-      await tester.pump();
-      expect(find.text('画板 2'), findsOneWidget);
-      expect(find.text('画板 1'), findsOneWidget);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('AI 探索'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('确定'));
+      await tester.pumpAndSettle();
+      // 新画板为探索模式 → 工作区出现探索面板 + 模式标识（tile + 面板头均有 travel_explore）
+      expect(find.text('探索模式'), findsOneWidget);
+      expect(find.byIcon(Icons.travel_explore_rounded), findsWidgets);
+      // 原画板仍为定向模式 → radar 标识
+      expect(find.byIcon(Icons.radar_rounded), findsOneWidget);
     });
 
     testWidgets('删除当前画板 → 保留至少一个', (tester) async {
@@ -77,9 +101,11 @@ void main() {
       await tester.pump();
       // 只有一个画板时无删除按钮（_boards.length > 1 才显示）
       expect(find.byIcon(Icons.close_rounded), findsNothing);
-      // 新建一个再删
+      // 新建一个再删（Phase 4：走弹窗确认）
       await tester.tap(find.byIcon(Icons.add_rounded));
-      await tester.pump();
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('确定'));
+      await tester.pumpAndSettle();
       expect(find.byIcon(Icons.close_rounded), findsNWidgets(2));
       await tester.tap(find.byIcon(Icons.close_rounded).last);
       await tester.pump();

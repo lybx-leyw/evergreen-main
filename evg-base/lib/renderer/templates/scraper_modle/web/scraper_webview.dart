@@ -168,6 +168,25 @@ const String _httpInterceptorJs = '''
 
 // ═══════ ScraperWebView ═══════
 
+/// Phase 4：浏览器 JS/导航执行通道（探索模式工具消费）。
+///
+/// 由 [ScraperWebView] 在初始化时按平台填充：
+/// - `evaluateJavaScript` — Windows `WebviewController.executeScript`（**不回传
+///   求值结果**，经 `chrome.webview.postMessage` 结果通道桥接，带 10s 超时）/
+///   Android `WebViewController.runJavaScriptReturningResult`（原生回传）
+/// - `navigateTo` — 纯 GET 导航（同域/上限/节流守卫由 ExploreWorkflow 负责）
+/// - `currentUrl` — 当前地址栏 URL（用于开始探索时锁定域名）
+///
+/// 与 Widget 解耦：探索工具只依赖本对象，可在测试中注入假实现。
+class ScraperWebViewBridge {
+  Future<String?> Function(String script)? evaluateJavaScript;
+  Future<void> Function(String url)? navigateTo;
+  Future<String?> Function()? currentUrl;
+
+  /// JS 通道是否已就绪（WebView 初始化完成前为 false）。
+  bool get ready => evaluateJavaScript != null && navigateTo != null;
+}
+
 /// 爬虫生成器专用的内嵌 WebView 组件（Windows WebView2）。
 ///
 /// 特性：
@@ -200,6 +219,9 @@ class ScraperWebView extends StatefulWidget {
   /// 重抓按钮回调（A18：用户确认后回首页重启抓取）。
   final VoidCallback? onRestartCapture;
 
+  /// Phase 4：JS/导航执行通道（探索模式）。初始化时填充，可空（定向模式不用）。
+  final ScraperWebViewBridge? bridge;
+
   const ScraperWebView({
     super.key,
     this.initialUrl = 'https://www.baidu.com',
@@ -208,6 +230,7 @@ class ScraperWebView extends StatefulWidget {
     this.refreshTick = 0,
     this.locked = false,
     this.onRestartCapture,
+    this.bridge,
   });
 
   @override
@@ -240,12 +263,76 @@ class _ScraperWebViewState extends State<ScraperWebView> {
   StreamSubscription? _webMessageSub;
   StreamSubscription? _loadErrorSub;
 
+  // ── Phase 4：JS 结果通道（Windows executeScript 不返回结果 → postMessage 回传）──
+  int _jsRequestSeq = 0;
+  final Map<int, Completer<String?>> _pendingJsResults = {};
+
   @override
   void initState() {
     super.initState();
     _urlCtrl.text = widget.initialUrl;
+    // Phase 4：填充 JS/导航执行通道（探索模式工具消费）。
+    widget.bridge
+      ?..evaluateJavaScript = _evaluateJs
+      ..navigateTo = _navigateToUrl
+      ..currentUrl = _getCurrentUrl;
     _initWebView();
   }
+
+  // ── Phase 4：JS/导航执行通道实现 ──
+
+  /// 执行 JS 并返回结果字符串。
+  ///
+  /// - Android：`runJavaScriptReturningResult`（原生回传 JSON 编码的结果）
+  /// - Windows：`executeScript` 返回 `Future<void>`（webview_windows 不回传
+  ///   求值结果，见 flutter-webview-windows #69/#161）→ 用包装脚本把结果经
+  ///   `chrome.webview.postMessage` 回传，由 [_handleWebMessage] 路由到
+  ///   对应 Completer（带 10s 超时，超时返回 null 由调用方降级提示）。
+  Future<String?> _evaluateJs(String script) {
+    if (Platform.isAndroid) {
+      return _androidController.runJavaScriptReturningResult(script);
+    }
+    final id = ++_jsRequestSeq;
+    final completer = Completer<String?>();
+    _pendingJsResults[id] = completer;
+
+    // 包装：捕获结果（字符串原样 / 其他 JSON 化）→ postMessage 回传；
+    // 异常也回传，避免调用方挂起。
+    final wrapped = '(function() { try { '
+        'var __r = (function() { $script })(); '
+        'var __v = (typeof __r === "string") ? __r : JSON.stringify(__r); '
+        'window.chrome.webview.postMessage(JSON.stringify({'
+        '__evgJsResult: $id, value: __v})); '
+        '} catch (__e) { '
+        'window.chrome.webview.postMessage(JSON.stringify({'
+        '__evgJsResult: $id, error: String(__e)})); '
+        '} })();';
+
+    unawaited(_controller.executeScript(wrapped).then(
+      (_) {},
+      onError: (Object e) {
+        _pendingJsResults.remove(id);
+        if (!completer.isCompleted) completer.completeError(e);
+      },
+    ));
+
+    return completer.future.timeout(const Duration(seconds: 10), onTimeout: () {
+      _pendingJsResults.remove(id);
+      return null;
+    });
+  }
+
+  /// 纯 GET 导航（守卫在 ExploreWorkflow 层，此处只执行）。
+  Future<void> _navigateToUrl(String url) {
+    if (Platform.isAndroid) {
+      return _androidController.loadRequest(Uri.parse(url));
+    }
+    return _controller.loadUrl(url);
+  }
+
+  /// 当前 URL（地址栏最新值；初始未导航时回退初始 URL）。
+  Future<String?> _getCurrentUrl() async =>
+      _prevUrl.isNotEmpty ? _prevUrl : widget.initialUrl;
 
   Future<void> _initWebView() {
     if (Platform.isAndroid) return _initAndroidWebView();
@@ -519,6 +606,20 @@ class _ScraperWebViewState extends State<ScraperWebView> {
         return;
       }
 
+      // Phase 4：JS 结果回传通道（_evaluateJs 的 Windows 实现消费）
+      if (json['__evgJsResult'] is int) {
+        final id = json['__evgJsResult'] as int;
+        final c = _pendingJsResults.remove(id);
+        if (c != null && !c.isCompleted) {
+          if (json['error'] != null) {
+            c.completeError('JS 执行错误: ${json['error']}');
+          } else {
+            c.complete(json['value'] as String?);
+          }
+        }
+        return;
+      }
+
       final log = HttpRequestLog.fromJson(json);
       _log('📋 拦截: ${log.method} ${log.url}');
       widget.onRequestCaptured?.call(log);
@@ -539,6 +640,11 @@ class _ScraperWebViewState extends State<ScraperWebView> {
       _loadErrorSub?.cancel();
       _controller.dispose();
     }
+    // Phase 4：清理未完成的 JS 结果等待（避免调用方 Future 永久挂起）
+    for (final c in _pendingJsResults.values) {
+      if (!c.isCompleted) c.complete(null);
+    }
+    _pendingJsResults.clear();
     _urlCtrl.dispose();
     super.dispose();
   }
