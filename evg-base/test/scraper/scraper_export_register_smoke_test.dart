@@ -16,6 +16,7 @@ void main() {
       getTerminalResult: () async => '',
       exportAndRegister: () async => '✅ ok',
       dataNameProvider: () => 'test_smoke',
+      setDataName: (_) {},
     );
     final names = tools.map((t) => t.name).toList();
     expect(names, contains('export_and_register_scraper'));

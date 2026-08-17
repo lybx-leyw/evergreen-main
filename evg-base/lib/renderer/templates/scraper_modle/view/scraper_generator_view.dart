@@ -82,11 +82,7 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
 
   bool get _isExplore => widget.mode == ScraperBoardMode.explore;
 
-  /// WebView 初始化完成门控——命名弹窗等它放行后再弹出，
-  /// 避免 Webview 在弹窗覆盖期间才挂载 → WebView2 纹理丢帧 → 黑屏。
-  final Completer<void> _webViewReady = Completer<void>();
-
-  /// 命名弹窗关闭后 +1，强制 Webview 重挂载恢复纹理帧。
+  /// WebView 表面重挂载计数（A18：重抓确认后 +1，强制 WebView 重挂载恢复纹理帧）。
   int _refreshTick = 0;
 
   /// WebView 是否被锁定（A18：日志快照冻结后锁定，重抓时解锁）。
@@ -156,7 +152,6 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
 
   @override
   void dispose() {
-    if (!_webViewReady.isCompleted) _webViewReady.complete();
     _workflow.dispose();
     _exploreWorkflow.dispose();
     super.dispose();
@@ -179,20 +174,6 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
       dir = parent;
     }
     return Directory.current.path;
-  }
-
-  /// WebView 初始化完成（首帧绘制）——放行命名弹窗门控。
-  void _onWebViewInitialized() {
-    if (!_webViewReady.isCompleted) _webViewReady.complete();
-  }
-
-  /// 命名弹窗关闭（确认或跳过）——强制 Webview 重挂载，
-  /// 恢复弹窗覆盖期间可能丢失的 WebView2 纹理帧。
-  void _onFirstNamingDone() {
-    if (!mounted) return;
-    setState(() => _refreshTick++);
-    debugPrint(
-        '[ScraperGeneratorView] 命名弹窗关闭，WebView 表面重同步 (tick=$_refreshTick)');
   }
 
   /// 重抓确认（A18）：确认框 → 同意后回首页解锁重启抓取。
@@ -297,7 +278,6 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
                       refreshTick: _refreshTick,
                       locked: _webViewLocked,
                       onRestartCapture: _requestRestartCapture,
-                      onInitialized: _onWebViewInitialized,
                       bridge: _webBridge,
                       onRequestCaptured: (log) {
                         if (!_webViewLocked) _workflow.addLog(log);
@@ -327,8 +307,6 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
                       slotKey: widget.slotKey,
                       workspaceDir: _workspaceDir,
                       projectRoot: _projectRoot,
-                      startupGate: _webViewReady.future,
-                      onFirstNamingDone: _onFirstNamingDone,
                       mode: widget.mode,
                       boardId: widget.boardId,
                       exploreWorkflow: _exploreWorkflow,
@@ -359,7 +337,6 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
                             refreshTick: _refreshTick,
                             locked: _webViewLocked,
                             onRestartCapture: _requestRestartCapture,
-                            onInitialized: _onWebViewInitialized,
                             bridge: _webBridge,
                             onRequestCaptured: (log) {
                               if (!_webViewLocked) _workflow.addLog(log);
@@ -415,8 +392,6 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
                             slotKey: widget.slotKey,
                             workspaceDir: _workspaceDir,
                             projectRoot: _projectRoot,
-                            startupGate: _webViewReady.future,
-                            onFirstNamingDone: _onFirstNamingDone,
                             mode: widget.mode,
                             boardId: widget.boardId,
                             exploreWorkflow: _exploreWorkflow,
