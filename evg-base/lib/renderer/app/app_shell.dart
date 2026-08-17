@@ -11,6 +11,8 @@ import 'package:evergreen_base/core/feedback/feedback_bar.dart';
 import '../../providers.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/marketplace/nav_filter.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/marketplace/plugin_state_provider.dart';
+import 'app_mode.dart';
+import 'mode_rail.dart';
 
 /// 应用侧边栏——模块导航。
 ///
@@ -27,19 +29,20 @@ void _handleNavTap(WidgetRef ref, BuildContext context, NavEntry entry) {
 /// V2: 将 codePoint (int) 转为 Material [IconData]。
 IconData _icon(int codePoint) => IconData(codePoint, fontFamily: 'MaterialIcons');
 
-class AppShell extends StatelessWidget {
+class AppShell extends ConsumerWidget {
   final Widget child;
 
   const AppShell({super.key, required this.child});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mode = ref.watch(appModeProvider);
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth <= Breakpoints.mobile) {
-          return _MobileShell(child: child);
+          return _MobileShell(child: child, mode: mode);
         }
-        return _DesktopShell(child: child);
+        return _DesktopShell(child: child, mode: mode);
       },
     );
   }
@@ -49,7 +52,8 @@ class AppShell extends StatelessWidget {
 
 class _DesktopShell extends ConsumerStatefulWidget {
   final Widget child;
-  const _DesktopShell({required this.child});
+  final AppMode mode;
+  const _DesktopShell({required this.child, required this.mode});
 
   @override
   ConsumerState<_DesktopShell> createState() => _DesktopShellState();
@@ -88,6 +92,10 @@ class _DesktopShellState extends ConsumerState<_DesktopShell>
 
   @override
   Widget build(BuildContext context) {
+    // 模式 1/2（AI 视图 / 开发者模式）：窄轨壳层，无展开侧栏。
+    if (widget.mode != AppMode.plugins) {
+      return _RailShell(child: widget.child, mode: widget.mode);
+    }
     if (!_initialized) {
       return Scaffold(
         body: Row(
@@ -136,6 +144,66 @@ class _DesktopShellState extends ConsumerState<_DesktopShell>
   }
 }
 
+// ═══════ _RailShell（模式 1/2 窄轨壳层） ═══════
+
+/// 模式 1/2（AI 视图 / 开发者模式）窄轨壳层：
+/// ModeRail + 主内容 + 浮动返回按钮（推入页出现）+ FeedbackFab。
+class _RailShell extends ConsumerWidget {
+  final Widget child;
+  final AppMode mode;
+
+  const _RailShell({required this.child, required this.mode});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // 路由变化时重建（GoRouter.of 注册继承依赖），使返回按钮随导航栈显隐。
+    final canPop = GoRouter.of(context).canPop();
+    return Scaffold(
+      body: Stack(
+        children: [
+          Row(
+            children: [
+              ModeRail(mode: mode),
+              const VerticalDivider(width: 1),
+              Expanded(child: child),
+            ],
+          ),
+          // 推入页返回：全屏推入 显示设置/插件中心/数据中心 后出现，
+          // 返回后 AI 会话在 provider 中后台继续。
+          if (canPop)
+            const Positioned(
+              left: kModeRailWidth + 12,
+              top: 12,
+              child: _FloatingBackButton(),
+            ),
+          const FeedbackFab(),
+        ],
+      ),
+    );
+  }
+}
+
+/// 浮动返回按钮——主区左上角，颜色从 colorScheme 派生。
+class _FloatingBackButton extends StatelessWidget {
+  const _FloatingBackButton();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surfaceContainerHigh.withValues(alpha: 0.92),
+      elevation: 2,
+      shape: const CircleBorder(),
+      child: IconButton(
+        icon: const Icon(Icons.arrow_back),
+        tooltip: '返回',
+        color: scheme.onSurfaceVariant,
+        onPressed: () => context.pop(),
+      ),
+    );
+  }
+}
+
 // ═══════ _CollapsedSidebar ═══════
 
 /// Collapsed sidebar — icons only with tooltips.
@@ -148,7 +216,8 @@ class _CollapsedSidebar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final registry = ref.watch(moduleRegistryProvider);
     final states = ref.watch(pluginStateProvider);
-    final navFlat = filterNavFlatByPluginState(registry.navFlat, states);
+    final navFlat = filterNavFlatByPluginState(
+        filterNavFlatByAppMode(registry.navFlat), states);
     final location = GoRouterState.of(context).uri.path;
 
     return Material(
@@ -233,10 +302,15 @@ class _CollapsedSidebar extends ConsumerWidget {
 
 class _MobileShell extends ConsumerWidget {
   final Widget child;
-  const _MobileShell({required this.child});
+  final AppMode mode;
+  const _MobileShell({required this.child, required this.mode});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // 模式 1/2（AI 视图 / 开发者模式）：窄轨壳层（移动端复用同一窄轨）。
+    if (mode != AppMode.plugins) {
+      return _RailShell(child: child, mode: mode);
+    }
     final location = GoRouterState.of(context).uri.path;
     final registry = ref.watch(moduleRegistryProvider);
 
@@ -289,7 +363,8 @@ class _MobileDrawer extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final registry = ref.watch(moduleRegistryProvider);
     final states = ref.watch(pluginStateProvider);
-    final groups = filterNavByPluginState(registry.navGroups, states);
+    final groups = filterNavByPluginState(
+        filterNavByAppMode(registry.navGroups), states);
 
     return Drawer(
       child: SafeArea(
@@ -391,8 +466,9 @@ class _ExpandedSidebar extends ConsumerWidget {
     final registry = ref.watch(moduleRegistryProvider);
     final states = ref.watch(pluginStateProvider);
     final location = GoRouterState.of(context).uri.path;
-    // 按插件状态（启用/侧栏可见）过滤导航
-    final groups = filterNavByPluginState(registry.navGroups, states);
+    // 按插件状态（启用/侧栏可见）+ 模式（排除 4 个特殊插件）过滤导航
+    final groups = filterNavByPluginState(
+        filterNavByAppMode(registry.navGroups), states);
 
     return Material(
       color: Theme.of(context).colorScheme.surfaceContainerLow,
@@ -480,9 +556,11 @@ class _MobileNavBar extends ConsumerWidget {
     final registry = ref.watch(moduleRegistryProvider);
     final states = ref.watch(pluginStateProvider);
     final location = GoRouterState.of(context).uri.path;
-    // 取前 5 个导航项作为底部导航（已按插件状态过滤）
-    final topItems =
-        filterNavFlatByPluginState(registry.navFlat, states).take(5).toList();
+    // 取前 5 个导航项作为底部导航（已按插件状态 + 模式过滤）
+    final topItems = filterNavFlatByPluginState(
+            filterNavFlatByAppMode(registry.navFlat), states)
+        .take(5)
+        .toList();
 
     return NavigationBar(
       selectedIndex: _getMobileIndex(topItems, location),

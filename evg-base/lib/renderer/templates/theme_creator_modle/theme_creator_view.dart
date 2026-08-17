@@ -11,6 +11,7 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,6 +25,7 @@ import 'models/theme_draft.dart';
 import 'services/theme_draft_store.dart';
 import 'services/theme_exporter.dart';
 import 'services/theme_ai_service.dart';
+import 'services/theme_chat_store.dart';
 import 'widgets/theme_toolbar.dart';
 import 'widgets/theme_draft_list.dart';
 import 'widgets/color_field.dart';
@@ -290,7 +292,9 @@ class _ThemeCreatorViewState extends ConsumerState<ThemeCreatorView> {
         apiKey: apiKey,
         baseUrl: baseUrl.isNotEmpty ? baseUrl : 'https://api.deepseek.com/v1',
       );
-      final draft = await service.generate(desc);
+      // 断点续作：携带持久化历史（重启后返工不丢上下文）
+      final history = ThemeChatStore().toAgentMessages();
+      final draft = await service.generate(desc, history: history);
       if (!mounted) return;
       if (draft == null) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -303,6 +307,12 @@ class _ThemeCreatorViewState extends ConsumerState<ThemeCreatorView> {
         _drafts = [draft, ..._drafts.where((d) => d.id != draft.id)];
       });
       _saveNow();
+      // 记录本轮对话（用户指令 + 结果摘要），供下次迭代返工
+      ThemeChatStore().appendRound(
+        userPrompt: desc,
+        assistantSummary:
+            '已生成主题「${draft.name}」：' + jsonEncode(draft.toJson()),
+      );
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('✨ 已生成主题「${draft.name}」，可微调后导出')),
       );

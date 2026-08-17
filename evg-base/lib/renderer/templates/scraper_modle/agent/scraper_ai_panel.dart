@@ -74,6 +74,16 @@ class ScraperAIPanel extends ConsumerStatefulWidget {
   /// 浏览器 JS/导航执行通道（Phase 4；探索工具消费）。
   final ScraperWebViewBridge? webBridge;
 
+  /// 断点续作：恢复的产物根名 / 插件目录（GeneratorView 从画板状态恢复）。
+  final String? resumeDataName;
+  final String? resumePluginDir;
+
+  /// 断点续作：恢复后一次性发送给 AI 的续作 prompt（数据源建板注入）。
+  final String? resumePrompt;
+
+  /// 画板绑定数据源 JSON（注入系统提示，向画板 AI 告知数据状态）。
+  final String? boundSourcesJson;
+
   const ScraperAIPanel({
     super.key,
     required this.workflow,
@@ -85,6 +95,10 @@ class ScraperAIPanel extends ConsumerStatefulWidget {
     this.boardId,
     this.exploreWorkflow,
     this.webBridge,
+    this.resumeDataName,
+    this.resumePluginDir,
+    this.resumePrompt,
+    this.boundSourcesJson,
   });
 
   @override
@@ -141,19 +155,54 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
   /// 最近一次生成的插件目录路径（供 _hotRegister 复用）。
   String? _pluginDir;
 
-  // ── 多会话持久化 ──
-  String get _sessionsPath => p.join(widget.workspaceDir, 'scraper_sessions.json');
+  // ── 断点续作标记 ──
+  bool _resumePromptSent = false;
+  bool _resumeBubbleShown = false;
+
+  /// 产物根名 / 插件目录（GeneratorView 持久化画板状态读取用）。
+  String? get dataName => _dataName;
+  String? get pluginDir => _pluginDir;
+
+  // ── 多会话持久化（画板沙盒：<workspace>/boards/<boardId>/） ──
+  String get _boardDir =>
+      p.join(widget.workspaceDir, 'boards', widget.boardId ?? 'default');
+  String get _sessionsPath => p.join(_boardDir, 'session.json');
+
+  /// Agent 上下文侧车文件（与主文件分离：主文件只存 UI 消息，侧车存完整
+  /// LLM 上下文——修复「重启后对话历史不完整/1MB 整体丢弃」）。
+  String _agentSessionSidecarPath(int idx) =>
+      p.join(_boardDir, 'agent_session_$idx.json');
 
   void _loadSessions() {
     try {
+      final dir = Directory(_boardDir);
       final file = File(_sessionsPath);
+      if (!file.existsSync()) {
+        // 迁移旧版共享会话文件（若存在）
+        final legacy = File(p.join(widget.workspaceDir, 'scraper_sessions.json'));
+        if (legacy.existsSync()) {
+          if (!dir.existsSync()) dir.createSync(recursive: true);
+          legacy.copySync(file.path);
+        }
+      }
       if (file.existsSync()) {
         final json = jsonDecode(file.readAsStringSync()) as List<dynamic>;
         _sessions = json
             .map((s) => _ScraperSession.fromJson(s as Map<String, dynamic>))
             .toList();
+        // 侧车恢复 Agent 上下文（完整工具结果）
+        for (var i = 0; i < _sessions.length; i++) {
+          final sidecar = File(_agentSessionSidecarPath(i));
+          if (sidecar.existsSync()) {
+            try {
+              _sessions[i].agentSessionJson =
+                  jsonDecode(sidecar.readAsStringSync()) as Map<String, dynamic>;
+            } catch (_) {}
+          }
+        }
         _currentIdx = _sessions.isNotEmpty ? 0 : -1;
-        debugPrint('[ScraperAIPanel] 📂 加载 ${_sessions.length} 个会话');
+        debugPrint('[ScraperAIPanel] 📂 加载 ${_sessions.length} 个会话'
+            '（画板 ${widget.boardId ?? 'default'}）');
       }
     } catch (e) {
       debugPrint('[ScraperAIPanel] ⚠ 加载会话失败: $e');
@@ -166,18 +215,16 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
     // ① 写盘前将当前 Agent 内部 Session 快照同步到当前 ScraperSession
     try {
       if (_assembly != null && _currentIdx >= 0 && _currentIdx < _sessions.length) {
-        _sessions[_currentIdx].agentSessionJson = _assembly!.controller.session.toJson();
+        _sessions[_currentIdx].agentSessionJson =
+            _assembly!.controller.session.toJson();
       }
     } catch (_) {
       // Agent 可能正在初始化/销毁，安全忽略
     }
-    // ② 大小保护（2026-08-02 事故：巨型工具结果撑爆 scraper_sessions.json 至 8MB，
-    //    连带下次流程 LLM 请求超限 400）：
-    //    - 每条消息 text 截断到 50KB（防御性，UI 气泡通常已限 500 字符）
-    //    - agentSessionJson 序列化超 1MB 的丢弃（下次从 messages 重建上下文）
     try {
+      final dir = Directory(_boardDir);
+      if (!dir.existsSync()) dir.createSync(recursive: true);
       const maxMsgLen = 50000;
-      const maxAgentJsonLen = 1024 * 1024;
       for (final s in _sessions) {
         for (var i = 0; i < s.messages.length; i++) {
           final m = s.messages[i];
@@ -188,20 +235,45 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
             );
           }
         }
-        if (s.agentSessionJson != null) {
-          final len = jsonEncode(s.agentSessionJson).length;
-          if (len > maxAgentJsonLen) {
-            s.agentSessionJson = null;
-            debugPrint('[ScraperAIPanel] ⚠ agentSessionJson 过大(${len ~/ 1024}KB)已丢弃，下次从 messages 重建');
-          }
-        }
       }
-      // ③ 写入文件
-      final file = File(_sessionsPath);
-      file.writeAsStringSync(jsonEncode(_sessions.map((s) => s.toJson()).toList()));
+      // 主文件：仅 UI 消息 + 元数据（不含 Agent 快照，避免巨型工具结果撑爆）
+      final light = _sessions
+          .map((s) => <String, dynamic>{
+                'name': s.name,
+                'messages': s.messages.map((m) => m.toJson()).toList(),
+                'createdAt': s.createdAt.toIso8601String(),
+              })
+          .toList();
+      File(_sessionsPath).writeAsStringSync(jsonEncode(light));
+      // 侧车：完整 Agent 上下文（单条工具结果 >50KB 才截断，不再整体丢弃）
+      for (var i = 0; i < _sessions.length; i++) {
+        final snap = _sessions[i].agentSessionJson;
+        if (snap == null) continue;
+        File(_agentSessionSidecarPath(i))
+            .writeAsStringSync(jsonEncode(_clampAgentSessionJson(snap)));
+      }
     } catch (e) {
       debugPrint('[ScraperAIPanel] ⚠ 保存会话失败: $e');
     }
+  }
+
+  /// 截断 Agent 上下文中过大的工具结果消息（保留结构与对话流）。
+  Map<String, dynamic> _clampAgentSessionJson(Map<String, dynamic> json) {
+    try {
+      final msgs = json['messages'] as List<dynamic>?;
+      if (msgs == null) return json;
+      const maxLen = 50000;
+      for (final m in msgs.whereType<Map<String, dynamic>>()) {
+        if (m['role'] == 'tool') {
+          final content = m['content'];
+          if (content is String && content.length > maxLen) {
+            m['content'] =
+                '${content.substring(0, maxLen)}\n…[工具结果已截断 ${content.length - maxLen} 字符]';
+          }
+        }
+      }
+    } catch (_) {}
+    return json;
   }
 
   /// 切换到已有会话或创建新会话（以数据名称命名）。
@@ -261,6 +333,11 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
   }
 
   /// 将指定 ScraperSession 的 Agent Session 快照恢复到 Agent Controller。
+  ///
+  /// 断点续作三级回退（修复「重启后传给 AI 的对话历史不完整」）：
+  /// 1. 有 Agent 快照（侧车）→ 完整恢复 LLM 上下文（含工具结果）；
+  /// 2. 无快照但存在 UI 消息 → 从 UI 消息重建上下文；
+  /// 3. 都没有 → 全新会话。
   void _restoreAgentSession(int idx) {
     if (_assembly == null) return;
     final target = _sessions[idx];
@@ -268,13 +345,27 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
       if (target.agentSessionJson != null) {
         final restored = agent.Session.fromJson(target.agentSessionJson!);
         _assembly!.controller.setSession(restored);
-        // 确保 system prompt 是当前模式最新版本（旧快照中的 prompt 可能过期）
-        _assembly!.controller.setSystemPrompt(_skillBody);
         debugPrint('[ScraperAIPanel] ♻ 恢复 Agent Session (${restored.messages.length} 条)');
+      } else if (target.messages.isNotEmpty) {
+        final rebuilt = agent.Session();
+        for (final m in target.messages) {
+          if (m.role == 'user') {
+            rebuilt.add(
+                agent.Message(role: agent.Role.user, content: m.text));
+          } else if (m.role == 'assistant') {
+            rebuilt.add(
+                agent.Message(role: agent.Role.assistant, content: m.text));
+          }
+        }
+        _assembly!.controller.setSession(rebuilt);
+        debugPrint('[ScraperAIPanel] ♻ 从 UI 消息重建 Agent 上下文 (${rebuilt.messages.length} 条)');
       } else {
         _assembly!.controller.newSession();
         debugPrint('[ScraperAIPanel] 🆕 无历史快照，新建 Agent Session');
       }
+      // 确保 system prompt 是当前模式最新版本 + 断点续作状态块
+      // （Skill 只作为角色定义注入一次，续作块告知已完成步骤，避免掩盖）
+      _assembly!.controller.setSystemPrompt(_skillBodyWithResume);
     } catch (e) {
       debugPrint('[ScraperAIPanel] ⚠ 恢复 Agent Session 失败: $e → 新建');
       _assembly!.controller.newSession();
@@ -314,9 +405,11 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
     super.initState();
     _facade = ScraperFlowFacade(workflow: widget.workflow);
     _traceRecorder = AgentTraceRecorder(
-      // 复用 50KB 单消息 / 1MB 整体保护（防 8MB 事故，见 _saveSessions 注释）
       jsonlPath: p.join(widget.workspaceDir, 'trace.jsonl'),
     );
+    // 断点续作：恢复产物根名/插件目录（GeneratorView 从画板状态注入）
+    if (widget.resumeDataName != null) _dataName = widget.resumeDataName;
+    if (widget.resumePluginDir != null) _pluginDir = widget.resumePluginDir;
     _loadSessions();
     _initAgent();
   }
@@ -493,8 +586,8 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
       _traceRecorder.attach(_assembly!.eventSink.stream);
       guardian.sink = _assembly!.eventSink;
 
-      // 设置系统提示（探索模式 / 定向模式不同 Skill，D9）
-      _assembly!.controller.setSystemPrompt(_skillBody);
+      // 设置系统提示（探索/定向 Skill + 断点续作状态块）
+      _assembly!.controller.setSystemPrompt(_skillBodyWithResume);
 
       // 订阅事件
       _eventSub = _assembly!.eventSink.stream.listen(_onAgentEvent);
@@ -520,6 +613,7 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
         } else {
           _ensureCaptureSession();
         }
+        _maybeSendResumePrompt();
       });
     }
   }
@@ -538,7 +632,41 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
     } else if (_currentIdx < 0) {
       setState(() => _currentIdx = 0);
     }
+    // 断点续作提示（仅恢复场景；新会话不提示）
+    if (!_resumeBubbleShown &&
+        _currentIdx >= 0 &&
+        (widget.workflow.phase != ScraperPhase.idle ||
+            widget.workflow.snapshotFrozen)) {
+      _resumeBubbleShown = true;
+      _messages.add(ChatMessage.assistant(
+          '🔄 **断点续作**：已恢复上次会话（${_messages.length} 条消息）。\n'
+          '工作流阶段: ${widget.workflow.phase.name}，'
+          '快照 ${widget.workflow.snapshot.length} 条，'
+          'Python 代码 ${widget.workflow.pythonCode.isEmpty ? '无' : '${widget.workflow.pythonCode.length} 字符'}。\n'
+          '可点击「分析日志」继续，或直接输入反馈。'));
+    }
     _saveSessions();
+  }
+
+  /// 数据源建板等场景：恢复后一次性发送续作 prompt 给 AI
+  /// （并索引到 debug 工作流状态）。
+  void _maybeSendResumePrompt() {
+    if (_resumePromptSent || _assembly == null || _isRunning || !mounted) {
+      return;
+    }
+    final prompt = (widget.resumePrompt ?? '').trim();
+    if (prompt.isEmpty) return;
+    if (_currentIdx < 0 || _currentIdx >= _sessions.length) return;
+    _resumePromptSent = true;
+    setState(() {
+      _isRunning = true;
+      _pendingText.clear();
+      _pendingReasoning.clear();
+      _messages.add(ChatMessage.assistant(
+          '🔄 **断点续作**：已载入数据源工作区，AI 开始调试…'));
+    });
+    _saveSessions();
+    _assembly!.controller.send(prompt);
   }
 
   /// 当前模式的 Skill 内容（D9：探索 / 定向两套角色提示词）。
@@ -546,6 +674,58 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
       widget.mode == ScraperBoardMode.explore
           ? scraperExploreSkillBody
           : scraperSkillBody;
+
+  /// Skill + 断点续作状态块（告知 AI 已完成步骤，禁止重做/掩盖）。
+  String get _skillBodyWithResume {
+    final ctx = _resumeContext;
+    return ctx.isEmpty ? _skillBody : '$_skillBody
+
+$ctx';
+  }
+
+  /// 断点续作状态块：工作流阶段 + 已有产物 + 绑定数据源状态。
+  String get _resumeContext {
+    final buf = StringBuffer();
+    final wf = widget.workflow;
+    final ew = widget.exploreWorkflow;
+    if (widget.mode == ScraperBoardMode.explore && ew != null) {
+      if (ew.phase != ExplorePhase.idle) {
+        buf.writeln('## 断点续作（上次会话已完成的状态，禁止重做）');
+        buf.writeln('- 探索阶段: ${ew.phase.name}');
+        buf.writeln('- 候选数据源: ${ew.candidates.length} 个；'
+            '已确认: ${ew.selected.length} 个');
+        buf.writeln('- 已访问页: ${ew.uniquePages}；已捕获请求: ${ew.requestsCaptured}');
+        if (ew.baseHost.isNotEmpty) buf.writeln('- 锁定域名: ${ew.baseHost}');
+        if (ew.stallDetected) {
+          buf.writeln('- 空转熔断已触发: ${ew.stallMessage}');
+        }
+      }
+    } else {
+      if (wf.phase != ScraperPhase.idle || wf.snapshotFrozen) {
+        buf.writeln('## 断点续作（上次会话已完成的状态，禁止重做）');
+        buf.writeln('- 工作流阶段: ${wf.phase.name}');
+        buf.writeln('- 活动日志: ${wf.logs.length} 条；'
+            '冻结快照: ${wf.snapshot.length} 条（frozen=${wf.snapshotFrozen}）');
+        buf.writeln('- Python 代码: ${wf.pythonCode.isEmpty ? '无' : '${wf.pythonCode.length} 字符'}');
+        if (wf.errorMessage.isNotEmpty) {
+          buf.writeln('- 最近错误: ${wf.errorMessage}');
+        }
+        if (_dataName != null && _dataName!.isNotEmpty) {
+          buf.writeln('- 产物根名: $_dataName'
+              '（插件目录 plugins/data-$_dataName/）');
+        }
+      }
+    }
+    final bound = (widget.boundSourcesJson ?? '').trim();
+    if (bound.isNotEmpty) {
+      buf.writeln('## 本画板绑定的数据源（事实状态，向 AI 告知数据状态）');
+      buf.writeln(bound);
+    }
+    if (buf.isNotEmpty) {
+      buf.writeln('> 从当前阶段直接继续；已完成步骤不要重新执行。');
+    }
+    return buf.toString();
+  }
 
   // ── Phase 1 harness UI 回调 ──
 
@@ -995,8 +1175,37 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
     // 探索模式走 startExplore（不同工作流，D9），不触发定向分析
     if (widget.mode == ScraperBoardMode.explore) return;
     // A18 快照语义：快照冻结后以快照为准；未冻结用活动日志
-    final hasData = widget.workflow.hasSnapshot || widget.workflow.hasLogs;
+    final wf = widget.workflow;
+    final hasData = wf.hasSnapshot || wf.hasLogs || wf.pythonCode.isNotEmpty;
     if (_assembly == null || _isRunning || !hasData) return;
+
+    // 断点续作：上次停在 分析/追问/生成/执行/调试 中段 → 续作而非全新分析
+    final midPhase = wf.phase == ScraperPhase.analyzing ||
+        wf.phase == ScraperPhase.questioning ||
+        wf.phase == ScraperPhase.generating ||
+        wf.phase == ScraperPhase.running ||
+        wf.phase == ScraperPhase.debugging;
+    if (midPhase) {
+      final picked = await _showSessionPicker();
+      if (picked == null || !mounted) return;
+      if (picked != _currentIdx) _switchSession(picked);
+      setState(() {
+        _isRunning = true;
+        _pendingText.clear();
+        _pendingReasoning.clear();
+      });
+      final resume = '''
+断点续作：继续上次未完成的工作流（阶段: ${wf.phase.name}），不要重头开始。
+- 已捕获日志: ${wf.logs.length} 条；冻结快照: ${wf.snapshot.length} 条
+- Python 代码: ${wf.pythonCode.isEmpty ? '无' : '${wf.pythonCode.length} 字符'}
+${wf.errorMessage.isNotEmpty ? '- 最近错误: ${wf.errorMessage}' : ''}
+请从当前阶段继续（生成 → 终端执行 → 调试），复用已有产物，禁止重复已完成步骤。''';
+      _messages.add(ChatMessage.assistant(
+          '🔄 **断点续作**：从阶段 ${wf.phase.name} 继续。'));
+      _saveSessions();
+      _assembly!.controller.send(resume);
+      return;
+    }
 
     // ⚠️ 分析前强制选择会话（确保数据名称与会话一致）
     final picked = await _showSessionPicker();
@@ -1065,6 +1274,15 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
     if (existingIdx >= 0) {
       setState(() => _currentIdx = existingIdx);
       _restoreAgentSession(existingIdx);
+      if (!_resumeBubbleShown) {
+        _resumeBubbleShown = true;
+        final ew = widget.exploreWorkflow;
+        _messages.add(ChatMessage.assistant(
+            '🔄 **断点续作**：已恢复探索会话（上次阶段: ${ew?.phase.name ?? '?'}，'
+            '候选 ${ew?.candidates.length ?? 0} 个，'
+            '已确认 ${ew?.selected.length ?? 0} 个）。\n'
+            '点击「开始探索」将从当前阶段继续，不会重走流程。'));
+      }
     } else {
       final session = _ScraperSession(name: name);
       setState(() {
@@ -1093,7 +1311,13 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
   Future<void> startExplore() async {
     if (_assembly == null || _isRunning || !mounted) return;
     final ew = widget.exploreWorkflow;
-    if (ew == null || ew.phase != ExplorePhase.idle) return;
+    if (ew == null) return;
+
+    // 断点续作：恢复出的非 idle 探索状态 → 不重发 scope 确认与全新任务 prompt
+    if (ew.phase != ExplorePhase.idle) {
+      await _resumeExplore();
+      return;
+    }
 
     String startUrl = '';
     try {
@@ -1167,6 +1391,38 @@ Step 5 注册：全部构建完成后调用 register_batch(names) 批量注册�
 
 当前锁定域名: ${ew.baseHost.isEmpty ? '（尚未锁定，首次导航自动锁定）' : ew.baseHost}
 ''');
+  }
+
+  /// 断点续作：恢复出的非 idle 探索状态 → 从当前阶段继续，不重走流程。
+  Future<void> _resumeExplore() async {
+    final ew = widget.exploreWorkflow;
+    if (ew == null || _assembly == null || !mounted) return;
+
+    // 上次停在候选确认 → 直接重新打开选择框
+    if (ew.phase == ExplorePhase.confirming) {
+      _messages.add(ChatMessage.assistant(
+          '🔄 **断点续作**：上次停在候选确认，正在重新打开选择框…'));
+      _saveSessions();
+      await reopenSourcePicker();
+      return;
+    }
+
+    setState(() {
+      _isRunning = true;
+      _pendingText.clear();
+      _pendingReasoning.clear();
+    });
+    final resume = '''
+断点续作：继续未完成的探索任务，不要重头开始。
+- 当前阶段: ${ew.phase.name}
+- 已访问页: ${ew.uniquePages} / ${ew.limits.maxPages}；已捕获请求: ${ew.requestsCaptured} / ${ew.limits.maxRequests}
+- 候选数据源: ${ew.candidates.length} 个${ew.selected.isNotEmpty ? '（已确认 ${ew.selected.length} 个待构建）' : ''}
+${ew.stallDetected ? '- 空转熔断已触发，请切换策略（换入口/换链接层级），不要重复已探索页面。' : ''}
+请基于以上状态继续：exploring 阶段继续枚举链接并导航；building/registering 阶段继续构建/注册已确认的数据源。''';
+    _messages.add(ChatMessage.assistant(
+        '🔄 **断点续作**：继续探索（上次阶段: ${ew.phase.name}）。'));
+    _saveSessions();
+    _assembly!.controller.send(resume);
   }
 
   // ── Scope 持久化（Scope Contract：.greenix/scope.json）──
@@ -1287,6 +1543,12 @@ Step 5 注册：全部构建完成后调用 register_batch(names) 批量注册�
         return buf.toString();
       }
       say('✅ data-$name scraper.py + data/manifest.json 已生成');
+      // D1 溯源：探索创建的数据源回写创建画板 + 来源
+      _patchManifestProvenance(
+        pluginDir,
+        boardId: widget.boardId,
+        createdBy: 'scraper-explore',
+      );
 
       final configReg = ConfigRegister();
       final configResult = await configReg.generateConfig(
@@ -1683,6 +1945,12 @@ Step 5 注册：全部构建完成后调用 register_batch(names) 批量注册�
       }
 
       say('✅ **插件生成完毕** → `$pluginDir`\n自动执行热注册并验证数据中心拉取...');
+      // D1 溯源：定向导出的数据源回写创建画板 + 来源
+      _patchManifestProvenance(
+        pluginDir,
+        boardId: widget.boardId,
+        createdBy: 'scraper-capture',
+      );
 
       // 自动执行注册 + 验证（其日志一并累积回传给 AI）
       buf.write(await _hotRegister());
@@ -1692,6 +1960,28 @@ Step 5 注册：全部构建完成后调用 register_batch(names) 批量注册�
     if (mounted) setState(() => _isRunning = false);
     _saveSessions();
     return buf.toString();
+  }
+
+  /// D1 溯源：向 plugins/data-<name>/data/manifest.json 顶层写入
+  /// boardId（创建画板）与 createdBy（scraper-explore / scraper-capture）。
+  /// 附加字段不影响注册解析；失败静默。
+  void _patchManifestProvenance(
+    String pluginDir, {
+    String? boardId,
+    String? createdBy,
+  }) {
+    try {
+      final manifestPath = p.join(pluginDir, 'data', 'manifest.json');
+      final file = File(manifestPath);
+      if (!file.existsSync()) return;
+      final json = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+      if (boardId != null) json['boardId'] = boardId;
+      if (createdBy != null) json['createdBy'] = createdBy;
+      file.writeAsStringSync(const JsonEncoder.withIndent('  ').convert(json));
+      debugPrint('[ScraperAIPanel] 🏷 manifest 溯源: boardId=$boardId createdBy=$createdBy');
+    } catch (e) {
+      debugPrint('[ScraperAIPanel] ⚠ 写入 manifest 溯源字段失败: $e');
+    }
   }
 
   /// 递归复制目录。

@@ -15,6 +15,7 @@
 library scraper_generator_view;
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -30,6 +31,7 @@ import '../workflow/scraper_workflow_graph.dart';
 import '../explore/explore_workflow.dart';
 import '../explore/explore_panel.dart';
 import '../board/scraper_board.dart';
+import '../board/data_source_binding.dart';
 import '../web/scraper_webview.dart';
 import 'request_log_panel.dart';
 import '../agent/scraper_ai_panel.dart';
@@ -94,6 +96,25 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
   /// 主视图模式（Phase 2 · B1：工作区 / workflow 流程图 / trace 占位）。
   ScraperMainView _view = ScraperMainView.workspace;
 
+  // ── 断点续作（重启恢复工作流/会话，不重走流程） ──
+
+  /// 画板状态防抖保存计时器。
+  Timer? _saveTimer;
+
+  /// 恢复的产物根名/插件目录（数据源建板等场景由容器写入）。
+  String? _resumeDataName;
+  String? _resumePluginDir;
+
+  /// 恢复后一次性发送给 AI 的续作 prompt（数据源建板注入）。
+  String? _resumePrompt;
+
+  /// 画板绑定数据源 JSON（向画板 AI 告知数据状态）。
+  String? _boundSourcesJson;
+
+  /// 画板专属目录（工作流/会话/产物引用，A21 沙盒）。
+  String get _boardDir =>
+      p.join(_workspaceDir, 'boards', widget.boardId ?? 'default');
+
   /// Public access to the workflow for external consumers (e.g., wizard
   /// reads captured logs after step ②).
   ScraperWorkflow get workflow => _workflow;
@@ -107,13 +128,15 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
   void initState() {
     super.initState();
     _workflow = ScraperWorkflow();
-    // 工作流状态变更时触发重建
+    // 工作流状态变更时触发重建 + 防抖落盘（断点续作）
     _workflow.onChanged = () {
       if (mounted) setState(() {});
+      _scheduleSave();
     };
     // Phase 4：探索工作流状态变更同样触发重建（ExplorePanel/状态栏消费）
     _exploreWorkflow.onChanged = () {
       if (mounted) setState(() {});
+      _scheduleSave();
     };
     // A18：快照冻结 → 锁定 WebView
     _workflow.onWebViewLock = () {
@@ -143,15 +166,116 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
         widget.config.config['initialUrl'] as String? ??
         'https://www.baidu.com';
 
-    // 自动开始抓包
-    _workflow.startCapturing();
+    // ── 断点续作：恢复上次画板状态（工作流/产物名/续作 prompt） ──
+    _restoreBoardState();
+
+    // 恢复出非 idle 工作流 → 断点续作；否则全新画板自动开始抓包
+    if (_workflow.phase == ScraperPhase.idle && !_workflow.snapshotFrozen) {
+      _workflow.startCapturing();
+    } else {
+      _webViewLocked = _workflow.snapshotFrozen;
+      debugPrint(
+          '[ScraperGeneratorView] ♻ 断点续作: phase=${_workflow.phase.name}');
+    }
 
     debugPrint(
         '[ScraperGeneratorView] 初始化: $_moduleId, workspace=$_workspaceDir');
   }
 
+  /// 从画板目录恢复工作流快照 + 产物名 + 续作 prompt + 绑定数据源。
+  void _restoreBoardState() {
+    try {
+      final dir = Directory(_boardDir);
+      if (!dir.existsSync()) dir.createSync(recursive: true);
+
+      final wfFile = File(p.join(_boardDir, 'workflow.json'));
+      if (wfFile.existsSync()) {
+        final data =
+            jsonDecode(wfFile.readAsStringSync()) as Map<String, dynamic>;
+        final wfJson = data['workflow'] as Map<String, dynamic>?;
+        if (wfJson != null) _workflow.restoreFromJson(wfJson);
+        _resumeDataName = data['dataName'] as String?;
+        _resumePluginDir = data['pluginDir'] as String?;
+      }
+
+      final exFile = File(p.join(_boardDir, 'explore_workflow.json'));
+      if (exFile.existsSync()) {
+        _exploreWorkflow.restoreFromJson(
+            jsonDecode(exFile.readAsStringSync()) as Map<String, dynamic>);
+      }
+
+      final promptFile = File(p.join(_boardDir, 'resume_prompt.txt'));
+      if (promptFile.existsSync()) {
+        final v = promptFile.readAsStringSync().trim();
+        if (v.isNotEmpty) _resumePrompt = v;
+      }
+
+      final boundFile = File(p.join(_boardDir, 'bound_sources.json'));
+      if (boundFile.existsSync()) {
+        final v = boundFile.readAsStringSync().trim();
+        if (v.isNotEmpty) {
+          _boundSourcesJson = v;
+        } else {
+          // 空文件 → 兜底扫描
+          _boundSourcesJson = _scanBoundSourcesFallback();
+        }
+      } else {
+        // D3 配套：bound_sources.json 缺失时用 manifest 溯源字段动态扫描，
+        // 探索创建的老画板也能向 AI 告知数据状态。
+        _boundSourcesJson = _scanBoundSourcesFallback();
+      }
+    } catch (e) {
+      debugPrint('[ScraperGeneratorView] ⚠ 恢复画板状态失败: $e');
+    }
+  }
+
+  /// D3 配套兜底：bound_sources.json 缺失/为空时，用
+  /// [scanDataSourcePlugins] 按 boardId（创建画板）过滤生成绑定数据源摘要。
+  String? _scanBoundSourcesFallback() {
+    try {
+      final boardId = widget.boardId;
+      if (boardId == null || boardId.isEmpty) return null;
+      final list = scanDataSourcePlugins()
+          .where((ds) => ds.boardId == boardId)
+          .map((ds) => ds.toSummaryJson())
+          .toList();
+      if (list.isEmpty) return null;
+      return jsonEncode(list);
+    } catch (e) {
+      debugPrint('[ScraperGeneratorView] ⚠ 兜底扫描绑定数据源失败: $e');
+      return null;
+    }
+  }
+
+  /// 防抖保存画板状态（workflow.json + explore_workflow.json）。
+  void _scheduleSave() {
+    _saveTimer?.cancel();
+    _saveTimer = Timer(const Duration(milliseconds: 600), _saveBoardStateNow);
+  }
+
+  void _saveBoardStateNow() {
+    try {
+      final dir = Directory(_boardDir);
+      if (!dir.existsSync()) dir.createSync(recursive: true);
+      final panel = _aiPanelKey.currentState;
+      final payload = <String, dynamic>{
+        'workflow': _workflow.toJson(),
+        if (panel?.dataName != null) 'dataName': panel?.dataName,
+        if (panel?.pluginDir != null) 'pluginDir': panel?.pluginDir,
+      };
+      File(p.join(_boardDir, 'workflow.json'))
+          .writeAsStringSync(jsonEncode(payload));
+      File(p.join(_boardDir, 'explore_workflow.json'))
+          .writeAsStringSync(jsonEncode(_exploreWorkflow.toJson()));
+    } catch (e) {
+      debugPrint('[ScraperGeneratorView] ⚠ 保存画板状态失败: $e');
+    }
+  }
+
   @override
   void dispose() {
+    _saveTimer?.cancel();
+    _saveBoardStateNow();
     _workflow.dispose();
     _exploreWorkflow.dispose();
     super.dispose();
@@ -396,6 +520,10 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
                             boardId: widget.boardId,
                             exploreWorkflow: _exploreWorkflow,
                             webBridge: _webBridge,
+                            resumeDataName: _resumeDataName,
+                            resumePluginDir: _resumePluginDir,
+                            resumePrompt: _resumePrompt,
+                            boundSourcesJson: _boundSourcesJson,
                           ),
                         ),
                       ],
