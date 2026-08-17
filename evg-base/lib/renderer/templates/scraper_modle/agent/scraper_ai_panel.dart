@@ -61,15 +61,6 @@ class ScraperAIPanel extends ConsumerStatefulWidget {
   final String workspaceDir;
   final String projectRoot;
 
-  /// 可选的启动门控：命名弹窗等待该 Future 完成后再弹出。
-  ///
-  /// 由父级传入 WebView 初始化完成信号，避免 Webview 在弹窗覆盖期间
-  /// 才挂载 → WebView2 纹理丢帧 → 弹窗关闭后黑屏。null 则立即弹出。
-  final Future<void>? startupGate;
-
-  /// 首次命名弹窗关闭（无论确认/跳过）后回调——父级据此重同步 WebView 表面。
-  final VoidCallback? onFirstNamingDone;
-
   /// 画板模式（Phase 4 · A23：定向 capture / 探索 explore）。
   /// explore 模式切换工具集、Skill、harness 约束（D9 两套工作流）。
   final ScraperBoardMode mode;
@@ -90,8 +81,6 @@ class ScraperAIPanel extends ConsumerStatefulWidget {
     required this.slotKey,
     required this.workspaceDir,
     required this.projectRoot,
-    this.startupGate,
-    this.onFirstNamingDone,
     this.mode = ScraperBoardMode.capture,
     this.boardId,
     this.exploreWorkflow,
@@ -146,12 +135,11 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
 
   // ── 插件生成命名 ──
   /// 用户指定的数据名称（如 `courses`）。
-  /// 插件目录自动推导为 `data-{name}`，manifest name = name。
+  /// 由 AI 在工作流中通过 `set_data_name` 工具写入（取代原页面打开即弹的命名弹窗）。
+  /// 插件目录自动推导为 `data-{name}`，manifest name = name；为 null 时回退 'scraper'。
   String? _dataName;
   /// 最近一次生成的插件目录路径（供 _hotRegister 复用）。
   String? _pluginDir;
-  /// 是否已完成首次命名（页面打开时强制填写一次，之后不再询问）。
-  bool _named = false;
 
   // ── 多会话持久化 ──
   String get _sessionsPath => p.join(widget.workspaceDir, 'scraper_sessions.json');
@@ -488,6 +476,8 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
                   exportAndRegister: () => _generatePlugin(),
                   // 三层名称防护：将用户命名注入 tool，强制校验/纠正 AI 传参
                   dataNameProvider: () => _dataName,
+                  // AI 在工作流中向用户索取产物根名后回写（取代页面打开即弹的命名窗）
+                  setDataName: setDataName,
                 ),
                 // AskTool：AI 结构化 ask 用户（A11）
                 agent.AskTool(asker: _asker),
@@ -522,16 +512,33 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
 
     if (mounted) {
       setState(() => _initialized = true);
-      // 探索模式：无命名弹窗，按画板 id 隔离会话（A21）；
-      // 定向模式：自动弹出命名对话框（仅此一次）→ 创建/切换会话
+      // 探索模式：按画板 id 隔离会话（A21）；
+      // 定向模式：自动创建默认会话（不再弹命名窗，产物根名由 AI 在工作流中 ask 用户后 set_data_name 写入）。
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (widget.mode == ScraperBoardMode.explore) {
           _ensureExploreSession();
         } else {
-          _ensureNamed();
+          _ensureCaptureSession();
         }
       });
     }
+  }
+
+  /// 定向模式会话初始化（无命名弹窗）：自动创建/切换到默认会话，
+  /// 产物根名待 AI 在工作流中通过 `set_data_name` 工具向用户索取后写入。
+  void _ensureCaptureSession() {
+    if (widget.mode == ScraperBoardMode.explore || !mounted) return;
+    if (_sessions.isEmpty) {
+      final session = _ScraperSession(name: 'scraper');
+      setState(() {
+        _sessions.add(session);
+        _currentIdx = 0;
+      });
+      _assembly?.controller.newSession();
+    } else if (_currentIdx < 0) {
+      setState(() => _currentIdx = 0);
+    }
+    _saveSessions();
   }
 
   /// 当前模式的 Skill 内容（D9：探索 / 定向两套角色提示词）。
@@ -1002,7 +1009,6 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
     final dataName = _sessions[picked].name;
     setState(() {
       _dataName = dataName;
-      _named = true;
     });
 
     widget.workflow.startAnalyzing();
@@ -1151,7 +1157,7 @@ Step 1 探索：explore_page_links() 枚举当前页链接；navigate_get(url) �
 捕获的 GET 请求与响应体样本。直到无新链接或触达上限。
 Step 2 归类：把 GET 数据接口细粒度归类为候选数据源 JSON。每个候选源必须附
 sourceLogId（list_captured_requests 返回的证据 id，如 log-3），每个字段必须附
-sourceJsonPath（对应响应 JSON 中的真实路径，如 $.data[0].courseName）。
+sourceJsonPath（对应响应 JSON 中的真实路径，如 \$.data[0].courseName）。
 url 无捕获日志证据的源会被守卫拒绝，禁止臆造字段或路径。
 Step 3 确认：调用 present_data_sources(sources) 弹出多选框让用户勾选（可改名）。
 Step 4 构建：对每个确认的数据源调用 build_selected_source(name, code)。
@@ -1489,54 +1495,15 @@ Step 5 注册：全部构建完成后调用 register_batch(names) 批量注册�
     }
   }
 
-  // ── 一次性命名 ──
-
-  /// 页面打开时自动调用，弹出单字段命名对话框 → 创建或切换到对应会话。
-  /// 仅当 `_named == false` 时生效，填完后永不再问。
-  Future<void> _ensureNamed() async {
-    if (_named || !mounted) return;
-
-    // 等 WebView 初始化完成并渲染首帧后再弹命名框（最多 8s 兜底），
-    // 避免 Webview 在弹窗覆盖期间挂载 → WebView2 纹理丢帧 → 黑屏。
-    final gate = widget.startupGate;
-    if (gate != null) {
-      try {
-        await gate.timeout(const Duration(seconds: 8));
-      } catch (_) {
-        // WebView 初始化超时/失败——不阻塞命名流程
-      }
-    }
-    if (!mounted || _named) return;
-
-    final name = await _showNameDialog();
-    if (!mounted) return;
-    // 弹窗已关闭（确认或跳过）——通知父级重同步 WebView 表面。
-    widget.onFirstNamingDone?.call();
-    if (name == null) return;
-    setState(() {
-      _dataName = name;
-      _named = true;
-    });
-    _switchOrCreateSession(name);
-    debugPrint('[ScraperAIPanel] 🏷 首次命名: dataName=$_dataName');
-  }
-
-  /// 单字段命名对话框（仅数据名称）。
+  /// AI 在工作流中拿到用户给定的产物根名后回写（取代原页面打开即弹的命名弹窗）。
   ///
-  /// 用户填写数据名称（如 `courses`），插件目录自动为 `data-{name}`，
-  /// manifest name 与数据名称一致。
-  ///
-  /// 返回数据名称字符串，或 null（用户取消，不应发生因为 barrierDismissible: false）。
-  Future<String?> _showNameDialog() async {
-    // ⚠️ controller 生命周期交给 _NameDialog 的 State 管理：
-    // await showDialog 返回时弹窗仍在退出动画，此时 dispose 会让 TextField
-    // 在动画期间访问已销毁的 controller（"used after being disposed" →
-    // wrong build scope → 组件渲染失败）。
-    return showDialog<String>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => _NameDialog(initialName: _dataName ?? ''),
-    );
+  /// 同时按该名称切换/创建会话，保持 `导出/注册` 时 `_dataName` 与当前会话名一致。
+  void setDataName(String name) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty || !mounted) return;
+    setState(() => _dataName = trimmed);
+    _switchOrCreateSession(trimmed);
+    debugPrint('[ScraperAIPanel] 🏷 产物根名已设定: dataName=$_dataName');
   }
 
   /// 分析前强制会话选择对话框。
@@ -1893,12 +1860,11 @@ Step 5 注册：全部构建完成后调用 register_batch(names) 批量注册�
       _pendingText.clear();
       _pendingReasoning.clear();
       _dataName = null;
-      _named = false;
       _pluginDir = null;
     });
     widget.workflow.reset();
     widget.exploreWorkflow?.reset();
-    // 下次 _ensureNamed 将自动创建新会话或切换回同名会话（旧记录保留）
+    // 重置后下次进入自动创建默认会话（旧记录保留）
   }
 
   /// 重抓确认后回调（A18）：由 generator_view 在用户确认重抓时调用。
@@ -2382,82 +2348,7 @@ class _ScraperSession {
       };
 }
 
-/// 数据命名弹窗（StatefulWidget 管理 controller 生命周期）。
-///
-/// ⚠️ 不能在 `await showDialog` 返回后立即 dispose controller：弹窗仍在
-/// 退出动画中，TextField 的 didUpdateWidget 会访问已销毁的 controller →
-/// "used after being disposed" → wrong build scope → 组件渲染失败。
-/// State.dispose 在 route 完全移除（动画结束）后才调用，天然安全。
-class _NameDialog extends StatefulWidget {
-  const _NameDialog({required this.initialName});
-
-  final String initialName;
-
-  @override
-  State<_NameDialog> createState() => _NameDialogState();
-}
-
-class _NameDialogState extends State<_NameDialog> {
-  late final TextEditingController _ctrl =
-      TextEditingController(text: widget.initialName);
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('🔧 命名数据源'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '请为本次爬虫数据命名。后续插件目录、manifest 均以此为基准自动生成。',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _ctrl,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: '数据名称',
-                hintText: '例如: courses, zju_grades',
-                helperText: '→ 插件目录: plugins/data-{名称}/\n→ manifest name: {名称}',
-                helperMaxLines: 2,
-                border: OutlineInputBorder(),
-              ),
-              onSubmitted: (v) {
-                final name = v.trim();
-                if (name.isNotEmpty) Navigator.pop(context, name);
-              },
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('跳过'),
-        ),
-        FilledButton(
-          onPressed: () {
-            final name = _ctrl.text.trim();
-            if (name.isEmpty) return;
-            Navigator.pop(context, name);
-          },
-          child: const Text('确认'),
-        ),
-      ],
-    );
-  }
-}
-
-/// 分析会话选择弹窗（controller 生命周期由 State 管理，见 _NameDialog 说明）。
+/// 分析会话选择弹窗（controller 生命周期由 State 管理）。
 class _SessionPickerDialog extends StatefulWidget {
   const _SessionPickerDialog({
     required this.sessions,

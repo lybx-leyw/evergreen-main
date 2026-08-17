@@ -37,7 +37,7 @@ def _get_config(key):
     return os.environ.get(key, '')
 
 def main():
-    r = requests.get('https://site.com/api/courses')
+    r = requests.get('https://site.com/1')
     return r.json()
 
 if __name__ == "__main__":

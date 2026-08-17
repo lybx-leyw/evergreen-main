@@ -448,6 +448,57 @@ class ExportAndRegisterScraperTool extends SimpleTool {
         );
 }
 
+// ═══════ set_data_name ═══════
+
+/// 工具：AI 在工作流中向用户索取产物根名后，回写到面板状态。
+///
+/// 取代原「页面打开即强制弹出的命名对话框」：产物根名（如 `courses`）
+/// 现在由 AI 在 Step 0 用 `ask` 工具询问用户、拿到名称后调用本工具锁定，
+/// 后续插件目录 `data-{name}`、manifest name、orch:// 类型名均以它为准。
+class SetDataNameTool extends SimpleTool {
+  /// 回写产物根名的回调（由 UI 层 ScraperAIPanel 注入，内部做会话切换）。
+  final void Function(String name) setDataName;
+
+  SetDataNameTool({required this.setDataName})
+      : super(
+          name: 'set_data_name',
+          description: '在生成代码/导出前，锁定本次爬虫的「产物根名」（数据名称）。'
+              '插件目录自动推导为 plugins/data-{name}/，manifest name 与 orch:// 类型名均为 {name}。'
+              '名称必须是用户通过 ask 工具确认给出的（不可自行编造）。'
+              '合法名称：小写字母/数字/下划线，2-32 字符，例如 courses、zju_grades。',
+          schema: const {
+            'type': 'object',
+            'properties': {
+              'name': {
+                'type': 'string',
+                'description':
+                    '用户确认的产物根名（如 courses）。必须是用户 ask 后给出的真实名称。',
+              },
+            },
+            'required': ['name'],
+          },
+          readOnly: false,
+          execute: (args) async {
+            final raw = (args['name'] as String? ?? '').trim();
+            if (raw.isEmpty) {
+              return '[error: name 参数为空]';
+            }
+            // 名称合法性校验（与插件目录命名约束一致）
+            final ok = RegExp(r'^[a-z0-9_]{2,32}$').hasMatch(raw);
+            if (!ok) {
+              return '[error: 非法产物根名 "$raw"——仅允许小写字母/数字/下划线，'
+                  '长度 2-32，例如 courses / zju_grades]';
+            }
+            setDataName(raw);
+            return '✅ 产物根名已锁定为 "$raw"。'
+                '后续插件目录 plugins/data-$raw/、manifest name=$raw、'
+                'orch:// 类型名=$raw 均以此为准。';
+          },
+        );
+}
+
+
+
 // ═══════ read_workspace_file ═══════
 
 /// 工具：读取爬虫工作区文件内容。
@@ -556,6 +607,7 @@ List<Tool> createScraperTools({
   required Future<String> Function() getTerminalResult,
   required Future<String> Function() exportAndRegister,
   required String? Function() dataNameProvider,
+  required void Function(String name) setDataName,
 }) {
   return [
     RunPythonScraperTool(
@@ -574,6 +626,7 @@ List<Tool> createScraperTools({
       runExportAndRegister: exportAndRegister,
       dataNameProvider: dataNameProvider,
     ),
+    SetDataNameTool(setDataName: setDataName),
     ReadRequestSnapshotTool(getSnapshotSummary: getLogsSummary),
   ];
 }
