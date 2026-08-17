@@ -692,4 +692,3 @@ class _TraceSlot extends StatelessWidget {
     return AgentTraceView(recorder: recorder);
   }
 }
-}

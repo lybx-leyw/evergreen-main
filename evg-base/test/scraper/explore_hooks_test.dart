@@ -2,7 +2,7 @@
 //
 // 覆盖：
 // 1. 探索模式全程禁用定向抓取工具（run_python_scraper 等）
-// 2. 阶段白名单：present_data_sources 仅 categorizing/confirming 可用
+// 2. 阶段白名单：present_data_sources 在 exploring 也可用（工具内部切阶段）
 // 3. navigate_get URL 守卫预检（跨域/非 http(s)）
 // 4. build_selected_source lint（violation block / 假数据 guardFlag 自动置位与清除）
 // 5. register_batch：假数据未清除 → 拒绝批量注册（G6 语义）
@@ -97,10 +97,11 @@ void main() {
       }
     });
 
-    test('present_data_sources 仅 categorizing/confirming 可用', () async {
+    test('present_data_sources 在 exploring/categorizing/confirming 均可用', () async {
+      // exploring 放行：工具内部会先 startCategorizing() 再 presentCandidates
       final hExploring = makeHooks(phase: ExplorePhase.exploring);
       final (block, _) = await hExploring.preToolUse('present_data_sources', {'sources': '[]'});
-      expect(block, isTrue);
+      expect(block, isFalse);
 
       final hCat = makeHooks(phase: ExplorePhase.categorizing);
       final (catBlock, _) = await hCat.preToolUse('present_data_sources', {'sources': '[]'});

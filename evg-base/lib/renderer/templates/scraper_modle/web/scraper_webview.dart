@@ -183,8 +183,8 @@ class ScraperWebViewBridge {
   Future<void> Function(String url)? navigateTo;
   Future<String?> Function()? currentUrl;
 
-  /// JS 通道是否已就绪（WebView 初始化完成前为 false）。
-  bool get ready => evaluateJavaScript != null && navigateTo != null;
+  /// JS 通道是否已就绪（WebView 初始化完成后由 [ScraperWebView] 设为 true）。
+  bool ready = false;
 }
 
 /// 爬虫生成器专用的内嵌 WebView 组件（Windows WebView2）。
@@ -272,10 +272,16 @@ class _ScraperWebViewState extends State<ScraperWebView> {
     super.initState();
     _urlCtrl.text = widget.initialUrl;
     // Phase 4：填充 JS/导航执行通道（探索模式工具消费）。
-    widget.bridge
-      ?..evaluateJavaScript = _evaluateJs
-      ..navigateTo = _navigateToUrl
-      ..currentUrl = _getCurrentUrl;
+    // ready 保持 false 直到 WebView 初始化完成，避免探索工具在页面未就绪时
+    // 调用 evaluateJs 导致"页面未就绪"超时。
+    final bridge = widget.bridge;
+    if (bridge != null) {
+      bridge
+        ..ready = false
+        ..evaluateJavaScript = _evaluateJs
+        ..navigateTo = _navigateToUrl
+        ..currentUrl = _getCurrentUrl;
+    }
     _initWebView();
   }
 
@@ -288,9 +294,10 @@ class _ScraperWebViewState extends State<ScraperWebView> {
   ///   求值结果，见 flutter-webview-windows #69/#161）→ 用包装脚本把结果经
   ///   `chrome.webview.postMessage` 回传，由 [_handleWebMessage] 路由到
   ///   对应 Completer（带 10s 超时，超时返回 null 由调用方降级提示）。
-  Future<String?> _evaluateJs(String script) {
+  Future<String?> _evaluateJs(String script) async {
     if (Platform.isAndroid) {
-      return _androidController.runJavaScriptReturningResult(script);
+      final result = await _androidController.runJavaScriptReturningResult(script);
+      return result == null ? null : result.toString();
     }
     final id = ++_jsRequestSeq;
     final completer = Completer<String?>();
@@ -408,6 +415,7 @@ class _ScraperWebViewState extends State<ScraperWebView> {
     await _androidController.loadRequest(Uri.parse(widget.initialUrl));
     if (!mounted) return;
     setState(() => _initialized = true);
+    widget.bridge?.ready = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) widget.onInitialized?.call();
     });
@@ -515,6 +523,7 @@ class _ScraperWebViewState extends State<ScraperWebView> {
       });
 
       setState(() => _initialized = true);
+      widget.bridge?.ready = true;
 
       // 加载初始页面（拦截器已预注册，会自动在文档创建时注入）
       _controller.loadUrl(widget.initialUrl);

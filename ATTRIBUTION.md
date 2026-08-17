@@ -28,6 +28,18 @@ Evergreen 2.0 建立在大量优秀的开源项目之上。我们在此郑重致
 
 pdf2zh 使得 Evergreen 能够实现高质量的中英文学术论文翻译，特别感谢其作者 [Byaidu](https://github.com/Byaidu)。
 
+### reverse-skill → Scraper 安全治理机制（AI 探索模式）
+
+| 项目 | 说明 |
+|------|------|
+| **reverse-skill** | 安全任务 AI 技能路由器（授权门 / 证据链 / 决策框架 / 经验回写），MIT License |
+| 仓库 | https://github.com/zhaoxuya520/reverse-skill |
+| 作者 | [zhaoxuya520](https://github.com/zhaoxuya520) |
+| 移植 | Scraper AI 探索模式（Phase 4）借鉴其机制设计：持久化授权范围（Scope Contract）→ `.greenix/scope.json`、候选数据源证据绑定（Evidence → Finding）→ `CandidateDataSource.evidence`、无进展熔断（R43）、经验 Journal 回写（field-journal）、工具能力事实源注入（tool-index）与借口反驳表 |
+| 授权 | MIT 许可证允许参考与再实现；本项目仅借鉴机制与接口形态，未复制其源代码文件，相关实现见 `Scraper_reverse-skill_集成策略.md` |
+
+reverse-skill 的安全任务治理思路（"AI 对真实目标执行有副作用操作时必须可授权、可追溯、可熔断"）直接补全了 Scraper 探索模式在持久化授权与正面证据上的缺口。
+
 ### 教师评分数据 — Lazuli（ZJU 教务增强）
 
 - **内置数据集（只读 asset）**: [`evg-base/assets/data/teacher_ratings.json`](evg-base/assets/data/teacher_ratings.json)（完整数据集，1.5 MB，随应用打包）
@@ -160,4 +172,4 @@ the Free Software Foundation, either version 3 of the License, or
 
 ---
 
-*最后更新：2026-08-13*
+*最后更新：2026-08-17*
