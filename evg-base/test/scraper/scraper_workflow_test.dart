@@ -306,4 +306,57 @@ void main() {
       expect(w.suspectedFakeData, isTrue);
     });
   });
+
+  group('证据 id 分配（P0-2）', () {
+    test('addLog 为空 id 日志自动补 log-N（会话内稳定）', () {
+      final w = ScraperWorkflow();
+      w.startCapturing();
+      w.addLog(log('https://a.com/1'));
+      w.addLog(log('https://a.com/2'));
+      w.addLog(log('https://a.com/3'));
+      expect(w.logs.map((l) => l.id).toList(), ['log-1', 'log-2', 'log-3']);
+    });
+
+    test('自带 id 的日志保持原 id，不重复补号', () {
+      final w = ScraperWorkflow();
+      w.startCapturing();
+      w.addLog(HttpRequestLog(
+          timestamp: DateTime.now(), method: 'GET', url: 'https://a.com/1', id: 'custom-9'));
+      w.addLog(log('https://a.com/2'));
+      expect(w.logs.first.id, 'custom-9');
+      expect(w.logs.last.id, 'log-1');
+    });
+
+    test('addLogs 批量逐条补号', () {
+      final w = ScraperWorkflow();
+      w.startCapturing();
+      w.addLogs([log('https://a.com/1'), log('https://a.com/2')]);
+      expect(w.logs.map((l) => l.id).toList(), ['log-1', 'log-2']);
+    });
+
+    test('clearLogs 重置计数器，重新从 log-1 开始', () {
+      final w = ScraperWorkflow();
+      w.startCapturing();
+      w.addLog(log('https://a.com/1'));
+      w.clearLogs();
+      w.addLog(log('https://b.com/1'));
+      expect(w.logs.single.id, 'log-1');
+    });
+
+    test('HttpRequestLog toJson/fromJson 往返保留 id', () {
+      final src = HttpRequestLog(
+        timestamp: DateTime.now(),
+        method: 'GET',
+        url: 'https://a.com/1',
+        responseBody: '{}',
+        id: 'log-7',
+      );
+      final back = HttpRequestLog.fromJson(src.toJson());
+      expect(back.id, 'log-7');
+      expect(back.responseBody, '{}');
+      // 无 id 的旧日志往返后仍为空
+      final old = HttpRequestLog.fromJson(log('https://a.com/2').toJson());
+      expect(old.id, '');
+    });
+  });
 }

@@ -190,6 +190,37 @@ class ExplorePanel extends StatelessWidget {
               '触达上限后 AI 会自动结束探索进入归类',
               style: TextStyle(fontSize: 10, color: scheme.onSurfaceVariant),
             ),
+            if (wf.stallDetected) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                decoration: BoxDecoration(
+                  color: scheme.errorContainer.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: scheme.error.withValues(alpha: 0.4),
+                    width: 0.5,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.electric_bolt_rounded,
+                        size: 12, color: scheme.onErrorContainer),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        '⚡ 空转熔断：${wf.stallMessage}（换新链接可自动恢复）',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: scheme.onErrorContainer,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         );
 
@@ -444,7 +475,8 @@ class _ExploreSourcePickerDialogState
           children: [
             Text(
               'AI 归类出 ${widget.candidates.length} 个候选数据源。'
-              '勾选要构建的（可修改名称），确认后 AI 将逐源构建并批量注册。',
+              '勾选要构建的（可修改名称），确认后 AI 将逐源构建并批量注册。'
+              '每行下方 📋 徽标是该数据源的来源日志与字段路径证据，可肉眼核对。',
               style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
             ),
             const SizedBox(height: 10),
@@ -576,7 +608,53 @@ class _ExploreSourcePickerDialogState
               ),
             ),
           ],
+          if (_hasEvidence(c)) ...[
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.only(left: 36),
+              child: _evidenceBadges(theme, c),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+
+  /// 是否展示证据徽标（P0-2：源级来源日志 或 字段级响应路径）。
+  static bool _hasEvidence(CandidateDataSource c) =>
+      (c.sourceLogId != null && c.sourceLogId!.isNotEmpty) ||
+      c.fields.any((f) => f.sourceJsonPath != null);
+
+  /// 证据徽标行：📋 log#id + 字段路径（最多 4 个字段，超出折叠显示 +N）。
+  Widget _evidenceBadges(ThemeData theme, CandidateDataSource c) {
+    final withPath = c.fields.where((f) => f.sourceJsonPath != null).toList();
+    final badges = <Widget>[
+      if (c.sourceLogId != null && c.sourceLogId!.isNotEmpty)
+        _evidenceBadge(theme, '📋 ${c.sourceLogId}', emphasized: true),
+      for (final f in withPath.take(4))
+        _evidenceBadge(theme, '${f.name} → ${f.sourceJsonPath}'),
+      if (withPath.length > 4) _evidenceBadge(theme, '+${withPath.length - 4}'),
+    ];
+    return Wrap(spacing: 4, runSpacing: 3, children: badges);
+  }
+
+  Widget _evidenceBadge(ThemeData theme, String text,
+      {bool emphasized = false}) {
+    final scheme = theme.colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: emphasized
+            ? scheme.primaryContainer.withValues(alpha: 0.6)
+            : scheme.surfaceContainerHighest.withValues(alpha: 0.8),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          fontSize: 9,
+          color: emphasized ? scheme.onPrimaryContainer : scheme.onSurfaceVariant,
+        ),
       ),
     );
   }

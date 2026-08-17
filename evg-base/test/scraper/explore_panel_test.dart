@@ -38,6 +38,22 @@ void main() {
       expect(find.textContaining('site.com'), findsOneWidget);
     });
 
+    testWidgets('exploring：空转熔断横幅显示（P1-1）', (tester) async {
+      var now = DateTime(2026, 1, 1, 12);
+      final wf = ExploreWorkflow(clock: () => now);
+      wf.startExploring(startUrl: 'https://site.com/');
+      await tester.pumpWidget(_wrap(ExplorePanel(exploreWorkflow: wf)));
+      expect(find.textContaining('空转熔断'), findsNothing);
+      // 连续 3 次同页导航 → 触发熔断
+      for (var i = 0; i < 3; i++) {
+        now = now.add(const Duration(seconds: 2));
+        wf.recordNavigation('https://site.com/same');
+      }
+      expect(wf.stallDetected, isTrue);
+      await tester.pumpWidget(_wrap(ExplorePanel(exploreWorkflow: wf)));
+      expect(find.textContaining('空转熔断'), findsOneWidget);
+    });
+
     testWidgets('confirming：候选 chips + 重新打开选择框按钮回调', (tester) async {
       final wf = ExploreWorkflow();
       wf.startExploring(startUrl: 'https://site.com/');
@@ -143,6 +159,36 @@ void main() {
       await tester.tap(find.text('取消'));
       await tester.pumpAndSettle();
       expect(result, isEmpty);
+    });
+
+    testWidgets('P0-2：证据徽标展示来源日志与字段路径', (tester) async {
+      const withEvidence = [
+        CandidateDataSource(
+          name: 'courses',
+          displayName: '课程列表',
+          category: '课程',
+          url: 'https://site.com/api/courses',
+          sourceLogId: 'log-7',
+          fields: [
+            CandidateField(
+              name: 'id',
+              type: 'number',
+              sourceJsonPath: r'$.data[0].id',
+            ),
+          ],
+        ),
+      ];
+      await tester.pumpWidget(_wrap(Builder(
+        builder: (ctx) => TextButton(
+          onPressed: () => showExploreSourcePicker(ctx, withEvidence),
+          child: const Text('open'),
+        ),
+      )));
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('📋 log-7'), findsOneWidget);
+      expect(find.textContaining(r'id → $.data[0].id'), findsOneWidget);
     });
   });
 }

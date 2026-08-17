@@ -31,6 +31,8 @@ import '../web/scraper_webview.dart';
 import '../board/scraper_board.dart';
 import 'scraper_gate.dart';
 import 'scraper_hooks.dart';
+import 'scraper_journal.dart';
+import 'python_capabilities.dart';
 import '../scraper_skill_const.dart' show scraperSkillBody, scraperExploreSkillBody;
 import '../scraper_exporter.dart';
 import '../scraper_json_validator.dart';
@@ -451,6 +453,9 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
                   presentSources: _presentExploreSources,
                   buildSource: _buildExploreSource,
                   registerBatch: _registerExploreBatch,
+                  // P2-1 工具事实源：运行时扫描嵌入 Python 的 site-packages
+                  listPythonCapabilities: () =>
+                      scanPythonSitePackages(greenixPythonDir),
                 ),
                 // AskTool：AI 结构化 ask 用户（A11）
                 agent.AskTool(asker: _asker),
@@ -1099,6 +1104,13 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
     // 授权范围落盘（持久化授权，跨会话复用）
     _saveScopeToDisk(result.scope);
 
+    // P1-1 空转熔断：触发即回灌聊天（AI 应切换策略或结束探索）
+    ew.onStallDetected = (msg) {
+      if (!mounted) return;
+      _messages.add(ChatMessage.assistant('⚡ **探索空转熔断**\n$msg'));
+      _saveSessions();
+    };
+
     if (!ew.startExploring(
         startUrl: result.startUrl, scope: result.scope)) {
       _messages.add(ChatMessage.assistant(
@@ -1122,15 +1134,29 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
     });
     _saveSessions();
 
+    // P1-2 经验 Journal：同域历史经验注入探索任务（只做加速参考，不替代验证）
+    JournalEntry? journalEntry;
+    try {
+      journalEntry = await ScraperJournal(baseDir: greenixJournalDir)
+          .loadLatest(ew.baseHost);
+    } catch (e) {
+      debugPrint('[ScraperAIPanel] ⚠ journal 读取失败: $e');
+    }
+
     _assembly!.controller.send('''
 【探索任务开始】请按探索 Skill 流程严格执行：
-
+${journalEntry != null ? '\n【本域历史经验】\n${journalEntry.toPromptSummary()}\n' : ''}
 Step 1 探索：explore_page_links() 枚举当前页链接；navigate_get(url) 逐页访问疑似
 数据接口（仅 GET、同域、注意 1s 节流与页数上限）；list_captured_requests() 阅读
 捕获的 GET 请求与响应体样本。直到无新链接或触达上限。
-Step 2 归类：把 GET 数据接口细粒度归类为候选数据源 JSON。
+Step 2 归类：把 GET 数据接口细粒度归类为候选数据源 JSON。每个候选源必须附
+sourceLogId（list_captured_requests 返回的证据 id，如 log-3），每个字段必须附
+sourceJsonPath（对应响应 JSON 中的真实路径，如 $.data[0].courseName）。
+url 无捕获日志证据的源会被守卫拒绝，禁止臆造字段或路径。
 Step 3 确认：调用 present_data_sources(sources) 弹出多选框让用户勾选（可改名）。
 Step 4 构建：对每个确认的数据源调用 build_selected_source(name, code)。
+构建环境（P2-1 运行时事实源）：${pythonCapabilitiesPrompt(scanPythonSitePackages(greenixPythonDir))}
+未列出的模块禁止 import。
 Step 5 注册：全部构建完成后调用 register_batch(names) 批量注册并验证。
 
 当前锁定域名: ${ew.baseHost.isEmpty ? '（尚未锁定，首次导航自动锁定）' : ew.baseHost}
@@ -1378,6 +1404,25 @@ Step 5 注册：全部构建完成后调用 register_batch(names) 批量注册�
       }
       say('🎉 批量注册完成：$successCount/${names.length} 个数据源验证通过'
           '${ew != null && ew.phase == ExplorePhase.done ? '\n✅ 探索流程全部完成' : ''}');
+
+      // P1-2 经验 Journal：注册有产出即回写站点经验（下次探索注入复用）
+      if (successCount > 0 && ew != null && ew.baseHost.isNotEmpty) {
+        try {
+          final domain = ew.baseHost;
+          await ScraperJournal(baseDir: greenixJournalDir).append(JournalEntry(
+            domain: domain,
+            authMethod: inferAuthMethod(widget.workflow.logs),
+            flow: '探索 ${ew.uniquePages} 页 · 构建 ${names.length} 个数据源'
+                ' · 验证通过 $successCount 个',
+            pitfalls: widget.workflow.errorMessage.trim(),
+            keyParams: inferKeyParams(widget.workflow.logs, domain: domain),
+            recordedAt: DateTime.now(),
+          ));
+          debugPrint('[ScraperAIPanel] 📔 已回写探索经验: $domain');
+        } catch (e) {
+          debugPrint('[ScraperAIPanel] ⚠ journal 回写失败: $e');
+        }
+      }
     } catch (e) {
       say('❌ 批量注册异常: $e');
     }

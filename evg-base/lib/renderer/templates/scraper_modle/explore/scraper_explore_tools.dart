@@ -17,7 +17,9 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:evergreen_base/core/agent/tool.dart';
 
+import '../agent/python_capabilities.dart';
 import '../workflow/scraper_workflow.dart';
+import 'explore_evidence.dart';
 import 'explore_workflow.dart';
 
 // ═══════ JS 脚本 ═══════
@@ -145,7 +147,10 @@ class NavigateGetTool extends SimpleTool {
           name: 'navigate_get',
           description: '以 GET 方式导航内嵌浏览器到指定 URL（探索模式唯一导航通道）。'
               '守卫约束：仅 http/https；同域（首次导航锁定域名）；'
-              '页数上限（默认 20 页）；请求上限（默认 50）；1s 节流。'
+              '页数上限（默认 20 页）；请求上限（默认 50）；1s 节流；'
+              '空转熔断（连续 3 次导航无新页面触发，熔断期间重复访问'
+              '已探索页面会被拒绝——请立即换新链接或结束探索进入归类，'
+              '禁止对同一页面无意义重试）。'
               '被守卫拒绝时请换一个链接或结束探索进入归类。'
               '禁止尝试 POST/表单提交/js: 伪协议。',
           schema: const {
@@ -172,7 +177,8 @@ class NavigateGetTool extends SimpleTool {
                   '页数 ${exploreWorkflow.uniquePages}/${exploreWorkflow.limits.maxPages}'
                   ' · 请求 ${exploreWorkflow.requestsCaptured}/${exploreWorkflow.limits.maxRequests}'
                   '${exploreWorkflow.pagesExhausted ? '\n⚠️ 已触达页数上限，请结束探索进入归类' : ''}'
-                  '${exploreWorkflow.requestsExhausted ? '\n⚠️ 已触达请求上限，请结束探索进入归类' : ''}';
+                  '${exploreWorkflow.requestsExhausted ? '\n⚠️ 已触达请求上限，请结束探索进入归类' : ''}'
+                  '${exploreWorkflow.stallDetected ? '\n⚡ 空转熔断已触发：${exploreWorkflow.stallMessage}。请切换策略（换新链接或结束探索进入归类）' : ''}';
             } catch (e) {
               debugPrint('[NavigateGet] 💥 $e');
               return '[error: 导航执行失败: $e]';
@@ -184,6 +190,9 @@ class NavigateGetTool extends SimpleTool {
 // ═══════ list_captured_requests ═══════
 
 /// 工具：读取捕获日志中的 GET 请求（POST 等一律过滤，D2）。
+///
+/// 每条请求带证据 id（`log-N`，P0-2）：归类候选数据源时必须引用该 id 作为
+/// `sourceLogId` 证据，否则会被证据守卫拒绝。
 class ListCapturedRequestsTool extends SimpleTool {
   final ScraperWorkflow captureWorkflow;
   final ExploreWorkflow exploreWorkflow;
@@ -195,7 +204,9 @@ class ListCapturedRequestsTool extends SimpleTool {
           name: 'list_captured_requests',
           description: '读取浏览器捕获日志中的 GET 请求（仅 GET；POST/表单等'
               '一律被过滤，不提供方法改写）。返回 AI 友好摘要'
-              '（method/URL/关键 headers/响应体样本），供归类候选数据源使用。',
+              '（证据 id/URL/关键 headers/响应体样本），供归类候选数据源使用。'
+              '每条请求都带证据 id（log-N）——present_data_sources 时'
+              '每个候选源必须引用 sourceLogId 证据，否则会被守卫拒绝。',
           schema: const {
             'type': 'object',
             'properties': {},
@@ -222,8 +233,11 @@ class ListCapturedRequestsTool extends SimpleTool {
                 '${base.isNotEmpty ? ' · 同域 $base' : ''}）\n');
             final shown = gets.length > 100 ? 100 : gets.length;
             for (var i = 0; i < shown; i++) {
-              buf.writeln('### 请求 #${i + 1}');
-              buf.writeln(gets[i].toAiSummary());
+              final log = gets[i];
+              final idLabel =
+                  log.id.isNotEmpty ? ' · 证据 id: ${log.id}' : '';
+              buf.writeln('### 请求 #${i + 1}$idLabel');
+              buf.writeln(log.toAiSummary());
               buf.writeln();
             }
             if (gets.length > shown) {
@@ -234,26 +248,66 @@ class ListCapturedRequestsTool extends SimpleTool {
         );
 }
 
+// ═══════ list_python_capabilities（P2-1 工具事实源）══════
+
+/// 工具：返回本机嵌入式 Python 实际可用的第三方模块清单（事实源）。
+///
+/// 替代 prompt 硬编码「只允许标准库 + requests」：AI 构建爬虫前先查本工具，
+/// 未列出的模块禁止 import（lint 兜底拦截），从源头消除反复尝试 bs4 的浪费。
+class ListPythonCapabilitiesTool extends SimpleTool {
+  final List<String> Function() listCapabilities;
+
+  ListPythonCapabilitiesTool({required this.listCapabilities})
+      : super(
+          name: 'list_python_capabilities',
+          description: '返回本机嵌入式 Python 实际可用的第三方模块清单（运行时'
+              '事实源，替代猜测）。构建爬虫代码前先调用本工具确认可 import 的'
+              '模块；仅清单内模块 + Python 标准库可用，未列出的模块禁止 import'
+              '（会被 lint 拦截并消耗调试轮次）。',
+          schema: const {
+            'type': 'object',
+            'properties': {},
+          },
+          readOnly: true,
+          execute: (args) async {
+            try {
+              return pythonCapabilitiesPrompt(listCapabilities());
+            } catch (e) {
+              debugPrint('[ListPythonCapabilities] 💥 $e');
+              return '[error: 扫描 Python 能力清单失败: $e]';
+            }
+          },
+        );
+}
+
 // ═══════ present_data_sources ═══════
 
 /// 工具：呈现候选数据源 → 用户多选确认（D3/D4）。
 ///
-/// AI 传入归类 JSON 数组；UI 弹出多选弹窗（勾选 + 可改名）；
-/// 返回用户最终选择（含改名结果）的 JSON 数组。
+/// AI 传入归类 JSON 数组；呈现前逐源做证据校验（P0-2）：url 必须匹配捕获日志
+/// （[CandidateDataSource.sourceLogId] 引用或 URL 匹配兜底），否则硬阻断。
+/// 通过后 UI 弹出多选弹窗（勾选 + 可改名）；返回用户最终选择（含改名结果）。
 class PresentDataSourcesTool extends SimpleTool {
   final ExploreWorkflow exploreWorkflow;
+  final ScraperWorkflow captureWorkflow;
   final Future<List<CandidateDataSource>> Function(
       List<CandidateDataSource> candidates) presentSources;
 
   PresentDataSourcesTool({
     required this.exploreWorkflow,
+    required this.captureWorkflow,
     required this.presentSources,
   }) : super(
           name: 'present_data_sources',
           description: '把归类好的候选数据源呈现给用户做多选确认。'
               '参数 sources 为 JSON 数组，每项：'
               '{name: 英文标识(仅字母数字_-、字母开头), displayName: 展示名, '
-              'category: 归类, url: GET URL, fields: [{name,type,description}]}。'
+              'category: 归类, url: GET URL, '
+              'sourceLogId: 该 url 来源日志的证据 id（list_captured_requests '
+              '返回的 log-N，必填）, '
+              'fields: [{name,type,description,sourceJsonPath: 响应 JSON 字段路径}'
+              '如 $.data[0].courseName]}。'
+              'url 无捕获日志证据的源会被守卫拒绝（[error: 无日志证据]）。'
               '调用后弹出多选框（用户可勾选并改名）；返回用户确认选择的数据源'
               'JSON 数组（以用户改名为准）。用户取消时返回提示，请重新归类或询问用户。',
           schema: const {
@@ -283,6 +337,7 @@ class PresentDataSourcesTool extends SimpleTool {
             }
 
             final candidates = <CandidateDataSource>[];
+            final evidenceWarnings = <String>[];
             for (final item in list.whereType<Map<String, dynamic>>()) {
               final c = CandidateDataSource.fromJson(item);
               final nameErr = sanitizeSourceName(c.name);
@@ -296,6 +351,17 @@ class PresentDataSourcesTool extends SimpleTool {
               }
               if (candidates.any((x) => x.name == c.name)) {
                 return '[error: 数据源名称重复: "${c.name}"]';
+              }
+              // P0-2 证据校验：url 无捕获日志证据 → 硬阻断（伪造源不进用户视野）
+              final evidence = validateDataSourceEvidence(
+                  c, captureWorkflow.logs);
+              if (evidence.hardBlocked) {
+                return '[error: 数据源 ${c.name} 无日志证据，拒绝呈现: '
+                    '${evidence.errors.join('；')}。'
+                    '请用 list_captured_requests 核实并附 sourceLogId]';
+              }
+              for (final w in evidence.warnings) {
+                evidenceWarnings.add('${c.name}: $w');
               }
               candidates.add(c.displayName.isEmpty
                   ? c.copyWith(displayName: c.name)
@@ -330,8 +396,13 @@ class PresentDataSourcesTool extends SimpleTool {
             }
 
             final out = selected.map((s) => s.toJson()).toList();
+            final warnText = evidenceWarnings.isEmpty
+                ? ''
+                : '\n⚠️ 证据警告（不阻断，建议修正后再构建）：\n'
+                    '${evidenceWarnings.map((w) => '- $w').join('\n')}\n';
             return '✅ 用户已确认 ${selected.length} 个数据源：\n'
-                '${const JsonEncoder.withIndent('  ').convert(out)}\n\n'
+                '${const JsonEncoder.withIndent('  ').convert(out)}\n'
+                '$warnText\n'
                 '下一步：对每个数据源依次调用 build_selected_source(name, code) 构建，'
                 '全部构建完成后调用 register_batch(names) 批量注册。';
           },
@@ -341,11 +412,20 @@ class PresentDataSourcesTool extends SimpleTool {
 // ═══════ build_selected_source ═══════
 
 /// 工具：逐源构建 data-{name} 插件（D5/D8）。
+///
+/// 注入 [exploreWorkflow]/[captureWorkflow] 时做 P0-2 证据复核（纵深防御）：
+/// name 须在用户确认清单中；无 url 证据 → 拒绝构建；字段 path 问题仅警告透传。
+/// 两者为空（独立构造/测试）时跳过证据校验，保持向后兼容。
 class BuildSelectedSourceTool extends SimpleTool {
   final Future<String> Function(String name, String code) buildSource;
+  final ExploreWorkflow? exploreWorkflow;
+  final ScraperWorkflow? captureWorkflow;
 
-  BuildSelectedSourceTool({required this.buildSource})
-      : super(
+  BuildSelectedSourceTool({
+    required this.buildSource,
+    this.exploreWorkflow,
+    this.captureWorkflow,
+  }) : super(
           name: 'build_selected_source',
           description: '为某个已确认的数据源构建插件目录 data-{name}/'
               '（scraper.py + data/manifest.json + config/config.json）。'
@@ -375,9 +455,31 @@ class BuildSelectedSourceTool extends SimpleTool {
             final nameErr = sanitizeSourceName(name);
             if (nameErr != null) return '[error: 数据源名称非法: $nameErr]';
             if (code.isEmpty) return '[error: code 参数为空]';
+
+            // P0-2 证据复核（纵深防御：present 阶段已硬校验，此处防绕过/防改名漂移）
+            final notes = <String>[];
+            final ew = exploreWorkflow;
+            final cw = captureWorkflow;
+            if (ew != null && cw != null) {
+              final src = _findConfirmedSource(ew, name);
+              if (src == null) {
+                return '[error: 数据源 $name 不在用户确认清单中，拒绝构建]';
+              }
+              final evidence = validateDataSourceEvidence(src, cw.logs);
+              if (evidence.hardBlocked) {
+                return '[error: 数据源 $name 无日志证据，拒绝构建: '
+                    '${evidence.errors.join('；')}]';
+              }
+              for (final w in evidence.warnings) {
+                notes.add('⚠️ $name: $w');
+              }
+            }
+
             final log = await buildSource(name, code);
             final base = log.trim().isEmpty ? '[error: 构建未产生任何日志]' : log;
-            return '📁 **data-$name**\n\n$base';
+            final notesText =
+                notes.isEmpty ? '' : '${notes.join('\n')}\n\n';
+            return '📁 **data-$name**\n\n$notesText$base';
           },
         );
 }
@@ -385,15 +487,26 @@ class BuildSelectedSourceTool extends SimpleTool {
 // ═══════ register_batch ═══════
 
 /// 工具：批量注册 + orch.get 验证（D6）。
+///
+/// 注入 [exploreWorkflow]/[captureWorkflow] 时做 P0-2 证据终闸：
+/// 每个 name 须在用户确认清单中且 url 有捕获日志证据，否则拒绝注册。
+/// 两者为空（独立构造/测试）时跳过证据校验，保持向后兼容。
 class RegisterBatchTool extends SimpleTool {
   final Future<String> Function(List<String> names) registerBatch;
+  final ExploreWorkflow? exploreWorkflow;
+  final ScraperWorkflow? captureWorkflow;
 
-  RegisterBatchTool({required this.registerBatch})
-      : super(
+  RegisterBatchTool({
+    required this.registerBatch,
+    this.exploreWorkflow,
+    this.captureWorkflow,
+  }) : super(
           name: 'register_batch',
           description: '批量热注册已构建的数据源插件（data-{name}）到数据中心，'
               '并对每个类型执行 orch.get 拉取验证。'
               'names 为数据源名称数组（JSON 数组字符串，或逗号分隔）。'
+              '注册前做证据终闸：数据源必须已在用户确认清单中，且 url 有'
+              '捕获日志证据（list_captured_requests 的证据 id），否则拒绝。'
               '返回完整结果日志（含 lastError/拉取异常/返回 null 等详情）；'
               '若有失败项，用 build_selected_source 修正后再次调用本工具（最多 3 轮）。',
           schema: const {
@@ -433,14 +546,48 @@ class RegisterBatchTool extends SimpleTool {
               final err = sanitizeSourceName(n);
               if (err != null) return '[error: 数据源名称非法: $err — "$n"]';
             }
+
+            // P0-2 证据终闸：未确认 / 无 url 证据 → 拒绝注册
+            final notes = <String>[];
+            final ew = exploreWorkflow;
+            final cw = captureWorkflow;
+            if (ew != null && cw != null) {
+              for (final n in names) {
+                final src = _findConfirmedSource(ew, n);
+                if (src == null) {
+                  return '[error: 数据源 $n 不在用户确认清单中，拒绝注册。'
+                      '请重新 present_data_sources 确认后重试]';
+                }
+                final evidence = validateDataSourceEvidence(src, cw.logs);
+                if (evidence.hardBlocked) {
+                  return '[error: 数据源 $n 无日志证据，拒绝注册: '
+                      '${evidence.errors.join('；')}。'
+                      '请用 list_captured_requests 核实并附 sourceLogId]';
+                }
+                for (final w in evidence.warnings) {
+                  notes.add('⚠️ $n: $w');
+                }
+              }
+            }
+
             final log = await registerBatch(names);
             final base = log.trim().isEmpty ? '[error: 注册未产生任何日志]' : log;
-            return '🔗 **批量注册（${names.length} 个数据源）**\n\n$base';
+            final notesText =
+                notes.isEmpty ? '' : '${notes.join('\n')}\n\n';
+            return '🔗 **批量注册（${names.length} 个数据源）**\n\n$notesText$base';
           },
         );
 }
 
 // ═══════ 工具集工厂 ═══════
+
+/// 在用户确认清单中查找数据源（build/register 工具的证据与清单终闸）。
+CandidateDataSource? _findConfirmedSource(ExploreWorkflow ew, String name) {
+  for (final s in ew.selected) {
+    if (s.name == name) return s;
+  }
+  return null;
+}
 
 /// 为探索模式 Agent 构造全部自定义工具。
 ///
@@ -450,6 +597,8 @@ class RegisterBatchTool extends SimpleTool {
 /// - [presentSources] — 候选多选弹窗（返回用户选择，可改名）
 /// - [buildSource] — 逐源构建插件并返回完整日志
 /// - [registerBatch] — 批量注册 + orch.get 验证并返回完整日志
+/// - [listPythonCapabilities] — P2-1 工具事实源：本机可用第三方模块清单（可空，
+///   空时工具返回仅标准库）
 List<Tool> createScraperExploreTools({
   required ExploreWorkflow exploreWorkflow,
   required ScraperWorkflow captureWorkflow,
@@ -459,6 +608,7 @@ List<Tool> createScraperExploreTools({
       List<CandidateDataSource> candidates) presentSources,
   required Future<String> Function(String name, String code) buildSource,
   required Future<String> Function(List<String> names) registerBatch,
+  List<String> Function()? listPythonCapabilities,
 }) {
   return [
     ExplorePageLinksTool(
@@ -473,11 +623,23 @@ List<Tool> createScraperExploreTools({
       captureWorkflow: captureWorkflow,
       exploreWorkflow: exploreWorkflow,
     ),
+    ListPythonCapabilitiesTool(
+      listCapabilities: listPythonCapabilities ?? () => const [],
+    ),
     PresentDataSourcesTool(
       exploreWorkflow: exploreWorkflow,
+      captureWorkflow: captureWorkflow,
       presentSources: presentSources,
     ),
-    BuildSelectedSourceTool(buildSource: buildSource),
-    RegisterBatchTool(registerBatch: registerBatch),
+    BuildSelectedSourceTool(
+      buildSource: buildSource,
+      exploreWorkflow: exploreWorkflow,
+      captureWorkflow: captureWorkflow,
+    ),
+    RegisterBatchTool(
+      registerBatch: registerBatch,
+      exploreWorkflow: exploreWorkflow,
+      captureWorkflow: captureWorkflow,
+    ),
   ];
 }

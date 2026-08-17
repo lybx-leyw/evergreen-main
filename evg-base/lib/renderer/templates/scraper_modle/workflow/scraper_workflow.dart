@@ -62,6 +62,12 @@ class HttpRequestLog {
   /// 供 AI 推断 schema 时优先使用（样本更准）。
   final String? responseBody;
 
+  /// 会话内稳定证据 id（如 `log-7`，P0-2 证据链引用）。
+  ///
+  /// 空 = 未分配：由 [ScraperWorkflow.addLog]/[addLogs] 自动补齐。
+  /// 探索模式的 `list_captured_requests` 以本 id 作为 AI 引用证据的唯一标识。
+  final String id;
+
   const HttpRequestLog({
     required this.timestamp,
     required this.method,
@@ -69,7 +75,19 @@ class HttpRequestLog {
     this.headers,
     this.body,
     this.responseBody,
+    this.id = '',
   });
+
+  /// 拷贝并替换证据 id（补号用；其余字段不变）。
+  HttpRequestLog withId(String newId) => HttpRequestLog(
+        timestamp: timestamp,
+        method: method,
+        url: url,
+        headers: headers,
+        body: body,
+        responseBody: responseBody,
+        id: newId,
+      );
 
   /// 从 JS 注入捕获的 JSON 反序列化。
   factory HttpRequestLog.fromJson(Map<String, dynamic> json) {
@@ -81,6 +99,7 @@ class HttpRequestLog {
       headers: (json['headers'] as Map?)?.cast<String, String>(),
       body: json['body'] as String?,
       responseBody: json['responseBody'] as String?,
+      id: json['id'] as String? ?? '',
     );
   }
 
@@ -91,6 +110,7 @@ class HttpRequestLog {
         if (headers != null) 'headers': headers,
         if (body != null) 'body': body,
         if (responseBody != null) 'responseBody': responseBody,
+        if (id.isNotEmpty) 'id': id,
       };
 
   /// 格式化为 AI 可读的日志行。
@@ -617,16 +637,21 @@ class ScraperWorkflow {
 
   // ── 日志操作 ──
 
+  /// 证据 id 序号（P0-2：addLog 为空 id 的日志补 `log-{seq}`，会话内稳定）。
+  int _logSeq = 0;
+
   /// 添加一条 HTTP 请求日志（快照冻结后不再追加到快照，但保留活动日志）。
   void addLog(HttpRequestLog log) {
-    _logs.add(log);
+    _logs.add(log.id.isEmpty ? log.withId('log-${++_logSeq}') : log);
     _log('📋 #${_logs.length} $log');
     _notify();
   }
 
-  /// 批量添加日志。
+  /// 批量添加日志（逐条补齐证据 id）。
   void addLogs(List<HttpRequestLog> logs) {
-    _logs.addAll(logs);
+    for (final log in logs) {
+      _logs.add(log.id.isEmpty ? log.withId('log-${++_logSeq}') : log);
+    }
     _log('📋 批量添加 ${logs.length} 条日志（总计 ${_logs.length}）');
     _notify();
   }
@@ -636,6 +661,7 @@ class ScraperWorkflow {
     _logs.clear();
     _snapshot.clear();
     _snapshotFrozen = false;
+    _logSeq = 0;
     _log('🗑 日志已清空');
     _notify();
   }

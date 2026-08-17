@@ -181,6 +181,116 @@ void main() {
     });
   });
 
+  group('空转熔断（P1-1，reverse-skill R43 移植）', () {
+    /// 推进时钟（越过 1s 节流）后导航。
+    String? nav(ExploreWorkflow w, DateTime Function() advance, String url) {
+      advance();
+      return w.recordNavigation(url);
+    }
+
+    test('连续 3 次导航无新页面 → 第 3 次触发熔断提示，之后重复导航被拒', () {
+      var now = DateTime(2026, 1, 1, 12);
+      final w = ExploreWorkflow(
+        clock: () => now,
+      );
+      w.startExploring(startUrl: 'https://a.com/');
+      final stallMsgs = <String>[];
+      w.onStallDetected = stallMsgs.add;
+
+      final advance = () => now = now.add(const Duration(seconds: 2));
+      expect(w.recordNavigation('https://a.com/same'), isNull);
+      expect(w.stallDetected, isFalse);
+      expect(nav(w, advance, 'https://a.com/same'), isNull);
+      expect(w.stallDetected, isFalse);
+      // 第 3 次无新页面 → 触发
+      expect(nav(w, advance, 'https://a.com/same'), isNull);
+      expect(w.stallDetected, isTrue);
+      expect(w.stallMessage, contains('连续 3 次导航无新页面'));
+      expect(stallMsgs.length, 1);
+      // 之后重复导航被拒绝
+      expect(nav(w, advance, 'https://a.com/same'), contains('空转熔断'));
+      expect(nav(w, advance, 'https://a.com/same#x'), contains('空转熔断'));
+      expect(stallMsgs.length, 1); // 回调只触发一次
+    });
+
+    test('交替新 URL → 不触发熔断', () {
+      var now = DateTime(2026, 1, 1, 12);
+      final w = ExploreWorkflow(clock: () => now);
+      w.startExploring();
+      final advance = () => now = now.add(const Duration(seconds: 2));
+      for (var i = 0; i < 5; i++) {
+        expect(nav(w, advance, 'https://a.com/p$i'), isNull);
+      }
+      expect(w.stallDetected, isFalse);
+    });
+
+    test('熔断后访问新页面 → 自动恢复', () {
+      var now = DateTime(2026, 1, 1, 12);
+      final w = ExploreWorkflow(clock: () => now);
+      w.startExploring();
+      final advance = () => now = now.add(const Duration(seconds: 2));
+      nav(w, advance, 'https://a.com/same');
+      nav(w, advance, 'https://a.com/same');
+      nav(w, advance, 'https://a.com/same');
+      expect(w.stallDetected, isTrue);
+      expect(nav(w, advance, 'https://a.com/new-page'), isNull);
+      expect(w.stallDetected, isFalse);
+      // 恢复后重复导航重新计数（第 3 次才再触发）
+      expect(nav(w, advance, 'https://a.com/new-page'), isNull);
+      expect(w.stallDetected, isFalse);
+    });
+
+    test('自定义阈值：stallThreshold=2 第 2 次触发', () {
+      var now = DateTime(2026, 1, 1, 12);
+      final w = ExploreWorkflow(
+        limits: const ExploreLimits(stallThreshold: 2, stallWindow: 4),
+        clock: () => now,
+      );
+      w.startExploring();
+      final advance = () => now = now.add(const Duration(seconds: 2));
+      nav(w, advance, 'https://a.com/same');
+      expect(w.stallDetected, isFalse);
+      nav(w, advance, 'https://a.com/same');
+      expect(w.stallDetected, isTrue);
+    });
+
+    test('窗口滑动：新页面产出把窗口冲刷后重新计数', () {
+      var now = DateTime(2026, 1, 1, 12);
+      final w = ExploreWorkflow(
+        limits: const ExploreLimits(stallThreshold: 3, stallWindow: 4),
+        clock: () => now,
+      );
+      w.startExploring();
+      final advance = () => now = now.add(const Duration(seconds: 2));
+      // 2 次无新页面后产出 2 个新页面 → 窗口被冲刷，不触发
+      nav(w, advance, 'https://a.com/old');
+      nav(w, advance, 'https://a.com/old');
+      nav(w, advance, 'https://a.com/new1');
+      nav(w, advance, 'https://a.com/new2');
+      expect(w.stallDetected, isFalse);
+    });
+
+    test('restartExploring / reset 清空熔断状态', () {
+      var now = DateTime(2026, 1, 1, 12);
+      final w = ExploreWorkflow(clock: () => now);
+      w.startExploring();
+      final advance = () => now = now.add(const Duration(seconds: 2));
+      nav(w, advance, 'https://a.com/same');
+      nav(w, advance, 'https://a.com/same');
+      nav(w, advance, 'https://a.com/same');
+      expect(w.stallDetected, isTrue);
+      w.restartExploring();
+      expect(w.stallDetected, isFalse);
+      expect(w.stallMessage, '');
+      nav(w, advance, 'https://a.com/same');
+      nav(w, advance, 'https://a.com/same');
+      nav(w, advance, 'https://a.com/same');
+      expect(w.stallDetected, isTrue);
+      w.reset();
+      expect(w.stallDetected, isFalse);
+    });
+  });
+
   group('工具白名单阶段切换（D9）', () {
     test('定向抓取工具在探索模式全程禁用', () {
       const banned = [
@@ -201,7 +311,14 @@ void main() {
     });
 
     test('只读工具全阶段可用', () {
-      const readTools = ['ask', 'guardian_review', 'list_skills', 'read_workspace_file', 'list_captured_requests'];
+      const readTools = [
+        'ask',
+        'guardian_review',
+        'list_skills',
+        'read_workspace_file',
+        'list_captured_requests',
+        'list_python_capabilities', // P2-1 工具事实源
+      ];
       for (final phase in ExplorePhase.values) {
         for (final tool in readTools) {
           expect(exploreToolAllowedForPhase(tool, phase), isTrue,

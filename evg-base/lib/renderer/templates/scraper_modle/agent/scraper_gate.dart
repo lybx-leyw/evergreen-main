@@ -41,6 +41,7 @@ class ScraperGate extends agent.InteractiveGate {
           agent.PermissionRule(toolName: 'explore_page_links', level: agent.PermissionLevel.always),
           agent.PermissionRule(toolName: 'navigate_get', level: agent.PermissionLevel.always),
           agent.PermissionRule(toolName: 'list_captured_requests', level: agent.PermissionLevel.always),
+          agent.PermissionRule(toolName: 'list_python_capabilities', level: agent.PermissionLevel.always),
           agent.PermissionRule(toolName: 'present_data_sources', level: agent.PermissionLevel.always),
           agent.PermissionRule(toolName: 'build_selected_source', level: agent.PermissionLevel.always),
           agent.PermissionRule(toolName: 'register_batch', level: agent.PermissionLevel.always),
