@@ -63,6 +63,7 @@ import 'package:evergreen_base/core/utils/greenix_path.dart';
 import 'package:evergreen_base/core/utils/plugin_asset_releaser.dart';
 import 'package:evergreen_base/core/utils/python_env.dart';
 import 'package:evergreen_base/providers.dart';
+import 'package:evergreen_base/renderer/app/app_mode.dart';
 import 'package:evergreen_base/renderer/app/service/providers/renderer_providers.dart';
 import 'package:evergreen_base/renderer/templates/zju_modle/zju_builtin_modules.dart';
 import 'package:evergreen_base/renderer/templates/zju_modle/zju_data_sources.dart';
@@ -744,6 +745,11 @@ class AppBootstrap {
         overrides: [
           // SharedPreferences（agent 运行时、设置等依赖）
           sharedPreferencesProvider.overrideWith((ref) => prefs!),
+
+          // 三模式视图：上次选择（默认 AI 视图）——注入即生效，避免启动闪动
+          appModeProvider.overrideWith((ref) =>
+              appModeFromString(prefs!.getString(kAppModePrefsKey)) ??
+              AppMode.ai),
 
           // 模块注册中心
           moduleRegistryProvider.overrideWith((ref) => registry!),

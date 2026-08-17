@@ -27,7 +27,11 @@ class ThemeAiService {
   });
 
   /// 根据 [description] 生成 8 色主题草稿；失败返回 null。
-  Future<ThemeDraft?> generate(String description) async {
+  ///
+  /// [history] 为历史对话（不含 system，由 [ThemeChatStore] 持久化提供）：
+  /// 迭代/返工时 AI 能看到之前的指令与结果，不会从零重走流程。
+  Future<ThemeDraft?> generate(String description,
+      {List<agent.Message> history = const []}) async {
     if (apiKey.isEmpty) return null;
     final provider = agent.DeepSeekProvider(
       dio: Dio(BaseOptions(
@@ -72,6 +76,7 @@ class ThemeAiService {
     try {
       final messages = [
         agent.Message(role: agent.Role.system, content: systemPrompt),
+        ...history,
         agent.Message(role: agent.Role.user, content: userPrompt),
       ];
       final buf = StringBuffer();
