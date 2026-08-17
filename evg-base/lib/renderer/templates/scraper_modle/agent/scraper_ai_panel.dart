@@ -678,9 +678,7 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
   /// Skill + 断点续作状态块（告知 AI 已完成步骤，禁止重做/掩盖）。
   String get _skillBodyWithResume {
     final ctx = _resumeContext;
-    return ctx.isEmpty ? _skillBody : '$_skillBody
-
-$ctx';
+    return ctx.isEmpty ? _skillBody : '$_skillBody\n\n$ctx';
   }
 
   /// 断点续作状态块：工作流阶段 + 已有产物 + 绑定数据源状态。

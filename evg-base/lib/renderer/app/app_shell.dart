@@ -163,7 +163,10 @@ class _RailShell extends ConsumerWidget {
         children: [
           Row(
             children: [
-              ModeRail(mode: mode),
+              SizedBox(
+                width: kModeRailWidth,
+                child: ModeRail(mode: mode),
+              ),
               const VerticalDivider(width: 1),
               Expanded(child: child),
             ],
@@ -224,14 +227,10 @@ class _CollapsedSidebar extends ConsumerWidget {
       color: Theme.of(context).colorScheme.surfaceContainerLow,
       child: Column(
         children: [
-          // Logo icon
+          // 视图模式切换（AI / 开发者 / 插件）——插件视图切回的入口
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            child: Icon(
-              Icons.eco,
-              color: Theme.of(context).colorScheme.primary,
-              size: 24,
-            ),
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: ModeSwitchButton(mode: AppMode.plugins),
           ),
           const Divider(),
           // 模块导航（图标）
@@ -403,8 +402,15 @@ class _DrawerHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.eco,
-              color: Theme.of(context).colorScheme.primary, size: 28),
+          // 视图模式切换（AI / 开发者 / 插件）——插件视图切回的入口
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Icon(Icons.eco,
+                  color: Theme.of(context).colorScheme.primary, size: 28),
+              const ModeSwitchButton(mode: AppMode.plugins),
+            ],
+          ),
           const SizedBox(height: 8),
           Text('Evergreen 多工具集成版',
               style: Theme.of(context)
@@ -484,14 +490,22 @@ class _ExpandedSidebar extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Evergreen',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleMedium
-                            ?.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: Theme.of(context).colorScheme.primary),
+                      // 视图模式切换（AI / 开发者 / 插件）——插件视图切回的入口
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Evergreen',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color:
+                                        Theme.of(context).colorScheme.primary),
+                          ),
+                          const ModeSwitchButton(mode: AppMode.plugins),
+                        ],
                       ),
                       const SizedBox(height: 2),
                       Text(

@@ -67,7 +67,7 @@ class DevModeHub extends ConsumerWidget {
     }
 
     return IndexedStack(
-      index: selected.clamp(0, pages.length - 1).toInt(),
+      index: (selected ?? 0).clamp(0, pages.length - 1).toInt(),
       children: pages,
     );
   }

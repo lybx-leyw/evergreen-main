@@ -17,11 +17,14 @@ import 'dart:math' as math;
 
 import 'package:flutter/animation.dart'
     show AnimationController, CurvedAnimation, Curves, Interval, Tween;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:evergreen_base/core/module/module_registry.dart';
 import 'package:evergreen_base/providers.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/marketplace/plugin_state_provider.dart';
 import 'app_mode.dart';
 
 /// 窄轨宽度（与旧 collapsed 侧栏一致）。
@@ -72,7 +75,7 @@ const List<String> _devPluginNames = ['主题创作', '插件制作', '数据爬
 const List<IconData> _devPluginIcons = [
   Icons.palette_outlined,
   Icons.code,
-  Icons.web_traffic,
+  Icons.public,
 ];
 
 // ═══════ ModeRail ═══════
@@ -95,7 +98,7 @@ class ModeRail extends ConsumerWidget {
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              child: _ModeSwitchButton(mode: mode),
+              child: ModeSwitchButton(mode: mode),
             ),
             const Divider(),
             Expanded(
@@ -253,15 +256,18 @@ class _RailButton extends StatelessWidget {
 // ═══════ 扇形模式切换菜单 ═══════
 
 /// 顶部视图图标按钮——点击弹出扇形三选项菜单。
-class _ModeSwitchButton extends ConsumerStatefulWidget {
+///
+/// 公开供壳层（app_shell）复用：插件视图的侧栏/抽屉顶部也放一个，
+/// 否则进入插件视图后无法切回 AI 视图 / 开发者模式（单向门）。
+class ModeSwitchButton extends ConsumerStatefulWidget {
   final AppMode mode;
-  const _ModeSwitchButton({required this.mode});
+  const ModeSwitchButton({super.key, required this.mode});
 
   @override
-  ConsumerState<_ModeSwitchButton> createState() => _ModeSwitchButtonState();
+  ConsumerState<ModeSwitchButton> createState() => _ModeSwitchButtonState();
 }
 
-class _ModeSwitchButtonState extends ConsumerState<_ModeSwitchButton> {
+class _ModeSwitchButtonState extends ConsumerState<ModeSwitchButton> {
   OverlayEntry? _overlay;
 
   @override
@@ -289,6 +295,14 @@ class _ModeSwitchButtonState extends ConsumerState<_ModeSwitchButton> {
         onSelect: (m) {
           _close();
           setAppMode(ref, m);
+          // 切模式后导航到目标模式的默认视图，避免壳层变了但主内容区仍停在旧路由。
+          final registry = ref.read(moduleRegistryProvider);
+          final target = defaultRouteForMode(
+            mode: m,
+            registry: registry,
+            pluginStates: ref.read(pluginStateProvider),
+          );
+          if (target != null) context.go(target);
         },
       ),
     );

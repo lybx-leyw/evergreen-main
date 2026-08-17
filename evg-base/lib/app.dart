@@ -13,10 +13,13 @@ library;
 import 'package:evergreen_base/core/feedback/screenshot.dart';
 import 'package:evergreen_base/core/module/module_registry.dart';
 import 'package:evergreen_base/providers.dart';
+import 'package:evergreen_base/renderer/app/app_mode.dart';
 import 'package:evergreen_base/renderer/app/app_shell.dart';
 import 'package:evergreen_base/renderer/app/command_palette.dart';
+import 'package:evergreen_base/renderer/app/dev_mode_hub.dart';
 import 'package:evergreen_base/renderer/app/service/providers/renderer_providers.dart';
 import 'package:evergreen_base/renderer/app/service/theme/theme_provider.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/marketplace/plugin_state_provider.dart';
 import 'package:evergreen_base/renderer/module/module_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -145,6 +148,20 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/',
+    // '/' 按模式重定向到默认视图（AI → /ai-assistant，开发者 → /dev-hub，
+    // 插件 → 第一个可见插件）。深层链接（模块路由/命令面板）不受影响。
+    redirect: (context, state) {
+      final loc = state.matchedLocation;
+      if (loc != '/') return null;
+      final mode = ref.read(appModeProvider);
+      final pluginStates = ref.read(pluginStateProvider);
+      final target = defaultRouteForMode(
+        mode: mode,
+        registry: registry,
+        pluginStates: pluginStates,
+      );
+      return target == null || target == '/' ? null : target;
+    },
     routes: [
       ShellRoute(
         navigatorKey: _shellNavigatorKey,
@@ -155,6 +172,14 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/',
             pageBuilder: (context, state) => _fadePage(
               const _HomePlaceholder(),
+              state,
+            ),
+          ),
+          // 开发者模式主区（三插件 IndexedStack + 深链 ?plugin=）
+          GoRoute(
+            path: '/dev-hub',
+            pageBuilder: (context, state) => _fadePage(
+              const DevModeHub(),
               state,
             ),
           ),

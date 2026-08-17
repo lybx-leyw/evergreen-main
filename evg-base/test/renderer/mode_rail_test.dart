@@ -143,8 +143,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(container.read(appModeProvider), AppMode.developer);
-    // 切到开发者模式后窄轨出现开发者入口
-    expect(find.byTooltip('主题创作'), findsOneWidget);
+    // 切模式后导航到目标默认视图（开发者 → /dev-hub）。
+    expect(find.text('PAGE-devhub'), findsOneWidget);
+    // 注：窄轨随 mode 重建由壳层 app_shell 负责（watch appModeProvider 后
+    // 把 mode 传入 ModeRail 构造参数）；本用例只断言 provider 值 + 导航结果。
   });
 
   testWidgets('安卓：开发者模式点数据爬取 → 提示仅 Windows 版，不导航', (tester) async {
@@ -157,6 +159,8 @@ void main() {
 
     expect(find.text('数据爬取仅支持 Windows 版'), findsOneWidget);
     expect(find.text('PAGE-devhub'), findsNothing);
+    // body 末尾还原，避免 _verifyInvariants 检出 debug 变量泄漏。
+    debugDefaultTargetPlatformOverride = null;
   });
 
   testWidgets('插件未安装：对应开发者入口隐藏', (tester) async {

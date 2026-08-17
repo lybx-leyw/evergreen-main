@@ -662,12 +662,11 @@ class BoardContainerViewState extends State<BoardContainerView> {
               ),
             ),
             // 绑定源计数
-            final boundCount = _boundSourcesOf(board.id).length;
-            if (boundCount > 0)
+            if (_boundSourcesOf(board.id).isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(right: 4),
                 child: Text(
-                  '$boundCount',
+                  '${_boundSourcesOf(board.id).length}',
                   style: TextStyle(
                     fontSize: 10,
                     color: theme.colorScheme.outline,
