@@ -45,7 +45,7 @@ void main() {
       'nested': {'deep': {'key.with.dot': true}},
     };
 
-    test('$.data[0].courseName → 命中', () {
+    test('resolve \$.data[0].courseName', () {
       final r = resolveJsonPath(root, r'$.data[0].courseName');
       expect(r.found, isTrue);
       expect(r.first, '高数');
@@ -127,7 +127,7 @@ void main() {
     });
 
     test('url 无任何日志匹配 → 硬阻断', () {
-      final r = validateDataSourceEvidence(_source(), [
+      final r = validateDataSourceEvidence(_source(sourceLogId: null), [
         _log('log-1', 'https://site.com/other/path'),
       ]);
       expect(r.hardBlocked, isTrue);
@@ -144,7 +144,7 @@ void main() {
     });
 
     test('非 GET 日志不能作为证据', () {
-      final r = validateDataSourceEvidence(_source(), [
+      final r = validateDataSourceEvidence(_source(sourceLogId: null), [
         HttpRequestLog(timestamp: DateTime.now(), method: 'POST', url: 'https://site.com/api/courses', id: 'log-1'),
       ]);
       expect(r.hardBlocked, isTrue);

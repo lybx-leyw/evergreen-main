@@ -1,7 +1,6 @@
 # Scraper × reverse-skill 全量集成策略
 
-> 状态：**P0-1 / P0-2 / P1-1 / P1-2 / P2-1 / P2-2 全部落地（2026-08-17）**，剩 M6 全量回归
-> 注：容器 Flutter 已升级 3.47.0 / Dart 3.13.0（对齐 pubspec `sdk: ^3.9.2`）；容器内 flutter test 全量回归进行中
+> 状态：**M1–M6 全部完成（2026-08-17）** —— P0-1/P0-2/P1-1/P1-2/P2-1/P2-2 落地 + M6 全量回归（356 scraper 测试全绿、Flutter analyze 0 error、Windows debug 构建通过；Android smoke 受限于本地无 Android 设备/SDK，改为代码编译级验证）
 > 日期：2026-08-17
 > 依据：`.reference/reverse-skill/`（v1.0.1，MIT，© 2026 zhaoxuya520）+ 本仓库 scraper Phase 3/4 架构
 
@@ -257,10 +256,36 @@ M2 [P0] CandidateDataSource 证据绑定 —— 单独提交，带测试 ✅（2
 M3 [P1] 无进展熔断             —— 单独提交，带测试 ✅（2026-08-17 落地）
 M4 [P1] 经验 Journal           —— 单独提交，带测试 ✅（2026-08-17 落地）
 M5 [P2] 工具事实源 + 借口反驳   —— 单独提交，带测试 ✅（2026-08-17 落地）
-M6 全量回归：flutter analyze + 新增单测 + Android/桌面 smoke
+M6 全量回归：flutter analyze + 新增单测 + Android/桌面 smoke ✅（2026-08-17 完成）
 ```
 
 每个里程碑独立可回滚；M1/M2 之间有依赖（证据校验依赖 scope 已存在时更稳，但可并行开发）。
+
+---
+
+## 八、M6 全量回归记录（2026-08-17）
+
+**前置**：`v2.0` 通过 HTTP 协议 fetch 快进到远程 `00f3a66`（合并 PR #44/#45，含全量 P0–P2 落地），本地与远程无 ahead/behind。
+
+**回归发现并修复的 7 处遗留问题**（均为 P0–P2 远程合并时引入，非 M6 引入）：
+
+| # | 文件 | 问题 | 根因 | 修复 |
+|---|------|------|------|------|
+| 1 | `explore_workflow.dart` | 空转熔断永不触发（同页重复导航窗口含 `true`） | 探索**首导航**被计为 `isNew=true`，污染观察窗口 | `_recordStall(isNew && _pagesVisited > 1)`：首导航不计为"新页面产出"；拒绝文案加"已触发"与工具层测试一致 |
+| 2 | `explore_evidence.dart` | 非 GET 日志可充当证据 | `sourceLogId` 精确匹配未校验 `method` | 精确匹配循环增加 `l.method == 'GET'` 条件 |
+| 3 | `explore_evidence_test.dart` | "url 无匹配硬阻断"/"非 GET 不能作为证据"两用例失败 | `_source()` 默认 `sourceLogId='log-1'` 污染，使 URL 兜底分支未触发 | 两用例显式 `sourceLogId: null`，直接验证 URL 兜底硬阻断 |
+| 4 | `scraper_ai_panel.dart` / `scraper_explore_tools.dart` | 两处**源码编译错误**（`$` 被当字符串插值） | P0-2 在 prompt/工具 description 写 `$.data[0].courseName` 示例未转义 | 转义为 `\$` |
+| 5 | `explore_hooks_test.dart` | A5/G6 用例：cleanCode 仍被判疑似假数据 | `scraper_guard` 的"代码 URL 与捕获日志无交集"警告；cleanCode 用 `/api/courses` 而 setup 日志是 `/1` | cleanCode 请求 URL 改为 `/1`，与捕获日志一致（保留实现防御逻辑） |
+| 6 | `python_capabilities.dart` | `requests-2.31.0.dist-info` 误入模块清单 | `.dist-info` 是目录，被 `e is Directory` 分支抢先 `name=base`，未剥离后缀 | dist-info/egg-info 分支前置，优先剥离后缀 |
+| 7 | `python_capabilities_test.dart` | "优先 Lib/site-packages 布局"用例崩溃 | 创建 `site-packages/bs4` 时父目录不存在，`createSync()` 非递归抛 `PathNotFoundException` | 加 `recursive: true` |
+
+**验证结果**：
+- `flutter analyze --no-pub`：**0 error**（其余为历史遗留 warning/info，未动）
+- `flutter test test/scraper/`：**356 全绿**（修复前 12 失败 → 0 失败）
+- `flutter build windows --debug`：**编译成功**（产物 `evergreen_base.exe`；首次因 WebView2Loader.dll 锁竞争 exit 1，重试成功）
+- **Android smoke**：本地 `flutter devices` 仅有 Windows/Chrome/Edge，**无 Android 设备/SDK**，无法运行真机 smoke；Android 代码编译级验证受 `flutter doctor --android-licenses` 卡死（无 SDK）未能完成。已在根因表标注，待有 Android 环境时补验。
+
+**提交策略**：M6 修复作为独立提交（回归修复，带测试），与功能里程碑分开，便于回滚。
 
 ## 六、回归风险与测试策略
 

@@ -306,7 +306,7 @@ class PresentDataSourcesTool extends SimpleTool {
               'sourceLogId: 该 url 来源日志的证据 id（list_captured_requests '
               '返回的 log-N，必填）, '
               'fields: [{name,type,description,sourceJsonPath: 响应 JSON 字段路径}'
-              '如 $.data[0].courseName]}。'
+              '如 \$.data[0].courseName]}。'
               'url 无捕获日志证据的源会被守卫拒绝（[error: 无日志证据]）。'
               '调用后弹出多选框（用户可勾选并改名）；返回用户确认选择的数据源'
               'JSON 数组（以用户改名为准）。用户取消时返回提示，请重新归类或询问用户。',

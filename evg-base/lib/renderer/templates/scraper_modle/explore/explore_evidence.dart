@@ -248,7 +248,8 @@ EvidenceCheckResult validateDataSourceEvidence(
   final ref = source.sourceLogId;
   if (ref != null && ref.isNotEmpty) {
     for (final l in logs) {
-      if (l.id.isNotEmpty && sameLogRef(l.id, ref)) {
+      // 证据必须来自 GET 请求（与 URL 兜底一致：非 GET 日志不能作为证据）
+      if (l.method == 'GET' && l.id.isNotEmpty && sameLogRef(l.id, ref)) {
         matched = l;
         break;
       }

@@ -47,7 +47,7 @@ void main() {
     test('优先 Windows 嵌入版 Lib/site-packages 布局', () {
       makeSitePackages('Lib/site-packages');
       Directory('${tmp.path}/Lib/site-packages/requests').createSync();
-      Directory('${tmp.path}/site-packages/bs4').createSync(); // 不应被扫描到
+      Directory('${tmp.path}/site-packages/bs4').createSync(recursive: true); // 不应被扫描到
 
       final out = scanPythonSitePackages(tmp.path);
       expect(out, ['requests']);

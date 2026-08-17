@@ -48,14 +48,16 @@ List<String> scanPythonSitePackages(String pythonDir) {
         final base = p.basename(e.path);
         if (base.startsWith('.') || base.startsWith('_')) continue;
         String? name;
-        if (e is Directory) {
-          name = base;
-        } else if (e is File && base.endsWith('.py')) {
-          name = base.substring(0, base.length - 3);
-        } else if (base.endsWith('.dist-info') ||
+        // 元数据目录（dist-info/egg-info/egg-link）优先剥离后缀：
+        // 它们是目录，须先于 `e is Directory` 分支处理，否则会原样计入清单。
+        if (base.endsWith('.dist-info') ||
             base.endsWith('.egg-info') ||
             base.endsWith('.egg-link')) {
           name = base.split('-').first;
+        } else if (e is Directory) {
+          name = base;
+        } else if (e is File && base.endsWith('.py')) {
+          name = base.substring(0, base.length - 3);
         }
         if (name == null || name.isEmpty) continue;
         if (blockedTopLevelModules.contains(name.toLowerCase())) continue;

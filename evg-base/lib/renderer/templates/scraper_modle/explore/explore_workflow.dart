@@ -535,7 +535,7 @@ class ExploreWorkflow {
     // P1-1 空转熔断：已触发期间重复访问已探索页面 → 拒绝（AI 无法继续空转）；
     // 访问新页面自动恢复（换策略出口）。
     if (_stallDetected && !isNew) {
-      return '空转熔断：$_stallMessage。请切换策略（换入口链接 / 结束探索进入归类）';
+      return '空转熔断已触发：$_stallMessage。请切换策略（换入口链接 / 结束探索进入归类）';
     }
 
     if (isNew && _visitedUrls.length >= limits.maxPages) {
@@ -546,7 +546,10 @@ class ExploreWorkflow {
     if (isNew) _visitedUrls.add(key);
     _pagesVisited++;
     _lastNavigateAt = now;
-    _recordStall(isNew);
+    // P1-1 空转熔断：探索首导航（pagesVisited 由 0→1）视为探索起点本身，
+    // 不计入"新页面产出"，否则连续访问同页时首导航的 isNew=true 会污染
+    // 观察窗口导致熔断永不触发（测试期望"连续 N 次访问同页"全算无新页面）。
+    _recordStall(isNew && _pagesVisited > 1);
     recordRequest();
     _notify();
     return null;
