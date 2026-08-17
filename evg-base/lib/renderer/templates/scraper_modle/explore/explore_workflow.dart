@@ -209,7 +209,11 @@ bool exploreToolAllowedForPhase(String toolName, ExplorePhase phase) {
     case ExplorePhase.idle:
       return false;
     case ExplorePhase.exploring:
-      return toolName == 'explore_page_links' || toolName == 'navigate_get';
+      // present_data_sources 在 exploring 也放行：工具内部会先 startCategorizing()
+      // 再 presentCandidates，让 AI 触达上限后能从 exploring 自然切换到归类/确认。
+      return toolName == 'explore_page_links' ||
+          toolName == 'navigate_get' ||
+          toolName == 'present_data_sources';
     case ExplorePhase.categorizing:
     case ExplorePhase.confirming:
       return toolName == 'present_data_sources';

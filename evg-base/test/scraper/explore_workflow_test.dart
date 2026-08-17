@@ -213,7 +213,8 @@ void main() {
       // exploring：枚举/导航
       expect(exploreToolAllowedForPhase('explore_page_links', ExplorePhase.exploring), isTrue);
       expect(exploreToolAllowedForPhase('navigate_get', ExplorePhase.exploring), isTrue);
-      expect(exploreToolAllowedForPhase('present_data_sources', ExplorePhase.exploring), isFalse);
+      // present_data_sources 在 exploring 也放行，由工具内部切到 categorizing
+      expect(exploreToolAllowedForPhase('present_data_sources', ExplorePhase.exploring), isTrue);
       // categorizing/confirming：仅 present
       expect(exploreToolAllowedForPhase('present_data_sources', ExplorePhase.categorizing), isTrue);
       expect(exploreToolAllowedForPhase('present_data_sources', ExplorePhase.confirming), isTrue);
