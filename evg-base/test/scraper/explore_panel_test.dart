@@ -144,5 +144,35 @@ void main() {
       await tester.pumpAndSettle();
       expect(result, isEmpty);
     });
+
+    testWidgets('P0-2：证据徽标展示来源日志与字段路径', (tester) async {
+      const withEvidence = [
+        CandidateDataSource(
+          name: 'courses',
+          displayName: '课程列表',
+          category: '课程',
+          url: 'https://site.com/api/courses',
+          sourceLogId: 'log-7',
+          fields: [
+            CandidateField(
+              name: 'id',
+              type: 'number',
+              sourceJsonPath: r'$.data[0].id',
+            ),
+          ],
+        ),
+      ];
+      await tester.pumpWidget(_wrap(Builder(
+        builder: (ctx) => TextButton(
+          onPressed: () => showExploreSourcePicker(ctx, withEvidence),
+          child: const Text('open'),
+        ),
+      )));
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('📋 log-7'), findsOneWidget);
+      expect(find.textContaining(r'id → $.data[0].id'), findsOneWidget);
+    });
   });
 }

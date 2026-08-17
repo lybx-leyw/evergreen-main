@@ -49,12 +49,26 @@ class CandidateField {
   final String type; // string / number / boolean / date
   final String? description;
 
-  const CandidateField({required this.name, required this.type, this.description});
+  /// 证据（P0-2）：来源请求日志 id（list_captured_requests 返回的证据 id）。
+  final String? sourceLogId;
+
+  /// 证据（P0-2）：响应 JSON 字段路径（如 `$.data[0].courseName`）。
+  final String? sourceJsonPath;
+
+  const CandidateField({
+    required this.name,
+    required this.type,
+    this.description,
+    this.sourceLogId,
+    this.sourceJsonPath,
+  });
 
   factory CandidateField.fromJson(Map<String, dynamic> json) => CandidateField(
         name: (json['name'] as String? ?? '').trim(),
         type: json['type'] as String? ?? 'string',
         description: json['description'] as String?,
+        sourceLogId: _trimToNull(json['sourceLogId'] as String?),
+        sourceJsonPath: _trimToNull(json['sourceJsonPath'] as String?),
       );
 
   Map<String, dynamic> toJson() => {
@@ -62,7 +76,15 @@ class CandidateField {
         'type': type,
         if (description != null && description!.isNotEmpty)
           'description': description,
+        if (sourceLogId != null) 'sourceLogId': sourceLogId,
+        if (sourceJsonPath != null) 'sourceJsonPath': sourceJsonPath,
       };
+}
+
+/// 空串归一为 null（证据字段可选：缺省/空串等价于未提供）。
+String? _trimToNull(String? s) {
+  final t = (s ?? '').trim();
+  return t.isEmpty ? null : t;
 }
 
 /// 候选数据源（D3 归类产物；D4 用户多选；D8 每源一个 data-{name}）。
@@ -76,6 +98,9 @@ class CandidateDataSource {
   final String method; // 恒 'GET'（D2）
   final List<CandidateField> fields;
 
+  /// 证据（P0-2）：url 对应的请求日志 id（list_captured_requests 返回的证据 id）。
+  final String? sourceLogId;
+
   const CandidateDataSource({
     required this.name,
     required this.displayName,
@@ -83,8 +108,10 @@ class CandidateDataSource {
     required this.url,
     this.method = 'GET',
     this.fields = const [],
+    this.sourceLogId,
   });
 
+  /// ⚠️ 改名复制时必须携带证据字段（用户在弹窗中改名后证据不丢失）。
   CandidateDataSource copyWith({String? name, String? displayName}) =>
       CandidateDataSource(
         name: name ?? this.name,
@@ -93,6 +120,7 @@ class CandidateDataSource {
         url: url,
         method: method,
         fields: fields,
+        sourceLogId: sourceLogId,
       );
 
   /// 从 AI 给出的 JSON 解析（容错：method 强制 GET；字段过滤非法项）。
@@ -108,6 +136,7 @@ class CandidateDataSource {
             .map(CandidateField.fromJson)
             .where((f) => f.name.isNotEmpty)
             .toList(),
+        sourceLogId: _trimToNull(json['sourceLogId'] as String?),
       );
 
   Map<String, dynamic> toJson() => {
@@ -117,6 +146,7 @@ class CandidateDataSource {
         'url': url,
         'method': method,
         'fields': fields.map((f) => f.toJson()).toList(),
+        if (sourceLogId != null) 'sourceLogId': sourceLogId,
       };
 }
 

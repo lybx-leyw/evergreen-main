@@ -56,6 +56,12 @@ ScraperHooks makeHooks({ExplorePhase phase = ExplorePhase.exploring}) {
   final capture = ScraperWorkflow();
   final ew = ExploreWorkflow();
   ew.startExploring(startUrl: 'https://site.com/');
+  // P0-2：捕获一条与候选源 url 匹配的日志（证据终闸放行依据）
+  capture.addLog(HttpRequestLog(
+    timestamp: DateTime.now(),
+    method: 'GET',
+    url: 'https://site.com/1',
+  ));
   // 把 ew 推到目标阶段
   if (phase != ExplorePhase.exploring) {
     ew.startCategorizing();
@@ -169,6 +175,27 @@ void main() {
       await h.preToolUse('build_selected_source', {'code': cleanCode});
       final (ok, _) = await h.preToolUse('register_batch', {'names': '["x"]'});
       expect(ok, isFalse);
+    });
+
+    test('P0-2：确认源无捕获日志证据 → register_batch 被证据终闸拦截', () async {
+      final capture = ScraperWorkflow(); // 无任何日志
+      final ew = ExploreWorkflow();
+      ew.startExploring(startUrl: 'https://site.com/');
+      ew.startCategorizing();
+      const src = CandidateDataSource(
+        name: 'ghost',
+        displayName: '幽灵',
+        category: '',
+        url: 'https://site.com/api/ghost',
+        sourceLogId: 'log-99',
+      );
+      ew.presentCandidates(const [src]);
+      ew.confirmSelection(const [src]);
+      final h = ScraperHooks(workflow: capture, exploreWorkflow: ew);
+
+      final (block, msg) = await h.preToolUse('register_batch', {'names': '["ghost"]'});
+      expect(block, isTrue);
+      expect(msg, contains('无捕获日志证据'));
     });
   });
 

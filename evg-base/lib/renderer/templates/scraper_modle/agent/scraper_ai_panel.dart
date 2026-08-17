@@ -1128,7 +1128,10 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
 Step 1 探索：explore_page_links() 枚举当前页链接；navigate_get(url) 逐页访问疑似
 数据接口（仅 GET、同域、注意 1s 节流与页数上限）；list_captured_requests() 阅读
 捕获的 GET 请求与响应体样本。直到无新链接或触达上限。
-Step 2 归类：把 GET 数据接口细粒度归类为候选数据源 JSON。
+Step 2 归类：把 GET 数据接口细粒度归类为候选数据源 JSON。每个候选源必须附
+sourceLogId（list_captured_requests 返回的证据 id，如 log-3），每个字段必须附
+sourceJsonPath（对应响应 JSON 中的真实路径，如 $.data[0].courseName）。
+url 无捕获日志证据的源会被守卫拒绝，禁止臆造字段或路径。
 Step 3 确认：调用 present_data_sources(sources) 弹出多选框让用户勾选（可改名）。
 Step 4 构建：对每个确认的数据源调用 build_selected_source(name, code)。
 Step 5 注册：全部构建完成后调用 register_batch(names) 批量注册并验证。

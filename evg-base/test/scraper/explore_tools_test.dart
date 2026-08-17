@@ -121,21 +121,37 @@ void main() {
       expect(out, isNot(contains('api/login')));
       expect(out, isNot(contains('NAVIGATION')));
       expect(out, isNot(contains('b.com')));
+      // P0-2：每条 GET 摘要带证据 id（addLog 自动补号：GET api/list 是 log-1）
+      expect(out, contains('证据 id: log-1'));
     });
   });
 
-  group('PresentDataSourcesTool（归类 → 多选确认）', () {
-    ExploreWorkflow readyWorkflow() {
+  group('PresentDataSourcesTool（归类 → 多选确认 + P0-2 证据校验）', () {
+    /// 捕获工作流 + 常见 URL 日志（P0-2 证据校验需要 url 命中日志）。
+    (ExploreWorkflow, ScraperWorkflow) readyWorkflow() {
       final w = ExploreWorkflow();
       w.startExploring(startUrl: 'https://site.com/');
       w.startCategorizing();
-      return w;
+      final capture = ScraperWorkflow();
+      capture.addLog(HttpRequestLog(
+        timestamp: DateTime.now(),
+        method: 'GET',
+        url: 'https://site.com/api/courses',
+        responseBody: '{"data": [{"id": 1}]}',
+      ));
+      capture.addLog(HttpRequestLog(
+        timestamp: DateTime.now(),
+        method: 'GET',
+        url: 'https://site.com/1',
+      ));
+      return (w, capture);
     }
 
     test('候选校验通过 → 用户选择（含改名）→ confirming → building', () async {
-      final w = readyWorkflow();
+      final (w, capture) = readyWorkflow();
       final tool = PresentDataSourcesTool(
         exploreWorkflow: w,
+        captureWorkflow: capture,
         presentSources: (cands) async => [
           cands.first.copyWith(name: 'renamed'),
         ],
@@ -146,8 +162,9 @@ void main() {
           'displayName': '课程',
           'category': '课程',
           'url': 'https://site.com/api/courses',
+          'sourceLogId': 'log-1',
           'fields': [
-            {'name': 'id', 'type': 'number'},
+            {'name': 'id', 'type': 'number', 'sourceJsonPath': r'$.data[0].id'},
           ],
         },
       ]);
@@ -156,12 +173,15 @@ void main() {
       expect(out, contains('renamed'));
       expect(w.phase, ExplorePhase.building);
       expect(w.selected.single.name, 'renamed');
+      // 改名后证据保留（copyWith 携带 sourceLogId）
+      expect(w.selected.single.sourceLogId, 'log-1');
     });
 
     test('名称非法 → 拒绝并提示', () async {
-      final w = readyWorkflow();
+      final (w, capture) = readyWorkflow();
       final tool = PresentDataSourcesTool(
         exploreWorkflow: w,
+        captureWorkflow: capture,
         presentSources: (cands) async => cands,
       );
       final out = await tool.execute({
@@ -173,9 +193,10 @@ void main() {
     });
 
     test('URL 跨域 → 拒绝', () async {
-      final w = readyWorkflow();
+      final (w, capture) = readyWorkflow();
       final tool = PresentDataSourcesTool(
         exploreWorkflow: w,
+        captureWorkflow: capture,
         presentSources: (cands) async => cands,
       );
       final out = await tool.execute({
@@ -187,18 +208,52 @@ void main() {
     });
 
     test('用户未选择 → 提示重新归类', () async {
-      final w = readyWorkflow();
+      final (w, capture) = readyWorkflow();
       final tool = PresentDataSourcesTool(
         exploreWorkflow: w,
+        captureWorkflow: capture,
         presentSources: (cands) async => const [],
       );
       final out = await tool.execute({
         'sources': jsonEncode([
-          {'name': 'x', 'displayName': 'x', 'category': '', 'url': 'https://site.com/1'},
+          {'name': 'x', 'displayName': 'x', 'category': '', 'url': 'https://site.com/1', 'sourceLogId': 'log-2'},
         ]),
       });
       expect(out, contains('用户未选择任何数据源'));
       expect(w.phase, ExplorePhase.confirming);
+    });
+
+    test('P0-2：url 无日志证据 → 拒绝呈现，不进入用户确认', () async {
+      final (w, capture) = readyWorkflow();
+      final tool = PresentDataSourcesTool(
+        exploreWorkflow: w,
+        captureWorkflow: capture,
+        presentSources: (cands) async => fail('不应弹窗'),
+      );
+      final out = await tool.execute({
+        'sources': jsonEncode([
+          {'name': 'ghost', 'displayName': '幽灵', 'category': '', 'url': 'https://site.com/api/ghost', 'sourceLogId': 'log-99'},
+        ]),
+      });
+      expect(out, contains('[error: 数据源 ghost 无日志证据'));
+      expect(w.phase, ExplorePhase.categorizing); // 未进入 confirming
+    });
+
+    test('P0-2：sourceLogId 失效按 URL 兜底 + 警告回灌', () async {
+      final (w, capture) = readyWorkflow();
+      final tool = PresentDataSourcesTool(
+        exploreWorkflow: w,
+        captureWorkflow: capture,
+        presentSources: (cands) async => cands,
+      );
+      final out = await tool.execute({
+        'sources': jsonEncode([
+          {'name': 'courses', 'displayName': 'x', 'category': '', 'url': 'https://site.com/api/courses', 'sourceLogId': 'log-404'},
+        ]),
+      });
+      expect(out, contains('✅ 用户已确认'));
+      expect(out, contains('证据警告'));
+      expect(out, contains('兜底'));
     });
   });
 
@@ -244,6 +299,97 @@ void main() {
       final tool = RegisterBatchTool(registerBatch: (names) async => 'x');
       final out = await tool.execute({'names': '["ok","bad name"]'});
       expect(out, contains('[error: 数据源名称非法'));
+    });
+
+    // ── P0-2 证据终闸（注入 exploreWorkflow/captureWorkflow 时生效）──
+
+    (ExploreWorkflow, ScraperWorkflow) confirmedWorkflow() {
+      final ew = ExploreWorkflow();
+      ew.startExploring(startUrl: 'https://site.com/');
+      ew.startCategorizing();
+      const src = CandidateDataSource(
+        name: 'courses',
+        displayName: '课程',
+        category: '课程',
+        url: 'https://site.com/api/courses',
+        sourceLogId: 'log-1',
+      );
+      ew.presentCandidates(const [src]);
+      ew.confirmSelection(const [src]);
+      final capture = ScraperWorkflow();
+      capture.addLog(HttpRequestLog(
+        timestamp: DateTime.now(),
+        method: 'GET',
+        url: 'https://site.com/api/courses',
+      ));
+      return (ew, capture);
+    }
+
+    test('P0-2 register：确认清单外 name → 拒绝', () async {
+      final (ew, capture) = confirmedWorkflow();
+      final tool = RegisterBatchTool(
+        registerBatch: (names) async => 'x',
+        exploreWorkflow: ew,
+        captureWorkflow: capture,
+      );
+      final out = await tool.execute({'names': '["ghost"]'});
+      expect(out, contains('[error: 数据源 ghost 不在用户确认清单中'));
+    });
+
+    test('P0-2 register：确认源无日志证据 → 拒绝注册（回调不被调用）', () async {
+      final ew = ExploreWorkflow();
+      ew.startExploring(startUrl: 'https://site.com/');
+      ew.startCategorizing();
+      const src = CandidateDataSource(
+        name: 'courses',
+        displayName: '课程',
+        category: '课程',
+        url: 'https://site.com/api/ghost',
+        sourceLogId: 'log-99',
+      );
+      ew.presentCandidates(const [src]);
+      ew.confirmSelection(const [src]);
+      final capture = ScraperWorkflow();
+      var called = false;
+      final tool = RegisterBatchTool(
+        registerBatch: (names) async {
+          called = true;
+          return 'x';
+        },
+        exploreWorkflow: ew,
+        captureWorkflow: capture,
+      );
+      final out = await tool.execute({'names': '["courses"]'});
+      expect(out, contains('[error: 数据源 courses 无日志证据'));
+      expect(called, isFalse);
+    });
+
+    test('P0-2 register：有证据 → 放行 + 警告透传', () async {
+      final (ew, capture) = confirmedWorkflow();
+      final tool = RegisterBatchTool(
+        registerBatch: (names) async => '✅ 全部注册',
+        exploreWorkflow: ew,
+        captureWorkflow: capture,
+      );
+      final out = await tool.execute({'names': '["courses"]'});
+      expect(out, contains('✅ 全部注册'));
+    });
+
+    test('P0-2 build：证据问题仅警告透传，构建回调仍被调用', () async {
+      final (ew, capture) = confirmedWorkflow();
+      var built = false;
+      final tool = BuildSelectedSourceTool(
+        buildSource: (name, code) async {
+          built = true;
+          return '✅ 构建成功';
+        },
+        exploreWorkflow: ew,
+        captureWorkflow: capture,
+      );
+      final out = await tool.execute({'name': 'courses', 'code': 'print(1)'});
+      expect(out, contains('📁 **data-courses**'));
+      expect(out, contains('构建成功'));
+      expect(built, isTrue);
     });
   });
 }

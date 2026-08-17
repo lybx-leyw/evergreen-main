@@ -421,8 +421,9 @@ const String scraperExploreSkillBody = r'''
 ```
 工具: explore_page_links()          — 枚举当前页面所有 http(s) 链接（url + 文本）
 工具: navigate_get(url)             — 唯一导航通道：纯 GET（同域/20 页/50 请求/1s 节流守卫）
-工具: list_captured_requests()      — 读取捕获日志中的 GET 请求（POST 一律被过滤）
+工具: list_captured_requests()      — 读取捕获日志中的 GET 请求（每条带证据 id: log-N）
 工具: present_data_sources(sources) — 呈现归类候选 → 用户多选（可改名）→ 返回确认结果
+                                      （每个源必须附 sourceLogId 证据，无证据被守卫拒绝）
 工具: build_selected_source(name, code) — 逐源构建 data-{name} 插件（scraper.py + manifest + config）
 工具: register_batch(names)         — 批量热注册 + orch.get 拉取验证，返回完整日志
 工具: read_workspace_file(path)     — 读取工作区文件（≤50KB；禁止用 python 读文件）
@@ -475,16 +476,25 @@ read_request_snapshot / read_existing_credential。
   "name": "courseList",          // 英文标识：字母开头，仅字母/数字/_/-，≤32
   "displayName": "课程列表",      // 展示名
   "category": "课程",            // 细粒度归类
-  "url": "https://site.com/api/courses?page=1",
+  "url": "https://site.com/api/courses",
+  "sourceLogId": "log-7",        // 证据（必填）：该 url 来源日志的证据 id
   "fields": [
-    {"name": "courseId", "type": "number", "description": "课程ID"},
-    {"name": "courseName", "type": "string", "description": "课程名"}
+    {"name": "courseId", "type": "number", "description": "课程ID",
+     "sourceJsonPath": "$.data[0].courseId"},
+    {"name": "courseName", "type": "string", "description": "课程名",
+     "sourceJsonPath": "$.data[0].courseName"}
   ]
 }
 ```
 
 归类要求：按**数据域**细分（列表/详情/统计…各自独立候选）；同域内 URL 结构相近的
 合并为一个候选（分页参数归一到不带 page 的形式）；字段从响应体样本推断。
+
+**证据红线（P0-2）**：每个候选源的 `sourceLogId` 必须引用
+`list_captured_requests()` 返回的**证据 id**（log-N）；每个字段必须附
+`sourceJsonPath`（响应 JSON 中的真实路径，如 `$.data[0].courseName`）。
+url 无任何捕获日志匹配的源会被守卫**拒绝呈现**（[error: 无日志证据]）；
+字段路径解析失败只警告不阻断，但请优先修正。禁止臆造字段或路径。
 
 ### Step 3：用户确认（confirming）
 

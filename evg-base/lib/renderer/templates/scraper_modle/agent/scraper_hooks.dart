@@ -15,6 +15,7 @@ library scraper_hooks;
 import 'package:evergreen_base/core/agent/agent.dart' as agent;
 import 'package:evergreen_base/renderer/components/shared/trace/agent_trace_recorder.dart';
 
+import '../explore/explore_evidence.dart';
 import '../explore/explore_workflow.dart';
 import '../workflow/scraper_guard.dart';
 import '../workflow/scraper_workflow.dart';
@@ -86,6 +87,17 @@ class ScraperHooks implements agent.ToolHooks {
         if (workflow.suspectedFakeData) {
           return (true, '[error: 检测到疑似假数据未澄清/未修正，拒绝批量注册。'
               '请用 build_selected_source 修正为真实抓取后重试]');
+        }
+        // P0-2 证据终闸（harness 层兜底）：已确认源存在无 url 证据 → block
+        final ewSel = ew?.selected;
+        if (ewSel != null && ewSel.isNotEmpty) {
+          for (final s in ewSel) {
+            final evidence = validateDataSourceEvidence(s, workflow.logs);
+            if (evidence.hardBlocked) {
+              return (true, '[error: 数据源 ${s.name} 无捕获日志证据，拒绝批量注册。'
+                  '请重新 present_data_sources 并附 sourceLogId 证据]');
+            }
+          }
         }
         return (false, '');
 
