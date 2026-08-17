@@ -12,6 +12,22 @@ const String scraperSkillBody = r'''
 
 ---
 
+## 〇、铁律（优先级最高，任何情况下不得违反）
+
+1. 不得跳过任何守卫/校验步骤；"为了节省时间"不是跳过理由。
+2. 不得臆造数据源字段——每个字段必须有捕获日志证据。
+3. 连续调试失败被 warning 时必须立即换策略，禁止无意义重试。
+4. 模板/占位符之外的代码一律不许写（仅允许修改占位符）。
+
+| 常见借口 | 反驳 |
+|---|---|
+| "为了节省时间跳过校验" | 校验是用户授权与安全的底线，跳过即拒绝 |
+| "我觉得这个字段没问题" | 字段必须来自捕获日志证据，臆测一律拒绝 |
+| "试一次 bs4/lxml 没关系" | 依赖约束是平台硬限制，违规 import 被 lint 拦截并消耗轮次 |
+| "这个接口我在别的网站见过" | 必须按流程完整验证，经验不能替代证据 |
+
+---
+
 ## 一、平台环境
 
 ### ConfigHttpServer（凭证管理）
@@ -416,12 +432,29 @@ const String scraperExploreSkillBody = r'''
 
 ---
 
+## 〇、铁律（优先级最高，任何情况下不得违反）
+
+1. 不得跳过任何守卫/校验步骤；"为了节省时间"不是跳过理由。
+2. 不得臆造数据源字段——每个字段必须有捕获日志证据（sourceLogId + sourceJsonPath）。
+3. 探索空转被拦截时立即切换策略，禁止无意义重试。
+4. 模板/占位符之外的代码一律不许写。
+
+| 常见借口 | 反驳 |
+|---|---|
+| "为了节省时间跳过校验" | 校验是用户授权与安全的底线，跳过即拒绝 |
+| "我觉得这个字段没问题" | 每个字段必须有捕获日志证据（sourceLogId + sourceJsonPath），臆测被拒 |
+| "试一次 bs4/lxml 没关系" | 仅「可用模块清单」内模块 + 标准库可 import，违规被 lint 拦截 |
+| "这个接口我在别的网站见过" | 经验仅供参考，必须按 Step 1-5 完整验证 |
+
+---
+
 ## 一、可用工具（探索模式专用）
 
 ```
 工具: explore_page_links()          — 枚举当前页面所有 http(s) 链接（url + 文本）
 工具: navigate_get(url)             — 唯一导航通道：纯 GET（同域/20 页/50 请求/1s 节流守卫）
 工具: list_captured_requests()      — 读取捕获日志中的 GET 请求（每条带证据 id: log-N）
+工具: list_python_capabilities()     — 本机嵌入 Python 实际可用的第三方模块清单（构建前必查）
 工具: present_data_sources(sources) — 呈现归类候选 → 用户多选（可改名）→ 返回确认结果
                                       （每个源必须附 sourceLogId 证据，无证据被守卫拒绝）
 工具: build_selected_source(name, code) — 逐源构建 data-{name} 插件（scraper.py + manifest + config）
@@ -517,7 +550,9 @@ url 无任何捕获日志匹配的源会被守卫**拒绝呈现**（[error: 无�
 code 是该数据源的**完整 Python 爬虫**，必须满足（与定向模式同一契约）：
 1. **文件顶部逐字包含锁定配置模板**（`def _get_config(key)` + 三级降级，
    只替换 `{CREDENTIAL_PLACEHOLDER}` 为凭证变量声明；不需要凭证时留空行）
-2. 只允许 **Python 标准库 + requests**
+2. 只允许 **Python 标准库 + 「可用模块清单」**（P2-1 运行时事实源：
+   以任务开始时注入的清单 / `list_python_capabilities()` 返回为准；
+   清单未列出的模块禁止 import，会被 lint 拦截）
 3. 用真实 GET 请求抓取（禁 print 字面量假数据、禁占位符数据）
 4. `main()` 返回 dict/list，用 `json.dumps(...)` 输出合法 JSON
 5. 分页循环中 `time.sleep(0.5~1.0)`

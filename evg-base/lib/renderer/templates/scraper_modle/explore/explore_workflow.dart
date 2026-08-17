@@ -245,6 +245,7 @@ const Set<String> _readToolsInExplore = {
   'list_skills',
   'read_workspace_file',
   'list_captured_requests',
+  'list_python_capabilities',
 };
 
 /// 工具是否允许在探索模式的指定阶段使用（阶段切换白名单）。
@@ -284,7 +285,8 @@ String blockedExploreToolMessage(String toolName, ExplorePhase phase) {
   return '[error: 探索模式守卫：工具 "$toolName" 在阶段 ${phase.name} 不可用。'
       '探索模式仅允许 GET-only 探索工具'
       '（explore_page_links / navigate_get / list_captured_requests / '
-      'present_data_sources / build_selected_source / register_batch）'
+      'list_python_capabilities / present_data_sources / '
+      'build_selected_source / register_batch）'
       '与只读工具（ask / guardian_review / read_workspace_file / list_skills）。'
       'run_terminal_command / save_credential / run_python_scraper / '
       'export_and_register_scraper 在探索模式全程禁用]';

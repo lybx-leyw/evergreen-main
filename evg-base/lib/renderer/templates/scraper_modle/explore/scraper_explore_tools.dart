@@ -17,6 +17,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:evergreen_base/core/agent/tool.dart';
 
+import '../agent/python_capabilities.dart';
 import '../workflow/scraper_workflow.dart';
 import 'explore_evidence.dart';
 import 'explore_workflow.dart';
@@ -243,6 +244,38 @@ class ListCapturedRequestsTool extends SimpleTool {
               buf.writeln('…（其余 ${gets.length - shown} 条已截断）');
             }
             return buf.toString();
+          },
+        );
+}
+
+// ═══════ list_python_capabilities（P2-1 工具事实源）══════
+
+/// 工具：返回本机嵌入式 Python 实际可用的第三方模块清单（事实源）。
+///
+/// 替代 prompt 硬编码「只允许标准库 + requests」：AI 构建爬虫前先查本工具，
+/// 未列出的模块禁止 import（lint 兜底拦截），从源头消除反复尝试 bs4 的浪费。
+class ListPythonCapabilitiesTool extends SimpleTool {
+  final List<String> Function() listCapabilities;
+
+  ListPythonCapabilitiesTool({required this.listCapabilities})
+      : super(
+          name: 'list_python_capabilities',
+          description: '返回本机嵌入式 Python 实际可用的第三方模块清单（运行时'
+              '事实源，替代猜测）。构建爬虫代码前先调用本工具确认可 import 的'
+              '模块；仅清单内模块 + Python 标准库可用，未列出的模块禁止 import'
+              '（会被 lint 拦截并消耗调试轮次）。',
+          schema: const {
+            'type': 'object',
+            'properties': {},
+          },
+          readOnly: true,
+          execute: (args) async {
+            try {
+              return pythonCapabilitiesPrompt(listCapabilities());
+            } catch (e) {
+              debugPrint('[ListPythonCapabilities] 💥 $e');
+              return '[error: 扫描 Python 能力清单失败: $e]';
+            }
           },
         );
 }
@@ -564,6 +597,8 @@ CandidateDataSource? _findConfirmedSource(ExploreWorkflow ew, String name) {
 /// - [presentSources] — 候选多选弹窗（返回用户选择，可改名）
 /// - [buildSource] — 逐源构建插件并返回完整日志
 /// - [registerBatch] — 批量注册 + orch.get 验证并返回完整日志
+/// - [listPythonCapabilities] — P2-1 工具事实源：本机可用第三方模块清单（可空，
+///   空时工具返回仅标准库）
 List<Tool> createScraperExploreTools({
   required ExploreWorkflow exploreWorkflow,
   required ScraperWorkflow captureWorkflow,
@@ -573,6 +608,7 @@ List<Tool> createScraperExploreTools({
       List<CandidateDataSource> candidates) presentSources,
   required Future<String> Function(String name, String code) buildSource,
   required Future<String> Function(List<String> names) registerBatch,
+  List<String> Function()? listPythonCapabilities,
 }) {
   return [
     ExplorePageLinksTool(
@@ -586,6 +622,9 @@ List<Tool> createScraperExploreTools({
     ListCapturedRequestsTool(
       captureWorkflow: captureWorkflow,
       exploreWorkflow: exploreWorkflow,
+    ),
+    ListPythonCapabilitiesTool(
+      listCapabilities: listPythonCapabilities ?? () => const [],
     ),
     PresentDataSourcesTool(
       exploreWorkflow: exploreWorkflow,

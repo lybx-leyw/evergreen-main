@@ -131,6 +131,33 @@ void main() {
     });
   });
 
+  group('ListPythonCapabilitiesTool（P2-1 工具事实源）', () {
+    test('返回注入的可用模块清单', () async {
+      final tool = ListPythonCapabilitiesTool(
+        listCapabilities: () => ['requests', 'numpy'],
+      );
+      final out = await tool.execute({});
+      expect(out, contains('requests, numpy'));
+      expect(out, contains('lint 拦截'));
+    });
+
+    test('无第三方模块 → 仅标准库提示', () async {
+      final tool = ListPythonCapabilitiesTool(
+        listCapabilities: () => const [],
+      );
+      final out = await tool.execute({});
+      expect(out, contains('仅 Python 标准库'));
+    });
+
+    test('扫描异常 → error 提示', () async {
+      final tool = ListPythonCapabilitiesTool(
+        listCapabilities: () => throw StateError('boom'),
+      );
+      final out = await tool.execute({});
+      expect(out, contains('[error:'));
+    });
+  });
+
   group('ListCapturedRequestsTool（仅 GET）', () {
     test('过滤 POST/NAVIGATION 等非 GET，同域过滤', () async {
       final capture = ScraperWorkflow();

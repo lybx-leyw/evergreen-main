@@ -311,7 +311,14 @@ void main() {
     });
 
     test('只读工具全阶段可用', () {
-      const readTools = ['ask', 'guardian_review', 'list_skills', 'read_workspace_file', 'list_captured_requests'];
+      const readTools = [
+        'ask',
+        'guardian_review',
+        'list_skills',
+        'read_workspace_file',
+        'list_captured_requests',
+        'list_python_capabilities', // P2-1 工具事实源
+      ];
       for (final phase in ExplorePhase.values) {
         for (final tool in readTools) {
           expect(exploreToolAllowedForPhase(tool, phase), isTrue,

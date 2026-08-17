@@ -1,6 +1,6 @@
 # Scraper × reverse-skill 全量集成策略
 
-> 状态：**P0-1 / P0-2 / P1-1 / P1-2 已落地（2026-08-17）**；P2-1 / P2-2 待开工
+> 状态：**P0-1 / P0-2 / P1-1 / P1-2 / P2-1 / P2-2 全部落地（2026-08-17）**，剩 M6 全量回归
 > 注：容器 Flutter 已升级 3.47.0 / Dart 3.13.0（对齐 pubspec `sdk: ^3.9.2`）；容器内 flutter test 全量回归进行中
 > 日期：2026-08-17
 > 依据：`.reference/reverse-skill/`（v1.0.1，MIT，© 2026 zhaoxuya520）+ 本仓库 scraper Phase 3/4 架构
@@ -199,7 +199,7 @@
 
 ---
 
-### P2-1 工具能力事实源注入（tool-index）—— 对应 G5
+### P2-1 工具能力事实源注入（tool-index）—— 对应 G5 —— ✅ 已落地（2026-08-17）
 
 **设计**：运行时把**本机实际可用**的 Python 模块清单注入 prompt（替代硬编码"只允许标准库 + requests"），从源头消除"AI 反复尝试 bs4/lxml 被 lint 拦截"的浪费。
 
@@ -209,9 +209,16 @@
 
 **验收**：prompt 中的可用库与实测 site-packages 一致；AI 不再尝试 bs4。
 
+**落地记录（2026-08-17）**：
+- 新增纯 Dart 模块 `agent/python_capabilities.dart`：`scanPythonSitePackages(pythonDir)` 探测 `Lib/site-packages`（Windows 嵌入版）与 `site-packages` 两种布局；识别目录包 / `x.py` / `x.dist-info`；隐藏项（`.`/`_` 前缀）与黑名单（与 `_dangerousImports` 对齐）过滤；目录缺失/扫描失败 → 空清单；`pythonCapabilitiesPrompt` 生成注入文案。
+- 探索工具新增 `list_python_capabilities`（只读）：AI 构建前可查运行时事实源；接入 `createScraperExploreTools`（可选回调，向后兼容）、阶段白名单 `_readToolsInExplore`、`ScraperGate` always 规则。
+- `scraper_ai_panel.dart`：工具回调 `() => scanPythonSitePackages(greenixPythonDir)`；探索任务 prompt Step 4 注入「构建环境（运行时事实源）」+ 未列出模块禁止 import。
+- `scraper_skill_const.dart`：探索 skill 工具列表 + Step 4 依赖约束改为「标准库 + 可用模块清单」（运行时注入，不再硬编码 requests）。
+- 测试：`python_capabilities_test.dart` 新增（识别/布局/容错/prompt 文案）；`explore_tools_test` 工具输出用例；`explore_workflow_test` 白名单用例。
+
 ---
 
-### P2-2 指令置顶 + 借口反驳表 —— 对应 G6
+### P2-2 指令置顶 + 借口反驳表 —— 对应 G6 —— ✅ 已落地（2026-08-17）
 
 **改动点**（`scraper_skill.md` 顶部插入，锁定段落）：
 ```markdown
@@ -223,6 +230,10 @@
 ```
 
 **验收**：5 轮上限内不再出现"我觉得不需要校验"类借口。
+
+**落地记录（2026-08-17）**：
+- `scraper_skill_const.dart` 两个 skill 顶部均插入「## 〇、铁律」锁定段落（4 条）+ 借口反驳表（4 组常见借口 → 反驳）；定向版第 3 条为「连续调试失败被 warning 必须换策略」，探索版为「空转被拦截立即切换策略」。
+- 铁律与反驳表内容与 P0-2/P1-1/P2-1 的运行时机制一一对应（证据红线 / 熔断 / 可用模块清单），不做孤立口号。
 
 ---
 
@@ -245,7 +256,7 @@ M1 [P0] Scope 持久化授权      —— 单独提交，带测试 ✅（2026-08
 M2 [P0] CandidateDataSource 证据绑定 —— 单独提交，带测试 ✅（2026-08-17 落地）
 M3 [P1] 无进展熔断             —— 单独提交，带测试 ✅（2026-08-17 落地）
 M4 [P1] 经验 Journal           —— 单独提交，带测试 ✅（2026-08-17 落地）
-M5 [P2] 工具事实源 + 借口反驳   —— prompt 层小改，随 M4 后
+M5 [P2] 工具事实源 + 借口反驳   —— 单独提交，带测试 ✅（2026-08-17 落地）
 M6 全量回归：flutter analyze + 新增单测 + Android/桌面 smoke
 ```
 

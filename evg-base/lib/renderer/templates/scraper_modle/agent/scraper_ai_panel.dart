@@ -32,6 +32,7 @@ import '../board/scraper_board.dart';
 import 'scraper_gate.dart';
 import 'scraper_hooks.dart';
 import 'scraper_journal.dart';
+import 'python_capabilities.dart';
 import '../scraper_skill_const.dart' show scraperSkillBody, scraperExploreSkillBody;
 import '../scraper_exporter.dart';
 import '../scraper_json_validator.dart';
@@ -452,6 +453,9 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
                   presentSources: _presentExploreSources,
                   buildSource: _buildExploreSource,
                   registerBatch: _registerExploreBatch,
+                  // P2-1 工具事实源：运行时扫描嵌入 Python 的 site-packages
+                  listPythonCapabilities: () =>
+                      scanPythonSitePackages(greenixPythonDir),
                 ),
                 // AskTool：AI 结构化 ask 用户（A11）
                 agent.AskTool(asker: _asker),
@@ -1151,6 +1155,8 @@ sourceJsonPath（对应响应 JSON 中的真实路径，如 $.data[0].courseName
 url 无捕获日志证据的源会被守卫拒绝，禁止臆造字段或路径。
 Step 3 确认：调用 present_data_sources(sources) 弹出多选框让用户勾选（可改名）。
 Step 4 构建：对每个确认的数据源调用 build_selected_source(name, code)。
+构建环境（P2-1 运行时事实源）：${pythonCapabilitiesPrompt(scanPythonSitePackages(greenixPythonDir))}
+未列出的模块禁止 import。
 Step 5 注册：全部构建完成后调用 register_batch(names) 批量注册并验证。
 
 当前锁定域名: ${ew.baseHost.isEmpty ? '（尚未锁定，首次导航自动锁定）' : ew.baseHost}
