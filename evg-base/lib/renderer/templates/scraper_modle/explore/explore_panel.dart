@@ -8,6 +8,7 @@ library explore_panel;
 
 import 'package:flutter/material.dart';
 
+import 'explore_scope.dart';
 import 'explore_workflow.dart';
 
 // ═══════ ExplorePanel ═══════
@@ -174,6 +175,13 @@ class ExplorePanel extends StatelessWidget {
               Text(
                 '🌐 锁定同域: ${wf.baseHost}',
                 style: TextStyle(fontSize: 10, color: scheme.onSurfaceVariant),
+              ),
+            ],
+            if (wf.scope != null) ...[
+              const SizedBox(height: 6),
+              Text(
+                '🛡️ 授权范围: ${wf.scope!.toDisplaySummary()}',
+                style: TextStyle(fontSize: 10, color: scheme.primary),
               ),
             ],
             const SizedBox(height: 8),
@@ -584,5 +592,168 @@ class _ExploreSourcePickerDialogState
     }
     if (out.isEmpty) return;
     Navigator.pop(context, out);
+  }
+}
+
+// ═══════ Scope 授权确认弹窗（Scope Contract）═══════
+
+/// 探索开始前的授权范围确认弹窗。
+///
+/// 用户确认「目标 URL + 数据范围」→ 返回 [ScopeConfirmResult]（含构造好的
+/// [ExploreScope] 与规范化 startUrl）；取消返回 null。
+///
+/// [startUrl] 为 WebView 当前 URL（可空；空时用户必须手动输入）。
+/// [existing] 为历史持久化 scope（命中时预填，便于复用上次授权）。
+Future<ScopeConfirmResult?> showExploreScopeConfirm(
+  BuildContext context, {
+  required String startUrl,
+  ExploreScope? existing,
+}) async {
+  return showDialog<ScopeConfirmResult>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => _ExploreScopeDialog(
+      initialUrl: startUrl,
+      existing: existing,
+    ),
+  );
+}
+
+/// Scope 确认结果：用户确认的授权范围 + 规范化 startUrl（供开始探索）。
+class ScopeConfirmResult {
+  final ExploreScope scope;
+  final String startUrl;
+  const ScopeConfirmResult({required this.scope, required this.startUrl});
+}
+
+class _ExploreScopeDialog extends StatefulWidget {
+  final String initialUrl;
+  final ExploreScope? existing;
+
+  const _ExploreScopeDialog({required this.initialUrl, this.existing});
+
+  @override
+  State<_ExploreScopeDialog> createState() => _ExploreScopeDialogState();
+}
+
+class _ExploreScopeDialogState extends State<_ExploreScopeDialog> {
+  late final TextEditingController _urlCtrl =
+      TextEditingController(text: widget.initialUrl.trim());
+  late final TextEditingController _dataCtrl =
+      TextEditingController(text: widget.existing?.dataScope ?? '');
+  late final TextEditingController _pathCtrl = TextEditingController(
+      text: widget.existing?.paths.join(', ') ?? '');
+
+  String? _urlError;
+
+  @override
+  void dispose() {
+    _urlCtrl.dispose();
+    _dataCtrl.dispose();
+    _pathCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return AlertDialog(
+      title: const Text('🧭 确认探索授权范围', style: TextStyle(fontSize: 16)),
+      content: SizedBox(
+        width: 480,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'AI 将以纯 GET 方式探索以下**授权范围内**的链接，'
+              '超出范围的主机/路径将被守卫拒绝。授权将持久化保存。',
+              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _urlCtrl,
+              onChanged: (_) => setState(() => _urlError = null),
+              style: TextStyle(fontSize: 12, color: scheme.onSurface),
+              decoration: InputDecoration(
+                isDense: true,
+                labelText: '目标 URL（授权主机）',
+                hintText: 'https://zju.edu.cn/course',
+                errorText: _urlError,
+                errorStyle: const TextStyle(fontSize: 9),
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _dataCtrl,
+              style: TextStyle(fontSize: 12, color: scheme.onSurface),
+              decoration: const InputDecoration(
+                isDense: true,
+                labelText: '数据范围（可选，语义描述）',
+                hintText: '如：课程列表与详情',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _pathCtrl,
+              style: TextStyle(fontSize: 12, color: scheme.onSurface),
+              decoration: const InputDecoration(
+                isDense: true,
+                labelText: '授权路径前缀（可选，逗号分隔；空 = 全部）',
+                hintText: '如：/course, /api',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              '授权资产 = 目标主机及其子域（同域守卫一致）；仅 GET。',
+              style: TextStyle(fontSize: 10, color: scheme.tertiary),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: () => _confirm(context),
+          child: const Text('确认授权并开始'),
+        ),
+      ],
+    );
+  }
+
+  void _confirm(BuildContext context) {
+    final url = _urlCtrl.text.trim();
+    final uri = Uri.tryParse(url);
+    if (url.isEmpty || uri == null || uri.host.isEmpty) {
+      setState(() => _urlError = '请输入有效的 http/https URL');
+      return;
+    }
+    if (uri.scheme != 'http' && uri.scheme != 'https') {
+      setState(() => _urlError = '仅允许 http/https');
+      return;
+    }
+    final host = uri.host.toLowerCase();
+    final paths = _pathCtrl.text
+        .split(',')
+        .map((s) => s.trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+    final scope = ExploreScope(
+      name: host,
+      baseHost: host,
+      // 授权资产 = 主机 + 子域（与同域守卫语义一致）
+      assets: [host, '*.$host'],
+      paths: paths,
+      dataScope: _dataCtrl.text.trim(),
+    );
+    Navigator.pop(context, ScopeConfirmResult(scope: scope, startUrl: url));
   }
 }

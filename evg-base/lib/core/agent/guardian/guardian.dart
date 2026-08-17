@@ -15,6 +15,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import '../agent.dart' as agent;
+import 'guardian_policy.dart' show buildGuardianPolicyPrompt;
 
 // ═══════ 常量（对应 guardian.go） ═══════
 
@@ -392,6 +393,13 @@ class GuardianSession {
   /// 允许稍后绑定（assembly 创建后接线）。
   agent.EventSink? sink;
 
+  /// 用户授权范围摘要（Scope Contract；探索模式开始后由调用方注入）。
+  ///
+  /// 非空时经 [buildGuardianPolicyPrompt] 追加到每次审查的 system prompt，
+  /// 让 Guardian 以"持久化授权边界"为事实源评估 user_authorization。
+  /// 默认 null → system prompt 保持原样，不改变既有行为。
+  String? scopePromptSuffix;
+
   // ── circuit breaker 状态 ──
   int _consecutiveDenials = 0;
   final List<bool> _recentDenials = [];
@@ -461,8 +469,9 @@ class GuardianSession {
     GuardianAssessment assessment;
     var failed = false;
     try {
+      final systemPrompt = buildGuardianPolicyPrompt(policyPrompt, scopePromptSuffix);
       final raw = await llm
-          .complete(systemPrompt: policyPrompt, userPrompt: userPrompt)
+          .complete(systemPrompt: systemPrompt, userPrompt: userPrompt)
           .timeout(timeout);
       assessment = GuardianAssessment.parse(raw);
     } catch (e) {

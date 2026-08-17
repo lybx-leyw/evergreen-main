@@ -6,6 +6,7 @@
 // 3. 上限与节流（D7）：页数上限 / 请求上限提示 / 1s 节流（可注入时钟）
 // 4. 工具白名单阶段切换（D9）：全程禁用工具 + 阶段切换矩阵
 // 5. 数据源名称校验 + 候选 JSON 往返
+import 'package:evergreen_base/renderer/templates/scraper_modle/explore/explore_scope.dart';
 import 'package:evergreen_base/renderer/templates/scraper_modle/explore/explore_workflow.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -238,6 +239,72 @@ void main() {
       expect(m, contains('run_python_scraper'));
       expect(m, contains('exploring'));
       expect(m, contains('[error:'));
+    });
+  });
+
+  group('Scope 授权范围（Scope Contract）', () {
+    const scope = ExploreScope(
+      name: 'ZJU 教务',
+      baseHost: 'zju.edu.cn',
+      assets: ['zju.edu.cn', '*.zju.edu.cn'],
+      paths: ['/course'],
+      dataScope: '课程列表',
+    );
+
+    test('startExploring 带 scope：授权内 startUrl 放行并锁定 scope', () {
+      final w = ExploreWorkflow();
+      expect(
+        w.startExploring(
+            startUrl: 'https://zju.edu.cn/course/1', scope: scope),
+        isTrue,
+      );
+      expect(w.phase, ExplorePhase.exploring);
+      expect(w.scope, same(scope));
+    });
+
+    test('startExploring 带 scope：越界 startUrl fail-closed', () {
+      final w = ExploreWorkflow();
+      expect(
+        w.startExploring(
+            startUrl: 'https://evil.com/course', scope: scope),
+        isFalse,
+      );
+      expect(w.phase, ExplorePhase.idle);
+      expect(w.errorMessage, contains('开始探索被拒'));
+    });
+
+    test('recordNavigation：授权内放行，越界 host/path 拒绝且不计数', () {
+      var now = DateTime(2026, 1, 1, 12);
+      final w = ExploreWorkflow(clock: () => now);
+      w.startExploring(startUrl: 'https://zju.edu.cn/course', scope: scope);
+      expect(w.recordNavigation('https://zju.edu.cn/course/2'), isNull);
+      now = now.add(const Duration(seconds: 2));
+      expect(w.recordNavigation('https://api.zju.edu.cn/course/x'), isNull);
+
+      // 跨域 host：技术同域守卫先于 scope 授权守卫（纵深防御，先技术边界后授权边界）
+      now = now.add(const Duration(seconds: 2));
+      expect(w.recordNavigation('https://evil.com/course'), contains('非同域导航被拒'));
+      // 同域但路径越界：走 scope 授权守卫拒绝
+      expect(w.recordNavigation('https://zju.edu.cn/other/x'), contains('超出授权范围'));
+      expect(w.pagesVisited, 2); // 仅授权内的 2 次被计数
+    });
+
+    test('无 scope：导航仅受技术同域守卫（向后兼容）', () {
+      var now = DateTime(2026, 1, 1, 12);
+      final w = ExploreWorkflow(clock: () => now);
+      w.startExploring(startUrl: 'https://site.com/');
+      expect(w.scope, isNull);
+      expect(w.recordNavigation('https://site.com/a'), isNull);
+      now = now.add(const Duration(seconds: 2));
+      expect(w.recordNavigation('https://api.site.com/b'), isNull);
+    });
+
+    test('reset 清空 scope', () {
+      final w = ExploreWorkflow();
+      w.startExploring(startUrl: 'https://zju.edu.cn/course', scope: scope);
+      expect(w.scope, isNotNull);
+      w.reset();
+      expect(w.scope, isNull);
     });
   });
 

@@ -119,6 +119,41 @@ void main() {
     });
   });
 
+  group('GuardianSession.scopePromptSuffix（Scope Contract 注入）', () {
+    test('scope 注入后 system prompt 追加授权范围块', () async {
+      final llm = FakeGuardianLlm([
+        '{"risk_level":"low","user_authorization":"high","outcome":"allow","rationale":"授权内"}',
+      ]);
+      final s = newSession(llm);
+      s.scopePromptSuffix = 'Name: ZJU\nHosts: zju.edu.cn\nMethod: GET only';
+      await s.review(request: req());
+      final sp = llm.systemPrompts.single;
+      expect(sp, startsWith('policy'));
+      expect(sp, contains('User-Authorised Scope'));
+      expect(sp, contains('zju.edu.cn'));
+      expect(sp, contains('outside the authorised scope'));
+    });
+
+    test('scope 为 null → system prompt 保持原样（向后兼容）', () async {
+      final llm = FakeGuardianLlm([
+        '{"risk_level":"low","user_authorization":"high","outcome":"allow","rationale":"ok"}',
+      ]);
+      final s = newSession(llm);
+      await s.review(request: req());
+      expect(llm.systemPrompts.single, 'policy');
+    });
+
+    test('空串 scope → system prompt 保持原样', () async {
+      final llm = FakeGuardianLlm([
+        '{"risk_level":"low","user_authorization":"high","outcome":"allow","rationale":"ok"}',
+      ]);
+      final s = newSession(llm);
+      s.scopePromptSuffix = '   ';
+      await s.review(request: req());
+      expect(llm.systemPrompts.single, 'policy');
+    });
+  });
+
   group('GuardianSession.review', () {
     test('allow 路径：verdict.allow=true、reason 空、failed=false', () async {
       final llm = FakeGuardianLlm([

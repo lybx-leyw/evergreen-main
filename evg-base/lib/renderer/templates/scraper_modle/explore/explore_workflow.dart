@@ -3,11 +3,14 @@
 /// 与定向抓取（[ScraperWorkflow]）**并列**的第二个状态机（D9：不同工作流 +
 /// 不同 harness 约束）：
 /// - 流程：idle → exploring → categorizing → confirming → building → registering → done/failed
-/// - 守卫：GET-only、同域、页数/请求数上限、导航节流（D7：20 页 / 50 请求 / 1s，可配置）
+/// - 守卫：GET-only、同域、授权范围（Scope）、页数/请求数上限、导航节流
+///   （D7：20 页 / 50 请求 / 1s，可配置）
 /// - 工具白名单：按阶段切换（D9 harness 约束，见 [exploreToolAllowedForPhase]）
 ///
 /// 纯 Dart 无 Flutter 依赖，可独立单测（与 ScraperWorkflow 同规约）。
 library explore_workflow;
+
+import 'explore_scope.dart';
 
 // ═══════ 探索阶段 ═══════
 
@@ -251,6 +254,11 @@ class ExploreWorkflow {
   ExplorePhase _phase = ExplorePhase.idle;
   final ExploreLimits limits;
 
+  /// 用户确认的授权范围（Scope Contract；探索开始前由 UI 层落盘并传入）。
+  ///
+  /// null = 未确认授权（导航仅受技术同域守卫，不锁语义范围）。
+  ExploreScope? _scope;
+
   /// 候选数据源（AI 归类产物）。
   List<CandidateDataSource> _candidates = [];
 
@@ -289,6 +297,7 @@ class ExploreWorkflow {
   List<CandidateDataSource> get candidates => List.unmodifiable(_candidates);
   List<CandidateDataSource> get selected => List.unmodifiable(_selected);
   String get baseHost => _baseHost;
+  ExploreScope? get scope => _scope;
   int get pagesVisited => _pagesVisited;
   int get requestsCaptured => _requestsCaptured;
   int get uniquePages => _visitedUrls.length;
@@ -312,12 +321,23 @@ class ExploreWorkflow {
   /// idle → exploring（D1：用户点「开始探索」）。
   ///
   /// [startUrl] 非空时锁定其域名（同域守卫即刻生效）。
-  bool startExploring({String? startUrl}) {
+  ///
+  /// [scope] 为持久化授权范围（Scope Contract）：非空时立即校验 startUrl
+  /// 是否落在授权内，并在导航守卫（[recordNavigation]）中追加授权校验。
+  /// 探索开始后可通过 [scope] getter 读取，供 Guardian prompt 注入。
+  bool startExploring({String? startUrl, ExploreScope? scope}) {
     if (_phase != ExplorePhase.idle) return false;
+    _scope = scope;
     if (startUrl != null && startUrl.trim().isNotEmpty) {
       final err = validateExploreUrl(startUrl);
       if (err != null) {
         _errorMessage = err;
+        return false;
+      }
+      // 授权边界：startUrl 若超出 scope，探索应 fail-closed
+      final scopeErr = scope?.validateUrl(startUrl);
+      if (scopeErr != null) {
+        _errorMessage = '开始探索被拒：$scopeErr';
         return false;
       }
       _baseHost = Uri.parse(startUrl.trim()).host.toLowerCase();
@@ -393,6 +413,7 @@ class ExploreWorkflow {
     _selected = [];
     _visitedUrls.clear();
     _baseHost = '';
+    _scope = null;
     _pagesVisited = 0;
     _requestsCaptured = 0;
     _requestsLimitNotified = false;
@@ -410,6 +431,14 @@ class ExploreWorkflow {
   String? recordNavigation(String url) {
     final err = validateExploreUrl(url, baseHost: baseHost);
     if (err != null) return err;
+    // 授权边界（Scope Contract）：超出用户确认范围 → 拒绝导航
+    final scope = _scope;
+    if (scope != null) {
+      final scopeErr = scope.validateUrl(url);
+      if (scopeErr != null) {
+        return '超出授权范围: $scopeErr';
+      }
+    }
     if (_phase != ExplorePhase.exploring) return '仅探索阶段允许导航（当前: ${_phase.name}）';
 
     final now = clock();

@@ -24,6 +24,7 @@ import '../workflow/scraper_workflow.dart';
 import 'tools/scraper_tools.dart';
 import '../workflow/scraper_guard.dart';
 import '../explore/explore_workflow.dart';
+import '../explore/explore_scope.dart';
 import '../explore/scraper_explore_tools.dart';
 import '../explore/explore_panel.dart';
 import '../web/scraper_webview.dart';
@@ -1074,56 +1075,50 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
 
   /// 「开始探索」入口（ExplorePanel 按钮，D1）。
   ///
-  /// 确认弹窗（提示先登录）→ 锁定当前域名 → 进入 exploring →
-  /// 给 AI 发送探索任务 prompt。
+  /// Scope 确认弹窗（授权范围，Scope Contract）→ 落盘 `.greenix/scope.json`
+  /// → 锁定当前域名 → 进入 exploring → 给 AI 发送探索任务 prompt。
+  /// Guardian 的 system prompt 同时注入授权范围，超出范围的 action 视为
+  /// 未授权（user_authorization = unknown）。
   Future<void> startExplore() async {
     if (_assembly == null || _isRunning || !mounted) return;
     final ew = widget.exploreWorkflow;
     if (ew == null || ew.phase != ExplorePhase.idle) return;
 
-    final ok = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text('🧭 开始探索？'),
-        content: const Text(
-            'AI 将以纯 GET 方式探索当前网站的同域链接'
-            '（上限 20 页 / 50 请求 / 1s 节流），并把 GET 接口归类为候选数据源。\n\n'
-            '请确保已在浏览器中登录目标网站。'
-            '探索过程不会提交任何表单（POST）。'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('开始探索'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true || !mounted) return;
-
-    String? startUrl;
+    String startUrl = '';
     try {
-      startUrl = await widget.webBridge?.currentUrl?.call();
+      startUrl = (await widget.webBridge?.currentUrl?.call()) ?? '';
     } catch (_) {}
-    if (!ew.startExploring(startUrl: startUrl)) {
+    final existing = _loadScopeFromDisk();
+    final result = await showExploreScopeConfirm(
+      context,
+      startUrl: startUrl,
+      existing: existing,
+    );
+    if (result == null || !mounted) return;
+
+    // 授权范围落盘（持久化授权，跨会话复用）
+    _saveScopeToDisk(result.scope);
+
+    if (!ew.startExploring(
+        startUrl: result.startUrl, scope: result.scope)) {
       _messages.add(ChatMessage.assistant(
           '⚠️ 无法开始探索（${ew.errorMessage.isEmpty ? '状态异常' : ew.errorMessage}）'));
       _saveSessions();
       return;
     }
 
+    // Guardian 以持久化授权范围为事实源（超出范围 → 未授权）
+    _guardian?.scopePromptSuffix = result.scope.toPromptSummary();
+
     setState(() {
       _isRunning = true;
       _pendingText.clear();
       _pendingReasoning.clear();
       _messages.add(ChatMessage.assistant(
-          '🔎 **开始探索**${ew.baseHost.isNotEmpty ? '（同域: ${ew.baseHost}）' : ''}\n'
+          '🔎 **开始探索**（授权范围: ${result.scope.toDisplaySummary()}）\n'
           'AI 将循环：枚举链接 → GET 导航 → 读取捕获日志，'
-          '直到无新链接或触达上限（${ew.limits.maxPages} 页 / ${ew.limits.maxRequests} 请求）。'));
+          '直到无新链接或触达上限（${ew.limits.maxPages} 页 / ${ew.limits.maxRequests} 请求）。\n'
+          '超出授权范围的主机/路径将被守卫拒绝。'));
     });
     _saveSessions();
 
@@ -1140,6 +1135,34 @@ Step 5 注册：全部构建完成后调用 register_batch(names) 批量注册�
 
 当前锁定域名: ${ew.baseHost.isEmpty ? '（尚未锁定，首次导航自动锁定）' : ew.baseHost}
 ''');
+  }
+
+  // ── Scope 持久化（Scope Contract：.greenix/scope.json）──
+
+  /// 读取持久化授权范围（无文件/损坏返回 null）。
+  ExploreScope? _loadScopeFromDisk() {
+    try {
+      final f = File(greenixScopePath);
+      if (!f.existsSync()) return null;
+      final map = jsonDecode(f.readAsStringSync());
+      if (map is! Map<String, dynamic>) return null;
+      final scope = ExploreScope.fromJson(map);
+      return scope.isActive ? scope : null;
+    } catch (e) {
+      debugPrint('[ScraperAIPanel] ⚠ scope.json 读取失败: $e');
+      return null;
+    }
+  }
+
+  /// 落盘授权范围（跨会话复用；写入失败仅告警不阻断探索）。
+  void _saveScopeToDisk(ExploreScope scope) {
+    try {
+      final f = File(greenixScopePath);
+      f.parent.createSync(recursive: true);
+      f.writeAsStringSync(jsonEncode(scope.toJson()));
+    } catch (e) {
+      debugPrint('[ScraperAIPanel] ⚠ scope.json 写入失败: $e');
+    }
   }
 
   /// present_data_sources 工具回调：弹出多选弹窗（D4）。
