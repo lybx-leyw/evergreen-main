@@ -380,6 +380,52 @@ class ExploreWorkflow {
     _notify();
   }
 
+  // ── 序列化（断点续作：重启后回到上次探索状态） ──
+
+  /// 快照当前探索状态（候选/选中/已访问/计数/熔断）。
+  Map<String, dynamic> toJson() => {
+        'phase': _phase.name,
+        'baseHost': _baseHost,
+        'candidates': _candidates.map((c) => c.toJson()).toList(),
+        'selected': _selected.map((c) => c.toJson()).toList(),
+        'visitedUrls': _visitedUrls.toList(),
+        'pagesVisited': _pagesVisited,
+        'requestsCaptured': _requestsCaptured,
+        'stallDetected': _stallDetected,
+        'stallMessage': _stallMessage,
+        'errorMessage': _errorMessage,
+      };
+
+  /// 从快照恢复探索状态。失败静默保持当前（新）状态。
+  void restoreFromJson(Map<String, dynamic> json) {
+    try {
+      _phase =
+          ExplorePhase.values.asNameMap()[json['phase']] ?? ExplorePhase.idle;
+      _baseHost = json['baseHost'] as String? ?? '';
+      _candidates = (json['candidates'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(CandidateDataSource.fromJson)
+          .toList();
+      _selected = (json['selected'] as List<dynamic>? ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(CandidateDataSource.fromJson)
+          .toList();
+      _visitedUrls
+        ..clear()
+        ..addAll((json['visitedUrls'] as List<dynamic>? ?? const [])
+            .whereType<String>());
+      _pagesVisited = (json['pagesVisited'] as num?)?.toInt() ?? 0;
+      _requestsCaptured =
+          (json['requestsCaptured'] as num?)?.toInt() ?? 0;
+      _stallDetected = json['stallDetected'] as bool? ?? false;
+      _stallMessage = json['stallMessage'] as String? ?? '';
+      _errorMessage = json['errorMessage'] as String? ?? '';
+      _notify();
+    } catch (e) {
+      // 恢复失败：保持新状态
+    }
+  }
+
   // ── 阶段转换 ──
 
   /// idle → exploring（D1：用户点「开始探索」）。

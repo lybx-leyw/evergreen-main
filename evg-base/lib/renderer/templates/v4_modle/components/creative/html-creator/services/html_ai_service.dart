@@ -329,7 +329,16 @@ class HtmlAiService extends ChangeNotifier {
 
       final restored = Session.fromJson(sessionJson);
       _assembly!.controller.setSession(restored);
-      _assembly!.controller.setSystemPrompt(_systemPrompt); // 重新设置 system prompt
+      // 重新设置 system prompt；有历史时追加断点续作说明，
+      // 让 AI 知道上次已恢复到哪一步，避免从头解释/重做已完成修改。
+      _assembly!.controller.setSystemPrompt(
+        restored.messages.isEmpty
+            ? _systemPrompt
+            : '$_systemPrompt\n\n## 断点续作\n'
+                '上次会话已恢复（${restored.messages.length} 条消息）。'
+                '若上一次任务未完成，请直接继续执行，'
+                '不要从头解释或重做已完成的修改。',
+      );
 
       uiMessages = (data['uiMessages'] as List<dynamic>?)
           ?.map((e) => e as Map<String, dynamic>)

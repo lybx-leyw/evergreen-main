@@ -715,6 +715,8 @@ class ScraperWorkflow {
         'debugCount': _debugCount,
         'refineCount': _refineCount,
         'consecutiveFailures': _consecutiveFailures,
+        'warningSent3': _warningSent3,
+        'awaitingUserConfirm': _awaitingUserConfirm,
         'snapshotFrozen': _snapshotFrozen,
         'guardFlags': _guardFlags.toList(),
         'logs': _logs.map((l) => l.toJson()).toList(),
@@ -722,8 +724,78 @@ class ScraperWorkflow {
         'timeline': _timeline.map((t) => t.toJson()).toList(),
         'rollbackHistory': _rollbackHistory.map((p) => p.name).toList(),
         'pythonCode': _pythonCode,
+        'pythonOutput': _pythonOutput,
         'errorMessage': _errorMessage,
+        'pendingTerminalCommand': _pendingTerminalCommand,
+        'terminalResult': _terminalResult,
+        'logSeq': _logSeq,
+        if (_phaseEnteredAt != null)
+          'phaseEnteredAt': _phaseEnteredAt!.toIso8601String(),
       };
+
+  /// 从快照恢复工作流状态（断点续作——重启后回到上次阶段，不重走流程）。
+  ///
+  /// 恢复失败静默保持当前（新）状态，绝不抛异常。
+  /// 恢复不触发阶段验收门槛（直接置位），由上层按恢复结果决定续作策略。
+  void restoreFromJson(Map<String, dynamic> json) {
+    try {
+      _phase = ScraperPhase.values.asNameMap()[json['phase']] ??
+          ScraperPhase.idle;
+      _logs
+        ..clear()
+        ..addAll((json['logs'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(HttpRequestLog.fromJson));
+      _snapshot
+        ..clear()
+        ..addAll((json['snapshot'] as List<dynamic>? ?? const [])
+            .whereType<Map<String, dynamic>>()
+            .map(HttpRequestLog.fromJson));
+      _snapshotFrozen = json['snapshotFrozen'] as bool? ?? false;
+      _debugCount = (json['debugCount'] as num?)?.toInt() ?? 0;
+      _refineCount = (json['refineCount'] as num?)?.toInt() ?? 0;
+      _consecutiveFailures =
+          (json['consecutiveFailures'] as num?)?.toInt() ?? 0;
+      _warningSent3 = json['warningSent3'] as bool? ?? false;
+      _awaitingUserConfirm = json['awaitingUserConfirm'] as bool? ?? false;
+      _pythonCode = json['pythonCode'] as String? ?? '';
+      _pythonOutput = json['pythonOutput'] as String? ?? '';
+      _errorMessage = json['errorMessage'] as String? ?? '';
+      _pendingTerminalCommand =
+          json['pendingTerminalCommand'] as String? ?? '';
+      _terminalResult = json['terminalResult'] as String? ?? '';
+      _logSeq = (json['logSeq'] as num?)?.toInt() ??
+          (_logs.length + _snapshot.length);
+      _guardFlags
+        ..clear()
+        ..addAll((json['guardFlags'] as List<dynamic>? ?? const [])
+            .whereType<String>());
+      _rollbackHistory.clear();
+      for (final n in (json['rollbackHistory'] as List<dynamic>? ?? const [])
+          .whereType<String>()) {
+        final p = ScraperPhase.values.asNameMap()[n];
+        if (p != null) _rollbackHistory.add(p);
+      }
+      _timeline.clear();
+      final enteredAt =
+          DateTime.tryParse(json['phaseEnteredAt'] as String? ?? '');
+      _phaseEnteredAt = enteredAt;
+      if (enteredAt != null) {
+        _timeline.add(PhaseTimelineEntry(
+          phase: _phase,
+          enteredAt: enteredAt,
+          note: '恢复自快照',
+        ));
+      }
+      _log('♻ 恢复状态: phase=' + _phase.name +
+          ' logs=' + _logs.length.toString() +
+          ' snapshot=' + _snapshot.length.toString() +
+          ' frozen=' + _snapshotFrozen.toString());
+      _notify();
+    } catch (e) {
+      _log('⚠ 恢复快照失败: ' + e.toString() + ' → 保持新状态');
+    }
+  }
 
   /// 释放资源——清空回调引用。
   void dispose() {
