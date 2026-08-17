@@ -1,6 +1,7 @@
 # Scraper × reverse-skill 全量集成策略
 
-> 状态：**P0-1 已落地（2026-08-17，验证全绿）**，P0-2 证据绑定待开工
+> 状态：**P0-1 / P0-2 / P1-1 / P1-2 已落地（2026-08-17）**；P2-1 / P2-2 待开工
+> 注：容器 Flutter 已升级 3.47.0 / Dart 3.13.0（对齐 pubspec `sdk: ^3.9.2`）；容器内 flutter test 全量回归进行中
 > 日期：2026-08-17
 > 依据：`.reference/reverse-skill/`（v1.0.1，MIT，© 2026 zhaoxuya520）+ 本仓库 scraper Phase 3/4 架构
 
@@ -89,7 +90,7 @@
 
 ---
 
-### P0-2 候选数据源证据绑定（Evidence → CandidateDataSource）—— 对应 G2
+### P0-2 候选数据源证据绑定（Evidence → CandidateDataSource）—— 对应 G2 —— ✅ 已落地（2026-08-17）
 
 **设计**：`CandidateDataSource` 增加 `evidence`（来源请求日志 id + 响应字段路径），注册前校验"每个字段都能从日志响应中找到"。这是**正面证明**，与现有 `suspectedFakeData` 负面检测互补。
 
@@ -120,9 +121,20 @@
 
 **测试**：构造"AI 归类字段但日志中无对应 JSON 字段"用例 → `register_batch` 必须拒绝。
 
+**落地记录（2026-08-17）**：
+- **漂移修正**：仓库无现成 `json_path` 求值器（文档假设复用，实际 `json_path_picker.dart` 仅是 UI 组件）→ P0-2 在 `explore_evidence.dart` 自带受限 JSON Path 求值器（`$` 根 / `.key` / `['key']` / `[i]` / 末尾 `[*]`，容错不抛异常）。
+- `explore_workflow.dart`：`CandidateField` 增 `sourceLogId`/`sourceJsonPath`，`CandidateDataSource` 增 `sourceLogId`；`copyWith` 携带证据字段（用户改名后证据不丢）。
+- `scraper_workflow.dart`：`HttpRequestLog` 增会话内证据 id；`addLog`/`addLogs` 自动补 `log-N`，`clearLogs` 重置计数。
+- `scraper_explore_tools.dart`：`list_captured_requests` 每条带「证据 id: log-N」；`present_data_sources` 呈现前逐源硬校验（url 无日志证据 → `[error: ... 无日志证据]`，警告回灌）；`build_selected_source`/`register_batch` 注入 `exploreWorkflow`+`captureWorkflow` 做证据复核 + 确认清单终闸（可选参数，向后兼容）。
+- `scraper_hooks.dart`：`register_batch` harness 层证据兜底（确认清单存在无 url 证据源 → block）。
+- `explore_panel.dart`：多选弹窗每行证据徽标（📋 log#id + `字段 → 路径`，超 4 折叠 +N），颜色从 colorScheme 派生。
+- `scraper_skill_const.dart` / `scraper_ai_panel.dart` 探索 prompt：归类必须附 `sourceLogId`+`sourceJsonPath`，无证据被拒。
+- 测试：`explore_evidence_test.dart` 新增（求值器 + 校验全分支）；`explore_tools/hooks/panel/workflow` 四个测试文件增补证据用例。
+- 证据 URL 归一：scheme+host+path，忽略 query/fragment（接口身份与分页参数无关）。
+
 ---
 
-### P1-1 无进展熔断（Stall Circuit Breaker）—— 对应 G3
+### P1-1 无进展熔断（Stall Circuit Breaker）—— 对应 G3 —— ✅ 已落地（2026-08-17）
 
 **设计**：在硬上限之外增加**空转检测**——连续 N 次导航无新唯一页面/无新请求 → 触发 `onStallDetected`（提示 AI 切换策略或强制用户确认）。直接补上上轮"卡 exploring 循环"bug 的根因层。
 
@@ -142,9 +154,16 @@
 
 **测试**：重复导航同一 URL ×5 → 第 3 次后拒绝；交替新 URL → 不触发。
 
+**落地记录（2026-08-17）**：
+- `explore_workflow.dart`：`ExploreLimits` 增 `stallThreshold`（默认 3）/`stallWindow`（默认 6）；`recordNavigation` 维护新页面环形窗口，窗口内导航数 ≥ 阈值且全部无新页面 → `onStallDetected` + `stallDetected/stallMessage` 状态；熔断期间重复导航已探索页面被拒，**访问新页面自动恢复**（换策略出口）；`restartExploring`/`reset`/`dispose` 清理。
+- `navigate_get` 工具 description 增加空转说明；导航结果追加 ⚡ 熔断提示。
+- `explore_panel.dart`：exploring 状态熔断警告横幅（errorContainer 色，theme 派生）；`scraper_ai_panel.dart` 接线 `onStallDetected` 回灌聊天。
+- `scraper_skill_const.dart`：守卫红线新增第 5 条「空转熔断」+ 应对策略。
+- 测试：`explore_workflow_test` 熔断组（触发/交替新 URL 不触发/新页恢复/自定义阈值/窗口滑动/重启重置）；`explore_tools_test` navigate 熔断链路；`explore_panel_test` 横幅显示。
+
 ---
 
-### P1-2 经验 Journal 回写（field-journal）—— 对应 G4
+### P1-2 经验 Journal 回写（field-journal）—— 对应 G4 —— ✅ 已落地（2026-08-17）
 
 **设计**：生成插件成功后，把「域名 + 认证方式 + 关键流程 + 坑」写入 `.greenix/scraper_journal/`；新会话把最近经验摘要注入 system prompt，避免同类站点（CAS 登录、RSA 加密参数）从零开始。
 
@@ -169,6 +188,14 @@
 **验收**：
 - 完成一次成功抓取后 `.greenix/scraper_journal/` 出现条目。
 - 同域名再次开始探索，prompt 含历史经验。
+
+**落地记录（2026-08-17）**：
+- 新增纯 Dart 模块 `agent/scraper_journal.dart`（dart:io，无 Flutter 依赖）：`ScraperJournal(baseDir, maxEntriesPerDomain=5)` 提供 `loadLatest/listAll/append`；`JournalEntry`（domain/authMethod/flow/pitfalls/keyParams/recordedAt）+ `toPromptSummary()`（运行时注入摘要）。
+- 生产级加固：每域最多 5 条防膨胀；损坏文件/读写失败容错（读→null/跳过，写→stderr 告警不抛）；域名 sanitize 防路径穿越；文件内按时间倒序。
+- 经验自动提取（不依赖新一轮 AI 调用）：`inferAuthMethod`（authorization/x-api-key/cookie → token/cookie 登录/无认证）与 `inferKeyParams`（同域 GET 日志 query 去重，上限 20）。
+- 接线：`_registerExploreBatch` 验证通过 >0 时回写；`_startExplore` 启动时 `loadLatest(baseHost)` 命中 → 注入「本域历史经验」prompt 头；`greenix_path.dart` 增 `greenixJournalDir`。
+- `scraper_skill_const.dart`：探索 skill 增「经验复用（P1-2）」说明（运行时注入，不硬编码案例）。
+- 测试：`scraper_journal_test.dart` 新增（往返/上限/排序/容错/路径穿越/写失败/自动提取/prompt 摘要）。
 
 ---
 
@@ -215,9 +242,9 @@
 
 ```
 M1 [P0] Scope 持久化授权      —— 单独提交，带测试 ✅（2026-08-17 完成）
-M2 [P0] CandidateDataSource 证据绑定 —— 单独提交，带测试
-M3 [P1] 无进展熔断             —— 单独提交，带测试
-M4 [P1] 经验 Journal           —— 单独提交
+M2 [P0] CandidateDataSource 证据绑定 —— 单独提交，带测试 ✅（2026-08-17 落地）
+M3 [P1] 无进展熔断             —— 单独提交，带测试 ✅（2026-08-17 落地）
+M4 [P1] 经验 Journal           —— 单独提交，带测试 ✅（2026-08-17 落地）
 M5 [P2] 工具事实源 + 借口反驳   —— prompt 层小改，随 M4 后
 M6 全量回归：flutter analyze + 新增单测 + Android/桌面 smoke
 ```

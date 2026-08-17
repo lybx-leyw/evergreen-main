@@ -190,6 +190,37 @@ class ExplorePanel extends StatelessWidget {
               '触达上限后 AI 会自动结束探索进入归类',
               style: TextStyle(fontSize: 10, color: scheme.onSurfaceVariant),
             ),
+            if (wf.stallDetected) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                decoration: BoxDecoration(
+                  color: scheme.errorContainer.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: scheme.error.withValues(alpha: 0.4),
+                    width: 0.5,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.electric_bolt_rounded,
+                        size: 12, color: scheme.onErrorContainer),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        '⚡ 空转熔断：${wf.stallMessage}（换新链接可自动恢复）',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: scheme.onErrorContainer,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         );
 

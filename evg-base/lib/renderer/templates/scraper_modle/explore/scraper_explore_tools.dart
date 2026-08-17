@@ -146,7 +146,10 @@ class NavigateGetTool extends SimpleTool {
           name: 'navigate_get',
           description: '以 GET 方式导航内嵌浏览器到指定 URL（探索模式唯一导航通道）。'
               '守卫约束：仅 http/https；同域（首次导航锁定域名）；'
-              '页数上限（默认 20 页）；请求上限（默认 50）；1s 节流。'
+              '页数上限（默认 20 页）；请求上限（默认 50）；1s 节流；'
+              '空转熔断（连续 3 次导航无新页面触发，熔断期间重复访问'
+              '已探索页面会被拒绝——请立即换新链接或结束探索进入归类，'
+              '禁止对同一页面无意义重试）。'
               '被守卫拒绝时请换一个链接或结束探索进入归类。'
               '禁止尝试 POST/表单提交/js: 伪协议。',
           schema: const {
@@ -173,7 +176,8 @@ class NavigateGetTool extends SimpleTool {
                   '页数 ${exploreWorkflow.uniquePages}/${exploreWorkflow.limits.maxPages}'
                   ' · 请求 ${exploreWorkflow.requestsCaptured}/${exploreWorkflow.limits.maxRequests}'
                   '${exploreWorkflow.pagesExhausted ? '\n⚠️ 已触达页数上限，请结束探索进入归类' : ''}'
-                  '${exploreWorkflow.requestsExhausted ? '\n⚠️ 已触达请求上限，请结束探索进入归类' : ''}';
+                  '${exploreWorkflow.requestsExhausted ? '\n⚠️ 已触达请求上限，请结束探索进入归类' : ''}'
+                  '${exploreWorkflow.stallDetected ? '\n⚡ 空转熔断已触发：${exploreWorkflow.stallMessage}。请切换策略（换新链接或结束探索进入归类）' : ''}';
             } catch (e) {
               debugPrint('[NavigateGet] 💥 $e');
               return '[error: 导航执行失败: $e]';

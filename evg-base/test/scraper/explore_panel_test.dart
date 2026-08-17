@@ -38,6 +38,22 @@ void main() {
       expect(find.textContaining('site.com'), findsOneWidget);
     });
 
+    testWidgets('exploring：空转熔断横幅显示（P1-1）', (tester) async {
+      var now = DateTime(2026, 1, 1, 12);
+      final wf = ExploreWorkflow(clock: () => now);
+      wf.startExploring(startUrl: 'https://site.com/');
+      await tester.pumpWidget(_wrap(ExplorePanel(exploreWorkflow: wf)));
+      expect(find.textContaining('空转熔断'), findsNothing);
+      // 连续 3 次同页导航 → 触发熔断
+      for (var i = 0; i < 3; i++) {
+        now = now.add(const Duration(seconds: 2));
+        wf.recordNavigation('https://site.com/same');
+      }
+      expect(wf.stallDetected, isTrue);
+      await tester.pumpWidget(_wrap(ExplorePanel(exploreWorkflow: wf)));
+      expect(find.textContaining('空转熔断'), findsOneWidget);
+    });
+
     testWidgets('confirming：候选 chips + 重新打开选择框按钮回调', (tester) async {
       final wf = ExploreWorkflow();
       wf.startExploring(startUrl: 'https://site.com/');

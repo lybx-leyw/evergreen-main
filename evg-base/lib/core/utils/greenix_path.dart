@@ -165,6 +165,9 @@ void _ensureDir(String path) {
 /// 探索授权范围（Scope Contract）JSON 文件路径（`ExploreScope` 持久化）。
 String get greenixScopePath => p.join(_greenixBaseDir, 'scope.json');
 
+/// 探索经验 Journal 目录（P1-2 field-journal：按域名一个 JSON 文件）。
+String get greenixJournalDir => p.join(_greenixBaseDir, 'scraper_journal');
+
 /// 配置凭证 JSON 文件路径（供 scraper 脚本直接读取，跳过 HTTP ConfigHttpServer）。
 ///
 /// 启动时 ConfigHttpServer 将全部 SharedPreferences 设置覆写到该文件。

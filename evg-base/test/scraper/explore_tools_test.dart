@@ -59,6 +59,39 @@ void main() {
       expect(out, contains('节流'));
       expect(calls.length, 1);
     });
+
+    test('P1-1 空转熔断：连续 3 次无新页面 → 提示；之后重复导航被拒', () async {
+      var now = DateTime(2026, 1, 1, 12);
+      final w = ExploreWorkflow(clock: () => now);
+      w.startExploring(startUrl: 'https://site.com/');
+      final calls = <String>[];
+      final tool = NavigateGetTool(
+        exploreWorkflow: w,
+        navigateTo: (url) async => calls.add(url),
+      );
+      Future<String> nav(String url) {
+        now = now.add(const Duration(seconds: 2));
+        return tool.execute({'url': url});
+      }
+
+      await nav('https://site.com/same');
+      await nav('https://site.com/same');
+      final third = await nav('https://site.com/same');
+      expect(third, contains('✅'));
+      expect(third, contains('空转熔断已触发'));
+      expect(w.stallDetected, isTrue);
+
+      final fourth = await nav('https://site.com/same');
+      expect(fourth, contains('[error: 探索导航被守卫拒绝'));
+      expect(fourth, contains('空转熔断'));
+      expect(calls.length, 3); // 第 4 次被守卫拦截，不触发真实导航
+
+      // 换新链接 → 放行并自动恢复
+      final fifth = await nav('https://site.com/new-page');
+      expect(fifth, contains('✅'));
+      expect(w.stallDetected, isFalse);
+      expect(calls.length, 4);
+    });
   });
 
   group('ExplorePageLinksTool（JS 结果解析 + 同域过滤）', () {

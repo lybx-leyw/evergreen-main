@@ -439,6 +439,11 @@ read_request_snapshot / read_existing_credential。
 `_get_config(key)` 三级降级读取凭证（本地 .greenix/config.json → ConfigHttpServer →
 环境变量）。若目标接口需要新凭证，请用 ask 工具请用户到设置面板填写。
 
+**经验复用（P1-2 · field-journal）**：任务开始前若 system prompt 含
+「本域历史经验」，说明该站点之前被探索过——优先复用其中的认证方式 / 关键流程 /
+关键参数，避免同类站点（CAS 登录、加密参数）从零开始。经验仅供参考，
+本次探索仍需按 Step 1-5 完整验证。
+
 ---
 
 ## 二、探索守卫红线（违反会被拦截并回灌错误）
@@ -447,7 +452,9 @@ read_request_snapshot / read_existing_credential。
 2. **同域**：首次导航锁定域名，之后仅允许同域（含子域）链接；跨域链接被守卫过滤。
 3. **上限**：20 页（去重计数）/ 50 请求（导航计数）；触达上限后停止探索进入归类。
 4. **节流**：两次导航间隔 ≥1s，被拒时换链接或稍等重试。
-5. **阶段白名单**：工具只能在对应阶段调用——
+5. **空转熔断**：连续 3 次导航无新页面触发熔断——重复访问已探索页面会被
+   拒绝，请立即切换策略（换新链接 / 结束探索进入归类），禁止对同一页面重试。
+6. **阶段白名单**：工具只能在对应阶段调用——
    - exploring：explore_page_links / navigate_get / list_captured_requests
    - categorizing/confirming：present_data_sources
    - building：build_selected_source

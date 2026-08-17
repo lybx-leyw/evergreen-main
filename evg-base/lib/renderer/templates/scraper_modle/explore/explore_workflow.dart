@@ -4,7 +4,8 @@
 /// 不同 harness 约束）：
 /// - 流程：idle → exploring → categorizing → confirming → building → registering → done/failed
 /// - 守卫：GET-only、同域、授权范围（Scope）、页数/请求数上限、导航节流
-///   （D7：20 页 / 50 请求 / 1s，可配置）
+///   （D7：20 页 / 50 请求 / 1s，可配置）、空转熔断（P1-1：连续 N 次导航
+///   无新页面 → onStallDetected + 重复导航被拒，新页面自动恢复）
 /// - 工具白名单：按阶段切换（D9 harness 约束，见 [exploreToolAllowedForPhase]）
 ///
 /// 纯 Dart 无 Flutter 依赖，可独立单测（与 ScraperWorkflow 同规约）。
@@ -153,17 +154,29 @@ class CandidateDataSource {
 // ═══════ 上限/节流配置 ═══════
 
 /// 探索守卫上限（D7：同域 + 20 页 + 50 请求 + 1s 节流，全部可配置）。
+///
+/// P1-1 空转熔断：[stallThreshold] 为触发阈值（默认 3：连续 N 次导航无新
+/// 页面即触发），[stallWindow] 为观察窗口大小（默认 6）。窗口须 ≥ 阈值，
+/// 否则熔断永不触发（配置误用，文档注明）。
 class ExploreLimits {
   final int maxPages;
   final int maxRequests;
   final Duration minNavigateInterval;
   final bool sameDomainOnly;
 
+  /// 空转熔断阈值：观察窗口内导航数达到该值且全部无新页面 → 触发熔断。
+  final int stallThreshold;
+
+  /// 空转熔断观察窗口：最多回看最近 N 次导航的新页面产出。
+  final int stallWindow;
+
   const ExploreLimits({
     this.maxPages = 20,
     this.maxRequests = 50,
     this.minNavigateInterval = const Duration(seconds: 1),
     this.sameDomainOnly = true,
+    this.stallThreshold = 3,
+    this.stallWindow = 6,
   });
 }
 
@@ -307,6 +320,16 @@ class ExploreWorkflow {
   DateTime? _lastNavigateAt;
   String _errorMessage = '';
 
+  /// P1-1 空转熔断观察窗口：最近 [ExploreLimits.stallWindow] 次导航是否产出
+  /// 新页面（环形窗口，先进先出）。
+  final List<bool> _stallWindow = [];
+
+  /// 熔断是否已触发（触发后重复导航已探索页面会被拒绝；新页面导航自动恢复）。
+  bool _stallDetected = false;
+
+  /// 熔断提示文本（供 UI/AI 消费）。
+  String _stallMessage = '';
+
   /// 可注入时钟（测试节流用）。
   final DateTime Function() clock;
 
@@ -315,6 +338,9 @@ class ExploreWorkflow {
 
   /// 触达上限/节流提示回调（AI 应据此停止循环，A15 语义类比）。
   void Function(String message)? onLimitReached;
+
+  /// 空转熔断触发回调（P1-1，reverse-skill R43 移植）：UI 层弹警告 + 回灌 AI。
+  void Function(String message)? onStallDetected;
 
   ExploreWorkflow({
     this.limits = const ExploreLimits(),
@@ -334,6 +360,12 @@ class ExploreWorkflow {
   String get errorMessage => _errorMessage;
   bool get pagesExhausted => uniquePages >= limits.maxPages;
   bool get requestsExhausted => _requestsCaptured >= limits.maxRequests;
+
+  /// P1-1：空转熔断是否已触发（UI 弹警告；重复导航被拒）。
+  bool get stallDetected => _stallDetected;
+
+  /// P1-1：熔断提示文本。
+  String get stallMessage => _stallMessage;
 
   /// 当前阶段是否允许用户交互（选择弹窗）。
   bool get isUserInteractive => _phase == ExplorePhase.idle ||
@@ -433,6 +465,7 @@ class ExploreWorkflow {
   void restartExploring() {
     _candidates = [];
     _selected = [];
+    _resetStall();
     _enter(ExplorePhase.exploring, note: '重新探索');
   }
 
@@ -449,7 +482,15 @@ class ExploreWorkflow {
     _requestsLimitNotified = false;
     _lastNavigateAt = null;
     _errorMessage = '';
+    _resetStall();
     _notify();
+  }
+
+  /// 清空熔断状态（重新探索/重置时）。
+  void _resetStall() {
+    _stallWindow.clear();
+    _stallDetected = false;
+    _stallMessage = '';
   }
 
   // ── 守卫计数（navigate_get 工具消费）──
@@ -488,6 +529,13 @@ class ExploreWorkflow {
 
     final key = _urlKey(url);
     final isNew = !_visitedUrls.contains(key);
+
+    // P1-1 空转熔断：已触发期间重复访问已探索页面 → 拒绝（AI 无法继续空转）；
+    // 访问新页面自动恢复（换策略出口）。
+    if (_stallDetected && !isNew) {
+      return '空转熔断：$_stallMessage。请切换策略（换入口链接 / 结束探索进入归类）';
+    }
+
     if (isNew && _visitedUrls.length >= limits.maxPages) {
       final msg = '已触达页数上限（${limits.maxPages} 页），探索应结束';
       onLimitReached?.call(msg);
@@ -496,9 +544,35 @@ class ExploreWorkflow {
     if (isNew) _visitedUrls.add(key);
     _pagesVisited++;
     _lastNavigateAt = now;
+    _recordStall(isNew);
     recordRequest();
     _notify();
     return null;
+  }
+
+  /// 更新空转观察窗口并判定熔断（P1-1，reverse-skill R43 移植）。
+  ///
+  /// 窗口内导航次数 ≥ [ExploreLimits.stallThreshold] 且全部无新页面 → 触发；
+  /// 新页面产出 → 自动恢复。
+  void _recordStall(bool isNew) {
+    _stallWindow.add(isNew);
+    if (_stallWindow.length > limits.stallWindow) {
+      _stallWindow.removeAt(0);
+    }
+    if (isNew && _stallDetected) {
+      // 探索重新产出：熔断自动恢复
+      _stallDetected = false;
+      _stallMessage = '';
+    }
+    if (!_stallDetected &&
+        limits.stallThreshold > 0 &&
+        _stallWindow.length >= limits.stallThreshold &&
+        !_stallWindow.any((e) => e)) {
+      _stallDetected = true;
+      _stallMessage = '连续 ${limits.stallThreshold} 次导航无新页面，'
+          '探索疑似空转，重复导航将被拒绝';
+      onStallDetected?.call(_stallMessage);
+    }
   }
 
   /// 记录一次探索触发的 GET 请求（含导航本身）。
@@ -528,5 +602,6 @@ class ExploreWorkflow {
   void dispose() {
     onChanged = null;
     onLimitReached = null;
+    onStallDetected = null;
   }
 }
