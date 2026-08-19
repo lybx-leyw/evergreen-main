@@ -1,5 +1,6 @@
 /// 开发者模式主区 DevModeHub widget 测试——
-/// IndexedStack 三插件挂载、query 深链选页、安卓爬取占位、插件缺失兜底。
+/// IndexedStack 四插件挂载（theme-creator/html-creator/scraper/dsh）、
+/// query 深链选页、安卓爬取占位、插件缺失兜底。
 ///
 /// 模块用最小描述符（template 默认 v4、无 pages）→ ModuleDispatch 落到
 /// DefaultView 空状态，不依赖模板注册表与 App 级服务。
@@ -66,21 +67,23 @@ void main() {
     }
   });
 
-  testWidgets('默认：三插件全部挂载（IndexedStack），选中索引 0=主题创作', (tester) async {
-    // flutter_test 默认 defaultTargetPlatform==android，会让 scraper 槽位落到
-    // 安卓占位页；显式设为 windows 才能验证三页都挂载 EvergreenModulePage。
+  testWidgets('默认：四插件全部挂载（IndexedStack），选中索引 0=主题创作', (tester) async {
+    // flutter_test 默认 defaultTargetPlatform==android，会让 scraper/dsh 槽位落到
+    // 安卓占位页；显式设为 windows 才能验证已注册页挂载 EvergreenModulePage。
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    // 仅注册 3 个：dsh 缺失 → 第 4 槽位落到「插件未安装」占位页。
     final registry = _registry(['theme-creator', 'html-creator', 'scraper']);
     await tester.pumpWidget(_wrap(registry, pluginsDir));
     await tester.pump();
 
     final stack = tester.widget<IndexedStack>(find.byType(IndexedStack));
     expect(stack.index, 0);
-    expect(stack.children.length, 3);
+    expect(stack.children.length, 4);
     expect(
       find.byType(EvergreenModulePage, skipOffstage: false),
       findsNWidgets(3),
-      reason: 'IndexedStack 三页同时挂载以保持状态',
+      reason: 'IndexedStack 四槽位同时挂载；已注册 3 页挂 EvergreenModulePage，'
+          'dsh 缺失落占位页',
     );
     // 必须在 body 末尾还原：_verifyInvariants 早于 tearDown 执行，
     // 否则触发 debugAssertAllFoundationVarsUnset。
@@ -108,13 +111,13 @@ void main() {
 
     expect(find.text('数据爬取仅支持 Windows 版'), findsOneWidget);
     final stack = tester.widget<IndexedStack>(find.byType(IndexedStack));
-    expect(stack.children.length, 3, reason: '槽位数量不变，仅内容替换');
+    expect(stack.children.length, 4, reason: '槽位数量不变，仅内容替换');
     // body 末尾还原，避免 _verifyInvariants 检出 debug 变量泄漏。
     debugDefaultTargetPlatformOverride = null;
   });
 
   testWidgets('插件缺失：对应槽位渲染「插件未安装」占位', (tester) async {
-    // 显式非安卓：避免 scraper 槽位先落入安卓占位分支，验证 _MissingPluginPage。
+    // 显式非安卓：避免 scraper/dsh 槽位先落入安卓占位分支，验证 _MissingPluginPage。
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;
     final registry = _registry(['theme-creator', 'html-creator']);
     await tester.pumpWidget(_wrap(registry, pluginsDir,
@@ -122,8 +125,10 @@ void main() {
     await tester.pump();
 
     // skipOffstage: false —— IndexedStack 中非活动页 offstage，find 默认裁剪。
-    expect(find.text('插件未安装', skipOffstage: false), findsOneWidget);
+    // 缺失的插件是 scraper + dsh 两个 → 两个「插件未安装」占位页。
+    expect(find.text('插件未安装', skipOffstage: false), findsNWidgets(2));
     expect(find.text('scraper', skipOffstage: false), findsOneWidget);
+    expect(find.text('dsh', skipOffstage: false), findsOneWidget);
     debugDefaultTargetPlatformOverride = null;
   });
 }
