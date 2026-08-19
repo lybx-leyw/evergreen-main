@@ -39,6 +39,7 @@ class FakeScraperFlowFacade extends ScraperFlowFacade {
     String? dataTypeName,
     String? category,
     String? displayName,
+    List<Map<String, dynamic>>? fields,
   }) async {
     return ExportResult(success: true, message: 'ok');
   }

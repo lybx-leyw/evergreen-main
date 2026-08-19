@@ -560,11 +560,16 @@ class PresentDataSourcesTool extends SimpleTool {
             // Phase 10：探索充分性门槛——0 导航且无捕获日志时禁止归类。
             if (!exploreWorkflow.explorationSufficient &&
                 captureWorkflow.logs.isEmpty) {
+              final minPages = exploreWorkflow.limits.minPagesForCategorize;
+              final minReqs = exploreWorkflow.limits.minRequestsForCategorize;
+              final thresholdText = [
+                if (minPages > 0) '$minPages 页',
+                if (minReqs > 0) '$minReqs 请求',
+              ].join(' 且 ');
               return '[error: 探索不充分，禁止过早归类'
                   '（已访问 ${exploreWorkflow.uniquePages} 页 / '
                   '${exploreWorkflow.requestsCaptured} 请求，'
-                  '至少需 ${exploreWorkflow.limits.minPagesForCategorize} 页或 '
-                  '${exploreWorkflow.limits.minRequestsForCategorize} 请求）。'
+                  '至少需 ${thresholdText.isEmpty ? '完成一次有效导航' : thresholdText}）。'
                   '请先 navigate_get 探索目标站点，或确保已有捕获日志证据后重试。]';
             }
             if (exploreWorkflow.phase == ExplorePhase.exploring) {

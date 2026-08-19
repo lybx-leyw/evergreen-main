@@ -422,9 +422,17 @@ class ExploreWorkflow {
   /// Phase 10：探索是否达到归类最小量（页数或请求数门槛）。
   ///
   /// 用于 present_data_sources 守卫：杜绝 AI 在 0 导航时过早归类。
-  bool get explorationSufficient =>
-      uniquePages >= limits.minPagesForCategorize ||
-      _requestsCaptured >= limits.minRequestsForCategorize;
+  ///
+  /// 门槛语义：值为 0 表示「不设该门槛」；页数与请求数门槛**均需满足**才充分
+  /// （默认 minRequestsForCategorize=0，故仅页数门槛生效——0 导航时
+  /// uniquePages=0 < 1 → 不充分）。
+  bool get explorationSufficient {
+    final minPages = limits.minPagesForCategorize;
+    final minReqs = limits.minRequestsForCategorize;
+    final pagesOk = minPages == 0 || uniquePages >= minPages;
+    final reqsOk = minReqs == 0 || _requestsCaptured >= minReqs;
+    return pagesOk && reqsOk;
+  }
 
   /// P1-1：空转熔断是否已触发（UI 弹警告；重复导航被拒）。
   bool get stallDetected => _stallDetected;
