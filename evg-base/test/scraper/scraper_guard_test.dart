@@ -5,6 +5,7 @@
 // 2. 终端命令白名单（自动放行）
 // 3. lintScraperCode：模板完整性 / import 白名单 / 危险调用 / 凭证硬编码 / 假数据启发式
 // 4. validateCredentialArgs
+import 'package:evergreen_base/renderer/templates/scraper_modle/agent/scraper_gate.dart';
 import 'package:evergreen_base/renderer/templates/scraper_modle/workflow/scraper_guard.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -194,6 +195,41 @@ if __name__ == "__main__":
       final r = lintScraperCode(code,
           capturedUrls: {'https://target.com/api/courses'});
       expect(r.warnings.any((w) => w.contains('无交集')), isFalse);
+    });
+  });
+
+  group('ScraperGate 权限规则', () {
+    test('set_data_name 走 always 规则放行（写工具不应被默认拒绝）', () async {
+      final gate = ScraperGate();
+      // set_data_name 是写工具（readOnly=false），但应在规则表内 → always 放行
+      final (allow, reason) = await gate.check(
+        'set_data_name',
+        {'name': 'courses'},
+        false,
+      );
+      expect(allow, isTrue, reason: 'set_data_name 应放行，实际 reason=$reason');
+    });
+
+    test('guard_override 走 always 规则放行', () async {
+      final gate = ScraperGate();
+      final (allow, reason) = await gate.check(
+        'guard_override',
+        {'tool_name': 'run_python_scraper', 'reason': 'test'},
+        false,
+      );
+      expect(allow, isTrue, reason: 'guard_override 应放行，实际 reason=$reason');
+    });
+
+    test('未知写工具仍默认拒绝（安全兜底）', () async {
+      final gate = ScraperGate();
+      final (allow, _) = await gate.check('some_unknown_tool', {}, false);
+      expect(allow, isFalse);
+    });
+
+    test('只读工具无规则也放行', () async {
+      final gate = ScraperGate();
+      final (allow, _) = await gate.check('list_captured_requests', {}, true);
+      expect(allow, isTrue);
     });
   });
 

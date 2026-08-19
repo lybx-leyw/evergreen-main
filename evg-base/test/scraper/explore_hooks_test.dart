@@ -177,7 +177,7 @@ void main() {
       expect(ok, isFalse);
     });
 
-    test('P0-2：确认源无捕获日志证据 → register_batch 被证据终闸拦截', () async {
+    test('P0-2：确认源无捕获日志证据 → register_batch 放行（放宽，仅提示）', () async {
       final capture = ScraperWorkflow(); // 无任何日志
       final ew = ExploreWorkflow();
       ew.startExploring(startUrl: 'https://site.com/');
@@ -193,9 +193,8 @@ void main() {
       ew.confirmSelection(const [src]);
       final h = ScraperHooks(workflow: capture, exploreWorkflow: ew);
 
-      final (block, msg) = await h.preToolUse('register_batch', {'names': '["ghost"]'});
-      expect(block, isTrue);
-      expect(msg, contains('无捕获日志证据'));
+      final (block, _) = await h.preToolUse('register_batch', {'names': '["ghost"]'});
+      expect(block, isFalse); // 无日志证据不再拦截
     });
   });
 

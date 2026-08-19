@@ -36,6 +36,10 @@ class ScraperGate extends agent.InteractiveGate {
           agent.PermissionRule(toolName: 'save_credential', level: agent.PermissionLevel.confirm),
           // 终端命令 —— confirm（pendingCallback 内再分级）
           agent.PermissionRule(toolName: 'run_terminal_command', level: agent.PermissionLevel.confirm),
+          // 锁定产物根名 —— 面板内部状态回写，无副作用（名称合法性由工具内校验管）
+          agent.PermissionRule(toolName: 'set_data_name', level: agent.PermissionLevel.always),
+          // 门控一次性豁免 —— 请求用户放行（真正放行由弹窗确认，工具本身无副作用）
+          agent.PermissionRule(toolName: 'guard_override', level: agent.PermissionLevel.always),
           // ── Phase 4 探索工具（阶段白名单由 ScraperHooks 依据 ExploreWorkflow 强制；
           //    navigate_get 的 GET-only/同域/节流守卫在工具内；build/register 由 L2 lint + G6 Guardian 管）──
           agent.PermissionRule(toolName: 'explore_page_links', level: agent.PermissionLevel.always),

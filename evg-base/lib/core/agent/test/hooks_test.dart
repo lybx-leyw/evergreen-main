@@ -8,31 +8,32 @@ library;
 
 import 'package:test/test.dart';
 
-import '../agent.dart' as agent;
+import '../agent/agent.dart'; // ToolHooks 接口（纯 Dart，不依赖根包）
+import '../agent/hooks.dart'; // hookMatches / CompositeHooks
 
 void main() {
   group('hookMatches', () {
     test('空 match 匹配全部', () {
       final h = _RecorderHooks(match: '');
-      expect(agent.hookMatches(h, 'run_python_scraper'), isTrue);
-      expect(agent.hookMatches(h, 'anything'), isTrue);
+      expect(hookMatches(h, 'run_python_scraper'), isTrue);
+      expect(hookMatches(h, 'anything'), isTrue);
     });
 
     test('* 匹配全部', () {
       final h = _RecorderHooks(match: '*');
-      expect(agent.hookMatches(h, 'foo'), isTrue);
+      expect(hookMatches(h, 'foo'), isTrue);
     });
 
     test('锚定正则精确匹配', () {
       final h = _RecorderHooks(match: r'run_.*');
-      expect(agent.hookMatches(h, 'run_python_scraper'), isTrue);
-      expect(agent.hookMatches(h, 'run_terminal_command'), isTrue);
-      expect(agent.hookMatches(h, 'save_credential'), isFalse);
+      expect(hookMatches(h, 'run_python_scraper'), isTrue);
+      expect(hookMatches(h, 'run_terminal_command'), isTrue);
+      expect(hookMatches(h, 'save_credential'), isFalse);
     });
 
     test('非法正则不抛异常（返回 false）', () {
       final h = _RecorderHooks(match: '(');
-      expect(agent.hookMatches(h, 'x'), isFalse);
+      expect(hookMatches(h, 'x'), isFalse);
     });
   });
 
@@ -57,7 +58,7 @@ void main() {
     test('pre 任一 block 则整体 block（取第一个 block 消息）', () async {
       final blocking = _RecorderHooks(match: '', blockOn: 'run_python_scraper');
       final free = _RecorderHooks(match: '');
-      final composite = agent.CompositeHooks([blocking, free]);
+      final composite = CompositeHooks([blocking, free]);
       final (block, msg) =
           await composite.preToolUse('run_python_scraper', {});
       expect(block, isTrue);
@@ -67,14 +68,14 @@ void main() {
     test('pre 全部放行则放行', () async {
       final a = _RecorderHooks(match: '');
       final b = _RecorderHooks(match: '');
-      final composite = agent.CompositeHooks([a, b]);
+      final composite = CompositeHooks([a, b]);
       final (block, _) = await composite.preToolUse('save_credential', {});
       expect(block, isFalse);
     });
 
     test('match 过滤：不匹配的工具不触发', () async {
       final h = _RecorderHooks(match: r'run_python_scraper');
-      final composite = agent.CompositeHooks([h]);
+      final composite = CompositeHooks([h]);
       await composite.postToolUse('save_credential', {}, 'ok');
       expect(h.successes, isEmpty);
       await composite.postToolUse('run_python_scraper', {}, 'ok');
@@ -84,7 +85,7 @@ void main() {
     test('post/failure 全部执行', () async {
       final a = _RecorderHooks(match: '');
       final b = _RecorderHooks(match: '');
-      final composite = agent.CompositeHooks([a, b]);
+      final composite = CompositeHooks([a, b]);
       await composite.postToolUseFailure('x', {}, '[error: e]');
       expect(a.failures, contains('x'));
       expect(b.failures, contains('x'));
@@ -93,7 +94,7 @@ void main() {
 }
 
 /// 记录调用、可配置 match / block 的假 hooks。
-class _RecorderHooks implements agent.ToolHooks {
+class _RecorderHooks implements ToolHooks {
   @override
   final String match;
   final String? blockOn;

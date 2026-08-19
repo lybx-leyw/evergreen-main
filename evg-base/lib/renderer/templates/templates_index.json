@@ -8,6 +8,7 @@
     { "name": "paper_reading", "entry": "paper_reading_modle/paper_reading_modle_template.dart",   "renderer": "PaperReadingModleTemplate" },
     { "name": "html",          "entry": "html_modle/html_modle_template.dart",                     "renderer": "HtmlModleTemplate" },
     { "name": "scraper",       "entry": "scraper_modle/scraper_template.dart",                     "renderer": "ScraperTemplate" },
-    { "name": "theme-creator", "entry": "theme_creator_modle/theme_creator_modle_template.dart",   "renderer": "ThemeCreatorModleTemplate" }
+    { "name": "theme-creator", "entry": "theme_creator_modle/theme_creator_modle_template.dart",   "renderer": "ThemeCreatorModleTemplate" },
+    { "name": "dsh",           "entry": "dsh_modle/dsh_modle_template.dart",                        "renderer": "DshModleTemplate" }
   ]
 }

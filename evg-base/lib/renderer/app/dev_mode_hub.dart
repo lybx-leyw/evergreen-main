@@ -26,6 +26,7 @@ const Map<String, int> _pluginIndex = {
   'theme-creator': 0,
   'html-creator': 1,
   'scraper': 2,
+  'dsh': 3,
 };
 
 int? _indexFromQuery(String? plugin) =>
@@ -50,8 +51,9 @@ class DevModeHub extends ConsumerWidget {
     final pages = <Widget>[];
     for (int i = 0; i < kDevPluginIds.length; i++) {
       final id = kDevPluginIds[i];
-      if (id == 'scraper' && isAndroid) {
-        pages.add(const _AndroidScraperPlaceholder());
+      // 仅 Windows 插件（scraper / dsh 依赖 WebView2）在安卓端渲染占位页。
+      if ((id == 'scraper' || id == 'dsh') && isAndroid) {
+        pages.add(_AndroidPlaceholder(label: _labelFor(id)));
         continue;
       }
       final descriptor = registry.findById(id);
@@ -67,7 +69,7 @@ class DevModeHub extends ConsumerWidget {
     }
 
     return IndexedStack(
-      index: selected.clamp(0, pages.length - 1).toInt(),
+      index: (selected ?? 0).clamp(0, pages.length - 1).toInt(),
       children: pages,
     );
   }
@@ -75,9 +77,17 @@ class DevModeHub extends ConsumerWidget {
 
 // ═══════ 占位页 ═══════
 
-/// 安卓端数据爬取占位页——提示使用 Windows 版。
-class _AndroidScraperPlaceholder extends StatelessWidget {
-  const _AndroidScraperPlaceholder();
+/// 插件 id → 显示标签（安卓占位页 / 弹窗共用）。
+String _labelFor(String id) => switch (id) {
+      'scraper' => '数据爬取',
+      'dsh' => 'DSH',
+      _ => id,
+    };
+
+/// 安卓端「仅 Windows 插件」占位页——提示使用 Windows 版。
+class _AndroidPlaceholder extends StatelessWidget {
+  final String label;
+  const _AndroidPlaceholder({required this.label});
 
   @override
   Widget build(BuildContext context) {
@@ -89,7 +99,7 @@ class _AndroidScraperPlaceholder extends StatelessWidget {
           Icon(Icons.phonelink_lock_outlined, size: 64, color: scheme.primary),
           const SizedBox(height: 16),
           Text(
-            '数据爬取仅支持 Windows 版',
+            '$label仅支持 Windows 版',
             style: Theme.of(context)
                 .textTheme
                 .titleMedium
@@ -97,7 +107,7 @@ class _AndroidScraperPlaceholder extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            '安卓版暂未提供数据爬取，请使用 Windows 版 Evergreen。',
+            '安卓版暂未提供 $label，请使用 Windows 版 Evergreen。',
             textAlign: TextAlign.center,
             style: Theme.of(context)
                 .textTheme

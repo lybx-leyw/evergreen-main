@@ -158,8 +158,8 @@ void main() {
     });
   });
 
-  group('ListCapturedRequestsTool（仅 GET）', () {
-    test('过滤 POST/NAVIGATION 等非 GET，同域过滤', () async {
+  group('ListCapturedRequestsTool（全量回灌）', () {
+    test('全量回灌 GET/POST/NAVIGATION，同域过滤', () async {
       final capture = ScraperWorkflow();
       final ew = ExploreWorkflow();
       ew.startExploring(startUrl: 'https://a.com/');
@@ -178,10 +178,10 @@ void main() {
       );
       final out = await tool.execute({});
       expect(out, contains('api/list'));
-      expect(out, isNot(contains('api/login')));
-      expect(out, isNot(contains('NAVIGATION')));
-      expect(out, isNot(contains('b.com')));
-      // P0-2：每条 GET 摘要带证据 id（addLog 自动补号：GET api/list 是 log-1）
+      expect(out, contains('api/login')); // POST 也回灌
+      expect(out, contains('NAVIGATION')); // 导航也回灌
+      expect(out, isNot(contains('b.com'))); // 跨域仍过滤
+      // P0-2：每条摘要带证据 id（addLog 自动补号：GET api/list 是 log-1）
       expect(out, contains('证据 id: log-1'));
     });
   });
@@ -252,7 +252,7 @@ void main() {
       expect(out, contains('[error: 数据源名称非法'));
     });
 
-    test('URL 跨域 → 拒绝', () async {
+    test('URL 跨域 → 放行（数据分类放开，不锁同域）', () async {
       final (w, capture) = readyWorkflow();
       final tool = PresentDataSourcesTool(
         exploreWorkflow: w,
@@ -264,7 +264,7 @@ void main() {
           {'name': 'x', 'displayName': 'x', 'category': '', 'url': 'https://evil.com/1'},
         ]),
       });
-      expect(out, contains('非同域'));
+      expect(out, contains('✅ 用户已确认'));
     });
 
     test('用户未选择 → 提示重新归类', () async {
@@ -283,20 +283,21 @@ void main() {
       expect(w.phase, ExplorePhase.confirming);
     });
 
-    test('P0-2：url 无日志证据 → 拒绝呈现，不进入用户确认', () async {
+    test('P0-2：url 无日志证据 → 仅警告不阻断，仍进入用户确认', () async {
       final (w, capture) = readyWorkflow();
       final tool = PresentDataSourcesTool(
         exploreWorkflow: w,
         captureWorkflow: capture,
-        presentSources: (cands) async => fail('不应弹窗'),
+        presentSources: (cands) async => cands,
       );
       final out = await tool.execute({
         'sources': jsonEncode([
           {'name': 'ghost', 'displayName': '幽灵', 'category': '', 'url': 'https://site.com/api/ghost', 'sourceLogId': 'log-99'},
         ]),
       });
-      expect(out, contains('[error: 数据源 ghost 无日志证据'));
-      expect(w.phase, ExplorePhase.categorizing); // 未进入 confirming
+      expect(out, contains('✅ 用户已确认'));
+      expect(out, contains('证据警告')); // 无日志证据仅提示
+      expect(w.phase, ExplorePhase.building); // 进入 building
     });
 
     test('P0-2：sourceLogId 失效按 URL 兜底 + 警告回灌', () async {
@@ -396,7 +397,7 @@ void main() {
       expect(out, contains('[error: 数据源 ghost 不在用户确认清单中'));
     });
 
-    test('P0-2 register：确认源无日志证据 → 拒绝注册（回调不被调用）', () async {
+    test('P0-2 register：无日志证据 → 仅警告不阻断（回调仍被调用）', () async {
       final ew = ExploreWorkflow();
       ew.startExploring(startUrl: 'https://site.com/');
       ew.startCategorizing();
@@ -414,14 +415,15 @@ void main() {
       final tool = RegisterBatchTool(
         registerBatch: (names) async {
           called = true;
-          return 'x';
+          return '✅ 全部注册';
         },
         exploreWorkflow: ew,
         captureWorkflow: capture,
       );
       final out = await tool.execute({'names': '["courses"]'});
-      expect(out, contains('[error: 数据源 courses 无日志证据'));
-      expect(called, isFalse);
+      expect(out, contains('✅ 全部注册'));
+      expect(out, contains('无捕获日志证据'));
+      expect(called, isTrue);
     });
 
     test('P0-2 register：有证据 → 放行 + 警告透传', () async {

@@ -189,10 +189,10 @@ class NavigateGetTool extends SimpleTool {
 
 // ═══════ list_captured_requests ═══════
 
-/// 工具：读取捕获日志中的 GET 请求（POST 等一律过滤，D2）。
+/// 工具：读取捕获日志中的**全部**请求（GET/POST/NAVIGATION/RESPONSE 等全量回灌）。
 ///
-/// 每条请求带证据 id（`log-N`，P0-2）：归类候选数据源时必须引用该 id 作为
-/// `sourceLogId` 证据，否则会被证据守卫拒绝。
+/// 每条请求带证据 id（`log-N`，P0-2）：归类候选数据源时可引用该 id 作为
+/// `sourceLogId` 证据（可选，非强制）。数据分类由 AI 自主判断价值。
 class ListCapturedRequestsTool extends SimpleTool {
   final ScraperWorkflow captureWorkflow;
   final ExploreWorkflow exploreWorkflow;
@@ -202,11 +202,13 @@ class ListCapturedRequestsTool extends SimpleTool {
     required this.exploreWorkflow,
   }) : super(
           name: 'list_captured_requests',
-          description: '读取浏览器捕获日志中的 GET 请求（仅 GET；POST/表单等'
-              '一律被过滤，不提供方法改写）。返回 AI 友好摘要'
-              '（证据 id/URL/关键 headers/响应体样本），供归类候选数据源使用。'
-              '每条请求都带证据 id（log-N）——present_data_sources 时'
-              '每个候选源必须引用 sourceLogId 证据，否则会被守卫拒绝。',
+          description: '读取浏览器捕获日志中的全部请求（GET/POST/导航/响应等，'
+              '不做方法过滤，全量回灌）。返回 AI 友好摘要'
+              '（证据 id/方法/URL/关键 headers/响应体样本），供归类候选数据源使用。'
+              '每条请求带证据 id（log-N），present_data_sources 时'
+              '可引用 sourceLogId 作为来源证据（可选，非强制）。'
+              '数据分类由你自主判断——记录你认为有价值的内容，'
+              '不强制要求必须是 GET 请求。',
           schema: const {
             'type': 'object',
             'properties': {},
@@ -214,8 +216,7 @@ class ListCapturedRequestsTool extends SimpleTool {
           readOnly: true,
           execute: (args) async {
             final base = exploreWorkflow.baseHost;
-            final gets = captureWorkflow.logs.where((l) {
-              if (l.method != 'GET') return false;
+            final logs = captureWorkflow.logs.where((l) {
               if (!l.url.startsWith('http://') &&
                   !l.url.startsWith('https://')) {
                 return false;
@@ -225,23 +226,23 @@ class ListCapturedRequestsTool extends SimpleTool {
               }
               return true;
             }).toList();
-            if (gets.isEmpty) {
-              return '(暂无 GET 捕获日志) 请先在浏览器中浏览/探索目标页面。';
+            if (logs.isEmpty) {
+              return '(暂无捕获日志) 请先在浏览器中浏览/探索目标页面。';
             }
             final buf = StringBuffer();
-            buf.writeln('## 捕获的 GET 请求（${gets.length} 条'
+            buf.writeln('## 捕获的请求日志（${logs.length} 条'
                 '${base.isNotEmpty ? ' · 同域 $base' : ''}）\n');
-            final shown = gets.length > 100 ? 100 : gets.length;
+            final shown = logs.length > 100 ? 100 : logs.length;
             for (var i = 0; i < shown; i++) {
-              final log = gets[i];
+              final log = logs[i];
               final idLabel =
                   log.id.isNotEmpty ? ' · 证据 id: ${log.id}' : '';
               buf.writeln('### 请求 #${i + 1}$idLabel');
               buf.writeln(log.toAiSummary());
               buf.writeln();
             }
-            if (gets.length > shown) {
-              buf.writeln('…（其余 ${gets.length - shown} 条已截断）');
+            if (logs.length > shown) {
+              buf.writeln('…（其余 ${logs.length - shown} 条已截断）');
             }
             return buf.toString();
           },
@@ -302,12 +303,15 @@ class PresentDataSourcesTool extends SimpleTool {
           description: '把归类好的候选数据源呈现给用户做多选确认。'
               '参数 sources 为 JSON 数组，每项：'
               '{name: 英文标识(仅字母数字_-、字母开头), displayName: 展示名, '
-              'category: 归类, url: GET URL, '
-              'sourceLogId: 该 url 来源日志的证据 id（list_captured_requests '
-              '返回的 log-N，必填）, '
+              'category: 归类(由你自主描述), url: 数据 URL, '
+              'method: 请求方法(如 GET/POST，默认 GET；请避开编辑/删除等'
+              '危险操作字样，只呈现只读查询类数据源), '
+              'sourceLogId: 该 url 来源日志的证据 id（可选，'
+              'list_captured_requests 返回的 log-N）, '
               'fields: [{name,type,description,sourceJsonPath: 响应 JSON 字段路径}'
               '如 \$.data[0].courseName]}。'
-              'url 无捕获日志证据的源会被守卫拒绝（[error: 无日志证据]）。'
+              '数据分类由你自主判断——记录你认为有价值的内容，'
+              '不强求 GET 或日志证据（无日志证据仅提示不阻断）。'
               '调用后弹出多选框（用户可勾选并改名）；返回用户确认选择的数据源'
               'JSON 数组（以用户改名为准）。用户取消时返回提示，请重新归类或询问用户。',
           schema: const {
@@ -344,22 +348,22 @@ class PresentDataSourcesTool extends SimpleTool {
               if (nameErr != null) {
                 return '[error: 数据源名称非法: $nameErr — name="${c.name}"]';
               }
-              final urlErr = validateExploreUrl(c.url,
-                  baseHost: exploreWorkflow.baseHost);
+              // 危险 method 提示（不阻断）：编辑/删除类操作提示 AI 避开
+              final dmHint = dangerousMethodHint(c.method);
+              if (dmHint != null) {
+                evidenceWarnings.add('${c.name}: $dmHint');
+              }
+              // 数据分类放开：URL 仅校验 http/https 格式（不锁同域，不强求 GET）
+              final urlErr = validateExploreUrl(c.url);
               if (urlErr != null) {
-                return '[error: 数据源 ${c.name} URL 被守卫拒绝: $urlErr]';
+                return '[error: 数据源 ${c.name} URL 非法: $urlErr]';
               }
               if (candidates.any((x) => x.name == c.name)) {
                 return '[error: 数据源名称重复: "${c.name}"]';
               }
-              // P0-2 证据校验：url 无捕获日志证据 → 硬阻断（伪造源不进用户视野）
+              // P0-2 证据校验（放宽）：url 无捕获日志证据 → 仅警告，不硬阻断
               final evidence = validateDataSourceEvidence(
                   c, captureWorkflow.logs);
-              if (evidence.hardBlocked) {
-                return '[error: 数据源 ${c.name} 无日志证据，拒绝呈现: '
-                    '${evidence.errors.join('；')}。'
-                    '请用 list_captured_requests 核实并附 sourceLogId]';
-              }
               for (final w in evidence.warnings) {
                 evidenceWarnings.add('${c.name}: $w');
               }
@@ -414,7 +418,7 @@ class PresentDataSourcesTool extends SimpleTool {
 /// 工具：逐源构建 data-{name} 插件（D5/D8）。
 ///
 /// 注入 [exploreWorkflow]/[captureWorkflow] 时做 P0-2 证据复核（纵深防御）：
-/// name 须在用户确认清单中；无 url 证据 → 拒绝构建；字段 path 问题仅警告透传。
+/// name 须在用户确认清单中（防改名漂移）；无 url 证据 → 仅警告透传（不阻断）。
 /// 两者为空（独立构造/测试）时跳过证据校验，保持向后兼容。
 class BuildSelectedSourceTool extends SimpleTool {
   final Future<String> Function(String name, String code) buildSource;
@@ -456,7 +460,7 @@ class BuildSelectedSourceTool extends SimpleTool {
             if (nameErr != null) return '[error: 数据源名称非法: $nameErr]';
             if (code.isEmpty) return '[error: code 参数为空]';
 
-            // P0-2 证据复核（纵深防御：present 阶段已硬校验，此处防绕过/防改名漂移）
+            // P0-2 证据复核（放宽：无日志证据仅警告，不阻断；防绕过仍保留清单校验）
             final notes = <String>[];
             final ew = exploreWorkflow;
             final cw = captureWorkflow;
@@ -466,10 +470,6 @@ class BuildSelectedSourceTool extends SimpleTool {
                 return '[error: 数据源 $name 不在用户确认清单中，拒绝构建]';
               }
               final evidence = validateDataSourceEvidence(src, cw.logs);
-              if (evidence.hardBlocked) {
-                return '[error: 数据源 $name 无日志证据，拒绝构建: '
-                    '${evidence.errors.join('；')}]';
-              }
               for (final w in evidence.warnings) {
                 notes.add('⚠️ $name: $w');
               }
@@ -488,8 +488,8 @@ class BuildSelectedSourceTool extends SimpleTool {
 
 /// 工具：批量注册 + orch.get 验证（D6）。
 ///
-/// 注入 [exploreWorkflow]/[captureWorkflow] 时做 P0-2 证据终闸：
-/// 每个 name 须在用户确认清单中且 url 有捕获日志证据，否则拒绝注册。
+/// 注入 [exploreWorkflow]/[captureWorkflow] 时做 P0-2 证据终闸（放宽）：
+/// 每个 name 须在用户确认清单中（防绕过）；url 无捕获日志证据仅警告不阻断。
 /// 两者为空（独立构造/测试）时跳过证据校验，保持向后兼容。
 class RegisterBatchTool extends SimpleTool {
   final Future<String> Function(List<String> names) registerBatch;
@@ -505,8 +505,7 @@ class RegisterBatchTool extends SimpleTool {
           description: '批量热注册已构建的数据源插件（data-{name}）到数据中心，'
               '并对每个类型执行 orch.get 拉取验证。'
               'names 为数据源名称数组（JSON 数组字符串，或逗号分隔）。'
-              '注册前做证据终闸：数据源必须已在用户确认清单中，且 url 有'
-              '捕获日志证据（list_captured_requests 的证据 id），否则拒绝。'
+              '注册前校验：数据源必须已在用户确认清单中（无日志证据仅提示，不拒绝）。'
               '返回完整结果日志（含 lastError/拉取异常/返回 null 等详情）；'
               '若有失败项，用 build_selected_source 修正后再次调用本工具（最多 3 轮）。',
           schema: const {
@@ -547,7 +546,7 @@ class RegisterBatchTool extends SimpleTool {
               if (err != null) return '[error: 数据源名称非法: $err — "$n"]';
             }
 
-            // P0-2 证据终闸：未确认 / 无 url 证据 → 拒绝注册
+            // P0-2 证据终闸（放宽：无日志证据仅警告，不阻断；未确认仍拒绝注册）
             final notes = <String>[];
             final ew = exploreWorkflow;
             final cw = captureWorkflow;
@@ -559,11 +558,6 @@ class RegisterBatchTool extends SimpleTool {
                       '请重新 present_data_sources 确认后重试]';
                 }
                 final evidence = validateDataSourceEvidence(src, cw.logs);
-                if (evidence.hardBlocked) {
-                  return '[error: 数据源 $n 无日志证据，拒绝注册: '
-                      '${evidence.errors.join('；')}。'
-                      '请用 list_captured_requests 核实并附 sourceLogId]';
-                }
                 for (final w in evidence.warnings) {
                   notes.add('⚠️ $n: $w');
                 }

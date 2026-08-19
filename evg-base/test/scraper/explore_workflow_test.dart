@@ -314,6 +314,7 @@ void main() {
       const readTools = [
         'ask',
         'guardian_review',
+        'guard_override',
         'list_skills',
         'read_workspace_file',
         'list_captured_requests',
@@ -435,7 +436,7 @@ void main() {
       expect(sanitizeSourceName('x' * 40), contains('过长'));
     });
 
-    test('CandidateDataSource JSON 往返（method 强制 GET）', () {
+    test('CandidateDataSource JSON 往返（method 透传 AI 给定值，默认 GET）', () {
       const c = CandidateDataSource(
         name: 'courses',
         displayName: '课程列表',
@@ -446,9 +447,9 @@ void main() {
       final json = c.toJson();
       final back = CandidateDataSource.fromJson(json);
       expect(back.name, 'courses');
-      expect(back.method, 'GET');
+      expect(back.method, 'GET'); // 默认 GET
       expect(back.fields.single.name, 'id');
-      // 容错：method 传入 POST 也被强制 GET
+      // method 透传 AI 给定值（不再强制 GET）
       final forced = CandidateDataSource.fromJson({
         'name': 'x',
         'displayName': 'x',
@@ -457,7 +458,7 @@ void main() {
         'method': 'POST',
         'fields': <dynamic>[],
       });
-      expect(forced.method, 'GET');
+      expect(forced.method, 'POST');
     });
 
     test('fromJson 过滤非法字段', () {

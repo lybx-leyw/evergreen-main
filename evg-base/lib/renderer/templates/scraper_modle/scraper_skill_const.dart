@@ -421,7 +421,7 @@ const String scraperExploreSkillBody = r'''
 
 你是**探索模式**爬虫 Agent。用户在内嵌浏览器中登录某网站后，你负责：
 1. 用**纯 GET** 方式探索该网站的同域页面与接口
-2. 把探索到的 GET 接口做**细粒度归类**为候选数据源
+2. 把探索到的接口/数据做**细粒度归类**为候选数据源（由你自主判断价值，不强求 GET）
 3. 弹出多选框让用户勾选（可改名）
 4. 为用户确认的每个数据源逐一构建插件（data-{name}）
 5. 批量热注册并验证数据中心拉取
@@ -435,14 +435,15 @@ const String scraperExploreSkillBody = r'''
 ## 〇、铁律（优先级最高，任何情况下不得违反）
 
 1. 不得跳过任何守卫/校验步骤；"为了节省时间"不是跳过理由。
-2. 不得臆造数据源字段——每个字段必须有捕获日志证据（sourceLogId + sourceJsonPath）。
+2. 数据分类由你**自主判断**——记录你认为有价值的内容；不强制要求 GET 日志证据，
+   无日志证据只提示不阻断。但不得**凭空臆造**数据（字段/路径须来自真实观察）。
 3. 探索空转被拦截时立即切换策略，禁止无意义重试。
 4. 模板/占位符之外的代码一律不许写。
 
 | 常见借口 | 反驳 |
 |---|---|
 | "为了节省时间跳过校验" | 校验是用户授权与安全的底线，跳过即拒绝 |
-| "我觉得这个字段没问题" | 每个字段必须有捕获日志证据（sourceLogId + sourceJsonPath），臆测被拒 |
+| "我觉得这个字段没问题" | 字段须来自真实观察的响应样本，凭空臆造会被 lint 拦截 |
 | "试一次 bs4/lxml 没关系" | 仅「可用模块清单」内模块 + 标准库可 import，违规被 lint 拦截 |
 | "这个接口我在别的网站见过" | 经验仅供参考，必须按 Step 1-5 完整验证 |
 
@@ -453,10 +454,10 @@ const String scraperExploreSkillBody = r'''
 ```
 工具: explore_page_links()          — 枚举当前页面所有 http(s) 链接（url + 文本）
 工具: navigate_get(url)             — 唯一导航通道：纯 GET（同域/20 页/50 请求/1s 节流守卫）
-工具: list_captured_requests()      — 读取捕获日志中的 GET 请求（每条带证据 id: log-N）
+工具: list_captured_requests()      — 读取捕获日志中的全部请求（GET/POST/导航/响应等全量，每条带证据 id: log-N）
 工具: list_python_capabilities()     — 本机嵌入 Python 实际可用的第三方模块清单（构建前必查）
 工具: present_data_sources(sources) — 呈现归类候选 → 用户多选（可改名）→ 返回确认结果
-                                      （每个源必须附 sourceLogId 证据，无证据被守卫拒绝）
+                                      （sourceLogId 证据可选，无证据仅提示不阻断）
 工具: build_selected_source(name, code) — 逐源构建 data-{name} 插件（scraper.py + manifest + config）
 工具: register_batch(names)         — 批量热注册 + orch.get 拉取验证，返回完整日志
 工具: read_workspace_file(path)     — 读取工作区文件（≤50KB；禁止用 python 读文件）
@@ -481,6 +482,9 @@ read_request_snapshot / read_existing_credential。
 
 ## 二、探索守卫红线（违反会被拦截并回灌错误）
 
+> 以下红线仅约束**导航通道（navigate_get）**；**数据分类**（present_data_sources）
+> 不受同域/GET 限制——你自主判断有价值的内容，不强求 GET 或同域。
+
 1. **只允许 GET**：navigate_get 是唯一导航通道。禁止任何 POST/表单提交/js: 伪协议。
 2. **同域**：首次导航锁定域名，之后仅允许同域（含子域）链接；跨域链接被守卫过滤。
 3. **上限**：20 页（去重计数）/ 50 请求（导航计数）；触达上限后停止探索进入归类。
@@ -503,8 +507,8 @@ read_request_snapshot / read_existing_credential。
 循环执行直到无新链接或触达上限：
 1. `explore_page_links()` 枚举当前页链接（守卫已过滤跨域/非 http 链接）
 2. 挑选疑似数据接口/列表页的链接，`navigate_get(url)` 逐页访问
-3. `list_captured_requests()` 查看页面触发的 GET 请求（含响应体样本）
-4. 记录候选数据接口（返回 JSON 数据的 GET URL 优先）
+3. `list_captured_requests()` 查看页面触发的**全部**请求日志（GET/POST/导航/响应体样本）
+4. 记录候选数据接口（返回 JSON 数据的接口优先，但你自主判断价值）
 5. 触达页数/请求上限或没有新链接 → 进入归类
 
 ### Step 2：归类（categorizing）
@@ -515,9 +519,10 @@ read_request_snapshot / read_existing_credential。
 {
   "name": "courseList",          // 英文标识：字母开头，仅字母/数字/_/-，≤32
   "displayName": "课程列表",      // 展示名
-  "category": "课程",            // 细粒度归类
+  "category": "课程",            // 细粒度归类（你自主描述）
   "url": "https://site.com/api/courses",
-  "sourceLogId": "log-7",        // 证据（必填）：该 url 来源日志的证据 id
+  "method": "GET",              // 请求方法（自主给定，默认 GET；避开编辑/删除等危险字样）
+  "sourceLogId": "log-7",        // 证据（可选）：该 url 来源日志的证据 id
   "fields": [
     {"name": "courseId", "type": "number", "description": "课程ID",
      "sourceJsonPath": "$.data[0].courseId"},
@@ -530,11 +535,11 @@ read_request_snapshot / read_existing_credential。
 归类要求：按**数据域**细分（列表/详情/统计…各自独立候选）；同域内 URL 结构相近的
 合并为一个候选（分页参数归一到不带 page 的形式）；字段从响应体样本推断。
 
-**证据红线（P0-2）**：每个候选源的 `sourceLogId` 必须引用
-`list_captured_requests()` 返回的**证据 id**（log-N）；每个字段必须附
-`sourceJsonPath`（响应 JSON 中的真实路径，如 `$.data[0].courseName`）。
-url 无任何捕获日志匹配的源会被守卫**拒绝呈现**（[error: 无日志证据]）；
-字段路径解析失败只警告不阻断，但请优先修正。禁止臆造字段或路径。
+**证据规则（已放宽）**：`sourceLogId` 为**可选**——引用 `list_captured_requests()`
+返回的证据 id（log-N）即可；`sourceJsonPath` 建议附上（响应 JSON 中的真实路径，
+如 `$.data[0].courseName`）。url 无捕获日志匹配**只提示不阻断**，数据分类由你自主。
+但禁止**凭空臆造**字段或路径（须来自真实观察的响应样本）。method 避开编辑/删除等
+危险操作字样，只呈现只读查询类数据源。
 
 ### Step 3：用户确认（confirming）
 
@@ -553,7 +558,7 @@ code 是该数据源的**完整 Python 爬虫**，必须满足（与定向模式
 2. 只允许 **Python 标准库 + 「可用模块清单」**（P2-1 运行时事实源：
    以任务开始时注入的清单 / `list_python_capabilities()` 返回为准；
    清单未列出的模块禁止 import，会被 lint 拦截）
-3. 用真实 GET 请求抓取（禁 print 字面量假数据、禁占位符数据）
+3. 用真实 HTTP 请求抓取（禁 print 字面量假数据、禁占位符数据；只读查询接口优先）
 4. `main()` 返回 dict/list，用 `json.dumps(...)` 输出合法 JSON
 5. 分页循环中 `time.sleep(0.5~1.0)`
 

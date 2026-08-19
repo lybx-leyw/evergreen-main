@@ -6,6 +6,7 @@
 // 3. 原子写：temp + rename（写后无 .tmp 残留）
 // 4. 快照隔离：saveSnapshot/loadSnapshot 按画板分文件（A21 任务绝不交叉）
 // 5. 损坏容错：load 遇损坏返回空 + 备份
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:evergreen_base/renderer/templates/scraper_modle/board/scraper_board.dart';
@@ -37,16 +38,27 @@ void main() {
       expect(ids.length, 50);
     });
 
-    test('toJson/fromJson 往返', () {
-      final b = ScraperBoard.create('成绩查询')
-        ..sessionId = 'sess_1'
+    test('toJson/fromJson 往返（含 sessionIds 多会话）', () {
+      final b = ScraperBoard.create('成绩查询', sessionIds: ['sess_1', 'sess_2'])
         ..snapshotRef = 'snap_1';
       final restored = ScraperBoard.fromJson(b.toJson());
       expect(restored.id, b.id);
       expect(restored.name, b.name);
       expect(restored.mode, b.mode);
-      expect(restored.sessionId, 'sess_1');
+      expect(restored.sessionIds, ['sess_1', 'sess_2']);
       expect(restored.snapshotRef, 'snap_1');
+    });
+
+    test('fromJson 兼容旧单值 sessionId 字段', () {
+      final b = ScraperBoard.fromJson({
+        'id': 'board_x',
+        'name': '旧画板',
+        'mode': 'capture',
+        'sessionId': 'sess_legacy',
+        'createdAt': DateTime.now().toIso8601String(),
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+      expect(b.sessionIds, ['sess_legacy']);
     });
 
     test('mode 可设为 explore（Phase 4 预留）', () {
@@ -100,6 +112,26 @@ void main() {
           .listSync()
           .where((e) => e.path.contains('.corrupt_'));
       expect(backups, isNotEmpty);
+    });
+
+    test('loadBoardSessionIds：返回绑定该画板的会话 id，过滤孤儿', () async {
+      final store = BoardStore(workspaceDir: tmpDir.path);
+      final boardId = 'board_1';
+      // 写 session.json：1 条绑定、1 条无 boardId（孤儿）、1 条绑定别的画板（孤儿）
+      final dir = Directory(store.boardDir(boardId));
+      dir.createSync(recursive: true);
+      await File(store.boardSessionPath(boardId)).writeAsString(jsonEncode([
+        {'id': 'sess_ok', 'name': 'a', 'boardId': boardId},
+        {'id': 'sess_orphan_no_board', 'name': 'b'},
+        {'id': 'sess_orphan_wrong', 'name': 'c', 'boardId': 'board_other'},
+      ]));
+      final ids = store.loadBoardSessionIds(boardId);
+      expect(ids, ['sess_ok']);
+    });
+
+    test('loadBoardSessionIds：文件缺失 → 空列表（孤儿画板判据）', () {
+      final store = BoardStore(workspaceDir: tmpDir.path);
+      expect(store.loadBoardSessionIds('nonexistent'), isEmpty);
     });
   });
 

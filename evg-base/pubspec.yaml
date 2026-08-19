@@ -87,13 +87,12 @@ flutter:
     - assets/video/
     # 查老师（zju teachers）：内置完整教师评分数据集（chalaoshi.top 抓取）。
     # 注意：勿放入下方 >>>PLUGIN_ASSETS_START>>> 标记块（该块由 bundle_plugins.dart 自动生成）。
-    - assets/data/teacher_ratings.json
-    # 安卓适配：插件目录整体作为资产，启动期释放到设备可写目录。
-    # 注意：本环境 Flutter 版本的目录资产包含不递归子目录，故由
-    # tool/bundle_plugins.dart 在打包时显式列出每个文件（见下方标记块）。
-    # >>>PLUGIN_ASSETS_START>>>
     - assets/plugins_bundle/ai-assistant/module/manifest.json
     - assets/plugins_bundle/data-dashboard/module/manifest.json
+    - assets/plugins_bundle/data-scraper/config/config.json
+    - assets/plugins_bundle/data-scraper/data/manifest.json
+    - assets/plugins_bundle/data-scraper/data/scraper.py
+    - assets/plugins_bundle/dsh/module/manifest.json
     - assets/plugins_bundle/html-creator/module/manifest.json
     - assets/plugins_bundle/html-creator/my-plugin/module/index.html
     - assets/plugins_bundle/html-creator/my-plugin/module/manifest.json

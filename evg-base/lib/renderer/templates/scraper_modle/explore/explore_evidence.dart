@@ -4,10 +4,11 @@
 /// 捕获日志中找到来源（正面证明）；每个字段可附响应 JSON 路径证据
 /// （sourceJsonPath），注册前逐条校验。
 ///
-/// 判定规则（与《Scraper_reverse-skill_集成策略.md》P0-2 缓解策略一致）：
-/// - **硬阻断**：数据源 url 无任何捕获日志匹配 → 拒绝呈现/注册；
+/// 判定规则（2026-08-18 放宽）：
+/// - **仅警告**：数据源 url 无任何捕获日志匹配 → 不阻断，仅提示；
+///   数据分类交给 AI 自主，不强制要求 GET 日志证据。
 /// - **仅警告**：字段 sourceJsonPath 解析失败 / 未标注 / 字段与源引用日志
-///   不一致 → 不阻断，在输出中列出供 AI 修正（后续里程碑再收紧）。
+///   不一致 → 不阻断，在输出中列出供 AI 修正。
 ///
 /// 纯 Dart 无 Flutter 依赖，可独立单测。
 library explore_evidence;
@@ -227,12 +228,13 @@ class EvidenceCheckResult {
   bool get hardBlocked => errors.isNotEmpty;
 }
 
-/// 校验候选数据源的捕获日志证据（P0-2 正面证明）。
+/// 校验候选数据源的捕获日志证据（P0-2 正面证明，现已放宽为「仅警告」）。
 ///
-/// 规则：
+/// 规则（放宽后）：
 /// 1. url 证据：优先 [CandidateDataSource.sourceLogId] 精确引用；引用失效时按
 ///    URL 匹配兜底（scheme+host+path 归一，忽略 query/fragment——接口身份与
-///    分页参数无关）。两者都失败 → 硬阻断。
+///    分页参数无关）。两者都失败 → **仅警告，不阻断**（数据分类交给 AI 自主，
+///    不强制要求 GET 日志证据）。
 /// 2. 字段证据：每个字段的 [CandidateField.sourceJsonPath] 在匹配日志响应体
 ///    中解析；失败/未标注/引用不一致 → 仅警告（不阻断）。
 EvidenceCheckResult validateDataSourceEvidence(
@@ -243,42 +245,43 @@ EvidenceCheckResult validateDataSourceEvidence(
   final warnings = <String>[];
   final fieldChecks = <FieldEvidenceCheck>[];
 
-  // ── 1) url 证据 ──
+  // ── 1) url 证据（放宽：无匹配仅警告，不 hardBlocked）──
   HttpRequestLog? matched;
   final ref = source.sourceLogId;
   if (ref != null && ref.isNotEmpty) {
     for (final l in logs) {
-      // 证据必须来自 GET 请求（与 URL 兜底一致：非 GET 日志不能作为证据）
-      if (l.method == 'GET' && l.id.isNotEmpty && sameLogRef(l.id, ref)) {
+      // 证据可来自任意方法（GET/POST/NAVIGATION…）：数据分类由 AI 自主判断，
+      // 不强制要求 GET。仅按证据 id 匹配。
+      if (l.id.isNotEmpty && sameLogRef(l.id, ref)) {
         matched = l;
         break;
       }
     }
     if (matched == null) {
-      warnings.add('sourceLogId "\$ref" 未在捕获日志中找到，已按 URL 匹配兜底');
+      warnings.add('sourceLogId "$ref" 未在捕获日志中找到，已按 URL 匹配兜底');
     }
   }
   if (matched == null) {
     final target = _normEvidenceUrl(source.url);
     for (final l in logs) {
-      if (l.method == 'GET' && _normEvidenceUrl(l.url) == target) {
+      if (_normEvidenceUrl(l.url) == target) {
         matched = l;
         break;
       }
     }
   }
   if (matched == null) {
-    errors.add('URL ${source.url} 无捕获日志证据'
-        '（list_captured_requests 中不存在对应 GET 请求）');
-    return EvidenceCheckResult(
-        source: source, urlMatched: false, errors: errors);
+    warnings.add('URL ${source.url} 无捕获日志证据'
+        '（list_captured_requests 中不存在对应请求）。'
+        '已放行：数据分类由 AI 自主判断，非 GET 或无日志也允许归类，'
+        '仅需确保 scraper.py 非硬编码数据。');
   }
 
   // ── 2) 字段 path 证据（仅警告，不阻断）──
   dynamic resp;
   var respParsed = false;
   String? respError;
-  final body = matched.responseBody;
+  final body = matched?.responseBody;
   if (body != null && body.trim().isNotEmpty) {
     try {
       resp = jsonDecode(body);
@@ -329,7 +332,7 @@ EvidenceCheckResult validateDataSourceEvidence(
 
   return EvidenceCheckResult(
     source: source,
-    urlMatched: true,
+    urlMatched: matched != null,
     matchedLog: matched,
     fieldChecks: fieldChecks,
     warnings: warnings,

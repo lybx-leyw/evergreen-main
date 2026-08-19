@@ -65,6 +65,8 @@ import 'package:evergreen_base/core/utils/python_env.dart';
 import 'package:evergreen_base/providers.dart';
 import 'package:evergreen_base/renderer/app/app_mode.dart';
 import 'package:evergreen_base/renderer/app/service/providers/renderer_providers.dart';
+import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_bridge_registry.dart';
+import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_bridge_server.dart';
 import 'package:evergreen_base/renderer/templates/zju_modle/zju_builtin_modules.dart';
 import 'package:evergreen_base/renderer/templates/zju_modle/zju_data_sources.dart';
 import 'package:flutter/material.dart';
@@ -187,6 +189,9 @@ class AppBootstrap {
 
   /// Agent 层 HTTP 服务器。
   AgentHttpServer? agentServer;
+
+  /// Scraper 桥 HTTP 服务器（B 方案：DSH 双向 RPC 驱动 scraper WebView，常驻）。
+  ScraperBridgeServer? scraperBridgeServer;
 
   /// 模块 HTTP 服务器（注册中心启动后创建）。
   ModuleHttpServer? moduleServer;
@@ -479,6 +484,13 @@ class AppBootstrap {
     configServer = ConfigHttpServer(prefs!);
     dataServer = DataHttpServer(orchestrator!);
     themeServer = ThemeHttpServer(themeStore!);
+    // B 方案：DSH 双向 RPC 的接收端（常驻，驱动 scraper WebView）。
+    scraperBridgeServer = ScraperBridgeServer(
+      scraperBridgeRegistry,
+      orchestrator: orchestrator,
+    );
+    // 暴露给 UI 层（供注入 activateScraper 自动切换回调）。
+    scraperBridgeRegistry.server = scraperBridgeServer;
     return _ok();
   }
 
@@ -656,6 +668,17 @@ class AppBootstrap {
         Log().error('[BOOT] 启动 ${entry.key}HttpServer 失败: $e', error: e);
         ports[entry.key] = 0;
       }
+    }
+
+    // B 方案：ScraperBridgeServer 常驻启动（DSH 双向 RPC）。
+    // 独立于 servers 循环——它自带端口文件写入逻辑（.scraper_bridge_port）。
+    try {
+      final sp = await scraperBridgeServer!.start();
+      ports['ScraperBridge'] = sp;
+      Log().info('[BOOT] ScraperBridgeServer → port $sp');
+    } catch (e) {
+      Log().error('[BOOT] 启动 ScraperBridgeServer 失败: $e', error: e);
+      ports['ScraperBridge'] = 0;
     }
     return _ok();
   }

@@ -67,6 +67,9 @@ void main() {
   });
 
   testWidgets('默认：三插件全部挂载（IndexedStack），选中索引 0=主题创作', (tester) async {
+    // flutter_test 默认 defaultTargetPlatform==android，会让 scraper 槽位落到
+    // 安卓占位页；显式设为 windows 才能验证三页都挂载 EvergreenModulePage。
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
     final registry = _registry(['theme-creator', 'html-creator', 'scraper']);
     await tester.pumpWidget(_wrap(registry, pluginsDir));
     await tester.pump();
@@ -79,9 +82,13 @@ void main() {
       findsNWidgets(3),
       reason: 'IndexedStack 三页同时挂载以保持状态',
     );
+    // 必须在 body 末尾还原：_verifyInvariants 早于 tearDown 执行，
+    // 否则触发 debugAssertAllFoundationVarsUnset。
+    debugDefaultTargetPlatformOverride = null;
   });
 
   testWidgets('query 深链：?plugin=scraper 选中索引 2', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
     final registry = _registry(['theme-creator', 'html-creator', 'scraper']);
     await tester.pumpWidget(_wrap(registry, pluginsDir,
         initialLocation: '/dev-hub?plugin=scraper'));
@@ -89,6 +96,7 @@ void main() {
 
     final stack = tester.widget<IndexedStack>(find.byType(IndexedStack));
     expect(stack.index, 2);
+    debugDefaultTargetPlatformOverride = null;
   });
 
   testWidgets('安卓：scraper 槽位为占位页（提示仅 Windows 版）', (tester) async {
@@ -101,15 +109,21 @@ void main() {
     expect(find.text('数据爬取仅支持 Windows 版'), findsOneWidget);
     final stack = tester.widget<IndexedStack>(find.byType(IndexedStack));
     expect(stack.children.length, 3, reason: '槽位数量不变，仅内容替换');
+    // body 末尾还原，避免 _verifyInvariants 检出 debug 变量泄漏。
+    debugDefaultTargetPlatformOverride = null;
   });
 
   testWidgets('插件缺失：对应槽位渲染「插件未安装」占位', (tester) async {
+    // 显式非安卓：避免 scraper 槽位先落入安卓占位分支，验证 _MissingPluginPage。
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
     final registry = _registry(['theme-creator', 'html-creator']);
     await tester.pumpWidget(_wrap(registry, pluginsDir,
         initialLocation: '/dev-hub?plugin=scraper'));
     await tester.pump();
 
-    expect(find.text('插件未安装'), findsOneWidget);
-    expect(find.text('scraper'), findsOneWidget);
+    // skipOffstage: false —— IndexedStack 中非活动页 offstage，find 默认裁剪。
+    expect(find.text('插件未安装', skipOffstage: false), findsOneWidget);
+    expect(find.text('scraper', skipOffstage: false), findsOneWidget);
+    debugDefaultTargetPlatformOverride = null;
   });
 }

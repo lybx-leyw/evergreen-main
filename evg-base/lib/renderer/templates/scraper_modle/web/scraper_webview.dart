@@ -15,7 +15,6 @@ library scraper_webview;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:ffi' hide Size;
 
 import 'package:flutter/material.dart';
 import 'package:webview_windows/webview_windows.dart';
@@ -263,9 +262,6 @@ class _ScraperWebViewState extends State<ScraperWebView> {
   StreamSubscription? _webMessageSub;
   StreamSubscription? _loadErrorSub;
 
-  // ── Phase 4：JS 结果通道（Windows executeScript 不返回结果 → postMessage 回传）──
-  int _jsRequestSeq = 0;
-  final Map<int, Completer<String?>> _pendingJsResults = {};
 
   @override
   void initState() {
@@ -290,43 +286,31 @@ class _ScraperWebViewState extends State<ScraperWebView> {
   /// 执行 JS 并返回结果字符串。
   ///
   /// - Android：`runJavaScriptReturningResult`（原生回传 JSON 编码的结果）
-  /// - Windows：`executeScript` 返回 `Future<void>`（webview_windows 不回传
-  ///   求值结果，见 flutter-webview-windows #69/#161）→ 用包装脚本把结果经
-  ///   `chrome.webview.postMessage` 回传，由 [_handleWebMessage] 路由到
-  ///   对应 Completer（带 10s 超时，超时返回 null 由调用方降级提示）。
+  /// - Windows：`WebviewController.executeScript` **原生回传求值结果**
+  ///   （webview_windows 0.4.0 的 C++ `ExecuteScript` 回调 `Success(json_result)`，
+  ///   Dart 侧 `jsonDecode` 后返回），无需 postMessage 桥接。
+  ///
+  ///   修复背景（bug：浏览器 JS 通道失效）：旧实现误以为 executeScript 不
+  ///   回传结果，绕道 `chrome.webview.postMessage` + `webMessage` 流 + 10s
+  ///   超时，任一环节失效即返回 null → `explore_page_links` 报「JS 通道不可用」。
+  ///   现直接消费原生返回值；脚本抛异常/返回非字符串时回退为 JSON 字符串，
+  ///   空结果返回 null（调用方降级提示）。
   Future<String?> _evaluateJs(String script) async {
     if (Platform.isAndroid) {
       final result = await _androidController.runJavaScriptReturningResult(script);
       return result == null ? null : result.toString();
     }
-    final id = ++_jsRequestSeq;
-    final completer = Completer<String?>();
-    _pendingJsResults[id] = completer;
-
-    // 包装：捕获结果（字符串原样 / 其他 JSON 化）→ postMessage 回传；
-    // 异常也回传，避免调用方挂起。
-    final wrapped = '(function() { try { '
-        'var __r = (function() { $script })(); '
-        'var __v = (typeof __r === "string") ? __r : JSON.stringify(__r); '
-        'window.chrome.webview.postMessage(JSON.stringify({'
-        '__evgJsResult: $id, value: __v})); '
-        '} catch (__e) { '
-        'window.chrome.webview.postMessage(JSON.stringify({'
-        '__evgJsResult: $id, error: String(__e)})); '
-        '} })();';
-
-    unawaited(_controller.executeScript(wrapped).then(
-      (_) {},
-      onError: (Object e) {
-        _pendingJsResults.remove(id);
-        if (!completer.isCompleted) completer.completeError(e);
-      },
-    ));
-
-    return completer.future.timeout(const Duration(seconds: 10), onTimeout: () {
-      _pendingJsResults.remove(id);
+    try {
+      final raw = await _controller.executeScript(script);
+      // executeScript 返回 jsonDecode 后的结果：字符串原样、对象/数组已解码、
+      // null/undefined → null。
+      if (raw == null) return null;
+      if (raw is String) return raw;
+      return jsonEncode(raw);
+    } catch (e) {
+      _log('⚠ _evaluateJs 执行失败: $e');
       return null;
-    });
+    }
   }
 
   /// 纯 GET 导航（守卫在 ExploreWorkflow 层，此处只执行）。
@@ -453,9 +437,14 @@ class _ScraperWebViewState extends State<ScraperWebView> {
 
   Future<void> _initWindowsWebView() async {
     try {
-      // C2：确保 WebView2 以 --remote-debugging-port=9222 启动，使 CDP 主方案可用
-      // （仅在首次创建环境前注入；失败不影响运行，JS 注入降级仍可用）。
-      _ensureRemoteDebuggingPort();
+      // 注意：CDP 远程调试端口（--remote-debugging-port=9222）已由
+      // AppBootstrap._stepWebView2 通过
+      // `WebviewController.initializeEnvironment(additionalArguments: ...)` 在
+      // 启动序列早期（任何 WebviewController 构造前）正确初始化。
+      // 此处不能再设置环境（environment 全局唯一、仅可初始化一次），也无需
+      // 再用 FFI 设 WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS（webview_windows
+      // 插件不读该环境变量，属无效冗余）。
+      _log('🏁 初始化 WebView2（CDP 环境由 AppBootstrap 预先设置）');
 
       await _controller.initialize();
       if (!mounted) return;
@@ -569,6 +558,7 @@ class _ScraperWebViewState extends State<ScraperWebView> {
     if (ok) {
       _cdpActive = true;
       _log('🎯 CDP Network 域已启用 — 全量网络捕获活跃');
+      _log('🧭 bridge.ready=${widget.bridge?.ready}（探索工具 JS/导航通道就绪状态）');
 
       // 将 CDP 事件转发到 onRequestCaptured
       _cdpSub = _cdpClient!.networkEvents.listen((event) {
@@ -597,7 +587,9 @@ class _ScraperWebViewState extends State<ScraperWebView> {
         widget.onRequestCaptured?.call(event.log);
       });
     } else {
-      _log('⚠ CDP 连接失败，降级到 JS 注入方案');
+      _log('⚠ CDP 连接失败（端口 9222 不可达），降级到 JS 注入方案。'
+          '若导航正常但捕获日志为空，请确认 AppBootstrap._stepWebView2 已'
+          '初始化 CDP 环境，且 9222 端口未被占用。');
       _cdpClient?.dispose();
       _cdpClient = null;
     }
@@ -612,20 +604,6 @@ class _ScraperWebViewState extends State<ScraperWebView> {
       } else if (message is Map) {
         json = Map<String, dynamic>.from(message);
       } else {
-        return;
-      }
-
-      // Phase 4：JS 结果回传通道（_evaluateJs 的 Windows 实现消费）
-      if (json['__evgJsResult'] is int) {
-        final id = json['__evgJsResult'] as int;
-        final c = _pendingJsResults.remove(id);
-        if (c != null && !c.isCompleted) {
-          if (json['error'] != null) {
-            c.completeError('JS 执行错误: ${json['error']}');
-          } else {
-            c.complete(json['value'] as String?);
-          }
-        }
         return;
       }
 
@@ -649,11 +627,6 @@ class _ScraperWebViewState extends State<ScraperWebView> {
       _loadErrorSub?.cancel();
       _controller.dispose();
     }
-    // Phase 4：清理未完成的 JS 结果等待（避免调用方 Future 永久挂起）
-    for (final c in _pendingJsResults.values) {
-      if (!c.isCompleted) c.complete(null);
-    }
-    _pendingJsResults.clear();
     _urlCtrl.dispose();
     super.dispose();
   }
@@ -967,59 +940,3 @@ void _log(String msg) {
   }());
 }
 
-/// 通过 C 运行时的 `malloc`/`free`（ucrtbase.dll）做原生内存分配，
-/// 避免引入 `package:ffi` 依赖（本工程未在 pubspec 中声明）。结果缓存复用。
-DynamicLibrary? _crtLib;
-Pointer<Void> Function(int)? _cMalloc;
-void Function(Pointer<Void>)? _cFree;
-
-void _ensureCrt() {
-  _crtLib ??= DynamicLibrary.open('ucrtbase.dll');
-  _cMalloc ??= _crtLib!
-      .lookupFunction<Pointer<Void> Function(IntPtr), Pointer<Void> Function(int)>(
-          'malloc');
-  _cFree ??= _crtLib!
-      .lookupFunction<Void Function(Pointer<Void>), void Function(Pointer<Void>)>(
-          'free');
-}
-
-/// 分配 `length+1` 个 UTF-16 单元并写入 [s] 的码元（末尾补 0）。
-Pointer<Uint16> _toUtf16Ptr(String s) {
-  _ensureCrt();
-  final units = s.codeUnits;
-  final ptr = _cMalloc!(sizeOf<Uint16>() * (units.length + 1)).cast<Uint16>();
-  for (var i = 0; i < units.length; i++) {
-    ptr[i] = units[i];
-  }
-  ptr[units.length] = 0;
-  return ptr;
-}
-
-void _freeUtf16(Pointer<Uint16> ptr) {
-  _ensureCrt();
-  _cFree!(ptr.cast<Void>());
-}
-
-/// C2：在 WebView2 环境创建前注入调试端口环境变量，
-/// 确保 CDP 主方案（全量网络捕获）默认可用，而非静默降级到 JS 注入。
-///
-/// 通过 kernel32 `SetEnvironmentVariableW` 设置
-/// `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222`，
-/// 由 WebView2 在创建 CoreWebView2Environment 时读取。
-/// 任何失败都被吞掉——降级到 JS 注入方案仍可用。
-void _ensureRemoteDebuggingPort() {
-  try {
-    final kernel32 = DynamicLibrary.open('kernel32.dll');
-    final setEnv = kernel32.lookupFunction<
-        Int32 Function(Pointer<Uint16>, Pointer<Uint16>),
-        int Function(Pointer<Uint16>, Pointer<Uint16>)>('SetEnvironmentVariableW');
-    final namePtr = _toUtf16Ptr('WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS');
-    final valPtr = _toUtf16Ptr('--remote-debugging-port=9222');
-    setEnv(namePtr, valPtr);
-    _freeUtf16(namePtr);
-    _freeUtf16(valPtr);
-    _log('✓ 已注入 WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9222');
-  } catch (e) {
-    _log('⚠ 注入调试端口环境变量失败（依赖 webview 默认行为）: $e');
-  }
-}

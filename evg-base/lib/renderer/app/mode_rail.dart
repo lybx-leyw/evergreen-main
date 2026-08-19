@@ -17,11 +17,14 @@ import 'dart:math' as math;
 
 import 'package:flutter/animation.dart'
     show AnimationController, CurvedAnimation, Curves, Interval, Tween;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:evergreen_base/core/module/module_registry.dart';
 import 'package:evergreen_base/providers.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/marketplace/plugin_state_provider.dart';
 import 'app_mode.dart';
 
 /// 窄轨宽度（与旧 collapsed 侧栏一致）。
@@ -67,12 +70,13 @@ const List<_SystemButton> _systemButtons = [
       label: '远程同步', icon: Icons.sync, placeholder: true),
 ];
 
-/// 开发者三插件入口（顺序与 [kDevPluginIds] 对齐）。
-const List<String> _devPluginNames = ['主题创作', '插件制作', '数据爬取'];
+/// 开发者四插件入口（顺序与 [kDevPluginIds] 对齐）。
+const List<String> _devPluginNames = ['主题创作', '插件制作', '数据爬取', 'DSH'];
 const List<IconData> _devPluginIcons = [
   Icons.palette_outlined,
   Icons.code,
-  Icons.web_traffic,
+  Icons.public,
+  Icons.hub_outlined,
 ];
 
 // ═══════ ModeRail ═══════
@@ -95,7 +99,7 @@ class ModeRail extends ConsumerWidget {
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              child: _ModeSwitchButton(mode: mode),
+              child: ModeSwitchButton(mode: mode),
             ),
             const Divider(),
             Expanded(
@@ -165,25 +169,29 @@ class ModeRail extends ConsumerWidget {
     if (registry.findById(id) == null) {
       return const SizedBox.shrink();
     }
-    final isScraperAndroid = id == 'scraper' && _isAndroid;
+    // 仅 Windows 插件（scraper / dsh 依赖 WebView2）在安卓端弱化 + 拦截。
+    final isWindowsOnlyAndroid =
+        (id == 'scraper' || id == 'dsh') && _isAndroid;
     final active = location == '/dev-hub' && devIndex == index;
     return _RailButton(
       label: _devPluginNames[index],
       icon: _devPluginIcons[index],
       active: active,
-      dimmed: isScraperAndroid,
-      onTap: () => _openDevPlugin(context, ref, id, index, isScraperAndroid),
+      dimmed: isWindowsOnlyAndroid,
+      onTap: () =>
+          _openDevPlugin(context, ref, id, index, isWindowsOnlyAndroid),
     );
   }
 
   void _openDevPlugin(BuildContext context, WidgetRef ref, String id,
-      int index, bool isScraperAndroid) {
-    if (isScraperAndroid) {
+      int index, bool isWindowsOnlyAndroid) {
+    if (isWindowsOnlyAndroid) {
+      final label = _devPluginNames[index];
       showDialog<void>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('数据爬取仅支持 Windows 版'),
-          content: const Text('安卓版暂未提供数据爬取，请使用 Windows 版 Evergreen。'),
+          title: Text('$label仅支持 Windows 版'),
+          content: const Text('安卓版暂未提供此功能，请使用 Windows 版 Evergreen。'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
@@ -253,15 +261,18 @@ class _RailButton extends StatelessWidget {
 // ═══════ 扇形模式切换菜单 ═══════
 
 /// 顶部视图图标按钮——点击弹出扇形三选项菜单。
-class _ModeSwitchButton extends ConsumerStatefulWidget {
+///
+/// 公开供壳层（app_shell）复用：插件视图的侧栏/抽屉顶部也放一个，
+/// 否则进入插件视图后无法切回 AI 视图 / 开发者模式（单向门）。
+class ModeSwitchButton extends ConsumerStatefulWidget {
   final AppMode mode;
-  const _ModeSwitchButton({required this.mode});
+  const ModeSwitchButton({super.key, required this.mode});
 
   @override
-  ConsumerState<_ModeSwitchButton> createState() => _ModeSwitchButtonState();
+  ConsumerState<ModeSwitchButton> createState() => _ModeSwitchButtonState();
 }
 
-class _ModeSwitchButtonState extends ConsumerState<_ModeSwitchButton> {
+class _ModeSwitchButtonState extends ConsumerState<ModeSwitchButton> {
   OverlayEntry? _overlay;
 
   @override
@@ -289,6 +300,14 @@ class _ModeSwitchButtonState extends ConsumerState<_ModeSwitchButton> {
         onSelect: (m) {
           _close();
           setAppMode(ref, m);
+          // 切模式后导航到目标模式的默认视图，避免壳层变了但主内容区仍停在旧路由。
+          final registry = ref.read(moduleRegistryProvider);
+          final target = defaultRouteForMode(
+            mode: m,
+            registry: registry,
+            pluginStates: ref.read(pluginStateProvider),
+          );
+          if (target != null) context.go(target);
         },
       ),
     );

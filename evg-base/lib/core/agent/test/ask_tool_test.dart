@@ -16,7 +16,7 @@ import '../tools/ask_tool.dart';
 void main() {
   group('AskTool headless（无 Asker）', () {
     test('无 Asker 返回模型假设回退，不阻塞', () async {
-      final tool = agent.AskTool();
+      final tool = AskTool();
       final result = await tool.execute({
         'questions': [
           {
@@ -34,20 +34,20 @@ void main() {
     });
 
     test('readOnly == true（提问无副作用，永不需批准）', () {
-      final tool = agent.AskTool();
+      final tool = AskTool();
       expect(tool.readOnly, isTrue);
     });
   });
 
   group('AskTool 参数校验', () {
     test('无 questions → error', () async {
-      final tool = agent.AskTool();
+      final tool = AskTool();
       final result = await tool.execute({'questions': []});
       expect(result, contains('[error:'));
     });
 
     test('问题少于 2 选项 → error', () async {
-      final tool = agent.AskTool();
+      final tool = AskTool();
       final result = await tool.execute({
         'questions': [
           {
@@ -63,7 +63,7 @@ void main() {
     });
 
     test('空 label → error', () async {
-      final tool = agent.AskTool();
+      final tool = AskTool();
       final result = await tool.execute({
         'questions': [
           {
@@ -80,7 +80,7 @@ void main() {
     });
 
     test('重复 label → error', () async {
-      final tool = agent.AskTool();
+      final tool = AskTool();
       final result = await tool.execute({
         'questions': [
           {
@@ -99,8 +99,8 @@ void main() {
 
   group('AskTool 与 Asker 交互', () {
     test('用户回答 → formatAnswers 输出选择', () async {
-      final tool = agent.AskTool(asker: _FakeAsker([
-        const agent.AskAnswer(questionId: 'q1', selected: ['A']),
+      final tool = AskTool(asker: _FakeAsker([
+        const AskAnswer(questionId: 'q1', selected: ['A']),
       ]));
       final result = await tool.execute({
         'questions': [
@@ -119,7 +119,7 @@ void main() {
     });
 
     test('用户关闭（无回答）→ 显式停止信号', () async {
-      final tool = agent.AskTool(asker: _FakeAsker([]));
+      final tool = AskTool(asker: _FakeAsker([]));
       final result = await tool.execute({
         'questions': [
           {
@@ -137,8 +137,8 @@ void main() {
     });
 
     test('多选问题：multiSelect 保留多个选择', () async {
-      final tool = agent.AskTool(asker: _FakeAsker([
-        const agent.AskAnswer(questionId: 'q1', selected: ['A', 'C']),
+      final tool = AskTool(asker: _FakeAsker([
+        const AskAnswer(questionId: 'q1', selected: ['A', 'C']),
       ]));
       final result = await tool.execute({
         'questions': [
@@ -160,12 +160,12 @@ void main() {
 }
 
 /// 固定回答的假 Asker。
-class _FakeAsker implements agent.Asker {
-  final List<agent.AskAnswer> answers;
+class _FakeAsker implements Asker {
+  final List<AskAnswer> answers;
   _FakeAsker(this.answers);
 
   @override
-  Future<List<agent.AskAnswer>> ask(agent.AskRequest request) async {
+  Future<List<AskAnswer>> ask(AskRequest request) async {
     return answers;
   }
 }

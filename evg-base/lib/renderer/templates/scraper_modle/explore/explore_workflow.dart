@@ -88,18 +88,48 @@ String? _trimToNull(String? s) {
   return t.isEmpty ? null : t;
 }
 
+/// 归一 method：AI 给定值透传（大写），空则默认 GET。
+String _normalizeMethod(String? raw) {
+  final t = (raw ?? '').trim();
+  return t.isEmpty ? 'GET' : t.toUpperCase();
+}
+
+/// 危险 method 字样集合（编辑/删除等破坏性操作——提示 AI 避开）。
+const Set<String> _dangerousMethodHints = {
+  'DELETE', 'PUT', 'PATCH',
+};
+
+/// 校验 method 是否含危险操作字样。
+///
+/// 返回 null = 安全；否则为提示文案（不硬阻断，仅提示 AI 避开）。
+String? dangerousMethodHint(String method) {
+  final m = method.trim().toUpperCase();
+  if (_dangerousMethodHints.contains(m)) {
+    return 'method "$m" 属于编辑/删除类危险操作，'
+        '探索模式只应呈现只读查询类数据源，请改用 GET 或只读查询接口';
+  }
+  // 含"编辑/删除/更新/删除"等中文危险字样也提示
+  const cnDangerous = ['编辑', '删除', '更新', '写入', '修改', '提交'];
+  for (final w in cnDangerous) {
+    if (m.contains(w)) {
+      return 'method "$m" 含危险操作字样「$w」，请改用只读查询类接口';
+    }
+  }
+  return null;
+}
+
 /// 候选数据源（D3 归类产物；D4 用户多选；D8 每源一个 data-{name}）。
 ///
 /// Phase 4 消费 Phase 3 定义的共享接口形态（§九 `CandidateDataSource`）。
 class CandidateDataSource {
   final String name; // 英文标识 → 插件目录 data-{name}
   final String displayName; // 展示名（可被用户在确认弹窗中修改）
-  final String category; // 细粒度归类（如 "课程列表"）
-  final String url; // 数据 GET URL
-  final String method; // 恒 'GET'（D2）
+  final String category; // 细粒度归类（如 "课程列表"，由 AI 自主描述）
+  final String url; // 数据 URL
+  final String method; // 请求方法（AI 自主给定，默认 GET；不强制）
   final List<CandidateField> fields;
 
-  /// 证据（P0-2）：url 对应的请求日志 id（list_captured_requests 返回的证据 id）。
+  /// 证据（P0-2）：url 对应的请求日志 id（可选，非强制）。
   final String? sourceLogId;
 
   const CandidateDataSource({
@@ -124,14 +154,14 @@ class CandidateDataSource {
         sourceLogId: sourceLogId,
       );
 
-  /// 从 AI 给出的 JSON 解析（容错：method 强制 GET；字段过滤非法项）。
+  /// 从 AI 给出的 JSON 解析（method 透传 AI 给定值，默认 GET；字段过滤非法项）。
   factory CandidateDataSource.fromJson(Map<String, dynamic> json) =>
       CandidateDataSource(
         name: (json['name'] as String? ?? '').trim(),
         displayName: (json['displayName'] as String? ?? '').trim(),
         category: (json['category'] as String? ?? '').trim(),
         url: (json['url'] as String? ?? '').trim(),
-        method: 'GET',
+        method: _normalizeMethod(json['method'] as String?),
         fields: (json['fields'] as List<dynamic>? ?? const [])
             .whereType<Map<String, dynamic>>()
             .map(CandidateField.fromJson)
@@ -242,6 +272,7 @@ const Set<String> _bannedToolsInExplore = {
 const Set<String> _readToolsInExplore = {
   'ask',
   'guardian_review',
+  'guard_override',
   'list_skills',
   'read_workspace_file',
   'list_captured_requests',

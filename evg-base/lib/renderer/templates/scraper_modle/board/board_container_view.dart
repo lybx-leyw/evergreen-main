@@ -64,9 +64,15 @@ class BoardContainerViewState extends State<BoardContainerView> {
   void initState() {
     super.initState();
     _store = BoardStore(workspaceDir: widget.workspaceDir);
-    _boards = _store.load(); // 重启恢复（A24）
+    // 重启恢复（A24）+ 孤儿过滤：缓存里「没绑定会话的画板」不承认、不显示。
+    // 双向绑定：画板 ↔ 会话。只有 loadBoardSessionIds 非空的画板才保留。
+    final loaded = _store.load();
+    _boards = loaded
+        .where((b) => _store.loadBoardSessionIds(b.id).isNotEmpty)
+        .toList();
     if (_boards.isEmpty) {
-      // 首次：默认建一个画板
+      // 首次：默认建一个画板（会话由 ScraperAIPanel initState 自动分配，
+      // 落盘 <board>/session.json 后即满足双向绑定）。
       _boards = [ScraperBoard.create('画板 1')];
       _persist();
     }
@@ -662,12 +668,11 @@ class BoardContainerViewState extends State<BoardContainerView> {
               ),
             ),
             // 绑定源计数
-            final boundCount = _boundSourcesOf(board.id).length;
-            if (boundCount > 0)
+            if (_boundSourcesOf(board.id).isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(right: 4),
                 child: Text(
-                  '$boundCount',
+                  '${_boundSourcesOf(board.id).length}',
                   style: TextStyle(
                     fontSize: 10,
                     color: theme.colorScheme.outline,
