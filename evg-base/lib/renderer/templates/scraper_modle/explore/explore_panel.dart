@@ -697,11 +697,23 @@ Future<ScopeConfirmResult?> showExploreScopeConfirm(
   );
 }
 
-/// Scope 确认结果：用户确认的授权范围 + 规范化 startUrl（供开始探索）。
+/// Scope 确认结果：用户确认的授权范围 + 规范化 startUrl + 探索上限（供开始探索）。
 class ScopeConfirmResult {
   final ExploreScope scope;
   final String startUrl;
-  const ScopeConfirmResult({required this.scope, required this.startUrl});
+
+  /// Phase 1：页数上限（默认 20）。
+  final int maxPages;
+
+  /// Phase 1：请求上限（默认 50）。
+  final int maxRequests;
+
+  const ScopeConfirmResult({
+    required this.scope,
+    required this.startUrl,
+    this.maxPages = 20,
+    this.maxRequests = 50,
+  });
 }
 
 class _ExploreScopeDialog extends StatefulWidget {
@@ -722,6 +734,14 @@ class _ExploreScopeDialogState extends State<_ExploreScopeDialog> {
   late final TextEditingController _pathCtrl = TextEditingController(
       text: widget.existing?.paths.join(', ') ?? '');
 
+  /// Phase 1：页数上限输入（默认 20）。
+  late final TextEditingController _maxPagesCtrl =
+      TextEditingController(text: '20');
+
+  /// Phase 1：请求上限输入（默认 50）。
+  late final TextEditingController _maxRequestsCtrl =
+      TextEditingController(text: '50');
+
   String? _urlError;
 
   @override
@@ -729,6 +749,8 @@ class _ExploreScopeDialogState extends State<_ExploreScopeDialog> {
     _urlCtrl.dispose();
     _dataCtrl.dispose();
     _pathCtrl.dispose();
+    _maxPagesCtrl.dispose();
+    _maxRequestsCtrl.dispose();
     super.dispose();
   }
 
@@ -787,8 +809,41 @@ class _ExploreScopeDialogState extends State<_ExploreScopeDialog> {
               ),
             ),
             const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _maxPagesCtrl,
+                    keyboardType: TextInputType.number,
+                    style: TextStyle(fontSize: 12, color: scheme.onSurface),
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      labelText: '页数上限',
+                      hintText: '20',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    controller: _maxRequestsCtrl,
+                    keyboardType: TextInputType.number,
+                    style: TextStyle(fontSize: 12, color: scheme.onSurface),
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      labelText: '请求上限',
+                      hintText: '50',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
             Text(
-              '授权资产 = 目标主机及其子域（同域守卫一致）；仅 GET。',
+              '授权资产 = 目标主机及其子域（同域守卫一致）；仅 GET。'
+              '页数/请求上限控制探索深度（大站点可调大）。',
               style: TextStyle(fontSize: 10, color: scheme.tertiary),
             ),
           ],
@@ -832,6 +887,17 @@ class _ExploreScopeDialogState extends State<_ExploreScopeDialog> {
       paths: paths,
       dataScope: _dataCtrl.text.trim(),
     );
-    Navigator.pop(context, ScopeConfirmResult(scope: scope, startUrl: url));
+    // Phase 1：解析页数/请求上限（非法/空 → 回退默认 20/50）。
+    final maxPages = int.tryParse(_maxPagesCtrl.text.trim()) ?? 20;
+    final maxRequests = int.tryParse(_maxRequestsCtrl.text.trim()) ?? 50;
+    Navigator.pop(
+      context,
+      ScopeConfirmResult(
+        scope: scope,
+        startUrl: url,
+        maxPages: maxPages < 1 ? 20 : maxPages,
+        maxRequests: maxRequests < 1 ? 50 : maxRequests,
+      ),
+    );
   }
 }

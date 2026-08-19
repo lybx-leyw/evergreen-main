@@ -50,6 +50,29 @@ const String explorePageLinksScript = r'''
 })()
 ''';
 
+/// 枚举当前页运行时加载的资源 URL（fetch/XHR/script/img/css 等）。
+///
+/// 修复（Phase 8）：SPA 站点的数据接口靠 JS fetch/XHR 动态请求，页面上往往没有
+/// 对应 `<a href>` 锚点，`explore_page_links` 永远枚举不到。用 Performance API
+/// 的资源时间线（`initiatorType` 标识 `fetch`/`xmlhttprequest` 等）补足发现通道。
+const String exploreNetworkResourcesScript = r'''
+(function() {
+  var seen = {};
+  var out = [];
+  try {
+    var entries = performance.getEntriesByType('resource');
+    for (var i = 0; i < entries.length; i++) {
+      var u = entries[i].name || '';
+      if (!u || !/^https?:/i.test(u)) continue;
+      if (seen[u]) continue;
+      seen[u] = true;
+      out.push({ url: u, initiatorType: entries[i].initiatorType || '' });
+    }
+  } catch (e) {}
+  return JSON.stringify({ count: out.length, resources: out.slice(0, 200) });
+})()
+''';
+
 /// 解析 JS 通道返回的 JSON（兼容"结果本身是 JSON 字符串"与
 /// "结果被 JSON 编码多包一层"两种形态）。
 Map<String, dynamic>? _decodeJsJson(String? raw) {
@@ -133,6 +156,72 @@ class ExplorePageLinksTool extends SimpleTool {
         );
 }
 
+// ═══════ explore_network_resources（Phase 8 · 动态接口发现）═══════
+
+/// 工具：枚举当前页运行时加载的资源 URL（Performance API，含 fetch/XHR）。
+class ExploreNetworkResourcesTool extends SimpleTool {
+  final ExploreWorkflow exploreWorkflow;
+  final Future<String?> Function(String script) evaluateJs;
+
+  ExploreNetworkResourcesTool({
+    required this.exploreWorkflow,
+    required this.evaluateJs,
+  }) : super(
+          name: 'explore_network_resources',
+          description: '枚举当前页面运行时已加载的资源 URL（fetch/XHR/script/img/css 等，'
+              '经 Performance API resource 时间线）。用于发现 SPA 站点无 <a href> 锚点的'
+              '动态数据接口。返回 url + initiatorType（fetch/xmlhttprequest 等），'
+              '同域过滤。只返回清单，不触发新请求。',
+          schema: const {
+            'type': 'object',
+            'properties': {},
+          },
+          readOnly: true,
+          execute: (args) async {
+            try {
+              final raw = await evaluateJs(exploreNetworkResourcesScript);
+              final json = _decodeJsJson(raw);
+              if (json == null) {
+                return '[error: 浏览器 JS 通道不可用或页面未就绪，请稍后重试]';
+              }
+              final count = json['count'] as int? ?? 0;
+              final resources =
+                  (json['resources'] as List<dynamic>? ?? const [])
+                      .whereType<Map<String, dynamic>>()
+                      .toList();
+              if (resources.isEmpty) {
+                return '当前页共 0 个运行时资源。'
+                    '可继续 navigate_get 探索，或结束探索进入归类。';
+              }
+              final base = exploreWorkflow.baseHost;
+              final buf = StringBuffer();
+              buf.writeln('当前页共 $count 个运行时资源'
+                  '${base.isNotEmpty ? '（同域 $base）' : ''}：');
+              var shown = 0;
+              for (final r in resources) {
+                final url = (r['url'] as String? ?? '').trim();
+                if (url.isEmpty) continue;
+                if (validateExploreUrl(url, baseHost: base) != null) continue;
+                final initiator = (r['initiatorType'] as String? ?? '').trim();
+                buf.writeln('- $url'
+                    '${initiator.isNotEmpty ? '  # $initiator' : ''}');
+                if (++shown >= 100) {
+                  buf.writeln('…（其余 ${count - shown} 个资源已截断）');
+                  break;
+                }
+              }
+              if (shown == 0) {
+                buf.writeln('（所有资源均为非同域，已按守卫过滤）');
+              }
+              return buf.toString();
+            } catch (e) {
+              debugPrint('[ExploreNetworkResources] 💥 $e');
+              return '[error: 枚举运行时资源失败: $e]';
+            }
+          },
+        );
+}
+
 // ═══════ navigate_get ═══════
 
 /// 工具：仅 GET 导航（同域 + 上限 + 节流守卫，D2/D7）。
@@ -211,7 +300,16 @@ class ListCapturedRequestsTool extends SimpleTool {
               '不强制要求必须是 GET 请求。',
           schema: const {
             'type': 'object',
-            'properties': {},
+            'properties': {
+              'offset': {
+                'type': 'integer',
+                'description': '分页起始下标（默认 0）。用于翻页读取超过 100 条的日志。',
+              },
+              'limit': {
+                'type': 'integer',
+                'description': '单页返回条数（默认 100，上限 200）。',
+              },
+            },
           },
           readOnly: true,
           execute: (args) async {
@@ -229,20 +327,99 @@ class ListCapturedRequestsTool extends SimpleTool {
             if (logs.isEmpty) {
               return '(暂无捕获日志) 请先在浏览器中浏览/探索目标页面。';
             }
+            // Phase 9：分页读取（offset/limit），默认 100，上限 200。
+            final rawOffset = args['offset'];
+            final rawLimit = args['limit'];
+            int offset = 0;
+            int limit = 100;
+            if (rawOffset is num) {
+              offset = rawOffset.toInt().clamp(0, logs.length).toInt();
+            }
+            if (rawLimit is num) {
+              limit = rawLimit.toInt().clamp(1, 200).toInt();
+            }
+            final start = offset < logs.length ? offset : logs.length;
+            final end = (start + limit).clamp(0, logs.length).toInt();
+            final page = logs.sublist(start, end);
+
             final buf = StringBuffer();
             buf.writeln('## 捕获的请求日志（${logs.length} 条'
-                '${base.isNotEmpty ? ' · 同域 $base' : ''}）\n');
-            final shown = logs.length > 100 ? 100 : logs.length;
-            for (var i = 0; i < shown; i++) {
-              final log = logs[i];
+                '${base.isNotEmpty ? ' · 同域 $base' : ''}'
+                '，第 ${start + 1}-$end 条）\n');
+            for (var i = 0; i < page.length; i++) {
+              final log = page[i];
               final idLabel =
                   log.id.isNotEmpty ? ' · 证据 id: ${log.id}' : '';
-              buf.writeln('### 请求 #${i + 1}$idLabel');
+              buf.writeln('### 请求 #${start + i + 1}$idLabel');
               buf.writeln(log.toAiSummary());
               buf.writeln();
             }
-            if (logs.length > shown) {
-              buf.writeln('…（其余 ${logs.length - shown} 条已截断）');
+            if (end < logs.length) {
+              buf.writeln('…（其余 ${logs.length - end} 条，'
+                  '用 offset=$end 继续读取）');
+            }
+            return buf.toString();
+          },
+        );
+}
+
+// ═══════ read_request_by_id（Phase 9 · 按证据 id 读全文）══════
+
+/// 工具：按证据 id 读取单条捕获请求的完整内容（headers/body/responseBody）。
+///
+/// list_captured_requests 的摘要会截断响应体（toAiSummary 只保留前 2048 字符），
+/// 归类大字段时证据不足。本工具按 `log-N` 证据 id 返回单条日志全文，
+/// 供 AI 精确核对字段路径与响应结构。
+class ReadRequestByIdTool extends SimpleTool {
+  final ScraperWorkflow captureWorkflow;
+
+  ReadRequestByIdTool({required this.captureWorkflow})
+      : super(
+          name: 'read_request_by_id',
+          description: '按证据 id（log-N）读取单条捕获请求的完整内容'
+              '（method/url/headers/body/responseBody 全文，不再截断）。'
+              '用于归类大字段/嵌套结构时精确核对字段路径与响应体。'
+              'id 来自 list_captured_requests 返回的「证据 id: log-N」。',
+          schema: const {
+            'type': 'object',
+            'properties': {
+              'id': {
+                'type': 'string',
+                'description': '证据 id（如 log-7）',
+              },
+            },
+            'required': ['id'],
+          },
+          readOnly: true,
+          execute: (args) async {
+            final id = (args['id'] as String? ?? '').trim();
+            if (id.isEmpty) return '[error: id 参数为空]';
+            HttpRequestLog? found;
+            for (final l in captureWorkflow.logs) {
+              if (l.id.isNotEmpty && sameLogRef(l.id, id)) {
+                found = l;
+                break;
+              }
+            }
+            if (found == null) {
+              return '[error: 未找到证据 id "$id" 的请求日志'
+                  '（可用 list_captured_requests 查看全部证据 id）]';
+            }
+            final buf = StringBuffer();
+            buf.writeln('## 请求证据 $id（全文）');
+            buf.writeln('method: ${found.method}');
+            buf.writeln('url: ${found.url}');
+            if (found.headers != null && found.headers!.isNotEmpty) {
+              buf.writeln('headers:');
+              found.headers!.forEach((k, v) => buf.writeln('  $k: $v'));
+            }
+            if (found.body != null && found.body!.isNotEmpty) {
+              buf.writeln('body (${found.body!.length} chars):\n${found.body}');
+            }
+            if (found.responseBody != null &&
+                found.responseBody!.isNotEmpty) {
+              buf.writeln(
+                  'responseBody (${found.responseBody!.length} chars):\n${found.responseBody}');
             }
             return buf.toString();
           },
@@ -380,6 +557,16 @@ class PresentDataSourcesTool extends SimpleTool {
 
             debugPrint('[PresentDataSources] 呈现 ${candidates.length} 个候选'
                 '（阶段: ${exploreWorkflow.phase.name}）');
+            // Phase 10：探索充分性门槛——0 导航且无捕获日志时禁止归类。
+            if (!exploreWorkflow.explorationSufficient &&
+                captureWorkflow.logs.isEmpty) {
+              return '[error: 探索不充分，禁止过早归类'
+                  '（已访问 ${exploreWorkflow.uniquePages} 页 / '
+                  '${exploreWorkflow.requestsCaptured} 请求，'
+                  '至少需 ${exploreWorkflow.limits.minPagesForCategorize} 页或 '
+                  '${exploreWorkflow.limits.minRequestsForCategorize} 请求）。'
+                  '请先 navigate_get 探索目标站点，或确保已有捕获日志证据后重试。]';
+            }
             if (exploreWorkflow.phase == ExplorePhase.exploring) {
               if (!exploreWorkflow.startCategorizing()) {
                 return '[error: 无法进入归类阶段]';
@@ -409,6 +596,51 @@ class PresentDataSourcesTool extends SimpleTool {
                 '$warnText\n'
                 '下一步：对每个数据源依次调用 build_selected_source(name, code) 构建，'
                 '全部构建完成后调用 register_batch(names) 批量注册。';
+          },
+        );
+}
+
+// ═══════ verify_login_flow（Phase 2 · 登录态前置验证）═══════
+
+/// 工具：执行 AI 生成的「登录片段」并回传结果（探索模式构建前的登录验证）。
+///
+/// 探索模式全程禁用 run_python_scraper（它写 scraper.py 且与探索语义冲突），
+/// 因此单独提供本工具：AI 把登录代码（CAS/表单/Cookie 流程）写入临时脚本执行，
+/// 依据 stdout/stderr 判断登录是否成功（如 HTTP 200 / session 建立 / 无 401），
+/// 成功后才会进入 build_selected_source 写业务脚本。
+class VerifyLoginFlowTool extends SimpleTool {
+  /// 执行登录片段并返回 stdout/stderr 的回调（UI 层注入：写 login_check.py + 运行）。
+  final Future<String> Function(String code) runLoginCheck;
+
+  VerifyLoginFlowTool({required this.runLoginCheck})
+      : super(
+          name: 'verify_login_flow',
+          description: '执行一段「仅登录」的 Python 代码，验证登录流程是否可复现。'
+              '在构建任何数据源脚本前，若目标接口需要登录（Cookie/Token/表单/CAS），'
+              '必须先用本工具跑通登录并确认成功（stdout 无 401/登录失败）。'
+              'code 为完整登录片段（可含 import + 登录函数 + main 自测），'
+              '凭证通过锁定模板 _get_config(key) 读取（用户已在设置面板填写）。'
+              '登录验证成功后再逐个 build_selected_source。',
+          schema: const {
+            'type': 'object',
+            'properties': {
+              'code': {
+                'type': 'string',
+                'description': '仅登录用的完整 Python 代码（含 _get_config 凭证读取与登录自测输出）',
+              },
+            },
+            'required': ['code'],
+          },
+          readOnly: false,
+          execute: (args) async {
+            final code = args['code'] as String? ?? '';
+            if (code.isEmpty) return '[error: code 参数为空]';
+            try {
+              return await runLoginCheck(code);
+            } catch (e) {
+              debugPrint('[VerifyLoginFlow] 💥 $e');
+              return '[error: 登录验证执行异常: $e]';
+            }
           },
         );
 }
@@ -573,6 +805,51 @@ class RegisterBatchTool extends SimpleTool {
         );
 }
 
+// ═══════ execute_built_source（Phase 3 · 批量执行结果回传）═══════
+
+/// 工具：执行某个已构建的数据源脚本（data-{name}/data/scraper.py）并回传 stdout/stderr。
+///
+/// build_selected_source 只写盘不运行；register_batch 的 orch.get 也只回「非 null/异常」。
+/// 本工具让 AI 在注册前**逐个真实执行**已构建脚本，看到真实 stdout（JSON 样本）与
+/// stderr，从而在注册前自证脚本能跑通、字段与声明一致，而不是靠猜。
+class ExecuteBuiltSourceTool extends SimpleTool {
+  /// 执行已构建脚本并返回 stdout/stderr 的回调（UI 层注入）。
+  final Future<String> Function(String name) runBuiltSource;
+
+  ExecuteBuiltSourceTool({required this.runBuiltSource})
+      : super(
+          name: 'execute_built_source',
+          description: '执行某个已构建数据源的脚本（plugins/data-{name}/data/scraper.py），'
+              '返回真实 stdout（数据 JSON 样本）与 stderr。'
+              '用于 register_batch 之前对每个已构建脚本做真实执行验证：'
+              '确认脚本能跑通、输出合法 JSON、字段与归类声明一致。'
+              '若执行失败/输出非 JSON/缺字段，用 build_selected_source 修正后重试。',
+          schema: const {
+            'type': 'object',
+            'properties': {
+              'name': {
+                'type': 'string',
+                'description': '数据源名称（已构建的 data-{name}）',
+              },
+            },
+            'required': ['name'],
+          },
+          readOnly: false,
+          execute: (args) async {
+            final name = (args['name'] as String? ?? '').trim();
+            if (name.isEmpty) return '[error: name 参数为空]';
+            final err = sanitizeSourceName(name);
+            if (err != null) return '[error: 数据源名称非法: $err]';
+            try {
+              return await runBuiltSource(name);
+            } catch (e) {
+              debugPrint('[ExecuteBuiltSource] 💥 $e');
+              return '[error: 执行 data-$name 脚本异常: $e]';
+            }
+          },
+        );
+}
+
 // ═══════ 工具集工厂 ═══════
 
 /// 在用户确认清单中查找数据源（build/register 工具的证据与清单终闸）。
@@ -602,10 +879,16 @@ List<Tool> createScraperExploreTools({
       List<CandidateDataSource> candidates) presentSources,
   required Future<String> Function(String name, String code) buildSource,
   required Future<String> Function(List<String> names) registerBatch,
+  required Future<String> Function(String code) verifyLoginFlow,
+  required Future<String> Function(String name) executeBuiltSource,
   List<String> Function()? listPythonCapabilities,
 }) {
   return [
     ExplorePageLinksTool(
+      exploreWorkflow: exploreWorkflow,
+      evaluateJs: evaluateJs,
+    ),
+    ExploreNetworkResourcesTool(
       exploreWorkflow: exploreWorkflow,
       evaluateJs: evaluateJs,
     ),
@@ -617,6 +900,7 @@ List<Tool> createScraperExploreTools({
       captureWorkflow: captureWorkflow,
       exploreWorkflow: exploreWorkflow,
     ),
+    ReadRequestByIdTool(captureWorkflow: captureWorkflow),
     ListPythonCapabilitiesTool(
       listCapabilities: listPythonCapabilities ?? () => const [],
     ),
@@ -625,11 +909,13 @@ List<Tool> createScraperExploreTools({
       captureWorkflow: captureWorkflow,
       presentSources: presentSources,
     ),
+    VerifyLoginFlowTool(runLoginCheck: verifyLoginFlow),
     BuildSelectedSourceTool(
       buildSource: buildSource,
       exploreWorkflow: exploreWorkflow,
       captureWorkflow: captureWorkflow,
     ),
+    ExecuteBuiltSourceTool(runBuiltSource: executeBuiltSource),
     RegisterBatchTool(
       registerBatch: registerBatch,
       exploreWorkflow: exploreWorkflow,

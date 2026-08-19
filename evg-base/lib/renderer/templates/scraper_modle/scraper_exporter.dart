@@ -245,6 +245,8 @@ Future<ExportResult> exportDataManifest({
   String? category,
   /// Phase 4：探索模式显式展示名（manifest displayName）。
   String? displayName,
+  /// Phase 6：字段 schema（探索模式候选字段，落盘供下游/校验复用）。
+  List<Map<String, dynamic>>? fields,
 }) async {
   try {
     debugPrint('[ScraperExporter] 📝 生成 data manifest: $name → $outputDir');
@@ -258,22 +260,25 @@ Future<ExportResult> exportDataManifest({
 
     // 2) 构建 manifest（严格对齐 _scanAndRegisterDataSources 契约）
     final resolvedDataTypeName = dataTypeName ?? schema.title ?? name;
+    final dataTypeEntry = <String, dynamic>{
+      'name': resolvedDataTypeName,
+      'typeArg': resolvedDataTypeName,
+      'ttl': '5m',
+      'persistentKey': 'custom-$name:$resolvedDataTypeName',
+      'category': category ?? dataTypeName ?? schema.title ?? '数据采集',
+      'displayName': displayName ?? dataTypeName ?? schema.title ?? name,
+      // Phase 6：字段 schema 落盘（缺省时仍留空列表占位，保持结构可预期）。
+      'fields': (fields == null || fields.isEmpty)
+          ? <Map<String, dynamic>>[]
+          : fields,
+    };
     final manifest = {
       'type': 'data-source',
       // 统一 .py 插件契约：script 指向 .py，由解释器（桌面）/ Chaquopy（安卓）
       // 执行，不再依赖 PyInstaller 编译的 .exe（安卓无法 exec PE 格式）。
       'runtime': 'python',
       'script': fetcherScript,
-      'dataTypes': [
-        {
-          'name': resolvedDataTypeName,
-          'typeArg': resolvedDataTypeName,
-          'ttl': '5m',
-          'persistentKey': 'custom-$name:$resolvedDataTypeName',
-          'category': category ?? dataTypeName ?? schema.title ?? '数据采集',
-          'displayName': displayName ?? dataTypeName ?? schema.title ?? name,
-        }
-      ],
+      'dataTypes': [dataTypeEntry],
     };
 
     // 3) 写入 manifest.json

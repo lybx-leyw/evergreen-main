@@ -39,6 +39,9 @@ class DataSourceInfo {
   /// 创建来源：scraper-explore / scraper-capture / null（非爬虫创建）。
   final String? createdBy;
 
+  /// Phase 6：字段 schema（dataTypes[0].fields），供展示/校验复用。
+  final List<Map<String, dynamic>> fields;
+
   /// 原始 manifest（弹窗展示真实 JSON 用）。
   final Map<String, dynamic> rawManifest;
 
@@ -49,6 +52,7 @@ class DataSourceInfo {
     required this.category,
     this.boardId,
     this.createdBy,
+    this.fields = const [],
     required this.rawManifest,
   });
 
@@ -78,11 +82,16 @@ class DataSourceInfo {
         ? manifestDisplay
         : name;
 
+    // Phase 6：读取字段 schema（dataTypes[0].fields）
+    final rawFields = (first?['fields'] as List<dynamic>?) ?? const [];
+    final fields = rawFields.whereType<Map<String, dynamic>>().toList();
+
     return DataSourceInfo(
       name: name,
       pluginDir: pluginDir,
       displayName: displayName,
       category: (first?['category'] as String?) ?? '',
+      fields: fields,
       // 绑定优先于创建（D4 建板时回写 boundBoardId，创建者字段不动）
       boardId: (rawManifest['boundBoardId'] as String?)
               ?.isNotEmpty ==
@@ -125,7 +134,7 @@ class DataSourceInfo {
       'type': dataTypes.isEmpty
           ? name
           : (dataTypes.first['typeArg'] as String? ?? name),
-      'fields': _readConfigFields(),
+      'fields': fields.isEmpty ? _readConfigFields() : fields,
       'script': script ?? '',
       'scriptExists': scriptExists,
       'pluginDir': pluginDir,

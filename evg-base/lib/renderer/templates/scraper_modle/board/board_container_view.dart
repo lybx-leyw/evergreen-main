@@ -15,9 +15,12 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 
 import 'package:evergreen_base/core/module/module_descriptor.dart';
+import 'package:evergreen_base/core/data/type.dart';
+import 'package:evergreen_base/providers.dart';
 
 import 'scraper_board.dart';
 import 'data_source_binding.dart';
@@ -27,7 +30,10 @@ import '../view/scraper_generator_view.dart';
 enum _SidebarView { boards, sources }
 
 /// 多画板容器。
-class BoardContainerView extends StatefulWidget {
+///
+/// Phase 4：改为 [ConsumerStatefulWidget]，数据源弹窗「拉取示例」需要读
+/// `dataOrchestratorProvider` 获取真实数据。
+class BoardContainerView extends ConsumerStatefulWidget {
   final ModuleDescriptor descriptor;
   final ComponentDescriptor config;
   final String slotKey;
@@ -46,10 +52,10 @@ class BoardContainerView extends StatefulWidget {
   });
 
   @override
-  State<BoardContainerView> createState() => BoardContainerViewState();
+  ConsumerState<BoardContainerView> createState() => BoardContainerViewState();
 }
 
-class BoardContainerViewState extends State<BoardContainerView> {
+class BoardContainerViewState extends ConsumerState<BoardContainerView> {
   late BoardStore _store;
   List<ScraperBoard> _boards = [];
   int _currentIdx = 0;
@@ -314,6 +320,10 @@ class BoardContainerViewState extends State<BoardContainerView> {
         ),
         actions: [
           TextButton(
+            onPressed: () => Navigator.pop(ctx, 'sample'),
+            child: const Text('拉取示例'),
+          ),
+          TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('关闭'),
           ),
@@ -331,7 +341,9 @@ class BoardContainerViewState extends State<BoardContainerView> {
       ),
     );
     if (!mounted || action == null) return;
-    if (action == 'open' && hasBoard) {
+    if (action == 'sample') {
+      await _showDataSample(ds);
+    } else if (action == 'open' && hasBoard) {
       setState(() {
         _viewMode = _SidebarView.boards;
         _currentIdx = boundBoardIdx;
@@ -339,6 +351,53 @@ class BoardContainerViewState extends State<BoardContainerView> {
     } else if (action == 'create') {
       await _confirmAndCreateBoard(ds);
     }
+  }
+
+  /// Phase 4：拉取数据源真实数据示例并展示（非 manifest 死 JSON）。
+  Future<void> _showDataSample(DataSourceInfo ds) async {
+    String body;
+    try {
+      final orch = ref.read(dataOrchestratorProvider);
+      if (orch.status(ds.name) == null) {
+        body = '该数据源尚未热注册到数据中心（重启应用，或从画板重新注册后可用）。';
+      } else {
+        final data = await orch
+            .get(DataType<Map<String, dynamic>>(name: ds.name));
+        if (data == null) {
+          final st = orch.status(ds.name);
+          body = '拉取返回 null${st?.lastError != null ? ' · lastError: ${st!.lastError}' : ''}';
+        } else {
+          body = const JsonEncoder.withIndent('  ').convert(data);
+          if (body.length > 4000) {
+            body = '${body.substring(0, 4000)}\n…(截断)';
+          }
+        }
+      }
+    } catch (e) {
+      body = '拉取失败: $e';
+    }
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('${ds.displayName} · 数据示例'),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 520, maxHeight: 420),
+          child: SingleChildScrollView(
+            child: SelectableText(
+              body,
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('关闭'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _confirmAndCreateBoard(DataSourceInfo ds) async {

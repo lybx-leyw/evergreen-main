@@ -25,6 +25,7 @@ import 'tools/scraper_tools.dart';
 import '../workflow/scraper_guard.dart';
 import '../explore/explore_workflow.dart';
 import '../explore/explore_scope.dart';
+import '../explore/explore_evidence.dart';
 import '../explore/scraper_explore_tools.dart';
 import '../explore/explore_panel.dart';
 import '../web/scraper_webview.dart';
@@ -44,6 +45,7 @@ import 'package:evergreen_base/core/config/register_config.dart';
 import 'package:evergreen_base/core/data/register_data_source.dart';
 import 'package:evergreen_base/core/data/orchestrator.dart';
 import 'package:evergreen_base/core/data/type.dart';
+import 'package:evergreen_base/core/plugin/plugin_runner.dart';
 import 'package:evergreen_base/core/services/ui_operation_log.dart';
 import 'package:evergreen_base/renderer/components/shared/widgets/markdown_renderer.dart';
 import 'package:evergreen_base/renderer/components/shared/widgets/agent_step_indicator.dart';
@@ -533,6 +535,8 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
                   presentSources: _presentExploreSources,
                   buildSource: _buildExploreSource,
                   registerBatch: _registerExploreBatch,
+                  verifyLoginFlow: _runLoginCheck,
+                  executeBuiltSource: _executeBuiltSource,
                   // P2-1 工具事实源：运行时扫描嵌入 Python 的 site-packages
                   listPythonCapabilities: () =>
                       scanPythonSitePackages(greenixPythonDir),
@@ -1454,6 +1458,12 @@ ${wf.errorMessage.isNotEmpty ? '- 最近错误: ${wf.errorMessage}' : ''}
     // 授权范围落盘（持久化授权，跨会话复用）
     _saveScopeToDisk(result.scope);
 
+    // Phase 1：应用用户在授权弹窗配置的探索上限（页数/请求）。
+    ew.configureLimits(ExploreLimits(
+      maxPages: result.maxPages,
+      maxRequests: result.maxRequests,
+    ));
+
     // P1-1 空转熔断：触发即回灌聊天（AI 应切换策略或结束探索）
     ew.onStallDetected = (msg) {
       if (!mounted) return;
@@ -1657,6 +1667,8 @@ ${ew.stallDetected ? '- 空转熔断已触发，请切换策略（换入口/换�
         dataTypeName: name,
         category: candidate?.category,
         displayName: candidate?.displayName,
+        // Phase 6：字段 schema 落盘（含 sourceJsonPath 证据）
+        fields: candidate?.fields.map((f) => f.toJson()).toList(),
       );
       if (!dataResult.success) {
         say('❌ data-$name 打包失败: ${dataResult.message}');
@@ -1770,8 +1782,18 @@ ${ew.stallDetected ? '- 空转熔断已触发，请切换策略（换入口/换�
               final dataType = DataType<Map<String, dynamic>>(name: typeName);
               final data = await orch.get(dataType);
               if (data != null) {
-                lineBuf.writeln('- ✅ $typeName 拉取成功');
-                successCount++;
+                // Phase 5：非 null 之外，再核对返回结构与声明字段是否一致。
+                final candidate = _findCandidate(typeName);
+                final missing = candidate != null && candidate.fields.isNotEmpty
+                    ? validateFetchedShape(data, candidate.fields)
+                    : const <String>[];
+                if (missing.isEmpty) {
+                  lineBuf.writeln('- ✅ $typeName 拉取成功');
+                  successCount++;
+                } else {
+                  lineBuf.writeln('- ⚠ $typeName 拉取成功但缺字段: '
+                      '${missing.join(', ')}（结构与归类声明不一致，请修正脚本）');
+                }
               } else {
                 final status = orch.status(typeName);
                 lineBuf.writeln('- ⚠ $typeName 返回 null'
@@ -1816,6 +1838,82 @@ ${ew.stallDetected ? '- 空转熔断已触发，请切换策略（换入口/换�
     }
     _saveSessions();
     return buf.toString();
+  }
+
+  // ── Phase 2/3：探索模式登录验证 + 逐源执行验证 ──
+
+  /// 截断长输出（防撑爆上下文，与工具输出契约一致）。
+  String _truncateRunOutput(String s, {int maxChars = 3000}) {
+    if (s.length <= maxChars) return s;
+    return '${s.substring(0, maxChars)}\n…(截断 ${s.length - maxChars} 字符)';
+  }
+
+  /// 执行单个 Python 文件并返回 stdout/stderr 摘要（Phase 2/3 共用）。
+  Future<String> _runPythonFile(String filePath) async {
+    try {
+      final runner = await sharedPluginRunner;
+      final r = await runner
+          .runOnce(
+            filePath,
+            const [],
+            workingDirectory: p.dirname(filePath),
+            runtime: 'python',
+          )
+          .timeout(const Duration(seconds: 60));
+      final stdout = r.stdout.trim();
+      final stderr = r.stderr.trim();
+      if (r.exitCode != 0) {
+        return '❌ 执行失败 (exitCode=${r.exitCode})\n'
+            '--- STDOUT ---\n${_truncateRunOutput(stdout)}\n'
+            '--- STDERR ---\n${_truncateRunOutput(stderr)}\n'
+            '请根据错误信息修正后重试。';
+      }
+      final stderrPart = stderr.isEmpty ? '' : '\n--- STDERR ---\n${_truncateRunOutput(stderr)}';
+      return '✅ 执行成功 (exitCode=0)\n'
+          '--- STDOUT ---\n${_truncateRunOutput(stdout)}$stderrPart';
+    } catch (e) {
+      debugPrint('[ScraperAIPanel] 💥 执行 Python 异常: $e');
+      return '[error: Python 执行异常: $e]';
+    }
+  }
+
+  /// verify_login_flow 工具回调：写 login_check.py 并执行（Phase 2）。
+  Future<String> _runLoginCheck(String code) async {
+    try {
+      // 注入锁定配置模板（若缺失），保证 _get_config 可读凭证。
+      var finalized = code;
+      if (!finalized.contains('def _get_config(key)')) {
+        final injected = scraperConfigTemplate.replaceFirst(
+          '{CREDENTIAL_PLACEHOLDER}',
+          '# 按需声明：USERNAME = _get_config(\'SCRAPER_USERNAME\')',
+        );
+        finalized = '$injected\n$finalized';
+      }
+      final filePath = p.join(widget.workspaceDir, 'login_check.py');
+      await File(filePath).writeAsString(finalized);
+      debugPrint('[ScraperAIPanel] 🔑 登录验证脚本已写入: $filePath');
+      return await _runPythonFile(filePath);
+    } catch (e) {
+      debugPrint('[ScraperAIPanel] 💥 登录验证失败: $e');
+      return '[error: 登录验证执行异常: $e]';
+    }
+  }
+
+  /// execute_built_source 工具回调：执行已构建脚本并回传结果（Phase 3）。
+  Future<String> _executeBuiltSource(String name) async {
+    try {
+      final scriptPath =
+          p.join(resolvePluginsRoot(), 'data-$name', 'data', 'scraper.py');
+      final file = File(scriptPath);
+      if (!file.existsSync()) {
+        return '[error: 脚本不存在: $scriptPath（请先 build_selected_source 构建 data-$name）]';
+      }
+      debugPrint('[ScraperAIPanel] ▶️ 执行已构建脚本: $scriptPath');
+      return await _runPythonFile(scriptPath);
+    } catch (e) {
+      debugPrint('[ScraperAIPanel] 💥 执行 data-$name 异常: $e');
+      return '[error: 执行 data-$name 脚本异常: $e]';
+    }
   }
 
   /// 导出爬虫（.py）+ data/manifest.json。

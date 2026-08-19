@@ -439,6 +439,8 @@ const String scraperExploreSkillBody = r'''
    无日志证据只提示不阻断。但不得**凭空臆造**数据（字段/路径须来自真实观察）。
 3. 探索空转被拦截时立即切换策略，禁止无意义重试。
 4. 模板/占位符之外的代码一律不许写。
+5. **探索不充分不得归类**——至少 navigate_get 访问过 1 页、或有捕获日志证据后，
+   才能调用 present_data_sources；禁止在 0 探索时直接归类。
 
 | 常见借口 | 反驳 |
 |---|---|
@@ -453,12 +455,16 @@ const String scraperExploreSkillBody = r'''
 
 ```
 工具: explore_page_links()          — 枚举当前页面所有 http(s) 链接（url + 文本）
-工具: navigate_get(url)             — 唯一导航通道：纯 GET（同域/20 页/50 请求/1s 节流守卫）
-工具: list_captured_requests()      — 读取捕获日志中的全部请求（GET/POST/导航/响应等全量，每条带证据 id: log-N）
+工具: explore_network_resources()   — 枚举当前页运行时资源（fetch/XHR 等动态接口，SPA 必备）
+工具: navigate_get(url)             — 唯一导航通道：纯 GET（同域/页数/请求/1s 节流守卫，上限可在授权弹窗调）
+工具: list_captured_requests()      — 读取捕获日志中的全部请求（GET/POST/导航/响应等全量，每条带证据 id: log-N；支持 offset/limit 分页）
+工具: read_request_by_id(id)         — 按证据 id 读单条请求全文（headers/body/responseBody 不截断）
 工具: list_python_capabilities()     — 本机嵌入 Python 实际可用的第三方模块清单（构建前必查）
 工具: present_data_sources(sources) — 呈现归类候选 → 用户多选（可改名）→ 返回确认结果
                                       （sourceLogId 证据可选，无证据仅提示不阻断）
+工具: verify_login_flow(code)       — 执行「仅登录」片段，验证登录态可复现（构建前必须跑通）
 工具: build_selected_source(name, code) — 逐源构建 data-{name} 插件（scraper.py + manifest + config）
+工具: execute_built_source(name)    — 真实执行已构建的 data-{name}/data/scraper.py，回传 stdout 样本
 工具: register_batch(names)         — 批量热注册 + orch.get 拉取验证，返回完整日志
 工具: read_workspace_file(path)     — 读取工作区文件（≤50KB；禁止用 python 读文件）
 工具: ask(questions)                — 遇到真正属于用户的决策分叉时，结构化多选提问
@@ -493,9 +499,9 @@ read_request_snapshot / read_existing_credential。
    拒绝，请立即切换策略（换新链接 / 结束探索进入归类），禁止对同一页面重试。
 6. **阶段白名单**：工具只能在对应阶段调用——
    - exploring：explore_page_links / navigate_get / list_captured_requests
-   - categorizing/confirming：present_data_sources
-   - building：build_selected_source
-   - registering：register_batch
+   - categorizing/confirming：present_data_sources / verify_login_flow
+   - building：build_selected_source / verify_login_flow / execute_built_source
+   - registering：register_batch / execute_built_source
    违反阶段会被拦截，请按流程推进。
 
 ---
@@ -506,10 +512,12 @@ read_request_snapshot / read_existing_credential。
 
 循环执行直到无新链接或触达上限：
 1. `explore_page_links()` 枚举当前页链接（守卫已过滤跨域/非 http 链接）
-2. 挑选疑似数据接口/列表页的链接，`navigate_get(url)` 逐页访问
-3. `list_captured_requests()` 查看页面触发的**全部**请求日志（GET/POST/导航/响应体样本）
-4. 记录候选数据接口（返回 JSON 数据的接口优先，但你自主判断价值）
-5. 触达页数/请求上限或没有新链接 → 进入归类
+2. `explore_network_resources()` 枚举当前页运行时资源（fetch/XHR 动态接口——
+   SPA 站点数据接口往往没有 <a href> 锚点，这一步是发现它们的关键通道）
+3. 挑选疑似数据接口/列表页的链接，`navigate_get(url)` 逐页访问
+4. `list_captured_requests()` 查看页面触发的**全部**请求日志（GET/POST/导航/响应体样本）
+5. 记录候选数据接口（返回 JSON 数据的接口优先，但你自主判断价值）
+6. 触达页数/请求上限或没有新链接 → 进入归类
 
 ### Step 2：归类（categorizing）
 
@@ -548,6 +556,19 @@ read_request_snapshot / read_existing_credential。
 后续构建/注册必须使用返回的 name。
 
 若用户未选择任何数据源 → 重新归类（合并/拆分候选），或用 ask 询问用户需求。
+
+### Step 3.5：登录态前置验证（Phase 2，构建前必须）
+
+若用户确认的数据源**需要登录**（Cookie/Token/表单/CAS——可从捕获日志的登录请求、
+Authorization/Cookie header 判断），在写业务脚本前必须先调用
+`verify_login_flow(code)` 跑通一段「仅登录」代码：
+
+- code 含锁定模板的 `_get_config(key)`（凭证由用户已在设置面板填写）；
+- 依据 stdout/stderr 确认登录成功（无 401/登录失败、session/cookie 建立）；
+- 登录失败 → 分析错误（密码、加密参数、执行参数、CSRF token）并重试；
+  连续 3 轮失败 → 用 ask 请用户核对凭证或补充登录方式，不要硬编业务脚本。
+
+**禁止**：跳过登录验证直接写业务脚本——那会导致注册后实际拉取 401。
 
 ### Step 4：逐源构建（building）
 
@@ -602,9 +623,22 @@ def _get_config(key):
 
 构建日志含 ❌/lastError 时分析原因并重试（最多 3 轮后换策略）。
 
+### Step 4.5：逐源真实执行验证（Phase 3，注册前必须）
+
+对每个已构建的数据源，调用 `execute_built_source(name)` 真实执行
+`data-{name}/data/scraper.py`，确认：
+
+1. exitCode=0（脚本能跑通）；
+2. stdout 是合法 JSON（`{`/`[` 开头）；
+3. 输出字段与归类声明（present_data_sources 的 fields）一致，无缺字段。
+
+执行失败/非 JSON/缺字段 → 用 `build_selected_source` 修正后再次执行。
+**禁止**：跳过执行验证直接 register_batch——register 的 orch.get 只回「非 null」，
+无法暴露字段错误。
+
 ### Step 5：批量注册（registering）
 
-全部构建完成后调用 `register_batch(names)`（names 为 JSON 数组字符串）。
+全部构建且逐源执行验证通过后调用 `register_batch(names)`（names 为 JSON 数组字符串）。
 系统会批量热注册并逐一 orch.get 验证。返回日志含 ❌/lastError/返回 null 时：
 用 build_selected_source 修正对应数据源后再次 register_batch（最多 3 轮）。
 

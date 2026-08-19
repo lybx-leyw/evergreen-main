@@ -30,6 +30,7 @@ import '../workflow/scraper_workflow_stepper.dart';
 import '../workflow/scraper_workflow_graph.dart';
 import '../explore/explore_workflow.dart';
 import '../explore/explore_panel.dart';
+import '../explore/explore_workflow_stepper.dart';
 import '../board/scraper_board.dart';
 import '../board/data_source_binding.dart';
 import '../web/scraper_webview.dart';
@@ -346,8 +347,12 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
           traceEnabled: true, // Phase 3：轨迹视图可用（C2 随时切换进出）
         ),
         // ── 非 workflow 视图：顶部常驻紧凑步骤条（用户 UI 决策）──
+        // Phase 7：探索模式绑定探索工作流步骤条（否则永远停在「抓包中」）。
         if (_view != ScraperMainView.workflow)
-          ScraperWorkflowStepper(workflow: _workflow, compact: true),
+          _isExplore
+              ? ExploreWorkflowStepper(
+                  workflow: _exploreWorkflow, compact: true)
+              : ScraperWorkflowStepper(workflow: _workflow, compact: true),
         // ── 主视图区：IndexedStack 保状态（C2：切换不销毁 AI 面板/WebView）──
         Expanded(
           child: IndexedStack(
