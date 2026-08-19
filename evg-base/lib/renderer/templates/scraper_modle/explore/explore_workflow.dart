@@ -200,6 +200,12 @@ class ExploreLimits {
   /// 空转熔断观察窗口：最多回看最近 N 次导航的新页面产出。
   final int stallWindow;
 
+  /// Phase 10：归类前最小探索页数（去重）。0 = 不设页数门槛。
+  final int minPagesForCategorize;
+
+  /// Phase 10：归类前最小探索请求数。0 = 不设请求门槛。
+  final int minRequestsForCategorize;
+
   const ExploreLimits({
     this.maxPages = 20,
     this.maxRequests = 50,
@@ -207,6 +213,8 @@ class ExploreLimits {
     this.sameDomainOnly = true,
     this.stallThreshold = 3,
     this.stallWindow = 6,
+    this.minPagesForCategorize = 1,
+    this.minRequestsForCategorize = 0,
   });
 }
 
@@ -276,6 +284,7 @@ const Set<String> _readToolsInExplore = {
   'list_skills',
   'read_workspace_file',
   'list_captured_requests',
+  'read_request_by_id',
   'list_python_capabilities',
 };
 
@@ -291,23 +300,32 @@ bool exploreToolAllowedForPhase(String toolName, ExplorePhase phase) {
       // 再 presentCandidates，让 AI 触达上限后能从 exploring 自然切换到归类/确认。
       return toolName == 'explore_page_links' ||
           toolName == 'navigate_get' ||
+          toolName == 'explore_network_resources' ||
           toolName == 'present_data_sources';
     case ExplorePhase.categorizing:
     case ExplorePhase.confirming:
-      return toolName == 'present_data_sources';
+      // Phase 2：登录态验证在归类/确认阶段即可先跑通（构建前）
+      return toolName == 'present_data_sources' ||
+          toolName == 'verify_login_flow';
     case ExplorePhase.building:
       // register_batch 在 building 允许：工具内部先 startRegistering 再注册
+      // Phase 2/3：登录验证与逐源执行验证在构建阶段可用
       return toolName == 'build_selected_source' ||
-          toolName == 'register_batch';
+          toolName == 'register_batch' ||
+          toolName == 'verify_login_flow' ||
+          toolName == 'execute_built_source';
     case ExplorePhase.registering:
       return toolName == 'register_batch' ||
-          toolName == 'build_selected_source';
+          toolName == 'build_selected_source' ||
+          toolName == 'execute_built_source';
     case ExplorePhase.done:
     case ExplorePhase.failed:
       // 终态允许修复性重建/重注册/重新呈现
       return toolName == 'build_selected_source' ||
           toolName == 'register_batch' ||
-          toolName == 'present_data_sources';
+          toolName == 'present_data_sources' ||
+          toolName == 'verify_login_flow' ||
+          toolName == 'execute_built_source';
   }
 }
 
@@ -315,9 +333,10 @@ bool exploreToolAllowedForPhase(String toolName, ExplorePhase phase) {
 String blockedExploreToolMessage(String toolName, ExplorePhase phase) {
   return '[error: 探索模式守卫：工具 "$toolName" 在阶段 ${phase.name} 不可用。'
       '探索模式仅允许 GET-only 探索工具'
-      '（explore_page_links / navigate_get / list_captured_requests / '
-      'list_python_capabilities / present_data_sources / '
-      'build_selected_source / register_batch）'
+      '（explore_page_links / explore_network_resources / navigate_get / '
+      'list_captured_requests / '
+      'list_python_capabilities / present_data_sources / verify_login_flow / '
+      'build_selected_source / execute_built_source / register_batch）'
       '与只读工具（ask / guardian_review / read_workspace_file / list_skills）。'
       'run_terminal_command / save_credential / run_python_scraper / '
       'export_and_register_scraper 在探索模式全程禁用]';
@@ -328,7 +347,9 @@ String blockedExploreToolMessage(String toolName, ExplorePhase phase) {
 /// 探索模式工作流控制器（纯 Dart，无 Flutter 依赖）。
 class ExploreWorkflow {
   ExplorePhase _phase = ExplorePhase.idle;
-  final ExploreLimits limits;
+
+  /// 探索守卫上限（Phase 1 可配置：授权弹窗用户输入后经 [configureLimits] 更新）。
+  ExploreLimits _limits;
 
   /// 用户确认的授权范围（Scope Contract；探索开始前由 UI 层落盘并传入）。
   ///
@@ -376,13 +397,17 @@ class ExploreWorkflow {
   void Function(String message)? onStallDetected;
 
   ExploreWorkflow({
-    this.limits = const ExploreLimits(),
+    ExploreLimits limits = const ExploreLimits(),
     DateTime Function()? clock,
-  }) : clock = clock ?? DateTime.now;
+  })  : _limits = limits,
+        clock = clock ?? DateTime.now;
 
   // ── 属性 ──
 
   ExplorePhase get phase => _phase;
+
+  /// 当前探索上限（Phase 1：可经 [configureLimits] 更新）。
+  ExploreLimits get limits => _limits;
   List<CandidateDataSource> get candidates => List.unmodifiable(_candidates);
   List<CandidateDataSource> get selected => List.unmodifiable(_selected);
   String get baseHost => _baseHost;
@@ -393,6 +418,13 @@ class ExploreWorkflow {
   String get errorMessage => _errorMessage;
   bool get pagesExhausted => uniquePages >= limits.maxPages;
   bool get requestsExhausted => _requestsCaptured >= limits.maxRequests;
+
+  /// Phase 10：探索是否达到归类最小量（页数或请求数门槛）。
+  ///
+  /// 用于 present_data_sources 守卫：杜绝 AI 在 0 导航时过早归类。
+  bool get explorationSufficient =>
+      uniquePages >= limits.minPagesForCategorize ||
+      _requestsCaptured >= limits.minRequestsForCategorize;
 
   /// P1-1：空转熔断是否已触发（UI 弹警告；重复导航被拒）。
   bool get stallDetected => _stallDetected;
@@ -405,6 +437,15 @@ class ExploreWorkflow {
       _phase == ExplorePhase.confirming;
 
   void _notify() => onChanged?.call();
+
+  /// Phase 1：更新探索守卫上限（授权弹窗用户配置后调用）。
+  ///
+  /// 页数/请求上限、节流、空转熔断、最小探索量均可被覆盖；
+  /// 未提供的字段保留旧值（不会意外重置为默认）。
+  void configureLimits(ExploreLimits limits) {
+    _limits = limits;
+    _notify();
+  }
 
   void _enter(ExplorePhase phase, {String? note}) {
     _phase = phase;

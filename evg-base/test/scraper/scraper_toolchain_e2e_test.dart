@@ -144,6 +144,8 @@ class ExploreSandbox {
       presentSources: (cands) async => cands, // 沙盒：用户全选
       buildSource: (name, code) async => '✅ 构建 data-$name 成功',
       registerBatch: (names) async => '✅ 注册 ${names.length} 个成功',
+      verifyLoginFlow: (code) async => '✅ 登录验证通过（沙盒）',
+      executeBuiltSource: (name) async => '✅ data-$name 执行成功（沙盒）',
       listPythonCapabilities: () => const ['requests'],
     );
 

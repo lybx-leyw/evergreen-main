@@ -186,6 +186,8 @@ class ScraperFlowFacade {
     String? category,
     /// Phase 4：探索模式显式展示名（manifest displayName）。
     String? displayName,
+    /// Phase 6：字段 schema（落盘到 data/manifest.json dataTypes[0].fields）。
+    List<Map<String, dynamic>>? fields,
   }) async {
     debugPrint('[ScraperFlowFacade] 🚀 generateAsDataPlugin: $pluginName → $outputDir');
 
@@ -218,6 +220,7 @@ class ScraperFlowFacade {
       dataTypeName: dataTypeName,
       category: category,
       displayName: displayName,
+      fields: fields,
     );
 
     if (!manifestResult.success) {

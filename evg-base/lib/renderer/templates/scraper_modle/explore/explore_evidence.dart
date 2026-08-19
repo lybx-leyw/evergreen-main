@@ -339,6 +339,45 @@ EvidenceCheckResult validateDataSourceEvidence(
   );
 }
 
+// ═══════ 拉取结构校验（Phase 5 · 注册非 null 之外的字段核对）═══════
+
+/// 递归收集 JSON 对象里出现的所有键名（深度上限 3，列表只取首个元素）。
+///
+/// 用于 Phase 5：数据源脚本 stdout 经 jsonDecode 后是顶层 Map，但字段可能
+/// 嵌套在 `data[0].courseName` 里——把（嵌套）键名铺平后即可核对声明字段。
+Set<String> _collectJsonKeys(dynamic node, {int depth = 0}) {
+  final keys = <String>{};
+  if (depth > 3) return keys;
+  if (node is Map) {
+    for (final e in node.entries) {
+      keys.add('${e.key}');
+      keys.addAll(_collectJsonKeys(e.value, depth: depth + 1));
+    }
+  } else if (node is List) {
+    if (node.isNotEmpty) {
+      keys.addAll(_collectJsonKeys(node.first, depth: depth + 1));
+    }
+  }
+  return keys;
+}
+
+/// 校验拉取结果与声明字段是否一致（Phase 5）。
+///
+/// [data] 为 orch.get 返回的顶层 Map；[fields] 为候选数据源声明的字段。
+/// 返回缺失字段名列表（空 = 结构匹配）。字段声明为空时不做校验（不误报）。
+List<String> validateFetchedShape(
+  Map<String, dynamic> data,
+  List<CandidateField> fields,
+) {
+  if (fields.isEmpty || data.isEmpty) return const [];
+  final keys = _collectJsonKeys(data);
+  final missing = <String>[];
+  for (final f in fields) {
+    if (!keys.contains(f.name)) missing.add(f.name);
+  }
+  return missing;
+}
+
 /// 归一化日志引用（log-7 / log#7 / #7 / 7 → log-7），供 AI 引用与 id 匹配。
 String normalizeLogRef(String ref) {
   final t = ref.trim().toLowerCase();
