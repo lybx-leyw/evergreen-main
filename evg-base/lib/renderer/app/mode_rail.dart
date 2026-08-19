@@ -70,12 +70,13 @@ const List<_SystemButton> _systemButtons = [
       label: '远程同步', icon: Icons.sync, placeholder: true),
 ];
 
-/// 开发者三插件入口（顺序与 [kDevPluginIds] 对齐）。
-const List<String> _devPluginNames = ['主题创作', '插件制作', '数据爬取'];
+/// 开发者四插件入口（顺序与 [kDevPluginIds] 对齐）。
+const List<String> _devPluginNames = ['主题创作', '插件制作', '数据爬取', 'DSH'];
 const List<IconData> _devPluginIcons = [
   Icons.palette_outlined,
   Icons.code,
   Icons.public,
+  Icons.hub_outlined,
 ];
 
 // ═══════ ModeRail ═══════
@@ -168,25 +169,29 @@ class ModeRail extends ConsumerWidget {
     if (registry.findById(id) == null) {
       return const SizedBox.shrink();
     }
-    final isScraperAndroid = id == 'scraper' && _isAndroid;
+    // 仅 Windows 插件（scraper / dsh 依赖 WebView2）在安卓端弱化 + 拦截。
+    final isWindowsOnlyAndroid =
+        (id == 'scraper' || id == 'dsh') && _isAndroid;
     final active = location == '/dev-hub' && devIndex == index;
     return _RailButton(
       label: _devPluginNames[index],
       icon: _devPluginIcons[index],
       active: active,
-      dimmed: isScraperAndroid,
-      onTap: () => _openDevPlugin(context, ref, id, index, isScraperAndroid),
+      dimmed: isWindowsOnlyAndroid,
+      onTap: () =>
+          _openDevPlugin(context, ref, id, index, isWindowsOnlyAndroid),
     );
   }
 
   void _openDevPlugin(BuildContext context, WidgetRef ref, String id,
-      int index, bool isScraperAndroid) {
-    if (isScraperAndroid) {
+      int index, bool isWindowsOnlyAndroid) {
+    if (isWindowsOnlyAndroid) {
+      final label = _devPluginNames[index];
       showDialog<void>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('数据爬取仅支持 Windows 版'),
-          content: const Text('安卓版暂未提供数据爬取，请使用 Windows 版 Evergreen。'),
+          title: Text('$label仅支持 Windows 版'),
+          content: const Text('安卓版暂未提供此功能，请使用 Windows 版 Evergreen。'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),

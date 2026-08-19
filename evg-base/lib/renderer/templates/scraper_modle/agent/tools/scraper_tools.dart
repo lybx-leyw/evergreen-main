@@ -497,7 +497,73 @@ class SetDataNameTool extends SimpleTool {
         );
 }
 
+// ═══════ guard_override ═══════
 
+/// 工具：AI 被工作流门控拦截（lint violation / 假数据 / 证据终闸）时，
+/// 请求用户对**本次拦截**做一次性放行，避免门控过严堵死工作流。
+///
+/// 仅当前一次拦截豁免：用户放行后，AI 重新调用被拦工具即可通过（hook 消费
+/// 该豁免标记并清除）；下次同类拦截仍需重新请求放行。
+/// 硬安全（命令黑名单 / 凭证非法 / 危险 import）不可豁免。
+class GuardOverrideTool extends SimpleTool {
+  /// 请求用户放行的回调（UI 层注入：弹窗 → 用户同意则调 workflow.requestOverride）。
+  /// 返回 true=用户放行，false=拒绝。
+  final Future<bool> Function(String toolName, String reason) requestOverride;
+
+  GuardOverrideTool({required this.requestOverride})
+      : super(
+          name: 'guard_override',
+          description: '当你被工作流门控拦截（如代码 lint violation、疑似假数据、'
+              '数据源无日志证据等），且你确信当前操作是真实/合理的，可调用本工具'
+              '请求用户对**本次拦截**做一次性放行。用户同意后，重新调用被拦工具'
+              '即可通过；用户拒绝则需继续修正。'
+              '⚠️ 仅适用于工作流门控（lint/假数据/证据）；'
+              '命令黑名单、凭证非法等硬安全不可豁免。'
+              '仅在确实被拦截且用户应知情决策时使用，不要滥用。',
+          schema: const {
+            'type': 'object',
+            'properties': {
+              'tool_name': {
+                'type': 'string',
+                'description': '被拦截的工具名（如 run_python_scraper / '
+                    'export_and_register_scraper / build_selected_source / '
+                    'register_batch）',
+              },
+              'reason': {
+                'type': 'string',
+                'description': '为何需要放行（向用户说明，如"该站是静态 JSON 页，'
+                    '无 API 日志，数据为真实抓取"）',
+              },
+            },
+            'required': ['tool_name', 'reason'],
+          },
+          readOnly: false,
+          execute: (args) async {
+            final toolName = (args['tool_name'] as String? ?? '').trim();
+            final reason = (args['reason'] as String? ?? '').trim();
+            if (toolName.isEmpty) return '[error: tool_name 参数为空]';
+            if (reason.isEmpty) return '[error: reason 参数为空]';
+            // 仅可豁免工具允许请求放行（硬安全工具拒绝，防 AI 尝试豁免命令黑名单）
+            const overridable = {
+              'run_python_scraper',
+              'export_and_register_scraper',
+              'build_selected_source',
+              'register_batch',
+            };
+            if (!overridable.contains(toolName)) {
+              return '[error: 工具 "$toolName" 不属于可豁免的门控，'
+                  '（命令黑名单/凭证非法/危险 import 等硬安全不可豁免）]';
+            }
+            final approved = await requestOverride(toolName, reason);
+            if (approved) {
+              return '✅ 用户已放行 "$toolName" 的本次门控拦截。'
+                  '请重新调用 "$toolName" 继续。';
+            }
+            return '用户拒绝放行 "$toolName"。请修正问题后重试，'
+                '或询问用户期望如何处理。';
+          },
+        );
+}
 
 // ═══════ read_workspace_file ═══════
 
@@ -608,6 +674,8 @@ List<Tool> createScraperTools({
   required Future<String> Function() exportAndRegister,
   required String? Function() dataNameProvider,
   required void Function(String name) setDataName,
+  required Future<bool> Function(String toolName, String reason)
+      requestOverride,
 }) {
   return [
     RunPythonScraperTool(
@@ -627,6 +695,7 @@ List<Tool> createScraperTools({
       dataNameProvider: dataNameProvider,
     ),
     SetDataNameTool(setDataName: setDataName),
+    GuardOverrideTool(requestOverride: requestOverride),
     ReadRequestSnapshotTool(getSnapshotSummary: getLogsSummary),
   ];
 }

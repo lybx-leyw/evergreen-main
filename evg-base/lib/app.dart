@@ -17,6 +17,7 @@ import 'package:evergreen_base/renderer/app/app_mode.dart';
 import 'package:evergreen_base/renderer/app/app_shell.dart';
 import 'package:evergreen_base/renderer/app/command_palette.dart';
 import 'package:evergreen_base/renderer/app/dev_mode_hub.dart';
+import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_bridge_registry.dart';
 import 'package:evergreen_base/renderer/app/service/providers/renderer_providers.dart';
 import 'package:evergreen_base/renderer/app/service/theme/theme_provider.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/marketplace/plugin_state_provider.dart';
@@ -30,7 +31,8 @@ import 'package:path/path.dart' as p;
 
 // ═══════ 导航键 ═══════
 
-final _rootNavigatorKey = GlobalKey<NavigatorState>();
+/// 根导航键（公开：供 ScraperBridgeServer 自动切换等跨层导航使用）。
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 final _shellNavigatorKey = GlobalKey<NavigatorState>();
 
 // ═══════ 主题 ═══════
@@ -146,7 +148,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   final v2Manifests = ref.watch(v2ManifestProvider);
 
   return GoRouter(
-    navigatorKey: _rootNavigatorKey,
+    navigatorKey: rootNavigatorKey,
     initialLocation: '/',
     // '/' 按模式重定向到默认视图（AI → /ai-assistant，开发者 → /dev-hub，
     // 插件 → 第一个可见插件）。深层链接（模块路由/命令面板）不受影响。
@@ -214,6 +216,22 @@ class _EvergreenAppState extends ConsumerState<EvergreenApp> {
         // dataOrchestratorProvider 未注入时静默忽略
       }
     });
+    // B3：注入 ScraperBridgeServer 的自动切换回调。
+    // DSH RPC 到达但 scraper WebView 未挂载时，切到开发者模式的 scraper 插件。
+    _injectScraperActivate();
+  }
+
+  void _injectScraperActivate() {
+    final server = scraperBridgeRegistry.server;
+    if (server == null || server.activateScraper != null) return;
+    server.activateScraper = () async {
+      final scraperIndex = kDevPluginIds.indexOf('scraper');
+      ref.read(devHubIndexProvider.notifier).state =
+          scraperIndex < 0 ? 0 : scraperIndex;
+      ref.read(appModeProvider.notifier).state = AppMode.developer;
+      // 导航到开发者模式主区（scraper 插件会经 devHubIndexProvider 激活）。
+      ref.read(routerProvider).go('/dev-hub');
+    };
   }
 
   @override

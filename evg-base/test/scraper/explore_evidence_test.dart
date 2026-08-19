@@ -2,10 +2,11 @@
 //
 // 覆盖：
 // 1. JsonPath 求值器：$.key / ['key'] / [i] / [*] / 非法 path / 非 JSON 容器
-// 2. validateDataSourceEvidence：url 命中（ok）/ url 无匹配（硬阻断）
+// 2. validateDataSourceEvidence：url 命中（ok）/ url 无匹配（仅警告不阻断）
 // 3. sourceLogId 精确引用 / 归一化匹配（log-7 / log#7 / 7）
 // 4. 字段 sourceJsonPath：解析成功 / 失败（仅警告）/ 未标注（仅警告）
 // 5. 字段与源引用日志不一致 → 仅警告；证据 URL 归一（忽略 query）
+// 6. 非 GET 日志可作为证据（放宽）
 import 'package:evergreen_base/renderer/templates/scraper_modle/explore/explore_evidence.dart';
 import 'package:evergreen_base/renderer/templates/scraper_modle/explore/explore_workflow.dart';
 import 'package:evergreen_base/renderer/templates/scraper_modle/workflow/scraper_workflow.dart';
@@ -126,13 +127,14 @@ void main() {
       expect(r.warnings.single, contains('兜底'));
     });
 
-    test('url 无任何日志匹配 → 硬阻断', () {
+    test('url 无任何日志匹配 → 仅警告不阻断（放宽）', () {
       final r = validateDataSourceEvidence(_source(sourceLogId: null), [
         _log('log-1', 'https://site.com/other/path'),
       ]);
-      expect(r.hardBlocked, isTrue);
+      expect(r.hardBlocked, isFalse);
       expect(r.urlMatched, isFalse);
-      expect(r.errors.single, contains('无捕获日志证据'));
+      expect(r.errors, isEmpty);
+      expect(r.warnings.single, contains('无捕获日志证据'));
     });
 
     test('证据 URL 归一：忽略 query/fragment，大小写不敏感', () {
@@ -143,11 +145,13 @@ void main() {
       expect(r.urlMatched, isTrue);
     });
 
-    test('非 GET 日志不能作为证据', () {
+    test('非 GET 日志可作为证据（放宽）', () {
       final r = validateDataSourceEvidence(_source(sourceLogId: null), [
         HttpRequestLog(timestamp: DateTime.now(), method: 'POST', url: 'https://site.com/api/courses', id: 'log-1'),
       ]);
-      expect(r.hardBlocked, isTrue);
+      expect(r.hardBlocked, isFalse);
+      expect(r.urlMatched, isTrue);
+      expect(r.matchedLog!.method, 'POST');
     });
   });
 

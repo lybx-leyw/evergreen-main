@@ -14,10 +14,12 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:evergreen_base/core/log.dart';
+import 'package:evergreen_base/core/utils/greenix_path.dart';
 
 import 'orchestrator.dart';
 import 'type.dart';
 import 'exceptions.dart';
+import 'register_data_source.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DataHttpServer
@@ -171,7 +173,49 @@ class DataHttpServer {
       final results = await _orchestrator.testAllConnectivity();
       _respond(req.response, 200, {'results': results});
     },
+    // 运行期热注册：DSH tool 写数据源产物后调用，触发 DataOrchestrator 注册。
+    // body: { "pluginDir": "<plugins>/data-<name>" }（含 data/manifest.json）。
+    'POST /data/register': (req, _) async {
+      await _handleRegister(req);
+    },
   };
+
+  /// POST /data/register 处理：读 body → 注册数据源 → 返回结果。
+  Future<void> _handleRegister(HttpRequest req) async {
+    try {
+      final body = await utf8.decoder.bind(req).join();
+      final json = body.isEmpty ? <String, dynamic>{} : jsonDecode(body);
+      if (json is! Map<String, dynamic>) {
+        _respond(req.response, 400, {'error': 'body 必须是 JSON 对象'});
+        return;
+      }
+      final pluginDir = json['pluginDir'] as String? ?? '';
+      if (pluginDir.isEmpty) {
+        _respond(req.response, 400, {'error': '缺少 pluginDir 参数'});
+        return;
+      }
+      final projectRoot = resolveProjectRoot() ?? Directory.current.path;
+      final registered = registerDataSourcesFromManifest(
+        orch: _orchestrator,
+        pluginDir: pluginDir,
+        projectRoot: projectRoot,
+      );
+      if (registered.isEmpty) {
+        _respond(req.response, 404, {
+          'error': '未注册任何数据源（manifest 缺失/非法或类型为空）',
+          'pluginDir': pluginDir,
+        });
+        return;
+      }
+      _respond(req.response, 200, {
+        'registered': registered,
+        'pluginDir': pluginDir,
+      });
+    } catch (e) {
+      Log().error('DataHttpServer: /data/register 处理异常', error: e);
+      _respond(req.response, 500, {'error': '注册失败: $e'});
+    }
+  }
 
   late final Map<String, Future<void> Function(HttpRequest, Map<String, String>)> _paramRoutes = {
     'GET /data/types/:name': (req, p) async {

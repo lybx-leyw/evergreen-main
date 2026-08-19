@@ -17,10 +17,13 @@ void main() {
       exportAndRegister: () async => '✅ ok',
       dataNameProvider: () => 'test_smoke',
       setDataName: (_) {},
+      requestOverride: (_, __) async => true,
     );
     final names = tools.map((t) => t.name).toList();
     expect(names, contains('export_and_register_scraper'));
     expect(names, contains('run_python_scraper'));
+    expect(names, contains('set_data_name'));
+    expect(names, contains('guard_override'));
     // 引用 panel 类型强制其参与编译
     expect(ScraperAIPanel, isNotNull);
   });

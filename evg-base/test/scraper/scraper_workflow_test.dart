@@ -359,4 +359,29 @@ void main() {
       expect(old.id, '');
     });
   });
+
+  group('门控一次性豁免（guard_override）', () {
+    test('requestOverride 登记后 consumeOverride 命中并消费（仅一次）', () {
+      final w = ScraperWorkflow();
+      w.requestOverride('run_python_scraper');
+      expect(w.hasPendingOverride, isTrue);
+      // 第一次消费 → true（放行）
+      expect(w.consumeOverride('run_python_scraper'), isTrue);
+      // 已消费 → 再次查询 false
+      expect(w.consumeOverride('run_python_scraper'), isFalse);
+      expect(w.hasPendingOverride, isFalse);
+    });
+
+    test('未登记的工具体 consumeOverride 返回 false', () {
+      final w = ScraperWorkflow();
+      expect(w.consumeOverride('export_and_register_scraper'), isFalse);
+    });
+
+    test('不同工具名互不影响', () {
+      final w = ScraperWorkflow();
+      w.requestOverride('run_python_scraper');
+      expect(w.consumeOverride('register_batch'), isFalse);
+      expect(w.consumeOverride('run_python_scraper'), isTrue);
+    });
+  });
 }

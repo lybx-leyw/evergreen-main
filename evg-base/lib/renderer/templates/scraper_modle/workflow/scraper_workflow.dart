@@ -399,6 +399,27 @@ class ScraperWorkflow {
     _notify();
   }
 
+  // ── 门控一次性豁免（guard_override 工具写入，hook/gate 消费）──
+
+  /// 待消费的一次性放行工具名集合（用户通过 guard_override 放行的某次拦截）。
+  ///
+  /// 语义：仅当前一次拦截豁免——AI 重新调用被拦工具时，hook/gate 查到匹配
+  /// 即放行并**消费（移除）**，下次同类拦截仍需用户重新放行。
+  final Set<String> _oneTimeOverrides = {};
+
+  /// 记录一次门控豁免（guard_override 工具在用户确认后调用）。
+  void requestOverride(String toolName) {
+    _oneTimeOverrides.add(toolName);
+    _log('🟢 门控一次性豁免已登记: $toolName');
+    _notify();
+  }
+
+  /// 消费式查询一次性豁免：命中则移除并返回 true（放行一次），否则 false。
+  bool consumeOverride(String toolName) => _oneTimeOverrides.remove(toolName);
+
+  /// 是否有待消费的豁免（供 UI/调试观察）。
+  bool get hasPendingOverride => _oneTimeOverrides.isNotEmpty;
+
   // ── 阶段转换（带验收门槛 G1-G4）──
 
   /// G1：开始抓包。

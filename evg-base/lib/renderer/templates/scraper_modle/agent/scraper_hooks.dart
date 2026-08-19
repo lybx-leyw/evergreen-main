@@ -15,7 +15,6 @@ library scraper_hooks;
 import 'package:evergreen_base/core/agent/agent.dart' as agent;
 import 'package:evergreen_base/renderer/components/shared/trace/agent_trace_recorder.dart';
 
-import '../explore/explore_evidence.dart';
 import '../explore/explore_workflow.dart';
 import '../workflow/scraper_guard.dart';
 import '../workflow/scraper_workflow.dart';
@@ -40,6 +39,19 @@ class ScraperHooks implements agent.ToolHooks {
   @override
   String get match => '';
 
+  /// 工具是否属于「可豁免的工作流门控」（guard_override 一次性放行适用）。
+  ///
+  /// 可豁免：lint violation / 假数据 / 证据终闸等「工作流门控」。
+  /// 不可豁免：命令黑名单、凭证非法等硬安全，永不因用户放行而绕过。
+  static bool _isOverridableTool(String name) => switch (name) {
+        'run_python_scraper' ||
+        'export_and_register_scraper' ||
+        'build_selected_source' ||
+        'register_batch' =>
+          true,
+        _ => false,
+      };
+
   @override
   Future<(bool block, String message)> preToolUse(
       String name, Map<String, dynamic> args) async {
@@ -49,6 +61,13 @@ class ScraperHooks implements agent.ToolHooks {
       if (!exploreToolAllowedForPhase(name, ew.phase)) {
         return (true, blockedExploreToolMessage(name, ew.phase));
       }
+    }
+
+    // ── guard_override 一次性豁免：用户放行的本次拦截 → 跳过工作流门控 ──
+    // 仅豁免「工作流门控」（lint violation / 假数据 / 证据终闸）；硬安全
+    // （命令黑名单 / 凭证非法 / 危险 import）不豁免，仍走下方 switch 硬拒。
+    if (_isOverridableTool(name) && workflow.consumeOverride(name)) {
+      return (false, '');
     }
 
     switch (name) {
@@ -88,17 +107,7 @@ class ScraperHooks implements agent.ToolHooks {
           return (true, '[error: 检测到疑似假数据未澄清/未修正，拒绝批量注册。'
               '请用 build_selected_source 修正为真实抓取后重试]');
         }
-        // P0-2 证据终闸（harness 层兜底）：已确认源存在无 url 证据 → block
-        final ewSel = ew?.selected;
-        if (ewSel != null && ewSel.isNotEmpty) {
-          for (final s in ewSel) {
-            final evidence = validateDataSourceEvidence(s, workflow.logs);
-            if (evidence.hardBlocked) {
-              return (true, '[error: 数据源 ${s.name} 无捕获日志证据，拒绝批量注册。'
-                  '请重新 present_data_sources 并附 sourceLogId 证据]');
-            }
-          }
-        }
+        // 放宽：无捕获日志证据仅警告，不阻断（数据分类由 AI 自主，不强求 GET）
         return (false, '');
 
       case 'run_terminal_command':

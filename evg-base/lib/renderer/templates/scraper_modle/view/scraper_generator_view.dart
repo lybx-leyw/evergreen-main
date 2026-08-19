@@ -33,6 +33,7 @@ import '../explore/explore_panel.dart';
 import '../board/scraper_board.dart';
 import '../board/data_source_binding.dart';
 import '../web/scraper_webview.dart';
+import '../scraper_bridge_registry.dart';
 import 'request_log_panel.dart';
 import '../agent/scraper_ai_panel.dart';
 import 'scraper_terminal.dart';
@@ -128,6 +129,11 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
   void initState() {
     super.initState();
     _workflow = ScraperWorkflow();
+    // DSH 双向 RPC（B 方案）：把本画板的 WebView bridge + workflow 注册给
+    // 全局 registry，供常驻 ScraperBridgeServer 驱动（DSH 操作 WebView）。
+    // 注意：isActive 依赖 bridge.ready（WebView 初始化完成才 true），
+    // 因此这里注册后，未就绪时 DSH RPC 会得到「未激活」——正确。
+    scraperBridgeRegistry.registerBridge(_webBridge, _workflow);
     // 工作流状态变更时触发重建 + 防抖落盘（断点续作）
     _workflow.onChanged = () {
       if (mounted) setState(() {});
@@ -276,6 +282,7 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
   void dispose() {
     _saveTimer?.cancel();
     _saveBoardStateNow();
+    scraperBridgeRegistry.unregisterBridge(_webBridge);
     _workflow.dispose();
     _exploreWorkflow.dispose();
     super.dispose();

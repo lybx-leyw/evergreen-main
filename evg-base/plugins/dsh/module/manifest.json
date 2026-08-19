@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "dsh",
+  "name": "DSH",
+  "description": "DeepSeek Harness 平台级常驻 Agent — 承载本地 DSH Web UI，赋能数据源创作",
+  "icon": "smart_toy",
+  "template": "dsh",
+  "version": "1.0.0",
+  "route": "/dsh",
+  "nav": {
+    "sidebar": { "section": "base主功能", "order": 40 }
+  }
+}

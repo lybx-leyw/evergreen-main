@@ -57,16 +57,22 @@ final appModeProvider = StateProvider<AppMode>((ref) => AppMode.ai);
 /// （0=主题创作 / 1=插件制作 / 2=数据爬取；会话内记忆，切走再回保持）。
 final devHubIndexProvider = StateProvider<int>((ref) => 0);
 
-/// 4 个特殊插件 id——只出现在 AI 视图 / 开发者模式，不进入插件视图侧栏。
+/// 5 个特殊插件 id——只出现在 AI 视图 / 开发者模式，不进入插件视图侧栏。
 const Set<String> kSpecialPluginIds = {
   'ai-assistant',
   'theme-creator',
   'html-creator',
   'scraper',
+  'dsh',
 };
 
-/// 开发者模式三插件 id（顺序即索引：0=主题创作 / 1=插件制作 / 2=数据爬取）。
-const List<String> kDevPluginIds = ['theme-creator', 'html-creator', 'scraper'];
+/// 开发者模式四插件 id（顺序即索引：0=主题创作 / 1=插件制作 / 2=数据爬取 / 3=DSH）。
+const List<String> kDevPluginIds = [
+  'theme-creator',
+  'html-creator',
+  'scraper',
+  'dsh',
+];
 
 /// 切换模式并持久化。持久化失败静默降级（不影响本次切换）。
 /// 启动时载入由 app_bootstrap 在 ProviderScope 注入时完成（避免默认模式闪动）。

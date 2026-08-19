@@ -37,6 +37,7 @@ import '../scraper_skill_const.dart' show scraperSkillBody, scraperExploreSkillB
 import '../scraper_exporter.dart';
 import '../scraper_json_validator.dart';
 import '../scraper_flow_facade.dart';
+import '../scraper_bridge_registry.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/data_pluginer.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/config_register.dart';
 import 'package:evergreen_base/core/config/register_config.dart';
@@ -175,20 +176,16 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
 
   void _loadSessions() {
     try {
-      final dir = Directory(_boardDir);
       final file = File(_sessionsPath);
-      if (!file.existsSync()) {
-        // 迁移旧版共享会话文件（若存在）
-        final legacy = File(p.join(widget.workspaceDir, 'scraper_sessions.json'));
-        if (legacy.existsSync()) {
-          if (!dir.existsSync()) dir.createSync(recursive: true);
-          legacy.copySync(file.path);
-        }
-      }
       if (file.existsSync()) {
         final json = jsonDecode(file.readAsStringSync()) as List<dynamic>;
+        final boardId = widget.boardId;
+        // 双向绑定（会话 → 画板）：孤儿会话（boardId 缺失或与所在画板不符）
+        // 一律不承认、不显示。旧数据无 boardId → 视为孤儿过滤。
         _sessions = json
-            .map((s) => _ScraperSession.fromJson(s as Map<String, dynamic>))
+            .whereType<Map<String, dynamic>>()
+            .map(_ScraperSession.fromJson)
+            .where((s) => s.boardId != null && s.boardId == boardId)
             .toList();
         // 侧车恢复 Agent 上下文（完整工具结果）
         for (var i = 0; i < _sessions.length; i++) {
@@ -240,6 +237,8 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
       final light = _sessions
           .map((s) => <String, dynamic>{
                 'name': s.name,
+                'id': s.id,
+                'boardId': s.boardId,
                 'messages': s.messages.map((m) => m.toJson()).toList(),
                 'createdAt': s.createdAt.toIso8601String(),
               })
@@ -289,7 +288,7 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
       _restoreAgentSession(existingIdx);
       debugPrint('[ScraperAIPanel] ♻ 切换到已有会话: $name');
     } else {
-      final session = _ScraperSession(name: name);
+      final session = _ScraperSession(name: name, boardId: widget.boardId);
       setState(() {
         _sessions.add(session);
         _currentIdx = _sessions.length - 1;
@@ -571,6 +570,8 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
                   dataNameProvider: () => _dataName,
                   // AI 在工作流中向用户索取产物根名后回写（取代页面打开即弹的命名窗）
                   setDataName: setDataName,
+                  // guard_override：门控一次性豁免（用户放行本次拦截）
+                  requestOverride: _requestGuardOverride,
                 ),
                 // AskTool：AI 结构化 ask 用户（A11）
                 agent.AskTool(asker: _asker),
@@ -605,6 +606,9 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
 
     if (mounted) {
       setState(() => _initialized = true);
+      // B 方案：把本面板的官方工具 Registry 注册给全局 registry，
+      // 供 ScraperBridgeServer 转发 DSH 的工具 RPC（复用官方工具链）。
+      scraperBridgeRegistry.registerToolRegistry(_assembly!.registry);
       // 探索模式：按画板 id 隔离会话（A21）；
       // 定向模式：自动创建默认会话（不再弹命名窗，产物根名由 AI 在工作流中 ask 用户后 set_data_name 写入）。
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -623,7 +627,7 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
   void _ensureCaptureSession() {
     if (widget.mode == ScraperBoardMode.explore || !mounted) return;
     if (_sessions.isEmpty) {
-      final session = _ScraperSession(name: 'scraper');
+      final session = _ScraperSession(name: 'scraper', boardId: widget.boardId);
       setState(() {
         _sessions.add(session);
         _currentIdx = 0;
@@ -822,6 +826,70 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
     return approved ?? false;
   }
 
+  /// guard_override 工具回调：弹窗询问用户是否放行本次门控拦截。
+  ///
+  /// 用户同意 → `workflow.requestOverride(toolName)` 登记一次性豁免，
+  /// AI 重新调用被拦工具时 hook 消费该豁免并放行。
+  Future<bool> _requestGuardOverride(String toolName, String reason) async {
+    if (!mounted) return false;
+    final approved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('🟢 放行门控拦截？'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('被拦截工具：$toolName',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Theme.of(ctx).colorScheme.primary)),
+              const SizedBox(height: 8),
+              Text('AI 的放行理由：',
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+              const SizedBox(height: 4),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Theme.of(ctx).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(reason, style: const TextStyle(fontSize: 12)),
+              ),
+              const SizedBox(height: 12),
+              Text('仅放行本次拦截（一次性）；下次同类拦截仍需重新放行。',
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('拒绝，要求修正'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('放行'),
+          ),
+        ],
+      ),
+    );
+    if (approved == true) {
+      widget.workflow.requestOverride(toolName);
+      // 放行时同时清除假数据标记：G5/G6 的 suspectedFakeData 门禁是「堵住
+      // 工作流」的最常见拦点，用户放行即视为认可数据真实性。
+      widget.workflow.clearGuardFlag(GuardFlags.suspectedFakeData);
+    }
+    return approved ?? false;
+  }
+
   /// AskTool 的 Asker 实现：渲染多选问题弹窗。
   agent.Asker get _asker => _ScraperAsker(this);
 
@@ -854,6 +922,60 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
     } catch (e) {
       debugPrint('[ScraperAIPanel] ⚠ Guardian 审查失败（fail-closed 走规则守卫）: $e');
       return null;
+    }
+  }
+
+  /// 调试层真实数据验收（G5 增强）：把 `scraper.py` 脚本 + 本次 stdout 输出
+  /// 交给 Guardian LLM 判断是否为**真实抓取数据**（非空、非占位符、非字面量假数据）。
+  ///
+  /// 背景（用户反馈）：门控验收过去只做静态 lint + JSON 格式校验，从不验证
+  /// 「输出到底是不是真实数据」。静态启发式会漏判（脚本有网络库但实际产出
+  /// 空列表/字面量假数据）。现改为在 run 成功后用大模型看脚本+输出裁决。
+  ///
+  /// 判定 deny（假数据）→ `startDebugging()` + 回灌 AI 继续修正；
+  /// allow / Guardian 未接线（fail-open，规则守卫兜底）→ 正常 `requestDone`。
+  Future<void> _verifyScraperRealDataAndDone(String toolOutput) async {
+    final g = _guardian;
+    if (g == null) {
+      // Guardian 未接线（如测试/无 API key）→ 不阻断，走既有 requestDone
+      unawaited(widget.workflow.requestDone(aiClarification: _lastAiClarification));
+      return;
+    }
+    try {
+      final py = File(p.join(widget.workspaceDir, 'scraper.py'));
+      final code = py.existsSync() ? py.readAsStringSync() : '';
+      final stdoutExcerpt = toolOutput.length > 3000
+          ? '${toolOutput.substring(0, 3000)}…'
+          : toolOutput;
+      final verdict = await _guardianReview(GuardianReviewRequest(
+        gate: 'G5',
+        action: '验证 scraper.py 的输出是否为真实抓取数据（非空、非占位符、'
+            '非字面量假数据）。若输出为空列表/占位符(example.com/lorem/张三)/'
+            '字面量硬编码数据，或脚本未真实发起网络请求，应判 deny。',
+        arguments: '## scraper.py 脚本\n'
+            '${code.isEmpty ? '（未找到 scraper.py）' : (code.length > 3000 ? '${code.substring(0, 3000)}…' : code)}\n'
+            '\n## 本次执行 stdout 输出\n$stdoutExcerpt',
+      ));
+      if (!mounted) return;
+      if (verdict != null && !verdict.allow) {
+        // 判定为假数据 → 回灌 AI 继续调试
+        final reason = verdict.reason.isEmpty ? '输出疑似非真实抓取数据' : verdict.reason;
+        widget.workflow.setLastError('G5 真实数据验收未通过: $reason');
+        widget.workflow.startDebugging();
+        _messages.add(ChatMessage.assistant(
+            '🛡️ **真实数据验收未通过**\n$reason\n'
+            '请修正 scraper.py 使其真实抓取并产出真实数据后重试。'));
+        _saveSessions();
+      } else {
+        unawaited(widget.workflow
+            .requestDone(aiClarification: _lastAiClarification));
+      }
+    } catch (e) {
+      debugPrint('[ScraperAIPanel] ⚠ 真实数据验收异常（不阻断）: $e');
+      if (mounted) {
+        unawaited(widget.workflow
+            .requestDone(aiClarification: _lastAiClarification));
+      }
     }
   }
 
@@ -969,11 +1091,11 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
                 output.contains('✅ 命令执行成功') ||
                 (!output.contains('❌') && !output.contains('Traceback') && output.isNotEmpty);
             if (success) {
-              // G5 门禁：假数据标记存在 → 弹窗裁决；成功则重置调试计数
+              // G5 门禁：先做「真实数据验收」（LLM 判定脚本+输出是否为真实抓取数据），
+              // 通过才 resetDebugLoop + requestDone；判定为假数据 → 回灌 AI 继续调试。
               widget.workflow.resetDebugLoop();
-              unawaited(widget.workflow
-                  .requestDone(aiClarification: _lastAiClarification));
-              _pendingText.writeln('\n🎉 **爬虫执行成功！**');
+              unawaited(_verifyScraperRealDataAndDone(output));
+              _pendingText.writeln('\n🎉 **爬虫执行成功，正在进行真实数据验收…**');
             } else if (output.contains('❌') || output.contains('Traceback')) {
               widget.workflow.setPythonOutput(output);
               widget.workflow.startDebugging();
@@ -1282,7 +1404,7 @@ ${wf.errorMessage.isNotEmpty ? '- 最近错误: ${wf.errorMessage}' : ''}
             '点击「开始探索」将从当前阶段继续，不会重走流程。'));
       }
     } else {
-      final session = _ScraperSession(name: name);
+      final session = _ScraperSession(name: name, boardId: widget.boardId);
       setState(() {
         _sessions.add(session);
         _currentIdx = _sessions.length - 1;
@@ -2599,18 +2721,32 @@ class ChatMessage {
 /// 一个命名会话，存储完整的 AI 对话记录 + Agent 内部 Session 快照。
 class _ScraperSession {
   final String name;
+
+  /// 会话稳定唯一 id（双向绑定画板用）。
+  ///
+  /// 新建时生成 `session_<微秒时间戳>`；旧数据无 id 时按 name 派生兜底，
+  /// 保证与画板 `sessionIds` 交叉校验有稳定锚点。
+  final String id;
+
+  /// 所属画板 id（双向绑定：会话 → 画板）。加载时校验，与所在画板不符即孤儿。
+  final String? boardId;
+
   final List<ChatMessage> messages;
   final DateTime createdAt;
   /// Agent 内部 Session 的 JSON 快照（切换会话时保存/恢复 LLM 上下文）。
   Map<String, dynamic>? agentSessionJson;
 
-  _ScraperSession({required this.name})
-      : messages = [],
+  _ScraperSession({required this.name, String? id, String? boardId})
+      : id = id ?? 'session_${DateTime.now().microsecondsSinceEpoch}',
+        boardId = boardId,
+        messages = [],
         createdAt = DateTime.now(),
         agentSessionJson = null;
 
   _ScraperSession._({
     required this.name,
+    required this.id,
+    required this.boardId,
     required this.messages,
     required this.createdAt,
     this.agentSessionJson,
@@ -2619,6 +2755,11 @@ class _ScraperSession {
   factory _ScraperSession.fromJson(Map<String, dynamic> json) =>
       _ScraperSession._(
         name: json['name'] as String,
+        id: (json['id'] as String?) ??
+            'session_${json['name']}', // 旧数据无 id → name 派生兜底
+        boardId: (json['boardId'] as String?)?.isNotEmpty == true
+            ? json['boardId'] as String
+            : null,
         messages: (json['messages'] as List<dynamic>?)
                 ?.map((m) => ChatMessage.fromJson(m as Map<String, dynamic>))
                 .toList() ??
@@ -2630,6 +2771,8 @@ class _ScraperSession {
 
   Map<String, dynamic> toJson() => {
         'name': name,
+        'id': id,
+        if (boardId != null) 'boardId': boardId,
         'messages': messages.map((m) => m.toJson()).toList(),
         'createdAt': createdAt.toIso8601String(),
         if (agentSessionJson != null) 'agentSession': agentSessionJson,
