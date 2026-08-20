@@ -1801,8 +1801,8 @@ sandbox,sandbox/writable_roots_test.go,test,lib/core/agent/test/ref/sandbox/writ
 sandbox,sandbox/write_access.go,impl,lib/core/agent/ref/sandbox/write_access.dart,P2,pending,
 sandbox,sandbox/write_path.go,impl,lib/core/agent/ref/sandbox/write_path.dart,P2,pending,
 sandbox,sandbox/write_path_test.go,test,lib/core/agent/test/ref/sandbox/write_path_test.dart,P2,pending,
-secrets,secrets/redact.go,impl,lib/core/agent/ref/secrets/redact.dart,P2,pending,
-secrets,secrets/redact_test.go,test,lib/core/agent/test/ref/secrets/redact_test.dart,P2,pending,
+secrets,secrets/redact.go,impl,lib/core/agent/ref/secrets/redact.dart,P2,done,ported R2 (provider message stub added)
+secrets,secrets/redact_test.go,test,lib/core/agent/test/ref/secrets/redact_test.dart,P2,done,ported R2 (ProcessEnv adapted to filterEnv unit tests)
 serve,serve/auth.go,impl,lib/core/agent/ref/serve/auth.dart,P11,pending,
 serve,serve/auth_fragment_test.go,test,lib/core/agent/test/ref/serve/auth_fragment_test.dart,P11,pending,
 serve,serve/auth_test.go,test,lib/core/agent/test/ref/serve/auth_test.dart,P11,pending,
