@@ -1432,9 +1432,9 @@ memory,memory/subject_test.go,test,lib/core/agent/test/ref/memory/subject_test.d
 memory,memory/writedoc_test.go,test,lib/core/agent/test/ref/memory/writedoc_test.dart,P3,pending,
 migration,migration/migration.go,impl,lib/core/agent/ref/migration/migration.dart,P10,pending,
 migration,migration/migration_test.go,test,lib/core/agent/test/ref/migration/migration_test.dart,P10,pending,
-netclient,netclient/dialer.go,impl,lib/core/agent/ref/netclient/dialer.dart,P2,pending,
-netclient,netclient/netclient.go,impl,lib/core/agent/ref/netclient/netclient.dart,P2,pending,
-netclient,netclient/netclient_test.go,test,lib/core/agent/test/ref/netclient/netclient_test.dart,P2,pending,
+netclient,netclient/dialer.go,impl,lib/core/agent/ref/netclient/dialer.dart,P2,done,ported R1; SOCKS5/CONNECT tunnel paths adapter stubs
+netclient,netclient/netclient.go,impl,lib/core/agent/ref/netclient/netclient.dart,P2,done,ported R1; http.Client/Transport modeled as config
+netclient,netclient/netclient_test.go,test,lib/core/agent/test/ref/netclient/netclient_test.dart,P2,done,adapted: network httptest cases to resolver-level
 nilutil,nilutil/nil.go,impl,lib/core/agent/ref/nilutil/nil.dart,P1,done,ported R1
 nilutil,nilutil/nil_test.go,test,lib/core/agent/test/ref/nilutil/nil_test.dart,P1,done,ported R1
 notify,notify/sender_darwin.go,impl,lib/core/agent/ref/notify/sender_darwin.dart,P11,pending,platform-adapter
