@@ -24,8 +24,11 @@ class AiPanel extends StatefulWidget {
   final String? dataPreview;
   final OnAiGenerated? onGenerated;
 
-  /// 当前画布名（绑定态 UI：AI 会话归属哪个画布）。
-  final String? canvasName;
+  /// 当前实例名（绑定态 UI：AI 会话归属哪个实例，I1）。
+  final String? instanceName;
+
+  /// 当前实例 ID（只读展示；id 固定不可变，I1）。
+  final String? instanceId;
 
   const AiPanel({
     super.key,
@@ -36,7 +39,8 @@ class AiPanel extends StatefulWidget {
     this.selectedDataSource,
     this.dataPreview,
     this.onGenerated,
-    this.canvasName,
+    this.instanceName,
+    this.instanceId,
   });
 
   @override
@@ -236,20 +240,25 @@ class _AiPanelState extends State<AiPanel> {
     );
   }
 
-  /// 当前画布绑定态徽标：画布名 · N 条消息 · 断点续作（若有历史）。
+  /// 当前实例绑定态徽标：实例名 · 实例 id（只读）· N 条消息 · 断点续作。
   Widget _buildBindingBadge() {
     final theme = Theme.of(context);
-    final name = widget.canvasName;
+    final name = widget.instanceName;
+    final iid = widget.instanceId;
     final count = widget.aiService.sessionMessageCount;
     final resumed = widget.aiService.restoredFromSession;
     final chips = <Widget>[];
     if (name != null && name.isNotEmpty) {
-      chips.add(_badgeChip(theme, Icons.palette_outlined, name, tooltip: 'AI 会话绑定画布'));
+      chips.add(_badgeChip(theme, Icons.palette_outlined, name, tooltip: 'AI 会话绑定实例（名字可改）'));
+    }
+    if (iid != null && iid.isNotEmpty) {
+      final short = iid.length > 14 ? '…${iid.substring(iid.length - 10)}' : iid;
+      chips.add(_badgeChip(theme, Icons.tag, '#$short', tooltip: '实例 ID（固定不可变）: $iid'));
     }
     if (resumed) {
-      chips.add(_badgeChip(theme, Icons.history, '$count 条 · 续作', tooltip: '已恢复该画布历史会话，AI 将断点续作'));
+      chips.add(_badgeChip(theme, Icons.history, '$count 条 · 续作', tooltip: '已恢复该实例历史会话，AI 将断点续作'));
     } else if (count > 0) {
-      chips.add(_badgeChip(theme, Icons.forum_outlined, '$count 条', tooltip: '当前画布会话消息数'));
+      chips.add(_badgeChip(theme, Icons.forum_outlined, '$count 条', tooltip: '当前实例会话消息数'));
     }
     if (chips.isEmpty) return const SizedBox.shrink();
     return Row(

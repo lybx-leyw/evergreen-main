@@ -23,6 +23,7 @@ import 'view/preview_panel.dart';
 import 'view/ai_panel.dart';
 import 'widgets/html_toolbar.dart';
 import 'widgets/html_view_switch.dart';
+import 'widgets/html_sidebar.dart';
 import 'services/html_ai_service.dart';
 
 class HtmlCreatorView extends ConsumerStatefulWidget {
@@ -60,6 +61,13 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
   String? _currentCanvasId;
   List<CanvasMeta> _canvases = [];
 
+  /// 当前画板绑定的实例 ID（I1：画板 ↔ 实例 1:1，id 固定不可变）。
+  String? _currentInstanceId;
+
+  /// 各画板当前实例快照（key = 画板 id；左侧栏「画板树/实例」视图用，
+  /// 列表/加载/改名后显式刷新，避免每次 build 读盘）。
+  final Map<String, InstanceMeta> _instancesByBoard = {};
+
   /// 自动保存 debounce Timer。
   Timer? _autoSaveTimer;
 
@@ -71,11 +79,11 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
   /// 宽屏布局模式（三栏 / 双栏 / 全宽预览），持久化到 SharedPreferences。
   HtmlLayoutMode _layoutMode = HtmlLayoutMode.ide;
 
-  /// 数据栏宽度（可拖拽，160~400dp，默认 220）。
-  double _dataPanelWidth = 220;
-
   /// 编辑器占（编辑+预览）合计宽度的比例（可拖拽，0.3~0.7，默认 0.5）。
   double _editorRatio = 0.5;
+
+  /// I2：统一左栏宽度（可拖拽，180~320dp，默认 220）。
+  double _sidebarWidth = 220;
 
   /// PreviewPanel 全局保活 key：跨布局模式/宽窄屏切换不销毁 WebView。
   /// 强制刷新预览时换新 key（销毁旧 State → 重建加载）。
@@ -102,7 +110,7 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
       final prefs = ref.read(sharedPreferencesProvider);
       final mode = HtmlLayoutMode.values.asNameMap()[prefs.getString('html_creator_layout_mode')];
       if (mode != null) _layoutMode = mode;
-      _dataPanelWidth = (prefs.getDouble('html_creator_data_width') ?? 220).clamp(160, 400).toDouble();
+      _sidebarWidth = (prefs.getDouble('html_creator_sidebar_width') ?? 220).clamp(180, 320).toDouble();
       _editorRatio = (prefs.getDouble('html_creator_editor_ratio') ?? 0.5).clamp(0.3, 0.7).toDouble();
     } catch (_) {
       // 偏好读取失败不阻塞启动
@@ -118,8 +126,12 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
         name: '我的数据面板',
         htmlContent: t.html, cssContent: t.css, jsContent: t.js,
       );
+      // I1：首板也分配固定实例（一会话一份历史记忆从第一板生效）
+      final instance = _canvasMgr.ensureInstance(data.meta.id);
+      _aiService.switchCanvas(data.meta.id, instanceId: instance.id);
       _applyCanvasData(data);
       _refreshCanvasList();
+      _refreshInstances();
     }
 
     // 监听编辑器变化 → 3 秒后自动保存
@@ -134,9 +146,10 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
       workspaceDir: wsDir,
       pluginsDir: _pluginsRoot!,
     );
-    // T1：会话文件并入画布目录（canvases/{id}/session.json），
-    // 生命周期随画布——删除画布即删除会话，不留孤儿文件。
-    _aiService.resolveSessionsPath = canvasSessionsPath;
+    // I1：会话文件按实例隔离（canvases/{boardId}/instances/{instanceId}/session.json），
+    // 生命周期随画板——删除画板即删除实例与会话，不留孤儿文件。
+    _aiService.resolveSessionsPath = (boardId, instanceId) =>
+        instanceSessionsPath(boardId, instanceId);
     _aiService.onFileChanged = _syncFilesFromWorkspace;
     _aiService.onPluginExported = (pluginId) {
       setState(() {
@@ -220,9 +233,12 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
             cssContent: template.css,
             jsContent: template.js,
           );
-          _aiService.switchCanvas(data.meta.id); // 新画布 = 新 AI 会话
+          // I1：新画板创作之处即分配固定实例（id 不可变）
+          final instance = _canvasMgr.ensureInstance(data.meta.id);
+          _aiService.switchCanvas(data.meta.id, instanceId: instance.id); // 新画板 = 新实例 = 新 AI 会话
           _applyCanvasData(data);
           _refreshCanvasList();
+          _refreshInstances();
         },
       ),
     );
@@ -231,12 +247,15 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
   /// 加载画布。
   void _loadCanvas(String canvasId) {
     _saveCanvasToDisk(); // 先保存当前画布
-    _aiService.switchCanvas(canvasId); // 切换 AI 会话持久化（绑定随板走）
+    // I1：确保画板有固定实例（幂等；老画板首次加载自动创建实例 + 迁移旧会话）
+    final instance = _ensureInstanceFor(canvasId);
+    _aiService.switchCanvas(canvasId, instanceId: instance.id); // 切换 AI 会话持久化（绑定随板走）
 
     final data = _canvasMgr.loadCanvas(canvasId);
     if (data != null) {
       _applyCanvasData(data);
-      // T1：切板提示——画布名 + 会话恢复态（断点续作 / 新会话）
+      _refreshInstances();
+      // T1：切板提示——画板名 + 会话恢复态（断点续作 / 新会话）
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         final resumed = _aiService.restoredFromSession;
@@ -244,8 +263,8 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(
             resumed
-                ? '已切换到画布「${data.meta.name}」，恢复历史会话 $count 条'
-                : '已切换到画布「${data.meta.name}」（新会话）',
+                ? '已切换到画板「${data.meta.name}」，恢复历史会话 $count 条'
+                : '已切换到画板「${data.meta.name}」（新会话）',
           ),
           duration: const Duration(seconds: 1),
         ));
@@ -259,6 +278,9 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
   /// 否则触发 `_lifecycleState != defunct` 断言并污染框架状态机）。
   void _saveCanvasToDisk({bool silent = false, bool notify = true}) {
     if (_currentCanvasId == null) return;
+    // 画布已被删除（删除流程先切走再删，此守卫兜底自动保存竞态），
+    // 跳过保存以免 saveCanvas 重建已删目录。
+    if (!_canvasMgr.hasCanvas(_currentCanvasId!)) return;
     _canvasMgr.saveCanvas(
       _currentCanvasId!,
       name: _nameController.text,
@@ -366,17 +388,28 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
   /// 删除当前画布。
   void _deleteCurrentCanvas() {
     if (_currentCanvasId == null) return;
+    _deleteCanvas(_currentCanvasId!);
+  }
+
+  /// 删除画布（I2 统一入口：工具栏 / 左栏删除按钮共用）。
+  ///
+  /// 顺序保证：若删除的是当前画板，**先切到别的画板再删**——
+  /// 避免删除后 _loadCanvas 内的 _saveCanvasToDisk 重建已删目录
+  /// （saveCanvas 会自动 createSync 目录，会把刚删的画板复活）。
+  void _deleteCanvas(String canvasId) {
     if (_canvases.length <= 1) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('至少保留一个画布')),
       );
       return;
     }
-    _canvasMgr.deleteCanvas(_currentCanvasId!);
-    _refreshCanvasList();
-    if (_canvases.isNotEmpty) {
-      _loadCanvas(_canvases.first.id);
+    if (_currentCanvasId == canvasId) {
+      final target = _canvases.firstWhere((c) => c.id != canvasId).id;
+      _loadCanvas(target);
     }
+    _canvasMgr.deleteCanvas(canvasId); // 删画板目录 = 实例 + 会话一并清理
+    _refreshCanvasList();
+    _refreshInstances();
   }
 
   /// 重命名画布。
@@ -387,8 +420,58 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
     _refreshCanvasList();
   }
 
+  /// 重命名画布（左栏回调：画板 id + 新名，可重命名非当前画板）。
+  void _renameCanvasById(String canvasId, String newName) {
+    if (newName.trim().isEmpty) return;
+    _canvasMgr.renameCanvas(canvasId, newName.trim());
+    if (canvasId == _currentCanvasId) {
+      _nameController.text = newName.trim();
+    }
+    _refreshCanvasList();
+    setState(() {});
+  }
+
+  /// 重命名实例（左栏回调：实例 id + 新名；实例 id 固定不可变，改名不丢会话）。
+  void _renameInstance(String instanceId, String newName) {
+    String? boardId;
+    for (final e in _instancesByBoard.entries) {
+      if (e.value.id == instanceId) {
+        boardId = e.key;
+        break;
+      }
+    }
+    if (boardId == null) return;
+    _canvasMgr.renameInstance(boardId, instanceId, newName);
+    _refreshInstances();
+    setState(() {});
+  }
+
+  /// 确保画板有固定实例（幂等；返回当前实例并同步视图状态）。
+  InstanceMeta _ensureInstanceFor(String boardId) {
+    final instance = _canvasMgr.ensureInstance(boardId);
+    _currentInstanceId = instance.id;
+    return instance;
+  }
+
+  /// 刷新各画板实例快照（列表/加载/改名/删除后调用）。
+  void _refreshInstances() {
+    _instancesByBoard.clear();
+    for (final c in _canvases) {
+      final instance = _canvasMgr.tryLoadInstanceOf(c.id);
+      if (instance != null) {
+        _instancesByBoard[c.id] = instance;
+      }
+    }
+    final cur = _currentCanvasId;
+    if (cur != null) {
+      _currentInstanceId = _instancesByBoard[cur]?.id;
+    }
+  }
+
   void _applyCanvasData(CanvasData data) {
     _currentCanvasId = data.meta.id;
+    // I1：画板 ↔ 实例 1:1——实例 id 从 meta 锚点读回（创作之处固定不可变）
+    _currentInstanceId = data.meta.instanceId;
     _nameController.text = data.meta.name;
     // T1：恢复画布绑定的数据源（切板后 AI 上下文/数据面板随板恢复）
     _selectedDataSource = data.meta.selectedDataSource;
@@ -545,7 +628,8 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
                 jsContent: _jsController.text,
                 selectedDataSource: _selectedDataSource,
                 onGenerated: _onAiGenerated,
-                canvasName: _currentCanvasName,
+                instanceName: _currentInstanceName,
+                instanceId: _currentInstanceId,
               ),
             ),
           ],
@@ -556,12 +640,15 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
 
   // ═══════ T2 · 布局模式与分栏 ═══════
 
-  /// 当前画布元数据（画布列表快照中匹配当前 ID）。
-  CanvasMeta? get _currentCanvasMeta =>
-      _canvases.where((c) => c.id == _currentCanvasId).firstOrNull;
+  /// 当前实例（AI 面板绑定态徽标用，I1）。
+  InstanceMeta? get _currentInstance {
+    final cid = _currentCanvasId;
+    if (cid == null) return null;
+    return _instancesByBoard[cid];
+  }
 
-  /// 当前画布名（AI 面板绑定态徽标用）。
-  String? get _currentCanvasName => _currentCanvasMeta?.name;
+  /// 当前实例名（AI 面板绑定态徽标用，I1）。
+  String? get _currentInstanceName => _currentInstance?.name;
 
   /// 切换宽屏布局模式并持久化。
   void _setLayoutMode(HtmlLayoutMode mode) {
@@ -576,18 +663,30 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
   void _persistLayoutPrefs() {
     try {
       final prefs = ref.read(sharedPreferencesProvider);
-      prefs.setDouble('html_creator_data_width', _dataPanelWidth);
+      prefs.setDouble('html_creator_sidebar_width', _sidebarWidth);
       prefs.setDouble('html_creator_editor_ratio', _editorRatio);
     } catch (_) {}
   }
 
-  /// 宽屏（≥700dp）：数据 / 编辑 / 预览 三栏 IDE 布局。
+  /// 宽屏（≥700dp）：统一左栏 / 编辑 / 预览 三栏 IDE 布局（I2）。
   Widget _buildWideBody() {
-    final data = DataPanel(
-      key: _dataPanelGlobalKey,
-      dataService: _dataService,
-      onSelectSource: _loadDataIntoEditor,
-      selectedSource: _selectedDataSource,
+    // I2：数据中枢收编进统一左栏「数据源」视图（保活 key 不变）
+    final sidebar = HtmlSidebar(
+      canvases: _canvases,
+      currentCanvasId: _currentCanvasId,
+      currentInstanceId: _currentInstanceId,
+      instancesByBoard: _instancesByBoard,
+      onSelectCanvas: _loadCanvas,
+      onNewCanvas: _newCanvas,
+      onDeleteCanvas: _deleteCanvas,
+      onRenameCanvas: _renameCanvasById,
+      onRenameInstance: _renameInstance,
+      dataPanel: DataPanel(
+        key: _dataPanelGlobalKey,
+        dataService: _dataService,
+        onSelectSource: _loadDataIntoEditor,
+        selectedSource: _selectedDataSource,
+      ),
     );
     final editor = EditorPanel(
       key: _editorGlobalKey,
@@ -632,9 +731,9 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
       switch (_layoutMode) {
         case HtmlLayoutMode.ide:
           return Row(children: [
-            SizedBox(width: _dataPanelWidth, child: data),
+            SizedBox(width: _sidebarWidth, child: sidebar),
             divider((dx) => setState(() {
-              _dataPanelWidth = (_dataPanelWidth + dx).clamp(160, 400).toDouble();
+              _sidebarWidth = (_sidebarWidth + dx).clamp(180, 320).toDouble();
             })),
             Expanded(flex: editorFlex, child: editor),
             divider((dx) => setState(() {
@@ -689,7 +788,8 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
             jsContent: _jsController.text,
             selectedDataSource: _selectedDataSource,
             onGenerated: _onAiGenerated,
-            canvasName: _currentCanvasName,
+            instanceName: _currentInstanceName,
+            instanceId: _currentInstanceId,
           ),
         ),
       ]);
@@ -727,7 +827,8 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
                 jsContent: _jsController.text,
                 selectedDataSource: _selectedDataSource,
                 onGenerated: _onAiGenerated,
-                canvasName: _currentCanvasName,
+                instanceName: _currentInstanceName,
+                instanceId: _currentInstanceId,
               ),
             ],
           ),
