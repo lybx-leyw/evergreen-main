@@ -30,6 +30,7 @@ import '../workflow/scraper_workflow_stepper.dart';
 import '../workflow/scraper_workflow_graph.dart';
 import '../explore/explore_workflow.dart';
 import '../explore/explore_panel.dart';
+import '../explore/explore_workflow_graph.dart';
 import '../explore/explore_workflow_stepper.dart';
 import '../board/scraper_board.dart';
 import '../board/data_source_binding.dart';
@@ -360,8 +361,11 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
             children: [
               // 0 工作区（含 WebView / 终端 / AI 面板——始终保活）
               _buildWorkspace(context),
-              // 1 workflow 流程图
-              ScraperWorkflowGraph(workflow: _workflow),
+              // 1 workflow 流程图（Phase 7 修复：探索模式渲染探索工作流图，
+              // 否则永远停在定向抓取的「抓包中」，形同虚设）
+              _isExplore
+                  ? ExploreWorkflowGraph(workflow: _exploreWorkflow)
+                  : ScraperWorkflowGraph(workflow: _workflow),
               // 2 轨迹（Phase 3）：消费 AI 面板的 Trace 记录器
               _TraceSlot(aiPanelKey: _aiPanelKey),
             ],

@@ -270,7 +270,8 @@ bool _writeTool({required bool force}) {
 /// 1. **官方工具名薄壳**（与官方 scraper 工具名完全一致，转发 `/scraper/tool`）：
 ///    run_python_scraper / get_request_logs / read_request_snapshot /
 ///    read_workspace_file / save_credential / read_existing_credential /
-///    run_terminal_command / export_and_register_scraper / set_data_name。
+///    run_terminal_command / export_and_register_scraper / set_data_name /
+///    set_env_var / list_env_vars。
 ///    这样 scraperSkillBody 里的工具名可直接复用，agent 调这些工具即转发到
 ///    官方工具执行（含 lint / Guardian / 真实数据验收 / UI 气泡）。
 /// 2. **浏览器直控**（转发 WebView bridge，探索用）：
@@ -391,6 +392,22 @@ export function apply(ctx) {
     'set_data_name',
     'Lock the data source root name (must match the user-specified name).',
     { name: { type: 'string', required: true, description: 'Data source name (snake_case)' } },
+  ))
+
+  ctx.tools.register(forwardTool(
+    'set_env_var',
+    'Write/update an environment variable (user account/password credential). ' +
+    'Persisted to .greenix/env.json and injected into every Python subprocess, ' +
+    'so scraper.py can read it via _get_config("KEY") or os.environ["KEY"]. ' +
+    'Key must start with an uppercase letter and contain only A-Z/0-9/_ (e.g. SCRAPER_USERNAME).',
+    { key: { type: 'string', required: true, description: 'Env var name, e.g. SCRAPER_USERNAME' }, value: { type: 'string', required: true, description: 'Env var value (username/password/cookie/token)' } },
+  ))
+
+  ctx.tools.register(forwardTool(
+    'list_env_vars',
+    'List the keys of environment variables already set (values are NOT echoed). ' +
+    'Use to confirm whether credentials like SCRAPER_USERNAME/SCRAPER_PASSWORD are written.',
+    {},
   ))
 
   // ═══ 浏览器直控（探索模式用，转发 WebView bridge）═══

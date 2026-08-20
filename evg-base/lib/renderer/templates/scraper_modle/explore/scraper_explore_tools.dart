@@ -1,10 +1,16 @@
 /// AI 探索模式自定义 Agent 工具（Phase 4 · D1-D9）。
 ///
-/// 六个探索工具（与定向抓取的 [scraper_tools] 并列，D9 两套 harness）：
+/// 一组探索工具（与定向抓取的 [scraper_tools] 并列，D9 两套 harness）：
 /// - `explore_page_links()` — JS 枚举当前页所有 http(s) 链接
+/// - `explore_network_resources()` — JS 枚举当前页加载的网络资源
 /// - `navigate_get(url)` — 仅 GET 导航（同域/上限/1s 节流守卫）
-/// - `list_captured_requests()` — 只读捕获日志中 GET 请求（POST 一律不回灌）
+/// - `list_captured_requests()` / `read_request_by_id()` — 读取捕获日志
+/// - `list_python_capabilities()` — 查询本机 Python 第三方模块
+/// - `set_env_var()` / `list_env_vars()` — 写入/列出凭据环境变量
+/// - `read_workspace_file()` / `guard_override()` — 工作区读取 / 门控放行
+/// - `check_explore_ready()` — 环境诊断（区分 AI 行为错误与浏览器未就绪）
 /// - `present_data_sources(sources)` — 呈现归类候选 → 用户多选（可改名）
+/// - `verify_login_flow(code)` / `execute_built_source(name)` — 真实执行验证
 /// - `build_selected_source(name, code)` — 逐源构建 data-{name} 插件
 /// - `register_batch(names)` — 批量热注册 + orch.get 验证
 ///
@@ -18,6 +24,9 @@ import 'package:flutter/foundation.dart';
 import 'package:evergreen_base/core/agent/tool.dart';
 
 import '../agent/python_capabilities.dart';
+import '../agent/tools/scraper_tools.dart'
+    show GuardOverrideTool, ReadWorkspaceFileTool, SetEnvVarTool, ListEnvVarsTool;
+import '../scraper_env.dart';
 import '../workflow/scraper_workflow.dart';
 import 'explore_evidence.dart';
 import 'explore_workflow.dart';
@@ -117,7 +126,10 @@ class ExplorePageLinksTool extends SimpleTool {
               final raw = await evaluateJs(explorePageLinksScript);
               final json = _decodeJsJson(raw);
               if (json == null) {
-                return '[error: 浏览器 JS 通道不可用或页面未就绪，请稍后重试]';
+                return '[error: 浏览器 JS 通道不可用或页面未就绪。'
+                    '→ 先调用 check_explore_ready 确认 WebView 是否已加载页面；'
+                    '若页面尚未加载，可 navigate_get 访问目标页后再枚举链接；'
+                    '若持续失败，请 ask 用户确认浏览器已打开目标网站并刷新页面。]';
               }
               final count = json['count'] as int? ?? 0;
               final links = (json['links'] as List<dynamic>? ?? const [])
@@ -182,7 +194,10 @@ class ExploreNetworkResourcesTool extends SimpleTool {
               final raw = await evaluateJs(exploreNetworkResourcesScript);
               final json = _decodeJsJson(raw);
               if (json == null) {
-                return '[error: 浏览器 JS 通道不可用或页面未就绪，请稍后重试]';
+                return '[error: 浏览器 JS 通道不可用或页面未就绪。'
+                    '→ 先调用 check_explore_ready 确认 WebView 是否已加载页面；'
+                    '若页面尚未加载，可 navigate_get 访问目标页后再枚举资源；'
+                    '若持续失败，请 ask 用户确认浏览器已打开目标网站并刷新页面。]';
               }
               final count = json['count'] as int? ?? 0;
               final resources =
@@ -325,7 +340,11 @@ class ListCapturedRequestsTool extends SimpleTool {
               return true;
             }).toList();
             if (logs.isEmpty) {
-              return '(暂无捕获日志) 请先在浏览器中浏览/探索目标页面。';
+              return '(暂无捕获日志) 请先在浏览器中浏览/探索目标页面：'
+                  '可 navigate_get 访问疑似数据接口（列表页/详情页），'
+                  '页面加载后再次调用本工具读取捕获日志。'
+                  '若导航后仍无日志，请调用 check_explore_ready 检查浏览器通道，'
+                  '或 ask 用户确认页面已加载/已登录。';
             }
             // Phase 9：分页读取（offset/limit），默认 100，上限 200。
             final rawOffset = args['offset'];
@@ -570,7 +589,9 @@ class PresentDataSourcesTool extends SimpleTool {
                   '（已访问 ${exploreWorkflow.uniquePages} 页 / '
                   '${exploreWorkflow.requestsCaptured} 请求，'
                   '至少需 ${thresholdText.isEmpty ? '完成一次有效导航' : thresholdText}）。'
-                  '请先 navigate_get 探索目标站点，或确保已有捕获日志证据后重试。]';
+                  '→ 请先 navigate_get 探索目标站点，或确保已有捕获日志证据后重试；'
+                  '若导航一直失败，先 check_explore_ready 检查浏览器通道是否就绪'
+                  '（页面未加载/未登录），或 ask 用户确认页面状态后重试。]';
             }
             if (exploreWorkflow.phase == ExplorePhase.exploring) {
               if (!exploreWorkflow.startCategorizing()) {
@@ -855,6 +876,43 @@ class ExecuteBuiltSourceTool extends SimpleTool {
         );
 }
 
+// ═══════ check_explore_ready（诊断工具：区分「AI 自身错误」vs「环境未就绪」）═══════
+
+/// 工具：检查探索环境就绪状态（WebView/捕获/Python/阶段），返回诊断报告。
+///
+/// 背景（用户反馈 bug）：探索模式频繁「卡在某一步失败」，AI 分不清是
+/// 自己代码/行为的问题还是浏览器通道坏了，于是反复抱怨工具设计。
+/// 本工具给出环境事实，AI 据此自检：桥未就绪 → 等页面加载/ask 用户刷新；
+/// 桥就绪但无日志 → 是导航/页面问题（自己的行为）；Python 不可用 → 环境问题。
+class CheckExploreReadyTool extends SimpleTool {
+  /// 生成就绪诊断报告的回调（UI 层注入，可访问 webBridge/exploreWorkflow）。
+  final Future<String> Function() checkReady;
+
+  CheckExploreReadyTool({required this.checkReady})
+      : super(
+          name: 'check_explore_ready',
+          description: '诊断探索环境就绪状态并返回报告：WebView 是否已加载页面、'
+              '浏览器 JS 通道是否可用、已捕获请求数、已访问页数、Python 是否可用、'
+              '当前探索阶段。当 explore_page_links / navigate_get / '
+              'list_captured_requests 持续报错时，先调用本工具定位是'
+              '「浏览器/页面未就绪」还是「探索行为问题」，再对症处理，'
+              '不要盲目重试同一工具。',
+          schema: const {
+            'type': 'object',
+            'properties': {},
+          },
+          readOnly: true,
+          execute: (args) async {
+            try {
+              return await checkReady();
+            } catch (e) {
+              debugPrint('[CheckExploreReady] 💥 $e');
+              return '[error: 环境诊断执行异常: $e]';
+            }
+          },
+        );
+}
+
 // ═══════ 工具集工厂 ═══════
 
 /// 在用户确认清单中查找数据源（build/register 工具的证据与清单终闸）。
@@ -887,6 +945,10 @@ List<Tool> createScraperExploreTools({
   required Future<String> Function(String code) verifyLoginFlow,
   required Future<String> Function(String name) executeBuiltSource,
   List<String> Function()? listPythonCapabilities,
+  ScraperEnvStore? envStore,
+  String? workspaceDir,
+  Future<bool> Function(String toolName, String reason)? requestOverride,
+  Future<String> Function()? checkExploreReady,
 }) {
   return [
     ExplorePageLinksTool(
@@ -909,6 +971,20 @@ List<Tool> createScraperExploreTools({
     ListPythonCapabilitiesTool(
       listCapabilities: listPythonCapabilities ?? () => const [],
     ),
+    // 环境变量写入/列出（探索模式凭据路径：账号密码写入 .greenix/env.json
+    // 并注入子进程环境变量——修复「探索模式无法写环境变量」）
+    if (envStore != null) ...[
+      SetEnvVarTool(envStore: envStore),
+      ListEnvVarsTool(envStore: envStore),
+    ],
+    // 工作区文件读取（白名单已放行但此前未注册 → AI 调用报"工具不存在"）
+    if (workspaceDir != null) ReadWorkspaceFileTool(workspaceDir: workspaceDir),
+    // 环境诊断（区分「AI 自身错误」vs「浏览器未就绪」）
+    if (checkExploreReady != null)
+      CheckExploreReadyTool(checkReady: checkExploreReady),
+    // 门控一次性豁免（白名单已放行但此前未注册；被 lint/证据拦截时可请求用户放行）
+    if (requestOverride != null)
+      GuardOverrideTool(requestOverride: requestOverride),
     PresentDataSourcesTool(
       exploreWorkflow: exploreWorkflow,
       captureWorkflow: captureWorkflow,

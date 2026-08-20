@@ -13,6 +13,7 @@ import 'package:path/path.dart' as p;
 import 'package:evergreen_base/core/plugin/plugin_runner.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
 
+import '../scraper_env.dart';
 import '../workflow/scraper_workflow.dart';
 import '../scraper_json_validator.dart';
 
@@ -32,11 +33,15 @@ class ScraperTerminal extends StatefulWidget {
   /// Python 可执行文件路径解析函数。
   final Future<String?> Function() resolvePython;
 
+  /// 环境变量存储（注入子进程；null → 默认 .greenix/env.json 存储）。
+  final ScraperEnvStore? envStore;
+
   const ScraperTerminal({
     super.key,
     required this.workflow,
     required this.workspaceDir,
     required this.resolvePython,
+    this.envStore,
   });
 
   @override
@@ -149,13 +154,14 @@ class _ScraperTerminalState extends State<ScraperTerminal> {
 
       debugPrint('[ScraperTerminal] 执行: $resolvedExe ${args.join(" ")}');
 
+      // 注入 AI/用户写入的环境变量（set_env_var 凭据，scraper.py os.environ 读取）
+      final store = widget.envStore ?? ScraperEnvStore(mirrorConfigPath: greenixConfigPath);
       final result = await Process.run(
         resolvedExe!,
         args,
         workingDirectory: widget.workspaceDir,
         runInShell: true,
-        environment: Map<String, String>.from(Platform.environment)
-          ..['PROJECT_ROOT'] = widget.workspaceDir,
+        environment: store.envForSubprocess(widget.workspaceDir),
       ).timeout(const Duration(seconds: 60));
 
       _finishCommand(

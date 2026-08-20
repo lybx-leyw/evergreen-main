@@ -174,6 +174,13 @@ String get greenixJournalDir => p.join(_greenixBaseDir, 'scraper_journal');
 /// Python scraper 的 `_get_config()` 将此作为 Tier 2 降级路径。
 String get greenixConfigPath => p.join(_greenixBaseDir, 'config.json');
 
+/// AI 写入的爬虫环境变量 JSON 文件路径（`ScraperEnvStore` 持久化）。
+///
+/// 扁平字典 `{"KEY": "value", ...}`；运行 Python 子进程时合并进环境变量，
+/// 使 scraper.py 的 `_get_config()` Tier 3（`os.environ`）与直接 `os.environ`
+/// 都能读到 AI/用户写入的账号密码等凭据。
+String get greenixEnvPath => p.join(_greenixBaseDir, 'env.json');
+
 /// SSO cookie jar（PersistCookieJar FileStorage）路径——zju_modle 会话持久化。
 ///
 /// PersistCookieJar 会在此目录下按域名分文件存储 cookie，跨重启保持登录态。

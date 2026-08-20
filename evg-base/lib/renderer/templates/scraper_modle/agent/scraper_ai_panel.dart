@@ -36,6 +36,7 @@ import 'scraper_journal.dart';
 import 'python_capabilities.dart';
 import '../scraper_skill_const.dart' show scraperSkillBody, scraperExploreSkillBody;
 import '../scraper_exporter.dart';
+import '../scraper_env.dart';
 import '../scraper_json_validator.dart';
 import '../scraper_flow_facade.dart';
 import '../scraper_bridge_registry.dart';
@@ -131,6 +132,13 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
 
   /// Guardian 审查会话（Phase 3 · A12/A13）：G5/G6 门禁自动审查 + guardian_review 工具。
   GuardianSession? _guardian;
+
+  /// 爬虫环境变量存储（set_env_var 写入 → 子进程注入；镜像 .greenix/config.json）。
+  ///
+  /// 修复（用户反馈 bug）：探索模式此前无法写账号密码等凭据到环境变量，
+  /// 本存储让 AI 把用户提供的凭据持久化并注入所有 Python 子进程环境。
+  late final ScraperEnvStore _envStore =
+      ScraperEnvStore(mirrorConfigPath: greenixConfigPath);
 
   /// DeepSeek Provider（用于 AI 字段推断，P1 B3）。
   agent.DeepSeekProvider? _provider;
@@ -540,6 +548,13 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
                   // P2-1 工具事实源：运行时扫描嵌入 Python 的 site-packages
                   listPythonCapabilities: () =>
                       scanPythonSitePackages(greenixPythonDir),
+                  // 探索模式凭据路径：set_env_var 写入环境变量（修复无法写凭据）
+                  envStore: _envStore,
+                  // 补齐白名单已放行但未注册的工具（修复 AI 报"工具不存在"）
+                  workspaceDir: widget.workspaceDir,
+                  requestOverride: _requestGuardOverride,
+                  // 环境诊断：区分「AI 自身错误」vs「浏览器未就绪」
+                  checkExploreReady: _checkExploreReady,
                 ),
                 // AskTool：AI 结构化 ask 用户（A11）
                 agent.AskTool(asker: _asker),
@@ -555,6 +570,7 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
                   projectRoot: widget.projectRoot,
                   resolvePython: () => resolvePythonExe(),
                   getLogsSummary: () => widget.workflow.requestLogsSummary(),
+                  envStore: _envStore,
                   enqueueCommand: (cmd) => widget.workflow.setTerminalCommand(cmd),
                   getTerminalResult: () async {
                     // 轮询等待终端执行完成并写入 terminalResult
@@ -1041,6 +1057,24 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
     return '';
   }
 
+  // ── Phase 7：AI 工具活动驱动定向工作流阶段推进 ──
+
+  /// AI 调用 run_python_scraper（写代码）→ analyzing/questioning/debugging → generating。
+  /// 不合法转换（如 done/failed 等）静默忽略，状态机自身有门槛守卫。
+  void _enterGeneratingFromTool() {
+    widget.workflow.startGenerating();
+  }
+
+  /// AI 调用 run_terminal_command（执行）→ generating/debugging → running。
+  /// 若从 analyzing 直接执行（未显式走生成阶段），先补 generating 再 running。
+  void _enterRunningFromTool() {
+    if (!widget.workflow.startRunning()) {
+      if (widget.workflow.startGenerating()) {
+        widget.workflow.startRunning();
+      }
+    }
+  }
+
   void _onAgentEvent(agent.AgentEvent event) {
     if (!mounted) return;
 
@@ -1073,6 +1107,17 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
             _currentTool = event.tool!.name;
             _stepCount++;
           });
+          // Phase 7 修复：AI 工具活动驱动定向工作流阶段推进——否则
+          // 状态机永远停在 analyzing（生成/运行阶段从不进入），
+          // 顶部步骤条与 workflow 图「形同虚设」。
+          if (widget.mode != ScraperBoardMode.explore) {
+            final toolName = event.tool!.name;
+            if (toolName == 'run_python_scraper') {
+              _enterGeneratingFromTool();
+            } else if (toolName == 'run_terminal_command') {
+              _enterRunningFromTool();
+            }
+          }
         }
         break;
 
@@ -1470,6 +1515,12 @@ ${wf.errorMessage.isNotEmpty ? '- 最近错误: ${wf.errorMessage}' : ''}
       _messages.add(ChatMessage.assistant('⚡ **探索空转熔断**\n$msg'));
       _saveSessions();
     };
+    // 触达上限：回灌聊天提示 AI 停止循环并进入归类
+    ew.onLimitReached = (msg) {
+      if (!mounted) return;
+      _messages.add(ChatMessage.assistant('⛔ **探索上限提示**\n$msg'));
+      _saveSessions();
+    };
 
     if (!ew.startExploring(
         startUrl: result.startUrl, scope: result.scope)) {
@@ -1849,7 +1900,12 @@ ${ew.stallDetected ? '- 空转熔断已触发，请切换策略（换入口/换�
   }
 
   /// 执行单个 Python 文件并返回 stdout/stderr 摘要（Phase 2/3 共用）。
-  Future<String> _runPythonFile(String filePath) async {
+  ///
+  /// [requireJson]：true 时对 exitCode=0 的 stdout 做与平台一致的 JSON 校验
+  /// （execute_built_source 用——数据源脚本输出必须是合法 JSON；登录验证
+  /// verify_login_flow 输出为人类文本，不校验）。
+  Future<String> _runPythonFile(String filePath,
+      {bool requireJson = false}) async {
     try {
       final runner = await sharedPluginRunner;
       final r = await runner
@@ -1858,6 +1914,8 @@ ${ew.stallDetected ? '- 空转熔断已触发，请切换策略（换入口/换�
             const [],
             workingDirectory: p.dirname(filePath),
             runtime: 'python',
+            // 注入 AI/用户写入的环境变量（账号密码等凭据，set_env_var 写入）
+            environment: _envStore.envForSubprocess(widget.workspaceDir),
           )
           .timeout(const Duration(seconds: 60));
       final stdout = r.stdout.trim();
@@ -1868,6 +1926,18 @@ ${ew.stallDetected ? '- 空转熔断已触发，请切换策略（换入口/换�
             '--- STDERR ---\n${_truncateRunOutput(stderr)}\n'
             '请根据错误信息修正后重试。';
       }
+      // 数据源脚本：exitCode=0 但 stdout 非合法 JSON → 明确回灌校验失败，
+      // 避免 AI 误判「跑通即成功」（与定向模式 run_python_scraper 同语义）。
+      if (requireJson) {
+        final validation = validateScraperStdout(stdout);
+        if (!validation.isValid) {
+          return '❌ 执行成功 (exitCode=0) 但 JSON 输出校验失败：'
+              '${validation.error}\n'
+              '--- STDOUT ---\n${_truncateRunOutput(stdout)}\n'
+              '→ 数据源脚本 main() 必须用 json.dumps(...) 输出合法 JSON'
+              '（第一字节为 { 或 [），请修正后重新 build_selected_source。';
+        }
+      }
       final stderrPart = stderr.isEmpty ? '' : '\n--- STDERR ---\n${_truncateRunOutput(stderr)}';
       return '✅ 执行成功 (exitCode=0)\n'
           '--- STDOUT ---\n${_truncateRunOutput(stdout)}$stderrPart';
@@ -1875,6 +1945,47 @@ ${ew.stallDetected ? '- 空转熔断已触发，请切换策略（换入口/换�
       debugPrint('[ScraperAIPanel] 💥 执行 Python 异常: $e');
       return '[error: Python 执行异常: $e]';
     }
+  }
+
+  /// check_explore_ready 工具回调：生成探索环境诊断报告（区分
+  /// 「AI 自身行为错误」vs「浏览器/环境未就绪」——修复 AI 误抱怨工具设计）。
+  Future<String> _checkExploreReady() async {
+    final buf = StringBuffer();
+    final b = widget.webBridge;
+    final ew = widget.exploreWorkflow;
+    buf.writeln('## 探索环境诊断');
+    buf.writeln('- 探索阶段: ${ew?.phase.name ?? '（无探索工作流）'}');
+    buf.writeln('- WebView JS 通道: ${b != null && b.ready ? '✅ 就绪' : '❌ 未就绪'
+        '（浏览器可能未加载完成，等待页面加载或 ask 用户刷新）'}');
+    try {
+      final url = await b?.currentUrl?.call();
+      buf.writeln('- 当前页面: ${url == null || url.isEmpty ? '（未知）' : url}');
+    } catch (_) {
+      buf.writeln('- 当前页面: （获取失败）');
+    }
+    final wf = widget.workflow;
+    buf.writeln('- 已捕获请求: ${wf.logs.length} 条'
+        '（${ew?.requestsCaptured ?? 0} 条探索导航计数）');
+    buf.writeln('- 已访问页: ${ew?.uniquePages ?? 0} / ${ew?.limits.maxPages ?? 20}'
+        ' · 请求上限: ${ew?.limits.maxRequests ?? 50}');
+    buf.writeln('- 锁定域名: ${(ew?.baseHost ?? '').isEmpty ? '（未锁定）' : ew!.baseHost}');
+    if (ew != null && ew.stallDetected) {
+      buf.writeln('- ⚡ 空转熔断已触发: ${ew.stallMessage}');
+    }
+    // Python 可用性
+    try {
+      final py = await resolvePythonExe();
+      buf.writeln('- Python 解释器: ${py == null ? '❌ 未找到' : '✅ $py'}');
+    } catch (e) {
+      buf.writeln('- Python 解释器: ❌ 探测失败: $e');
+    }
+    buf.writeln('- 已设置环境变量: ${_envStore.keys().length} 个'
+        '（set_env_var 写入；list_env_vars 查看 key）');
+    buf.writeln();
+    buf.writeln('> 自检指引：JS 通道/页面未就绪 → 等页面加载或 ask 用户刷新；'
+        '就绪但无捕获日志 → 是你的探索行为问题（navigate_get 访问数据接口）；'
+        'Python 不可用 → 环境问题，ask 用户检查 Python 配置。');
+    return buf.toString();
   }
 
   /// verify_login_flow 工具回调：写 login_check.py 并执行（Phase 2）。
@@ -1909,7 +2020,7 @@ ${ew.stallDetected ? '- 空转熔断已触发，请切换策略（换入口/换�
         return '[error: 脚本不存在: $scriptPath（请先 build_selected_source 构建 data-$name）]';
       }
       debugPrint('[ScraperAIPanel] ▶️ 执行已构建脚本: $scriptPath');
-      return await _runPythonFile(scriptPath);
+      return await _runPythonFile(scriptPath, requireJson: true);
     } catch (e) {
       debugPrint('[ScraperAIPanel] 💥 执行 data-$name 异常: $e');
       return '[error: 执行 data-$name 脚本异常: $e]';
@@ -1977,12 +2088,29 @@ ${ew.stallDetected ? '- 空转熔断已触发，请切换策略（换入口/换�
 
   /// AI 在工作流中拿到用户给定的产物根名后回写（取代原页面打开即弹的命名弹窗）。
   ///
-  /// 同时按该名称切换/创建会话，保持 `导出/注册` 时 `_dataName` 与当前会话名一致。
+  /// 修复（用户反馈 bug）：旧实现调用 `_switchOrCreateSession` →
+  /// `controller.newSession()` / `setSession()`，会在 **工具执行中途** 取消并
+  /// 清空/替换 Agent 会话（`newSession` 内部 `if (isRunning) cancel()`），
+  /// 导致 `set_data_name` 的工具结果永远无法回填给 AI、AI 循环直接中断。
+  ///
+  /// 现在只做两件无副作用的事：
+  /// 1. 记录 `_dataName`（导出/注册/插件目录立即生效）；
+  /// 2. 把**当前会话**原地改名为该名称（保持会话名与数据名一致，
+  ///    不创建新会话、不切换会话、不触碰 Agent 会话——正在运行的 AI 循环不被打断）。
   void setDataName(String name) {
     final trimmed = name.trim();
     if (trimmed.isEmpty || !mounted) return;
     setState(() => _dataName = trimmed);
-    _switchOrCreateSession(trimmed);
+    if (_currentIdx >= 0 && _currentIdx < _sessions.length) {
+      final cur = _sessions[_currentIdx];
+      final conflict = _sessions.any((s) => !identical(s, cur) && s.name == trimmed);
+      if (!conflict) {
+        cur.rename(trimmed);
+      } else {
+        debugPrint('[ScraperAIPanel] ⚠ 会话名 "$trimmed" 已被其它会话占用，仅记录 dataName');
+      }
+    }
+    _saveSessions();
     debugPrint('[ScraperAIPanel] 🏷 产物根名已设定: dataName=$_dataName');
   }
 
@@ -2818,7 +2946,8 @@ class ChatMessage {
 
 /// 一个命名会话，存储完整的 AI 对话记录 + Agent 内部 Session 快照。
 class _ScraperSession {
-  final String name;
+  /// 会话名（= 数据名称；AI 经 `set_data_name` 锁定后原地改名，不切换会话）。
+  String name;
 
   /// 会话稳定唯一 id（双向绑定画板用）。
   ///
@@ -2840,6 +2969,14 @@ class _ScraperSession {
         messages = [],
         createdAt = DateTime.now(),
         agentSessionJson = null;
+
+  /// 原地改名（AI 经 `set_data_name` 锁定数据名称后调用）。
+  ///
+  /// ⚠️ 只改会话名，**不**切换/重建 Agent 会话——避免在工具执行中途
+  /// 打断正在运行的 AI 循环（旧实现切换会话导致 set_data_name 结果丢失）。
+  void rename(String newName) {
+    name = newName;
+  }
 
   _ScraperSession._({
     required this.name,

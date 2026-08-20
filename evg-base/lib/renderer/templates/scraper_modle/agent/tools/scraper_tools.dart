@@ -16,6 +16,7 @@ import 'package:evergreen_base/core/agent/tool.dart';
 import 'package:evergreen_base/core/plugin/plugin_runner.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
 import 'package:evergreen_base/core/utils/python_env.dart';
+import '../../scraper_env.dart';
 import '../../scraper_json_validator.dart';
 
 // ═══════ run_python_scraper ═══════
@@ -31,9 +32,13 @@ class RunPythonScraperTool extends SimpleTool {
   /// Python 可执行文件路径（调用方注入，避免每次都 resolve）。
   final Future<String?> Function() resolvePython;
 
+  /// 环境变量存储（注入子进程环境；null = 不注入）。
+  final ScraperEnvStore? envStore;
+
   RunPythonScraperTool({
     required this.workspaceDir,
     required this.resolvePython,
+    this.envStore,
   }) : super(
           name: 'run_python_scraper',
           description: '运行生成的 Python 爬虫代码。'
@@ -100,9 +105,11 @@ class RunPythonScraperTool extends SimpleTool {
                   [scriptPath],
                   workingDirectory: workspaceDir,
                   runInShell: true,
-                  environment: Map<String, String>.from(
-                    Platform.environment,
-                  )..['PROJECT_ROOT'] = workspaceDir,
+                  environment: envStore != null
+                      ? envStore!.envForSubprocess(workspaceDir)
+                      : Map<String, String>.from(
+                          Platform.environment,
+                        )..['PROJECT_ROOT'] = workspaceDir,
                 ).timeout(const Duration(seconds: 60));
                 stdout = (result.stdout as String).trim();
                 stderr = (result.stderr as String).trim();
@@ -289,6 +296,70 @@ class SaveCredentialTool extends SimpleTool {
         );
 }
 
+// ═══════ set_env_var / list_env_vars ═══════
+
+/// 工具：写入/更新爬虫环境变量（用户账号密码等凭据）。
+///
+/// 背景（用户反馈 bug）：探索模式禁用 `run_terminal_command`/`save_credential`，
+/// AI 无法把用户账号密码写入环境变量，登录验证/构建脚本读不到凭据。
+/// 本工具把 key/value 持久化到 `.greenix/env.json`（并镜像到
+/// `.greenix/config.json`），运行 Python 子进程时自动合并进环境变量——
+/// scraper.py 中 `_get_config(key)`（Tier 3 os.environ）或 `os.environ[key]`
+/// 即可读取。
+class SetEnvVarTool extends SimpleTool {
+  final ScraperEnvStore envStore;
+
+  SetEnvVarTool({required this.envStore})
+      : super(
+          name: 'set_env_var',
+          description: '写入/更新一个环境变量（账号密码等凭据）。'
+              '持久化到 .greenix/env.json，运行 Python 时自动注入子进程环境变量。'
+              '写入后 scraper.py 中可用 _get_config("KEY") 或 os.environ["KEY"] 读取。'
+              'key 必须大写字母开头，仅含大写字母/数字/下划线（如 SCRAPER_USERNAME / '
+              'SCRAPER_PASSWORD / SCRAPER_COOKIE / SCRAPER_TOKEN）。'
+              '⚠️ 优先用 read_existing_credential 复用现成配置；仅需要新凭据时再写入。',
+          schema: const {
+            'type': 'object',
+            'properties': {
+              'key': {
+                'type': 'string',
+                'description': '环境变量名（如 SCRAPER_USERNAME）',
+              },
+              'value': {
+                'type': 'string',
+                'description': '环境变量值（用户名/密码/Cookie/Token）',
+              },
+            },
+            'required': ['key', 'value'],
+          },
+          readOnly: false,
+          execute: (args) async {
+            final key = args['key'] as String? ?? '';
+            final value = args['value'] as String? ?? '';
+            if (key.isEmpty) return '[error: key 参数为空]';
+            return envStore.setVar(key, value);
+          },
+        );
+}
+
+/// 工具：列出已设置的环境变量（值不回显，只列 key）。
+class ListEnvVarsTool extends SimpleTool {
+  final ScraperEnvStore envStore;
+
+  ListEnvVarsTool({required this.envStore})
+      : super(
+          name: 'list_env_vars',
+          description: '列出当前已设置的环境变量 key（值不回显）。'
+              '用于确认账号密码等凭据是否已写入；未设置时返回写入指引。',
+          schema: const {
+            'type': 'object',
+            'properties': {},
+          },
+          readOnly: true,
+          execute: (args) async => envStore.listSummary(),
+        );
+}
+
 // ═══════ get_request_logs ═══════
 
 /// 工具：获取当前捕获到的 HTTP 请求日志。
@@ -456,7 +527,8 @@ class ExportAndRegisterScraperTool extends SimpleTool {
 /// 现在由 AI 在 Step 0 用 `ask` 工具询问用户、拿到名称后调用本工具锁定，
 /// 后续插件目录 `data-{name}`、manifest name、orch:// 类型名均以它为准。
 class SetDataNameTool extends SimpleTool {
-  /// 回写产物根名的回调（由 UI 层 ScraperAIPanel 注入，内部做会话切换）。
+  /// 回写产物根名的回调（由 UI 层 ScraperAIPanel 注入；只记录 dataName 并原地
+  /// 重命名当前会话，不切换/重建 Agent 会话——避免中断正在运行的 AI 循环）。
   final void Function(String name) setDataName;
 
   SetDataNameTool({required this.setDataName})
@@ -676,11 +748,13 @@ List<Tool> createScraperTools({
   required void Function(String name) setDataName,
   required Future<bool> Function(String toolName, String reason)
       requestOverride,
+  ScraperEnvStore? envStore,
 }) {
   return [
     RunPythonScraperTool(
       workspaceDir: workspaceDir,
       resolvePython: resolvePython,
+      envStore: envStore,
     ),
     RunTerminalCommandTool(
       enqueueCommand: enqueueCommand,
@@ -688,6 +762,11 @@ List<Tool> createScraperTools({
     ),
     ReadExistingCredentialTool(projectRoot: projectRoot),
     SaveCredentialTool(projectRoot: projectRoot),
+    // 环境变量写入/列出（用户账号密码等凭据；探索模式同样可用）
+    if (envStore != null) ...[
+      SetEnvVarTool(envStore: envStore),
+      ListEnvVarsTool(envStore: envStore),
+    ],
     GetRequestLogsTool(getLogsSummary: getLogsSummary),
     ReadWorkspaceFileTool(workspaceDir: workspaceDir),
     ExportAndRegisterScraperTool(
