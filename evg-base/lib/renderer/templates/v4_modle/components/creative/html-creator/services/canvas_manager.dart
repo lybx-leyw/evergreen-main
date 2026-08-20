@@ -26,6 +26,12 @@ class CanvasMeta {
   /// 重新导出时写入 manifest 的 nav.sidebar.section。
   String navSection;
 
+  /// 画布绑定的数据源名（null = 未绑定）。
+  ///
+  /// 随画布持久化：切板/重启后自动恢复，AI 会话的「当前绑定的数据源」
+  /// 与数据面板选中态均以它为锚（绑定随板走，T1）。
+  String? selectedDataSource;
+
   CanvasMeta({
     required this.id,
     required this.name,
@@ -33,6 +39,7 @@ class CanvasMeta {
     DateTime? updatedAt,
     this.pluginId,
     this.navSection = '自定义',
+    this.selectedDataSource,
   })  : createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
 
@@ -43,6 +50,7 @@ class CanvasMeta {
         updatedAt: json['updatedAt'] != null ? DateTime.tryParse(json['updatedAt'] as String) : null,
         pluginId: json['pluginId'] as String?,
         navSection: json['navSection'] as String? ?? '自定义',
+        selectedDataSource: json['selectedDataSource'] as String?,
       );
 
   Map<String, dynamic> toJson() => {
@@ -52,6 +60,7 @@ class CanvasMeta {
         'updatedAt': updatedAt.toIso8601String(),
         if (pluginId != null) 'pluginId': pluginId,
         'navSection': navSection,
+        if (selectedDataSource != null) 'selectedDataSource': selectedDataSource,
       };
 }
 
@@ -82,6 +91,12 @@ String get _canvasRoot => '${greenixWorkspaceDir('html-creator')}/canvases';
 
 /// 获取画布目录。
 String _canvasDir(String canvasId) => p.join(_canvasRoot, canvasId);
+
+/// 画布会话文件路径（并入画布目录，与画布同生命周期）。
+///
+/// 删除画布 = 删除整个 canvas 目录 = 会话一并清理，杜绝孤儿会话文件；
+/// 与 AI 会话恢复保持同一路径约定（HtmlAiService 通过注入的回调使用）。
+String canvasSessionsPath(String canvasId) => p.join(_canvasDir(canvasId), 'session.json');
 
 /// 生成唯一画布 ID。
 String _newCanvasId() => 'canvas_${DateTime.now().millisecondsSinceEpoch}_${_random4()}';
@@ -224,6 +239,29 @@ class CanvasManager {
       debugPrint('[CanvasManager] 🔗 绑定画布 → 插件: $canvasId → $pluginId');
     } catch (e) {
       debugPrint('[CanvasManager] ⚠ 绑定插件 ID 失败: $canvasId $e');
+    }
+  }
+
+  /// 绑定画布到数据源名（写入 meta.json 的 selectedDataSource）。
+  ///
+  /// 独立于 saveCanvas：数据面板点选绑定源时只更新绑定字段，
+  /// 不触碰编辑器内容（避免触发大文件重写）。sourceName 为 null 解绑。
+  void bindDataSource(String canvasId, String? sourceName) {
+    final dir = Directory(_canvasDir(canvasId));
+    if (!dir.existsSync()) return;
+    final metaFile = File(p.join(dir.path, 'meta.json'));
+    if (!metaFile.existsSync()) return;
+    try {
+      final json = jsonDecode(metaFile.readAsStringSync()) as Map<String, dynamic>;
+      if (sourceName != null && sourceName.isNotEmpty) {
+        json['selectedDataSource'] = sourceName;
+      } else {
+        json.remove('selectedDataSource');
+      }
+      metaFile.writeAsStringSync(const JsonEncoder.withIndent('  ').convert(json));
+      debugPrint('[CanvasManager] 🔗 绑定画布 → 数据源: $canvasId → $sourceName');
+    } catch (e) {
+      debugPrint('[CanvasManager] ⚠ 绑定数据源失败: $canvasId $e');
     }
   }
 

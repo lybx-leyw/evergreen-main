@@ -23,10 +23,8 @@ import 'package:evergreen_base/core/agent/controller/controller.dart';
 import 'package:evergreen_base/core/agent/provider.dart';
 import 'package:evergreen_base/core/agent/skill/skill.dart';
 import 'package:evergreen_base/core/agent/memory/file_memory_store.dart';
-import 'package:evergreen_base/core/agent/tool.dart';
 import 'package:evergreen_base/core/data/data.dart';
 import 'package:evergreen_base/providers.dart';
-import 'package:evergreen_base/core/log.dart';
 import 'package:evergreen_base/renderer/app/service/theme/render_tokens.dart';
 import 'html_creator_tools.dart';
 import 'html_creator_hooks.dart';
@@ -126,6 +124,22 @@ class HtmlAiService extends ChangeNotifier {
   /// 当前画布 ID（用于会话持久化）。
   String? _canvasId;
   String? get canvasId => _canvasId;
+
+  /// 会话文件路径解析回调（由 UI 层注入）。
+  ///
+  /// 返回给定画布的会话文件路径。缺省时回退到旧布局
+  /// `{workspaceDir}/{canvasId}_sessions.json`（editor 目录，历史版本遗留）。
+  /// 新版由视图层指向画布目录 `canvases/{id}/session.json`——
+  /// 会话随画布生命周期，删画布即删会话，不再产生孤儿文件。
+  String Function(String canvasId)? resolveSessionsPath;
+
+  /// 上次恢复的会话消息数（绑定态 UI 用；0 = 无历史/新会话）。
+  int _sessionMessageCount = 0;
+  int get sessionMessageCount => _sessionMessageCount;
+
+  /// 当前画布会话是否从历史恢复（断点续作标记，绑定态 UI 用）。
+  bool _restoredFromSession = false;
+  bool get restoredFromSession => _restoredFromSession;
 
   /// UI 消息列表快照（用于恢复 UI 显示，AiPanel 通过此字段读写）。
   List<Map<String, dynamic>>? uiMessages;
@@ -321,7 +335,46 @@ class HtmlAiService extends ChangeNotifier {
 
   // ═══════ 画布级别会话持久化 ═══════
 
-  String get _sessionsPath => p.join(_workspaceDir, '${_canvasId ?? 'default'}_sessions.json');
+  /// 当前画布会话文件路径。
+  ///
+  /// 优先走 UI 层注入的 [resolveSessionsPath]（新版：画布目录内 session.json，
+  /// 随画布生命周期）；未注入时回退旧布局 `{workspaceDir}/{id}_sessions.json`。
+  String get _sessionsPath {
+    final cid = _canvasId;
+    if (cid != null && resolveSessionsPath != null) {
+      return resolveSessionsPath!(cid);
+    }
+    return p.join(_workspaceDir, '${_canvasId ?? 'default'}_sessions.json');
+  }
+
+  /// 旧布局会话文件路径（历史版本存在 editor 目录，T1 迁移用）。
+  String _legacySessionsPath(String canvasId) =>
+      p.join(_workspaceDir, '${canvasId}_sessions.json');
+
+  /// 迁移旧布局会话文件到画布目录（一次性；旧文件存在而新文件缺失时复制）。
+  ///
+  /// 历史版本把会话存在 `{workspaceDir}/{canvasId}_sessions.json`，
+  /// 删除画布时只删 canvas 目录 → 遗留孤儿会话文件。T1 后会话并入画布目录，
+  /// 此迁移保证老用户升级后历史会话不丢、且后续删除画布能一并清理。
+  void _migrateLegacySession(String canvasId) {
+    if (resolveSessionsPath == null) return;
+    final legacy = File(_legacySessionsPath(canvasId));
+    if (!legacy.existsSync()) return;
+    try {
+      final target = File(resolveSessionsPath!(canvasId));
+      if (target.existsSync()) {
+        // 新文件已存在：旧文件纯属孤儿，直接删除
+        legacy.deleteSync();
+        return;
+      }
+      Directory(p.dirname(target.path)).createSync(recursive: true);
+      legacy.copySync(target.path);
+      legacy.deleteSync();
+      debugPrint('[HtmlAiService] 📦 迁移旧会话 → 画布目录: $canvasId');
+    } catch (e) {
+      debugPrint('[HtmlAiService] ⚠ 迁移旧会话失败: $e');
+    }
+  }
 
   /// 保存当前会话到画布文件。
   void _saveCanvasSession() {
@@ -329,6 +382,7 @@ class HtmlAiService extends ChangeNotifier {
     try {
       final sessionJson = _assembly!.session.toJson();
       final file = File(_sessionsPath);
+      if (!file.parent.existsSync()) file.parent.createSync(recursive: true);
       file.writeAsStringSync(jsonEncode({
         'canvasId': _canvasId,
         'updatedAt': DateTime.now().toIso8601String(),
@@ -343,6 +397,8 @@ class HtmlAiService extends ChangeNotifier {
   /// 从画布文件恢复历史会话。
   void _restoreCanvasSession() {
     if (_canvasId == null || _assembly == null) return;
+    // T1：老用户历史会话从 editor 目录迁入画布目录
+    _migrateLegacySession(_canvasId!);
     try {
       final file = File(_sessionsPath);
       if (!file.existsSync()) return;
@@ -368,6 +424,9 @@ class HtmlAiService extends ChangeNotifier {
           ?.map((e) => e as Map<String, dynamic>)
           .toList();
 
+      _sessionMessageCount = restored.messages.length;
+      _restoredFromSession = _sessionMessageCount > 0;
+
       debugPrint('[HtmlAiService] 📂 恢复画布会话: $_canvasId (${restored.messages.length} 条消息)');
     } catch (e) {
       debugPrint('[HtmlAiService] ⚠ 恢复会话失败: $e');
@@ -379,15 +438,16 @@ class HtmlAiService extends ChangeNotifier {
     _saveCanvasSession(); // 保存当前
     _canvasId = newCanvasId;
     uiMessages = null;
+    _sessionMessageCount = 0;
+    _restoredFromSession = false;
     _accumulatedText = '';
     _accumulatedReasoning = '';
 
-    // 重建 Agent（新画布 = 新会话）
+    // 重建 Agent（新画布 = 新会话）；_ensureAgent 内部会恢复该画布会话
     _sub?.cancel(); _sub = null;
     _assembly?.dispose(); _assembly = null;
 
     await _ensureAgent();
-    _restoreCanvasSession();
   }
 
   /// 初始化工作区默认文件。

@@ -10,7 +10,18 @@ class DataPanel extends StatefulWidget {
   final DataPreviewService dataService;
   final ValueChanged<String>? onSelectSource;
 
-  const DataPanel({super.key, required this.dataService, this.onSelectSource});
+  /// 当前画布绑定的数据源名（null = 未绑定）。
+  ///
+  /// 由视图层从画布 meta 注入；切换画布时 didUpdateWidget 自动
+  /// 恢复选中态并拉取预览，保证「绑定随板走、切板即恢复」。
+  final String? selectedSource;
+
+  const DataPanel({
+    super.key,
+    required this.dataService,
+    this.onSelectSource,
+    this.selectedSource,
+  });
 
   @override
   State<DataPanel> createState() => _DataPanelState();
@@ -27,10 +38,36 @@ class _DataPanelState extends State<DataPanel> {
   /// 连通性测试进行中（B3）。
   bool _testingConn = false;
 
+  /// 记录上次传入的绑定源（didUpdateWidget 对比用）。
+  String? _oldBound;
+
   @override
   void initState() {
     super.initState();
+    _oldBound = widget.selectedSource;
     _refresh();
+    // 恢复画布绑定源（首次进入即有绑定态）
+    final bound = widget.selectedSource;
+    if (bound != null && bound.isNotEmpty) {
+      _selectedName = bound;
+      _loadPreviewSilently(bound);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant DataPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // 切画布：绑定源变化 → 恢复选中态并拉取预览（不串台）
+    final bound = widget.selectedSource;
+    if (bound != _oldBound) {
+      _oldBound = bound;
+      if (bound != null && bound.isNotEmpty) {
+        setState(() => _selectedName = bound);
+        _loadPreviewSilently(bound);
+      } else {
+        setState(() => _selectedName = null);
+      }
+    }
   }
 
   void _refresh() {
@@ -48,6 +85,18 @@ class _DataPanelState extends State<DataPanel> {
       _loadingPreview = false;
     });
     widget.onSelectSource?.call(name);
+  }
+
+  /// 静默恢复绑定源预览：只选中 + 拉取缓存，不回调 onSelectSource
+  /// （切画布自动恢复场景，避免再次触发占位符替换/绑定写回）。
+  Future<void> _loadPreviewSilently(String name) async {
+    setState(() => _loadingPreview = true);
+    final data = await widget.dataService.fetchPreview(name);
+    if (!mounted) return;
+    setState(() {
+      _selected[name] = data;
+      _loadingPreview = false;
+    });
   }
 
   /// 行内刷新数据源（B3）：走 DataHttpServer，成功后刷新列表 + 预览。
@@ -161,7 +210,6 @@ class _DataPanelState extends State<DataPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Column(
       children: [
         _buildHeader(),
