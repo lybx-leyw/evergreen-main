@@ -121,17 +121,21 @@ class HtmlAiService extends ChangeNotifier {
   /// view_html_result 等待评判的回调（由 UI 层注入，通过 Completer 阻塞等待人类输入）。
   Future<String> Function()? awaitReview;
 
-  /// 当前画布 ID（用于会话持久化）。
+  /// 当前画布 ID（画板级；会话持久化按实例隔离，I1）。
   String? _canvasId;
   String? get canvasId => _canvasId;
 
+  /// 当前实例 ID（画板 ↔ 实例 1:1；会话文件按实例隔离，I1）。
+  String? _instanceId;
+  String? get instanceId => _instanceId;
+
   /// 会话文件路径解析回调（由 UI 层注入）。
   ///
-  /// 返回给定画布的会话文件路径。缺省时回退到旧布局
-  /// `{workspaceDir}/{canvasId}_sessions.json`（editor 目录，历史版本遗留）。
-  /// 新版由视图层指向画布目录 `canvases/{id}/session.json`——
-  /// 会话随画布生命周期，删画布即删会话，不再产生孤儿文件。
-  String Function(String canvasId)? resolveSessionsPath;
+  /// 返回给定**画板 + 实例**的会话文件路径（I1 起按实例隔离）：
+  /// 新版由视图层指向实例目录 `canvases/{boardId}/instances/{instanceId}/session.json`——
+  /// 会话随画板生命周期，删画布即删实例与会话，不再产生孤儿文件。
+  /// 缺省时回退到旧布局 `{workspaceDir}/{canvasId}_{instanceId}_sessions.json`。
+  String Function(String boardId, String instanceId)? resolveSessionsPath;
 
   /// 上次恢复的会话消息数（绑定态 UI 用；0 = 无历史/新会话）。
   int _sessionMessageCount = 0;
@@ -287,7 +291,9 @@ class HtmlAiService extends ChangeNotifier {
     try {
       final provider = DeepSeekProvider(dio: Dio(), apiKey: apiKey, model: model);
       final skillIdx = SkillIndex();
-      final memStore = FileMemoryStore('${moduleId}_html_creator');
+      // I1：长期记忆按实例隔离——「一会话一份历史记忆」含 FileMemoryStore，
+      // 每个实例独立命名空间，切换实例不串记忆。
+      final memStore = FileMemoryStore('${moduleId}_html_creator${_instanceId != null ? '_$_instanceId' : ''}');
 
       // 创建专用工具（与 scraper 同款模式）
       final seedTools = createHtmlCreatorTools(
@@ -337,54 +343,66 @@ class HtmlAiService extends ChangeNotifier {
 
   /// 当前画布会话文件路径。
   ///
-  /// 优先走 UI 层注入的 [resolveSessionsPath]（新版：画布目录内 session.json，
-  /// 随画布生命周期）；未注入时回退旧布局 `{workspaceDir}/{id}_sessions.json`。
+  /// I1 起按实例隔离：优先走 UI 层注入的 [resolveSessionsPath]
+  /// （新版：实例目录内 session.json，随画板生命周期）；
+  /// 未注入时回退旧布局 `{workspaceDir}/{boardId}_{instanceId}_sessions.json`。
   String get _sessionsPath {
-    final cid = _canvasId;
-    if (cid != null && resolveSessionsPath != null) {
-      return resolveSessionsPath!(cid);
+    final bid = _canvasId;
+    final iid = _instanceId;
+    if (bid != null && iid != null && resolveSessionsPath != null) {
+      return resolveSessionsPath!(bid, iid);
     }
-    return p.join(_workspaceDir, '${_canvasId ?? 'default'}_sessions.json');
+    return p.join(_workspaceDir, '${bid ?? 'default'}_${iid ?? 'default'}_sessions.json');
   }
 
-  /// 旧布局会话文件路径（历史版本存在 editor 目录，T1 迁移用）。
+  /// 旧布局会话文件路径（历史版本存在 editor 目录，迁移用）。
   String _legacySessionsPath(String canvasId) =>
       p.join(_workspaceDir, '${canvasId}_sessions.json');
 
-  /// 迁移旧布局会话文件到画布目录（一次性；旧文件存在而新文件缺失时复制）。
+  /// 迁移旧布局会话文件到实例目录（一次性；旧文件存在而实例会话缺失时复制）。
   ///
   /// 历史版本把会话存在 `{workspaceDir}/{canvasId}_sessions.json`，
-  /// 删除画布时只删 canvas 目录 → 遗留孤儿会话文件。T1 后会话并入画布目录，
+  /// 删除画布时只删 canvas 目录 → 遗留孤儿会话文件。I1 后会话并入实例目录，
   /// 此迁移保证老用户升级后历史会话不丢、且后续删除画布能一并清理。
-  void _migrateLegacySession(String canvasId) {
+  /// 迁移时补写 boardId/instanceId 双向绑定字段，随后删除旧文件。
+  void _migrateLegacySession(String boardId, String instanceId) {
     if (resolveSessionsPath == null) return;
-    final legacy = File(_legacySessionsPath(canvasId));
+    final legacy = File(_legacySessionsPath(boardId));
     if (!legacy.existsSync()) return;
     try {
-      final target = File(resolveSessionsPath!(canvasId));
+      final target = File(resolveSessionsPath!(boardId, instanceId));
       if (target.existsSync()) {
-        // 新文件已存在：旧文件纯属孤儿，直接删除
+        // 实例会话已存在：旧文件纯属孤儿，直接删除
         legacy.deleteSync();
         return;
       }
       Directory(p.dirname(target.path)).createSync(recursive: true);
-      legacy.copySync(target.path);
+      Map<String, dynamic> content;
+      try {
+        content = jsonDecode(legacy.readAsStringSync()) as Map<String, dynamic>;
+      } catch (_) {
+        content = <String, dynamic>{};
+      }
+      content['boardId'] = boardId;
+      content['instanceId'] = instanceId;
+      target.writeAsStringSync(jsonEncode(content));
       legacy.deleteSync();
-      debugPrint('[HtmlAiService] 📦 迁移旧会话 → 画布目录: $canvasId');
+      debugPrint('[HtmlAiService] 📦 迁移旧会话 → 实例目录: $boardId → $instanceId');
     } catch (e) {
       debugPrint('[HtmlAiService] ⚠ 迁移旧会话失败: $e');
     }
   }
 
-  /// 保存当前会话到画布文件。
+  /// 保存当前会话到实例文件（一会话一份历史记忆）。
   void _saveCanvasSession() {
-    if (_canvasId == null || _assembly == null) return;
+    if (_canvasId == null || _instanceId == null || _assembly == null) return;
     try {
       final sessionJson = _assembly!.session.toJson();
       final file = File(_sessionsPath);
       if (!file.parent.existsSync()) file.parent.createSync(recursive: true);
       file.writeAsStringSync(jsonEncode({
-        'canvasId': _canvasId,
+        'boardId': _canvasId,
+        'instanceId': _instanceId,
         'updatedAt': DateTime.now().toIso8601String(),
         'agentSession': sessionJson,
         'uiMessages': uiMessages,
@@ -394,16 +412,33 @@ class HtmlAiService extends ChangeNotifier {
     }
   }
 
-  /// 从画布文件恢复历史会话。
+  /// 从实例文件恢复历史会话。
+  ///
+  /// 双向绑定校验（对齐 scraper `loadBoardSessionIds` 孤儿过滤）：
+  /// 会话文件内 boardId/instanceId 必须与当前画板/实例一致，不一致 =
+  /// 孤儿会话 → 不恢复 + 清理文件，保证绝不串台。
   void _restoreCanvasSession() {
-    if (_canvasId == null || _assembly == null) return;
-    // T1：老用户历史会话从 editor 目录迁入画布目录
-    _migrateLegacySession(_canvasId!);
+    if (_canvasId == null || _instanceId == null || _assembly == null) return;
+    // I1：老用户历史会话从 editor 目录迁入实例目录
+    _migrateLegacySession(_canvasId!, _instanceId!);
     try {
       final file = File(_sessionsPath);
       if (!file.existsSync()) return;
 
       final data = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+
+      // 双向绑定校验：boardId/instanceId 必须匹配当前画板/实例
+      final fBoard = data['boardId'] as String?;
+      final fInstance = data['instanceId'] as String?;
+      if (fBoard != _canvasId || fInstance != _instanceId) {
+        debugPrint('[HtmlAiService] ⚠ 孤儿会话（boardId=$fBoard instanceId=$fInstance '
+            '≠ $_canvasId/$_instanceId），不恢复并清理');
+        try {
+          file.deleteSync();
+        } catch (_) {}
+        return;
+      }
+
       final sessionJson = data['agentSession'] as Map<String, dynamic>?;
       if (sessionJson == null) return;
 
@@ -427,23 +462,27 @@ class HtmlAiService extends ChangeNotifier {
       _sessionMessageCount = restored.messages.length;
       _restoredFromSession = _sessionMessageCount > 0;
 
-      debugPrint('[HtmlAiService] 📂 恢复画布会话: $_canvasId (${restored.messages.length} 条消息)');
+      debugPrint('[HtmlAiService] 📂 恢复实例会话: $_canvasId/$_instanceId (${restored.messages.length} 条消息)');
     } catch (e) {
       debugPrint('[HtmlAiService] ⚠ 恢复会话失败: $e');
     }
   }
 
-  /// 切换到新画布：保存旧画布会话，重置 Agent。
-  Future<void> switchCanvas(String newCanvasId) async {
+  /// 切换到新画板：保存旧会话，重置 Agent，恢复新实例会话。
+  ///
+  /// I1：会话按实例隔离——[instanceId] 由视图层在 [CanvasManager.ensureInstance]
+  /// 后传入（画板 ↔ 实例 1:1，实例 id 固定不可变）。
+  Future<void> switchCanvas(String newCanvasId, {required String instanceId}) async {
     _saveCanvasSession(); // 保存当前
     _canvasId = newCanvasId;
+    _instanceId = instanceId;
     uiMessages = null;
     _sessionMessageCount = 0;
     _restoredFromSession = false;
     _accumulatedText = '';
     _accumulatedReasoning = '';
 
-    // 重建 Agent（新画布 = 新会话）；_ensureAgent 内部会恢复该画布会话
+    // 重建 Agent（新画板 = 新实例 = 新会话）；_ensureAgent 内部会恢复该实例会话
     _sub?.cancel(); _sub = null;
     _assembly?.dispose(); _assembly = null;
 
