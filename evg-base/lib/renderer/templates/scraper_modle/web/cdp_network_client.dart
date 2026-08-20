@@ -349,6 +349,8 @@ class CdpNetworkClient {
       url: url,
       headers: headers,
       body: body,
+      // P2-2：资源类型结构化透传（Document/Fetch/XHR/Script…）
+      resourceType: type.isEmpty ? null : type,
     );
 
     if (requestId.isNotEmpty) {
@@ -370,23 +372,37 @@ class CdpNetworkClient {
     if (url.isEmpty || url.startsWith('data:')) return;
 
     final statusCode = response['status'] as int?;
-    final statusText = response['statusText'] as String? ?? '';
     final mimeType = response['mimeType'] as String? ?? '';
 
+    // P2-2：响应头结构化透传（Set-Cookie 登录态 / Content-Type 类型 /
+    // WWW-Authenticate 认证质询等关键头进日志）
+    final respHeaders = <String, String>{};
+    final rawRespHeaders = response['headers'] as Map<String, dynamic>?;
+    if (rawRespHeaders != null) {
+      rawRespHeaders.forEach((k, v) => respHeaders[k] = v.toString());
+    }
+
     // 记录 mimeType，便于 loadingFinished 时判断是否为 JSON 响应
+    // （P2-2：顺带记录 statusCode，让 responseBody 日志也携带状态码）
     final meta = _reqMeta[requestId];
     if (meta != null || requestId.isNotEmpty) {
       _reqMeta[requestId] = {
         'url': url,
         'method': meta?['method'] ?? 'RESPONSE',
         'mimeType': mimeType,
+        if (statusCode != null) 'statusCode': statusCode.toString(),
       };
     }
 
     final log = HttpRequestLog(
       timestamp: DateTime.now(),
       method: 'RESPONSE',
-      url: '$url (status: $statusCode $statusText)',
+      url: url,
+      // P2-2：状态码不再只拼进 URL 文本——结构化字段进日志，AI 可区分
+      // 200/401/403 并识别 Set-Cookie 登录态
+      statusCode: statusCode,
+      responseHeaders: respHeaders.isEmpty ? null : respHeaders,
+      resourceType: params['type'] as String?,
     );
 
       _emitEvent(CdpNetworkEvent(
@@ -420,7 +436,8 @@ class CdpNetworkClient {
       final isJson =
           _isJson(mime) || (meta?['url'] ?? '').contains('json');
       if (meta != null && isJson) {
-        _fetchResponseBody(requestId, meta['url'] ?? '');
+        final code = int.tryParse(meta?['statusCode'] ?? '');
+        _fetchResponseBody(requestId, meta['url'] ?? '', statusCode: code);
       }
     }
   }
@@ -430,7 +447,7 @@ class CdpNetworkClient {
       mimeType != null && mimeType.toLowerCase().contains('json');
 
   /// 请求 CDP 返回响应体并作为新日志事件发出（≤32KB 截断）。
-  void _fetchResponseBody(String requestId, String url) {
+  void _fetchResponseBody(String requestId, String url, {int? statusCode}) {
     _sendCommand('Network.getResponseBody', {'requestId': requestId}).then((resp) {
       final result = resp['result'] as Map<String, dynamic>?;
       if (result == null) return;
@@ -451,6 +468,7 @@ class CdpNetworkClient {
           timestamp: DateTime.now(),
           method: 'RESPONSE',
           url: url,
+          statusCode: statusCode,
           responseBody: body,
         ),
       ));

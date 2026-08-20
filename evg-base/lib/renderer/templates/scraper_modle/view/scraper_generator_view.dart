@@ -421,6 +421,9 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
                       bridge: _webBridge,
                       onRequestCaptured: (log) {
                         if (!_webViewLocked) _workflow.addLog(log);
+                        // P1-B：探索模式请求计数按真实捕获日志同步
+                        _exploreWorkflow
+                            .syncCapturedRequests(_workflow.logs.length);
                       },
                     ),
                     // 1 日志
@@ -480,6 +483,9 @@ class ScraperGeneratorViewState extends State<ScraperGeneratorView> {
                             bridge: _webBridge,
                             onRequestCaptured: (log) {
                               if (!_webViewLocked) _workflow.addLog(log);
+                              // P1-B：探索模式请求计数按真实捕获日志同步
+                              _exploreWorkflow.syncCapturedRequests(
+                                  _workflow.logs.length);
                             },
                           ),
                         ),

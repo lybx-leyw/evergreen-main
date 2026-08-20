@@ -27,16 +27,38 @@ void main() {
   });
 
   group('Phase 10 · explorationSufficient（最小探索量门槛）', () {
+    (ExploreWorkflow, DateTime Function()) ready() {
+      var now = DateTime(2026, 1, 1, 12);
+      final w = ExploreWorkflow(clock: () => now);
+      w.startExploring(startUrl: 'https://site.com/');
+      final advance = () => now = now.add(const Duration(seconds: 2));
+      return (w, advance);
+    }
+
     test('0 导航 → 不充分', () {
       final w = ExploreWorkflow();
       w.startExploring(startUrl: 'https://site.com/');
       expect(w.explorationSufficient, isFalse);
     });
 
-    test('至少 1 次导航 → 充分', () {
-      final w = ExploreWorkflow();
-      w.startExploring(startUrl: 'https://site.com/');
+    test('默认门槛 3 页：1-2 页不充分', () {
+      final (w, advance) = ready();
+      advance();
       w.recordNavigation('https://site.com/a');
+      expect(w.explorationSufficient, isFalse);
+      advance();
+      w.recordNavigation('https://site.com/b');
+      expect(w.explorationSufficient, isFalse);
+    });
+
+    test('默认门槛 3 页：≥3 个去重页 → 充分', () {
+      final (w, advance) = ready();
+      advance();
+      w.recordNavigation('https://site.com/a');
+      advance();
+      w.recordNavigation('https://site.com/b');
+      advance();
+      w.recordNavigation('https://site.com/c');
       expect(w.explorationSufficient, isTrue);
     });
 
@@ -118,6 +140,28 @@ void main() {
       final miss = await tool.execute({'id': 'log-99'});
       expect(miss, contains('[error:'));
     });
+
+    test('read_request_by_id：P2-2 返回状态码/响应头/Set-Cookie/资源类型', () async {
+      final capture = ScraperWorkflow();
+      capture.addLog(HttpRequestLog(
+        timestamp: DateTime.now(),
+        method: 'GET',
+        url: 'https://a.com/api/data',
+        statusCode: 401,
+        responseHeaders: const {
+          'set-cookie': 'session=expired; Path=/',
+          'content-type': 'application/json',
+        },
+        resourceType: 'XHR',
+      ));
+      final tool = ReadRequestByIdTool(captureWorkflow: capture);
+      final out = await tool.execute({'id': 'log-1'});
+      expect(out, contains('statusCode: 401'));
+      expect(out, contains('resourceType: XHR'));
+      expect(out, contains('set-cookie'));
+      expect(out, contains('session=expired'));
+      expect(out, contains('responseHeaders'));
+    });
   });
 
   group('Phase 2/3 · verify_login_flow / execute_built_source', () {
@@ -162,6 +206,75 @@ void main() {
       expect(out, contains('api/list'));
       expect(out, contains('fetch'));
       expect(out, isNot(contains('evil.com')));
+    });
+  });
+
+  group('P1-C · explore_page_snapshot（导航后快照判型）', () {
+    test('解析结构化快照：标题/表单/按钮/表格列头', () async {
+      final w = ExploreWorkflow();
+      w.startExploring(startUrl: 'https://a.com/');
+      final inner = jsonEncode({
+        'title': '课程列表 - 教务系统',
+        'url': 'https://a.com/courses',
+        'breadcrumbs': ['首页', '教学', '课程列表'],
+        'navMenus': [
+          [
+            {'url': 'https://a.com/courses', 'text': '课程列表'},
+            {'url': 'https://evil.com/x', 'text': '外部'},
+          ],
+        ],
+        'forms': [
+          {
+            'action': '/search',
+            'fields': [
+              {'name': 'keyword', 'type': 'text'},
+              {'name': 'page', 'type': 'number'},
+            ],
+          },
+        ],
+        'buttons': ['搜索', '登录'],
+        'pagination': [
+          {'url': 'https://a.com/courses?page=2', 'text': '下一页'},
+          {'url': 'https://evil.com/p', 'text': 'x'},
+        ],
+        'tableHeaders': ['课程名', '教师', '学分'],
+      });
+      final tool = ExplorePageSnapshotTool(
+        exploreWorkflow: w,
+        evaluateJs: (s) async => jsonEncode(inner),
+      );
+      final out = await tool.execute({});
+      expect(out, contains('课程列表 - 教务系统'));
+      expect(out, contains('面包屑'));
+      expect(out, contains('keyword(text)'));
+      expect(out, contains('搜索'));
+      expect(out, contains('课程名 | 教师 | 学分'));
+      // 跨域导航/分页被过滤
+      expect(out, isNot(contains('evil.com')));
+      // 快照成功 = 二次探索产出（清空熔断）
+      expect(w.stallDetected, isFalse);
+    });
+
+    test('JS 通道不可用 → error', () async {
+      final w = ExploreWorkflow();
+      w.startExploring();
+      final tool = ExplorePageSnapshotTool(
+        exploreWorkflow: w,
+        evaluateJs: (s) async => null,
+      );
+      final out = await tool.execute({});
+      expect(out, contains('[error:'));
+    });
+
+    test('快照为空 → 提示占位/空白页', () async {
+      final w = ExploreWorkflow();
+      w.startExploring(startUrl: 'https://a.com/');
+      final tool = ExplorePageSnapshotTool(
+        exploreWorkflow: w,
+        evaluateJs: (s) async => jsonEncode({'title': '', 'url': ''}),
+      );
+      final out = await tool.execute({});
+      expect(out, contains('页面快照为空'));
     });
   });
 }

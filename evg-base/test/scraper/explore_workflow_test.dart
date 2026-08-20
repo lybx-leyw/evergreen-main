@@ -329,9 +329,12 @@ void main() {
     });
 
     test('探索工具按阶段切换', () {
-      // exploring：枚举/导航
+      // exploring：枚举/导航/快照
       expect(exploreToolAllowedForPhase('explore_page_links', ExplorePhase.exploring), isTrue);
       expect(exploreToolAllowedForPhase('navigate_get', ExplorePhase.exploring), isTrue);
+      // P1-C：页面快照 exploring 放行
+      expect(exploreToolAllowedForPhase('explore_page_snapshot', ExplorePhase.exploring), isTrue);
+      expect(exploreToolAllowedForPhase('explore_page_snapshot', ExplorePhase.building), isFalse);
       // present_data_sources 在 exploring 也放行，由工具内部切到 categorizing
       expect(exploreToolAllowedForPhase('present_data_sources', ExplorePhase.exploring), isTrue);
       // categorizing/confirming：仅 present
@@ -423,6 +426,112 @@ void main() {
       expect(w.scope, isNotNull);
       w.reset();
       expect(w.scope, isNull);
+    });
+  });
+
+  group('P1-B 守卫合理化（分页归一/请求计数/二次探索熔断）', () {
+    test('分页参数归一：?page=1/2/3 视为同一页（不烧光页数预算）', () {
+      var now = DateTime(2026, 1, 1, 12);
+      final w = ExploreWorkflow(
+        limits: const ExploreLimits(maxPages: 3),
+        clock: () => now,
+      );
+      w.startExploring(startUrl: 'https://a.com/');
+      for (var i = 1; i <= 3; i++) {
+        now = now.add(const Duration(seconds: 2));
+        expect(w.recordNavigation('https://a.com/list?page=$i'), isNull,
+            reason: '第 $i 页导航应放行');
+      }
+      expect(w.uniquePages, 1, reason: 'page=1/2/3 应归一同页');
+      // 剩余预算留给真正的页面（翻页不会烧光预算）
+      now = now.add(const Duration(seconds: 2));
+      expect(w.recordNavigation('https://a.com/detail/1'), isNull);
+      now = now.add(const Duration(seconds: 2));
+      expect(w.recordNavigation('https://a.com/detail/2'), isNull);
+      expect(w.uniquePages, 3);
+    });
+
+    test('分页参数别名（p/pn/pageNum）同样归一；非分页参数保留区分', () {
+      var now = DateTime(2026, 1, 1, 12);
+      final w = ExploreWorkflow(clock: () => now);
+      w.startExploring(startUrl: 'https://a.com/');
+      now = now.add(const Duration(seconds: 2));
+      expect(w.recordNavigation('https://a.com/l?p=1'), isNull);
+      now = now.add(const Duration(seconds: 2));
+      expect(w.recordNavigation('https://a.com/l?p=9'), isNull);
+      expect(w.uniquePages, 1);
+      // 排序参数不同 → 仍算不同页（保留区分）
+      now = now.add(const Duration(seconds: 2));
+      expect(w.recordNavigation('https://a.com/l?p=1&sort=time'), isNull);
+      expect(w.uniquePages, 2);
+    });
+
+    test('请求计数按真实捕获日志同步（syncCapturedRequests）', () {
+      final w = ExploreWorkflow();
+      w.startExploring();
+      final msgs = <String>[];
+      w.onLimitReached = msgs.add;
+      // 导航计 1，随后同步到真实日志条数（只增不减）
+      w.recordNavigation('https://a.com/1');
+      expect(w.requestsCaptured, 1);
+      w.syncCapturedRequests(5);
+      expect(w.requestsCaptured, 5);
+      w.syncCapturedRequests(3); // 不回落
+      expect(w.requestsCaptured, 5);
+    });
+
+    test('请求上限提示按真实捕获条数触发一次', () {
+      final w = ExploreWorkflow(limits: const ExploreLimits(maxRequests: 3));
+      final msgs = <String>[];
+      w.onLimitReached = msgs.add;
+      w.syncCapturedRequests(2);
+      expect(msgs, isEmpty);
+      w.syncCapturedRequests(3);
+      expect(msgs.length, 1);
+      expect(msgs.first, contains('请求数上限'));
+      w.syncCapturedRequests(10);
+      expect(msgs.length, 1); // 只提示一次
+    });
+
+    test('二次探索：重访后读日志/枚举 → 清空熔断窗口不触发', () {
+      var now = DateTime(2026, 1, 1, 12);
+      final w = ExploreWorkflow(clock: () => now);
+      w.startExploring(startUrl: 'https://a.com/');
+      final advance = () => now = now.add(const Duration(seconds: 2));
+      String? nav(String url) {
+        advance();
+        return w.recordNavigation(url);
+      }
+
+      // 2 次重访 → 接近阈值
+      expect(nav('https://a.com/page'), isNull);
+      expect(nav('https://a.com/page'), isNull);
+      expect(w.stallDetected, isFalse);
+      // 重访后重新枚举（二次探索）→ 窗口清空
+      w.noteSecondaryExploration();
+      // 再重访 2 次也不触发（窗口已清空）
+      expect(nav('https://a.com/page'), isNull);
+      expect(nav('https://a.com/page'), isNull);
+      expect(w.stallDetected, isFalse);
+    });
+
+    test('二次探索解除已触发的熔断', () {
+      var now = DateTime(2026, 1, 1, 12);
+      final w = ExploreWorkflow(clock: () => now);
+      w.startExploring(startUrl: 'https://a.com/');
+      final advance = () => now = now.add(const Duration(seconds: 2));
+      String? nav(String url) {
+        advance();
+        return w.recordNavigation(url);
+      }
+
+      nav('https://a.com/page');
+      nav('https://a.com/page');
+      nav('https://a.com/page');
+      expect(w.stallDetected, isTrue);
+      w.noteSecondaryExploration();
+      expect(w.stallDetected, isFalse);
+      expect(w.stallMessage, '');
     });
   });
 
