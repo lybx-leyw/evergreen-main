@@ -52,31 +52,35 @@ class ScraperEnvStore {
   }) : envFilePath = envFilePath ?? greenixEnvPath;
 
   /// 读取当前存储的环境变量（文件缺失/损坏 → 空字典，绝不抛异常）。
+  ///
+  /// ⚠️ 必须返回**可变**空字典：调用方（[setVar]）会原地 `all[k] = v`，
+  /// `const {}` 是不可变 map，首次写入（env.json 尚未创建）会抛
+  /// "Cannot modify unmodifiable map"（用户反馈 bug）。
   Map<String, String> load() {
     try {
       final f = File(envFilePath);
-      if (!f.existsSync()) return const {};
+      if (!f.existsSync()) return <String, String>{};
       final map = jsonDecode(f.readAsStringSync());
-      if (map is! Map<String, dynamic>) return const {};
+      if (map is! Map<String, dynamic>) return <String, String>{};
       return map.map((k, v) => MapEntry('$k', '${v ?? ''}'));
     } catch (e) {
       debugPrint('[ScraperEnvStore] ⚠ 读取环境变量存储失败: $e');
-      return const {};
+      return <String, String>{};
     }
   }
 
   /// 写入/更新一个环境变量（持久化到 env.json + 镜像 config.json）。
   ///
-  /// 返回面向 AI 的确认文本（值打码）。
+  /// 返回面向 AI 的确认文本（值打码）；失败返回 `[error: ...]`，绝不抛异常。
   String setVar(String key, String value) {
     final k = key.trim();
     final v = value.trim();
     final err = validateEnvKey(k);
     if (err != null) return '[error: $err]';
 
-    final all = load();
-    all[k] = v;
     try {
+      final all = load();
+      all[k] = v;
       File(envFilePath).parent.createSync(recursive: true);
       File(envFilePath).writeAsStringSync(jsonEncode(all));
     } catch (e) {

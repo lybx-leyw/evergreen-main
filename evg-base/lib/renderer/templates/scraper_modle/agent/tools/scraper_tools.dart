@@ -334,10 +334,15 @@ class SetEnvVarTool extends SimpleTool {
           },
           readOnly: false,
           execute: (args) async {
-            final key = args['key'] as String? ?? '';
-            final value = args['value'] as String? ?? '';
-            if (key.isEmpty) return '[error: key 参数为空]';
-            return envStore.setVar(key, value);
+            try {
+              final key = args['key'] as String? ?? '';
+              final value = args['value'] as String? ?? '';
+              if (key.isEmpty) return '[error: key 参数为空]';
+              return envStore.setVar(key, value);
+            } catch (e) {
+              debugPrint('[SetEnvVar] 💥 $e');
+              return '[error: 写入环境变量失败: $e]';
+            }
           },
         );
 }
