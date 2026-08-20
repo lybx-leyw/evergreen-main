@@ -81,6 +81,8 @@ ConfigHttpServer 的 HTTP 接口；一切凭证读取必须通过 `_get_config(k
 工具: read_request_snapshot()             — 读取用户确认操作完毕后的冻结日志快照（A18：快照冻结后不再更新）
 工具: read_existing_credential(plugin_name)— 检查插件是否已有凭证配置（优先复用，无需重新注册）
 工具: save_credential(key, value)         — 写入/更新凭证到平台配置（仅旧凭证失败后用；key 建议含功能简写如 ZJU_USERNAME）
+工具: set_env_var(key, value)            — 写入/更新环境变量（持久化并注入 Python 子进程；scraper.py 经 os.environ/_get_config 读取）
+工具: list_env_vars()                    — 列出已设置的环境变量 key（值不回显）
 工具: run_python_scraper(code)            — 写入并执行 scraper.py（自动做 JSON 校验；**写代码只能用本工具，没有 write_file**）
 工具: run_terminal_command(command)       — 在终端执行命令（如 pip install；受守卫约束，见下文）
 工具: read_workspace_file(path)           — 读取爬虫工作区文件内容（≤50KB，禁止用 python 读文件）
@@ -296,7 +298,10 @@ if __name__ == '__main__':
 - 若有 Cookie → `save_credential('SCRAPER_COOKIE', '<值>')`
 - 若有 Token → `save_credential('SCRAPER_TOKEN', '<值>')`
 
-**方式 B（备选）**：若 save_credential 不可用或用户偏好环境变量，告知用户在终端设置：
+**方式 B（备选）**：若 save_credential 不可用或用户偏好环境变量，调用
+`set_env_var('SCRAPER_USERNAME', '<值>')` / `set_env_var('SCRAPER_PASSWORD', '<值>')`
+写入环境变量（持久化 .greenix/env.json 并注入 Python 子进程）；或告知用户在
+终端手动设置：
 ```
 set SCRAPER_USERNAME=<值>
 set SCRAPER_PASSWORD=<值>
@@ -460,6 +465,9 @@ const String scraperExploreSkillBody = r'''
 工具: list_captured_requests()      — 读取捕获日志中的全部请求（GET/POST/导航/响应等全量，每条带证据 id: log-N；支持 offset/limit 分页）
 工具: read_request_by_id(id)         — 按证据 id 读单条请求全文（headers/body/responseBody 不截断）
 工具: list_python_capabilities()     — 本机嵌入 Python 实际可用的第三方模块清单（构建前必查）
+工具: set_env_var(key, value)       — 写入/更新环境变量（用户账号密码等凭据；持久化并注入 Python 子进程）
+工具: list_env_vars()               — 列出已设置的环境变量 key（值不回显）
+工具: check_explore_ready()         — 诊断探索环境（WebView 就绪/捕获/Python/阶段）——工具持续报错时先自查环境
 工具: present_data_sources(sources) — 呈现归类候选 → 用户多选（可改名）→ 返回确认结果
                                       （sourceLogId 证据可选，无证据仅提示不阻断）
 工具: verify_login_flow(code)       — 执行「仅登录」片段，验证登录态可复现（构建前必须跑通）
@@ -469,15 +477,27 @@ const String scraperExploreSkillBody = r'''
 工具: read_workspace_file(path)     — 读取工作区文件（≤50KB；禁止用 python 读文件）
 工具: ask(questions)                — 遇到真正属于用户的决策分叉时，结构化多选提问
 工具: guardian_review(...)          — 主动调用独立安全审查子代理自审（只读）
+工具: guard_override(tool_name, reason) — 被工作流门控拦截且确信合理时，请求用户一次性放行
 ```
 
 **全程禁用**（调用会被守卫拦截）：run_terminal_command / save_credential /
 run_python_scraper / export_and_register_scraper / get_request_logs /
 read_request_snapshot / read_existing_credential。
 
-**凭证说明**：探索模式不注册新凭证。构建的 scraper.py 通过锁定模板
-`_get_config(key)` 三级降级读取凭证（本地 .greenix/config.json → ConfigHttpServer →
-环境变量）。若目标接口需要新凭证，请用 ask 工具请用户到设置面板填写。
+**凭证说明**：探索模式不注册新凭证，但**你可以用 `set_env_var(key, value)`
+把用户账号密码等凭据写入环境变量**（先 ask 用户提供值）——写入后持久化到
+`.greenix/env.json` 并自动注入所有 Python 子进程环境变量。构建的 scraper.py
+通过锁定模板 `_get_config(key)` 三级降级读取（本地 .greenix/config.json →
+ConfigHttpServer → 环境变量）。若目标接口需要新凭据：ask 用户提供 →
+`set_env_var('SCRAPER_USERNAME', '<值>')` → `set_env_var('SCRAPER_PASSWORD', '<值>')`。
+
+**错误自检（重要）**：当工具返回 `[error: ...]` 时，先读消息里的「→ 下一步」
+指引对症处理，**不要归咎于工具设计**：
+- 阶段守卫拒绝 → 按消息列出的「当前阶段可用工具」换工具，或按指引推进阶段；
+- 浏览器 JS 通道/页面未就绪 → 先 `check_explore_ready()` 诊断，等页面加载或
+  ask 用户刷新，不要盲目重试同一工具；
+- execute_built_source 返回 JSON 校验失败 → 是你脚本的问题，修正后重建；
+- 同一操作连续 3 轮失败 → 换策略（换接口/合并字段/ask 用户），禁止自循环。
 
 **经验复用（P1-2 · field-journal）**：任务开始前若 system prompt 含
 「本域历史经验」，说明该站点之前被探索过——优先复用其中的认证方式 / 关键流程 /
@@ -497,12 +517,15 @@ read_request_snapshot / read_existing_credential。
 4. **节流**：两次导航间隔 ≥1s，被拒时换链接或稍等重试。
 5. **空转熔断**：连续 3 次导航无新页面触发熔断——重复访问已探索页面会被
    拒绝，请立即切换策略（换新链接 / 结束探索进入归类），禁止对同一页面重试。
-6. **阶段白名单**：工具只能在对应阶段调用——
-   - exploring：explore_page_links / navigate_get / list_captured_requests
+6. **阶段白名单**：工具只能在对应阶段调用（只读/凭据/诊断工具
+   set_env_var / list_env_vars / check_explore_ready / ask / guardian_review
+   等各阶段均可用）——
+   - exploring：explore_page_links / explore_network_resources / navigate_get /
+     list_captured_requests / present_data_sources
    - categorizing/confirming：present_data_sources / verify_login_flow
    - building：build_selected_source / verify_login_flow / execute_built_source
    - registering：register_batch / execute_built_source
-   违反阶段会被拦截，请按流程推进。
+   违反阶段会被拦截，并按消息里的「→ 下一步」指引推进。
 
 ---
 
@@ -563,7 +586,10 @@ read_request_snapshot / read_existing_credential。
 Authorization/Cookie header 判断），在写业务脚本前必须先调用
 `verify_login_flow(code)` 跑通一段「仅登录」代码：
 
-- code 含锁定模板的 `_get_config(key)`（凭证由用户已在设置面板填写）；
+- code 含锁定模板的 `_get_config(key)`；**凭证获取顺序**：
+  1. 先 `list_env_vars()` 看是否已写入账号密码；
+  2. 没有 → `ask` 用户提供 → `set_env_var('SCRAPER_USERNAME', '<值>')` +
+     `set_env_var('SCRAPER_PASSWORD', '<值>')`（自动注入 Python 子进程环境变量）；
 - 依据 stdout/stderr 确认登录成功（无 401/登录失败、session/cookie 建立）；
 - 登录失败 → 分析错误（密码、加密参数、执行参数、CSRF token）并重试；
   连续 3 轮失败 → 用 ask 请用户核对凭证或补充登录方式，不要硬编业务脚本。

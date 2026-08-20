@@ -34,6 +34,7 @@ abstract class PluginRunner {
     Map<String, dynamic>? stdinJson,
     String? workingDirectory,
     String? runtime,
+    Map<String, String>? environment,
   });
 
   Future<Process> startLong(
@@ -73,12 +74,14 @@ class SubprocessRunner implements PluginRunner {
     Map<String, dynamic>? stdinJson,
     String? workingDirectory,
     String? runtime,
+    Map<String, String>? environment,
   }) async {
     final exec = _buildExec(entry, args, runtime);
     final process = await Process.start(
       exec.first,
       exec.skip(1).toList(),
       workingDirectory: workingDirectory,
+      environment: environment,
     );
     if (stdinJson != null) {
       process.stdin.write(jsonEncode(stdinJson));
@@ -148,6 +151,7 @@ class ChaquopyRunner implements PluginRunner {
     Map<String, dynamic>? stdinJson,
     String? workingDirectory,
     String? runtime,
+    Map<String, String>? environment,
   }) async {
     final resp = await _ch.invokeMethod<Map<dynamic, dynamic>>('runScript', {
       'entry': entry,
@@ -155,6 +159,9 @@ class ChaquopyRunner implements PluginRunner {
       'stdinJson': stdinJson,
       'workingDirectory': workingDirectory,
       'runtime': runtime,
+      // 安卓进程内解释器：environment 由原生侧合并（未实现则忽略，
+      // 凭据经 .greenix/config.json 镜像（Tier 1）兜底读取）。
+      'environment': environment,
     });
     final out = (resp?['stdout'] as String?) ?? '';
     final err = (resp?['stderr'] as String?) ?? '';

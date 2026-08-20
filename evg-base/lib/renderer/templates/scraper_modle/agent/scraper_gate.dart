@@ -43,12 +43,25 @@ class ScraperGate extends agent.InteractiveGate {
           // ── Phase 4 探索工具（阶段白名单由 ScraperHooks 依据 ExploreWorkflow 强制；
           //    navigate_get 的 GET-only/同域/节流守卫在工具内；build/register 由 L2 lint + G6 Guardian 管）──
           agent.PermissionRule(toolName: 'explore_page_links', level: agent.PermissionLevel.always),
+          agent.PermissionRule(toolName: 'explore_network_resources', level: agent.PermissionLevel.always),
           agent.PermissionRule(toolName: 'navigate_get', level: agent.PermissionLevel.always),
           agent.PermissionRule(toolName: 'list_captured_requests', level: agent.PermissionLevel.always),
+          agent.PermissionRule(toolName: 'read_request_by_id', level: agent.PermissionLevel.always),
           agent.PermissionRule(toolName: 'list_python_capabilities', level: agent.PermissionLevel.always),
           agent.PermissionRule(toolName: 'present_data_sources', level: agent.PermissionLevel.always),
           agent.PermissionRule(toolName: 'build_selected_source', level: agent.PermissionLevel.always),
           agent.PermissionRule(toolName: 'register_batch', level: agent.PermissionLevel.always),
+          // ⚠️ 修复（用户反馈 bug）：verify_login_flow / execute_built_source 是写工具
+          //（readOnly=false），此前不在规则表 → 被 InteractiveGate 默认「写操作需确认」，
+          // 而 _handlePending 对未知写工具直接返回 false（连弹窗都没有）→ 探索模式
+          // 无法运行/检验真实爬虫返回值，AI 误以为是工具设计问题。
+          agent.PermissionRule(toolName: 'verify_login_flow', level: agent.PermissionLevel.always),
+          agent.PermissionRule(toolName: 'execute_built_source', level: agent.PermissionLevel.always),
+          // 环境变量写入 —— 弹窗确认（值打码）；列出 —— 只读 always
+          agent.PermissionRule(toolName: 'set_env_var', level: agent.PermissionLevel.confirm),
+          agent.PermissionRule(toolName: 'list_env_vars', level: agent.PermissionLevel.always),
+          // 环境诊断 —— 只读 always
+          agent.PermissionRule(toolName: 'check_explore_ready', level: agent.PermissionLevel.always),
         ]) {
     pendingCallback = _handlePending;
   }
@@ -80,6 +93,17 @@ class ScraperGate extends agent.InteractiveGate {
           : '***';
       final approved = await onConfirm?.call(toolName, args,
           '保存凭证: key=$key, value=$masked\n请确认 AI 保存的凭证正确。') ??
+          false;
+      return approved;
+    }
+    if (toolName == 'set_env_var') {
+      final key = args['key'] as String? ?? '';
+      final value = args['value'] as String? ?? '';
+      final masked = value.length > 8
+          ? '${value.substring(0, 4)}…${value.substring(value.length - 4)} (${value.length} chars)'
+          : '***';
+      final approved = await onConfirm?.call(toolName, args,
+          '写入环境变量: $key=$masked\n请确认 AI 写入的账号/密码等凭据正确。') ??
           false;
       return approved;
     }

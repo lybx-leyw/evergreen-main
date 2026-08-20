@@ -286,6 +286,10 @@ const Set<String> _readToolsInExplore = {
   'list_captured_requests',
   'read_request_by_id',
   'list_python_capabilities',
+  // 环境变量读写与诊断（修复：探索模式此前无法写账号密码等凭据）
+  'set_env_var',
+  'list_env_vars',
+  'check_explore_ready',
 };
 
 /// 工具是否允许在探索模式的指定阶段使用（阶段切换白名单）。
@@ -329,17 +333,79 @@ bool exploreToolAllowedForPhase(String toolName, ExplorePhase phase) {
   }
 }
 
-/// 生成探索白名单拒绝消息（回灌 AI）。
+/// 生成探索白名单拒绝消息（回灌 AI）——带「当前阶段可用工具 + 下一步动作」，
+/// 让 AI 能直接按指引推进，而不是归咎于工具设计（用户反馈 bug）。
 String blockedExploreToolMessage(String toolName, ExplorePhase phase) {
+  // 每个阶段允许的工具 + 推荐的下一步动作
+  final (allowed, nextStep) = switch (phase) {
+    ExplorePhase.idle => (
+        <String>[],
+        '请点击「开始探索」或告诉用户点击「开始探索」按钮启动探索。',
+      ),
+    ExplorePhase.exploring => (
+        <String>[
+          'explore_page_links',
+          'explore_network_resources',
+          'navigate_get',
+          'present_data_sources',
+        ],
+        '继续枚举链接/导航（explore_page_links / navigate_get），'
+            '探索完毕后调用 present_data_sources 进入归类。',
+      ),
+    ExplorePhase.categorizing ||
+    ExplorePhase.confirming => (
+        <String>[
+          'present_data_sources',
+          'verify_login_flow',
+          'set_env_var',
+          'list_env_vars',
+        ],
+        '调用 present_data_sources 呈现归类候选；'
+            '需要登录的站点可先 verify_login_flow 验证登录态，'
+            '凭据缺失时用 set_env_var 写入账号密码。',
+      ),
+    ExplorePhase.building => (
+        <String>[
+          'build_selected_source',
+          'execute_built_source',
+          'verify_login_flow',
+          'register_batch',
+        ],
+        '对每个已确认数据源调用 build_selected_source 构建，'
+            '再用 execute_built_source 真实执行验证，全部通过后 register_batch。',
+      ),
+    ExplorePhase.registering => (
+        <String>[
+          'register_batch',
+          'build_selected_source',
+          'execute_built_source',
+        ],
+        '调用 register_batch 批量注册；若有失败项，'
+            '先用 build_selected_source / execute_built_source 修正后重试。',
+      ),
+    ExplorePhase.done ||
+    ExplorePhase.failed => (
+        <String>[
+          'build_selected_source',
+          'execute_built_source',
+          'register_batch',
+          'present_data_sources',
+          'verify_login_flow',
+        ],
+        phase == ExplorePhase.failed
+            ? '探索已失败，可修复重建/重注册（build_selected_source / '
+                'register_batch / present_data_sources），或 ask 用户重新探索。'
+            : '探索已完成，可继续构建/注册新的数据源。',
+      ),
+  };
   return '[error: 探索模式守卫：工具 "$toolName" 在阶段 ${phase.name} 不可用。'
-      '探索模式仅允许 GET-only 探索工具'
-      '（explore_page_links / explore_network_resources / navigate_get / '
-      'list_captured_requests / '
-      'list_python_capabilities / present_data_sources / verify_login_flow / '
-      'build_selected_source / execute_built_source / register_batch）'
-      '与只读工具（ask / guardian_review / read_workspace_file / list_skills）。'
+      '\n当前阶段可用工具：${allowed.isEmpty ? '（无导航/探索类工具）' : allowed.join(' / ')}'
+      '\n→ 下一步：$nextStep'
+      '\n（只读/诊断/凭据工具 ask / guardian_review / read_workspace_file / '
+      'check_explore_ready / guard_override / list_env_vars 在各阶段可用；'
       'run_terminal_command / save_credential / run_python_scraper / '
-      'export_and_register_scraper 在探索模式全程禁用]';
+      'export_and_register_scraper 在探索模式全程禁用；'
+      '若工具持续报错，先调用 check_explore_ready 诊断环境）]';
 }
 
 // ═══════ 探索工作流控制器 ═══════
