@@ -126,8 +126,11 @@ class _PlatformStatusIndicatorState extends State<PlatformStatusIndicator> {
             ),
           ],
         ),
-        content: SizedBox(
-          width: 420,
+        content: ConstrainedBox(
+          // 自适应宽度：宽屏 420 封顶，窄屏（安卓手机 ~360dp 减对话框边距）
+          // 自动收缩，避免固定 420 在窄屏上横向超格；纵向超出时整体可滚动，
+          // 长错误文本 / 多条目不再裁剪。
+          constraints: const BoxConstraints(maxWidth: 420, maxHeight: 420),
           child: _statuses == null
               ? const Padding(
                   padding: EdgeInsets.all(24),
@@ -137,15 +140,18 @@ class _PlatformStatusIndicatorState extends State<PlatformStatusIndicator> {
                         child: CircularProgressIndicator(strokeWidth: 2)),
                   ),
                 )
-              : Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    _summaryStrip(),
-                    const Divider(height: 12),
-                    for (final s in _statuses!) _serviceRow(s),
-                    const SizedBox(height: 8),
-                    _legendRow(),
-                  ],
+              : SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _summaryStrip(),
+                      const Divider(height: 12),
+                      for (final s in _statuses!) _serviceRow(s),
+                      const SizedBox(height: 8),
+                      _legendRow(),
+                    ],
+                  ),
                 ),
         ),
         actions: [
@@ -240,11 +246,16 @@ class _PlatformStatusIndicatorState extends State<PlatformStatusIndicator> {
         _legendDot(Colors.orange, '端口文件异常'),
         const SizedBox(width: 12),
         _legendDot(Colors.red, 'HTTP 不通'),
-        const Spacer(),
-        Text(
-          '端口文件: ${coreApiDiscovery.projectRoot}',
-          style: TextStyle(fontSize: 9, color: scheme.onSurfaceVariant),
-          overflow: TextOverflow.ellipsis,
+        const SizedBox(width: 12),
+        // 端口文件路径可能很长（安卓 app 私有目录）——必须 Expanded 包裹 +
+        // 省略号截断，否则长路径会把整行 Row 撑出容器（横向超格）。
+        Expanded(
+          child: Text(
+            '端口文件: ${coreApiDiscovery.projectRoot}',
+            style: TextStyle(fontSize: 9, color: scheme.onSurfaceVariant),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
+          ),
         ),
       ],
     );
