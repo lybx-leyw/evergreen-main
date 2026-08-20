@@ -13,7 +13,8 @@
 /// - `.core_port`   → CoreHttpServer（8 端点：install、ocr、plugins…）
 ///
 /// ## 设计
-/// - 纯 Dart（仅依赖 dart:io / dart:convert / package:path），可独立单测。
+/// - 依赖面小（dart:io / dart:convert / package:path + greenix_path 的
+///   [androidPluginsDir] 常量，后者为纯字符串拼接，不触发平台通道），可独立单测。
 /// - [findProjectRoot] 复用 `scraper_generator_view._findProjectRoot()` 同款逻辑：
 ///   桌面向上找 `pubspec.yaml`；Android 返回插件目录父级（与 AppBootstrap 一致）。
 /// - [probeHealth] 对已发现端口的服务做 HTTP health 探测（`GET /health` /
@@ -23,6 +24,8 @@ library;
 
 import 'dart:convert';
 import 'dart:io';
+
+import 'package:evergreen_base/core/utils/greenix_path.dart' show androidPluginsDir;
 import 'package:path/path.dart' as p;
 
 /// 6 组 core 服务的统一标识与端口文件名。
@@ -107,9 +110,17 @@ class CoreApiDiscovery {
   ///
   /// 与 `scraper_generator_view._findProjectRoot()` / `AppBootstrap.projectRoot`
   /// 逻辑一致——端口文件由 core 各 HttpServer 写在这里。
+  ///
+  /// ⚠️ Android 关键修复（T1）：进程 CWD 是只读的 `/`，且无 pubspec.yaml。
+  /// 若默认 `pluginsDir` 为字面量 `'plugins'`，`p.dirname('plugins')` 得到 `'.'`
+  /// （即 `/`），`.config_port` 等端口文件永远找不到 → 6 组 core 服务全部误报
+  /// 「未启动」，bridge 的 `platform.api.call` / `data.refresh` / `ai.chat`
+  /// 全部抛「服务未启动（端口文件缺失）」。AppBootstrap 实际把端口文件写在
+  /// `p.dirname(androidPluginsDir)`（应用可写目录下 `.greenix`），此处对齐：
+  /// 默认 pluginsDir 取 [androidPluginsDir]，父级即端口文件所在目录。
   static String findProjectRoot({String? pluginsDir}) {
     if (Platform.isAndroid) {
-      final plugins = pluginsDir ?? 'plugins';
+      final plugins = pluginsDir ?? androidPluginsDir;
       return p.dirname(plugins);
     }
     var dir = Directory.current;

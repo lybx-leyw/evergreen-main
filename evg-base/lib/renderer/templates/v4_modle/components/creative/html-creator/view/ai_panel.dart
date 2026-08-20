@@ -24,6 +24,9 @@ class AiPanel extends StatefulWidget {
   final String? dataPreview;
   final OnAiGenerated? onGenerated;
 
+  /// 当前画布名（绑定态 UI：AI 会话归属哪个画布）。
+  final String? canvasName;
+
   const AiPanel({
     super.key,
     required this.aiService,
@@ -33,6 +36,7 @@ class AiPanel extends StatefulWidget {
     this.selectedDataSource,
     this.dataPreview,
     this.onGenerated,
+    this.canvasName,
   });
 
   @override
@@ -220,11 +224,70 @@ class _AiPanelState extends State<AiPanel> {
           Icon(icon, size: 14, color: status == HtmlAiStatus.thinking ? Colors.deepPurple : null),
           const SizedBox(width: 4),
           Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+          // ── 绑定态：会话归属画布 + 消息数 + 断点续作标记（T1）──
+          const SizedBox(width: 8),
+          _buildBindingBadge(),
           const Spacer(),
           if (status == HtmlAiStatus.thinking || status == HtmlAiStatus.executing)
             TextButton(onPressed: () => widget.aiService.cancel(), child: const Text('取消', style: TextStyle(fontSize: 11))),
           TextButton(onPressed: () { setState(() => _messages.clear()); widget.aiService.reset(); }, child: const Text('重置', style: TextStyle(fontSize: 11))),
         ],
+      ),
+    );
+  }
+
+  /// 当前画布绑定态徽标：画布名 · N 条消息 · 断点续作（若有历史）。
+  Widget _buildBindingBadge() {
+    final theme = Theme.of(context);
+    final name = widget.canvasName;
+    final count = widget.aiService.sessionMessageCount;
+    final resumed = widget.aiService.restoredFromSession;
+    final chips = <Widget>[];
+    if (name != null && name.isNotEmpty) {
+      chips.add(_badgeChip(theme, Icons.palette_outlined, name, tooltip: 'AI 会话绑定画布'));
+    }
+    if (resumed) {
+      chips.add(_badgeChip(theme, Icons.history, '$count 条 · 续作', tooltip: '已恢复该画布历史会话，AI 将断点续作'));
+    } else if (count > 0) {
+      chips.add(_badgeChip(theme, Icons.forum_outlined, '$count 条', tooltip: '当前画布会话消息数'));
+    }
+    if (chips.isEmpty) return const SizedBox.shrink();
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < chips.length; i++) ...[if (i > 0) const SizedBox(width: 4), chips[i]],
+      ],
+    );
+  }
+
+  Widget _badgeChip(ThemeData theme, IconData icon, String text, {required String tooltip}) {
+    final resumed = text.contains('续作');
+    return Tooltip(
+      message: tooltip,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: resumed
+              ? Colors.amber.withValues(alpha: 0.18)
+              : theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 11, color: resumed ? Colors.amber.shade800 : theme.colorScheme.primary),
+            const SizedBox(width: 3),
+            Text(
+              text,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: resumed ? Colors.amber.shade900 : theme.colorScheme.onPrimaryContainer,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -22,6 +22,7 @@ import 'view/editor_panel.dart';
 import 'view/preview_panel.dart';
 import 'view/ai_panel.dart';
 import 'widgets/html_toolbar.dart';
+import 'widgets/html_view_switch.dart';
 import 'services/html_ai_service.dart';
 
 class HtmlCreatorView extends ConsumerStatefulWidget {
@@ -50,11 +51,9 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
   final _jsController = TextEditingController();
   final _idController = TextEditingController();
   final _nameController = TextEditingController();
-  bool _dirty = false;
   String? _selectedDataSource;
 
   String _previewHtml = '';
-  int _previewKey = 0;
   bool _useExportedPreview = false;
   String? _pluginsRoot;
 
@@ -67,6 +66,25 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
   /// 竖版窄屏：当前激活的 Tab（0=数据 1=编辑 2=预览 3=AI）。默认编辑。
   int _narrowTab = 1;
 
+  // ═══════ T2 · 布局重排状态 ═══════
+
+  /// 宽屏布局模式（三栏 / 双栏 / 全宽预览），持久化到 SharedPreferences。
+  HtmlLayoutMode _layoutMode = HtmlLayoutMode.ide;
+
+  /// 数据栏宽度（可拖拽，160~400dp，默认 220）。
+  double _dataPanelWidth = 220;
+
+  /// 编辑器占（编辑+预览）合计宽度的比例（可拖拽，0.3~0.7，默认 0.5）。
+  double _editorRatio = 0.5;
+
+  /// PreviewPanel 全局保活 key：跨布局模式/宽窄屏切换不销毁 WebView。
+  /// 强制刷新预览时换新 key（销毁旧 State → 重建加载）。
+  GlobalKey _previewGlobalKey = GlobalKey();
+
+  /// EditorPanel / DataPanel 保活 key（保留编辑 tab 与数据缓存）。
+  final GlobalKey _editorGlobalKey = GlobalKey();
+  final GlobalKey _dataPanelGlobalKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -78,6 +96,17 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
     _pluginsRoot = (() { try { return ref.read(pluginsDirProvider); } catch (_) { return 'plugins/'; } })();
 
     _initAiService(orch);
+
+    // T2：恢复布局偏好（模式 / 分栏比例），SharedPreferences 全局持久化
+    try {
+      final prefs = ref.read(sharedPreferencesProvider);
+      final mode = HtmlLayoutMode.values.asNameMap()[prefs.getString('html_creator_layout_mode')];
+      if (mode != null) _layoutMode = mode;
+      _dataPanelWidth = (prefs.getDouble('html_creator_data_width') ?? 220).clamp(160, 400).toDouble();
+      _editorRatio = (prefs.getDouble('html_creator_editor_ratio') ?? 0.5).clamp(0.3, 0.7).toDouble();
+    } catch (_) {
+      // 偏好读取失败不阻塞启动
+    }
 
     _canvases = _canvasMgr.listCanvases();
     if (_canvases.isNotEmpty) {
@@ -105,11 +134,15 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
       workspaceDir: wsDir,
       pluginsDir: _pluginsRoot!,
     );
+    // T1：会话文件并入画布目录（canvases/{id}/session.json），
+    // 生命周期随画布——删除画布即删除会话，不留孤儿文件。
+    _aiService.resolveSessionsPath = canvasSessionsPath;
     _aiService.onFileChanged = _syncFilesFromWorkspace;
     _aiService.onPluginExported = (pluginId) {
       setState(() {
         _useExportedPreview = true;
-        _previewKey++;
+        // 换新 GlobalKey → 销毁旧 PreviewPanel State → 重载最新导出
+        _previewGlobalKey = GlobalKey();
       });
     };
     // 画布 ↔ 插件 ID 绑定：首次导出确定后强制复用，避免重复导出生成多个插件
@@ -167,7 +200,6 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
 
     setState(() {
       _previewHtml = html;
-      _dirty = true;
       _project.htmlContent = html;
     });
   }
@@ -199,11 +231,25 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
   /// 加载画布。
   void _loadCanvas(String canvasId) {
     _saveCanvasToDisk(); // 先保存当前画布
-    _aiService.switchCanvas(canvasId); // 切换 AI 会话持久化
+    _aiService.switchCanvas(canvasId); // 切换 AI 会话持久化（绑定随板走）
 
     final data = _canvasMgr.loadCanvas(canvasId);
     if (data != null) {
       _applyCanvasData(data);
+      // T1：切板提示——画布名 + 会话恢复态（断点续作 / 新会话）
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final resumed = _aiService.restoredFromSession;
+        final count = _aiService.sessionMessageCount;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(
+            resumed
+                ? '已切换到画布「${data.meta.name}」，恢复历史会话 $count 条'
+                : '已切换到画布「${data.meta.name}」（新会话）',
+          ),
+          duration: const Duration(seconds: 1),
+        ));
+      });
     }
   }
 
@@ -222,9 +268,7 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
       navSection: _project.navSection,
     );
     if (notify) {
-      setState(() => _dirty = false);
-    } else {
-      _dirty = false;
+      setState(() {});
     }
     if (!silent && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -256,7 +300,8 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
         _registerToSidebar();
         setState(() {
           _useExportedPreview = true;
-          _previewKey++;
+          // 换新 GlobalKey → 强制重载预览（加载最新导出产物）
+          _previewGlobalKey = GlobalKey();
         });
       }
     }
@@ -345,6 +390,8 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
   void _applyCanvasData(CanvasData data) {
     _currentCanvasId = data.meta.id;
     _nameController.text = data.meta.name;
+    // T1：恢复画布绑定的数据源（切板后 AI 上下文/数据面板随板恢复）
+    _selectedDataSource = data.meta.selectedDataSource;
     // 画布已绑定插件 ID 时复用绑定值，否则由画布名派生
     _idController.text = data.meta.pluginId ?? _sanitizeId(data.meta.name);
     _htmlController.text = data.htmlContent;
@@ -356,7 +403,6 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
       htmlContent: data.htmlContent,
       navSection: data.meta.navSection,
     );
-    _dirty = false;
     _useExportedPreview = false;
     _rebuildPreview();
   }
@@ -372,6 +418,9 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
 
   void _loadDataIntoEditor(String sourceName) {
     _selectedDataSource = sourceName;
+    // T1：绑定随板走——写入画布 meta.json，切板/重启后自动恢复
+    final cid = _currentCanvasId;
+    if (cid != null) _canvasMgr.bindDataSource(cid, sourceName);
     final current = _htmlController.text;
     if (current.contains('REPLACE_WITH_SOURCE_NAME')) {
       _htmlController.text = current.replaceAll('REPLACE_WITH_SOURCE_NAME', sourceName);
@@ -474,10 +523,13 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
               if (!isWide) setState(() => _narrowTab = 3);
             },
           ),
+          // T2：宽屏布局模式切换（三栏 / 双栏 / 全宽预览，仿 scraper 视图切换）
+          if (isWide)
+            HtmlViewSwitch(current: _layoutMode, onChanged: _setLayoutMode),
           Expanded(
             child: isWide ? _buildWideBody() : _buildNarrowBody(),
           ),
-          // 宽屏：底部 AI 面板 + 评判栏（窄屏已内置于 Tab 路线）
+          // 宽屏：底部 AI 面板 + 评判栏（窄屏已内置于 Tab 路线/评判分屏）
           if (isWide) ...[
             if (_reviewCompleter != null)
               _ReviewBar(
@@ -493,6 +545,7 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
                 jsContent: _jsController.text,
                 selectedDataSource: _selectedDataSource,
                 onGenerated: _onAiGenerated,
+                canvasName: _currentCanvasName,
               ),
             ),
           ],
@@ -501,45 +554,146 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
     );
   }
 
+  // ═══════ T2 · 布局模式与分栏 ═══════
+
+  /// 当前画布元数据（画布列表快照中匹配当前 ID）。
+  CanvasMeta? get _currentCanvasMeta =>
+      _canvases.where((c) => c.id == _currentCanvasId).firstOrNull;
+
+  /// 当前画布名（AI 面板绑定态徽标用）。
+  String? get _currentCanvasName => _currentCanvasMeta?.name;
+
+  /// 切换宽屏布局模式并持久化。
+  void _setLayoutMode(HtmlLayoutMode mode) {
+    if (mode == _layoutMode) return;
+    setState(() => _layoutMode = mode);
+    try {
+      ref.read(sharedPreferencesProvider).setString('html_creator_layout_mode', mode.name);
+    } catch (_) {}
+  }
+
+  /// 分栏比例持久化（拖拽结束后调用）。
+  void _persistLayoutPrefs() {
+    try {
+      final prefs = ref.read(sharedPreferencesProvider);
+      prefs.setDouble('html_creator_data_width', _dataPanelWidth);
+      prefs.setDouble('html_creator_editor_ratio', _editorRatio);
+    } catch (_) {}
+  }
+
   /// 宽屏（≥700dp）：数据 / 编辑 / 预览 三栏 IDE 布局。
   Widget _buildWideBody() {
-    return Row(
-      children: [
-        SizedBox(
-          width: 220,
-          child: DataPanel(
-            dataService: _dataService,
-            onSelectSource: _loadDataIntoEditor,
-          ),
-        ),
-        const VerticalDivider(width: 1),
-        Expanded(
-          flex: 2,
-          child: EditorPanel(
-            htmlController: _htmlController,
-            cssController: _cssController,
-            jsController: _jsController,
-            onChanged: _rebuildPreview,
-          ),
-        ),
-        const VerticalDivider(width: 1),
-        Expanded(
-          flex: 2,
-          child: PreviewPanel(
-            key: ValueKey('preview_$_previewKey'),
-            htmlContent: _previewHtml,
-            pluginId: _useExportedPreview ? _project.pluginId : null,
-            pluginsDir: _useExportedPreview ? _pluginsRoot : null,
-          ),
-        ),
-      ],
+    final data = DataPanel(
+      key: _dataPanelGlobalKey,
+      dataService: _dataService,
+      onSelectSource: _loadDataIntoEditor,
+      selectedSource: _selectedDataSource,
     );
+    final editor = EditorPanel(
+      key: _editorGlobalKey,
+      htmlController: _htmlController,
+      cssController: _cssController,
+      jsController: _jsController,
+      onChanged: _rebuildPreview,
+    );
+    final preview = PreviewPanel(
+      key: _previewGlobalKey,
+      htmlContent: _previewHtml,
+      pluginId: _useExportedPreview ? _project.pluginId : null,
+      pluginsDir: _useExportedPreview ? _pluginsRoot : null,
+    );
+
+    return LayoutBuilder(builder: (ctx, constraints) {
+      final totalW = constraints.maxWidth;
+      final editorFlex = (_editorRatio * 100).round().clamp(1, 99).toInt();
+      final previewFlex = ((1 - _editorRatio) * 100).round().clamp(1, 99).toInt();
+
+      // 可拖拽分隔条（调整相邻栏比例）
+      Widget divider(void Function(double dx) onDrag) => GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            onHorizontalDragUpdate: (d) => onDrag(d.delta.dx),
+            onHorizontalDragEnd: (_) => _persistLayoutPrefs(),
+            child: MouseRegion(
+              cursor: SystemMouseCursors.resizeColumn,
+              child: Container(
+                width: 8,
+                color: Colors.transparent,
+                child: Center(
+                  child: Container(
+                    width: 1,
+                    height: double.infinity,
+                    color: Theme.of(ctx).dividerColor,
+                  ),
+                ),
+              ),
+            ),
+          );
+
+      switch (_layoutMode) {
+        case HtmlLayoutMode.ide:
+          return Row(children: [
+            SizedBox(width: _dataPanelWidth, child: data),
+            divider((dx) => setState(() {
+              _dataPanelWidth = (_dataPanelWidth + dx).clamp(160, 400).toDouble();
+            })),
+            Expanded(flex: editorFlex, child: editor),
+            divider((dx) => setState(() {
+              _editorRatio = (_editorRatio + dx / totalW).clamp(0.3, 0.7).toDouble();
+            })),
+            Expanded(flex: previewFlex, child: preview),
+          ]);
+        case HtmlLayoutMode.split:
+          return Row(children: [
+            Expanded(flex: editorFlex, child: editor),
+            divider((dx) => setState(() {
+              _editorRatio = (_editorRatio + dx / totalW).clamp(0.3, 0.7).toDouble();
+            })),
+            Expanded(flex: previewFlex, child: preview),
+          ]);
+        case HtmlLayoutMode.preview:
+          return preview;
+      }
+    });
   }
 
   /// 窄屏（<700dp）：数据 / 编辑 / 预览 / AI 单栏 Tab 切换。
   /// IndexedStack 保活：切换不销毁面板——预览 WebView 不重载、
   /// 编辑器光标/内容保留、AI 会话保留。
+  ///
+  /// T2 增强：AI 评判中（_reviewCompleter != null）自动切为上下分屏——
+  /// 上预览、下评判栏 + AI 面板，修复「评判栏提示看右侧预览但窄屏看不到」
+  /// 的体验断点。
   Widget _buildNarrowBody() {
+    if (_reviewCompleter != null) {
+      return Column(children: [
+        Expanded(
+          flex: 3,
+          child: PreviewPanel(
+            key: _previewGlobalKey,
+            htmlContent: _previewHtml,
+            pluginId: _useExportedPreview ? _project.pluginId : null,
+            pluginsDir: _useExportedPreview ? _pluginsRoot : null,
+          ),
+        ),
+        _ReviewBar(
+          previewHint: '上方预览',
+          onSubmit: _submitReview,
+          onSkip: () => _submitReview(true, ''),
+        ),
+        SizedBox(
+          height: 200,
+          child: AiPanel(
+            aiService: _aiService,
+            htmlContent: _htmlController.text,
+            cssContent: _cssController.text,
+            jsContent: _jsController.text,
+            selectedDataSource: _selectedDataSource,
+            onGenerated: _onAiGenerated,
+            canvasName: _currentCanvasName,
+          ),
+        ),
+      ]);
+    }
     return Column(
       children: [
         _buildNarrowTabBar(),
@@ -548,17 +702,20 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
             index: _narrowTab,
             children: [
               DataPanel(
+                key: _dataPanelGlobalKey,
                 dataService: _dataService,
                 onSelectSource: _loadDataIntoEditor,
+                selectedSource: _selectedDataSource,
               ),
               EditorPanel(
+                key: _editorGlobalKey,
                 htmlController: _htmlController,
                 cssController: _cssController,
                 jsController: _jsController,
                 onChanged: _rebuildPreview,
               ),
               PreviewPanel(
-                key: ValueKey('preview_$_previewKey'),
+                key: _previewGlobalKey,
                 htmlContent: _previewHtml,
                 pluginId: _useExportedPreview ? _project.pluginId : null,
                 pluginsDir: _useExportedPreview ? _pluginsRoot : null,
@@ -570,16 +727,11 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
                 jsContent: _jsController.text,
                 selectedDataSource: _selectedDataSource,
                 onGenerated: _onAiGenerated,
+                canvasName: _currentCanvasName,
               ),
             ],
           ),
         ),
-        // 评判栏（AI 调用 view_html_result 时显示）
-        if (_reviewCompleter != null)
-          _ReviewBar(
-            onSubmit: _submitReview,
-            onSkip: () => _submitReview(true, ''),
-          ),
       ],
     );
   }
@@ -650,7 +802,15 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
 class _ReviewBar extends StatefulWidget {
   final void Function(bool pass, String reason) onSubmit;
   final VoidCallback onSkip;
-  const _ReviewBar({required this.onSubmit, required this.onSkip});
+
+  /// 预览位置提示（宽屏「右侧预览」/ 窄屏评判分屏「上方预览」）。
+  final String previewHint;
+
+  const _ReviewBar({
+    required this.onSubmit,
+    required this.onSkip,
+    this.previewHint = '右侧预览',
+  });
 
   @override
   State<_ReviewBar> createState() => _ReviewBarState();
@@ -677,9 +837,9 @@ class _ReviewBarState extends State<_ReviewBar> {
         children: [
           const Icon(Icons.visibility, size: 16, color: Colors.amber),
           const SizedBox(width: 8),
-          const Expanded(
-            child: Text('👀 请查看右侧预览面板的渲染效果，然后评判是否通过',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+          Expanded(
+            child: Text('👀 请查看${widget.previewHint}的渲染效果，然后评判是否通过',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
           ),
           const SizedBox(width: 8),
           SizedBox(

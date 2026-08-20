@@ -23,12 +23,12 @@ import 'package:evergreen_base/core/agent/controller/controller.dart';
 import 'package:evergreen_base/core/agent/provider.dart';
 import 'package:evergreen_base/core/agent/skill/skill.dart';
 import 'package:evergreen_base/core/agent/memory/file_memory_store.dart';
-import 'package:evergreen_base/core/agent/tool.dart';
 import 'package:evergreen_base/core/data/data.dart';
 import 'package:evergreen_base/providers.dart';
-import 'package:evergreen_base/core/log.dart';
 import 'package:evergreen_base/renderer/app/service/theme/render_tokens.dart';
 import 'html_creator_tools.dart';
+import 'html_creator_hooks.dart';
+import 'html_creator_skill_const.dart' show htmlCreatorSkillBody;
 
 /// 数据源格式快照中每个字段值的最大字符截断长度。
 const _kValueMaxLen = 80;
@@ -125,6 +125,22 @@ class HtmlAiService extends ChangeNotifier {
   String? _canvasId;
   String? get canvasId => _canvasId;
 
+  /// 会话文件路径解析回调（由 UI 层注入）。
+  ///
+  /// 返回给定画布的会话文件路径。缺省时回退到旧布局
+  /// `{workspaceDir}/{canvasId}_sessions.json`（editor 目录，历史版本遗留）。
+  /// 新版由视图层指向画布目录 `canvases/{id}/session.json`——
+  /// 会话随画布生命周期，删画布即删会话，不再产生孤儿文件。
+  String Function(String canvasId)? resolveSessionsPath;
+
+  /// 上次恢复的会话消息数（绑定态 UI 用；0 = 无历史/新会话）。
+  int _sessionMessageCount = 0;
+  int get sessionMessageCount => _sessionMessageCount;
+
+  /// 当前画布会话是否从历史恢复（断点续作标记，绑定态 UI 用）。
+  bool _restoredFromSession = false;
+  bool get restoredFromSession => _restoredFromSession;
+
   /// UI 消息列表快照（用于恢复 UI 显示，AiPanel 通过此字段读写）。
   List<Map<String, dynamic>>? uiMessages;
 
@@ -196,6 +212,24 @@ class HtmlAiService extends ChangeNotifier {
     return buf.toString();
   }
 
+  /// 读取指定数据源当前值（read_data_source 工具回调；截断输出）。
+  Future<String> _readDataSourceForAgent(String name) async {
+    final dt = _orch.typeByName(name);
+    if (dt == null) {
+      return '[error: 数据源 $name 未注册（先用 list_data_sources 确认名称）]';
+    }
+    try {
+      final data = await _orch.fastRead(dt) ?? await _orch.get(dt);
+      if (data == null) {
+        return '数据源 $name 暂无缓存数据（可通过 platform.data.refresh 强制拉取）';
+      }
+      return '数据源 $name 当前值（截断）:\n```json\n'
+          '${_truncate(_formatDataValue(data), _kSourceMaxChars)}\n```';
+    } catch (e) {
+      return '[error: 读取数据源 $name 失败: $e]';
+    }
+  }
+
   /// 当前全局主题快照（注入 Agent 提示词）。
   String _buildThemeSnapshot() {
     final c = _themeColors();
@@ -265,6 +299,9 @@ class HtmlAiService extends ChangeNotifier {
         onBound: bindCanvasPluginId,
         resolveNavSection: resolveNavSection,
         themeColors: _themeColors,
+        // T3：平台底层能力取数（数据中枢快照 + 单源读取）
+        dataSourcesSnapshot: _buildDataSourcesSnapshot,
+        readDataSource: _readDataSourceForAgent,
       );
 
       _assembly = AgentAssembly.fromConfig(
@@ -280,6 +317,7 @@ class HtmlAiService extends ChangeNotifier {
         globalSkillIndex: skillIdx,
         globalMemoryStore: memStore,
         seedTools: seedTools,     // ← 关键：注入专用工具
+        hooks: const HtmlCreatorHooks(), // T3-P3D：preToolUse 守卫
       );
 
       _assembly!.controller.setSystemPrompt(_systemPrompt);
@@ -297,7 +335,46 @@ class HtmlAiService extends ChangeNotifier {
 
   // ═══════ 画布级别会话持久化 ═══════
 
-  String get _sessionsPath => p.join(_workspaceDir, '${_canvasId ?? 'default'}_sessions.json');
+  /// 当前画布会话文件路径。
+  ///
+  /// 优先走 UI 层注入的 [resolveSessionsPath]（新版：画布目录内 session.json，
+  /// 随画布生命周期）；未注入时回退旧布局 `{workspaceDir}/{id}_sessions.json`。
+  String get _sessionsPath {
+    final cid = _canvasId;
+    if (cid != null && resolveSessionsPath != null) {
+      return resolveSessionsPath!(cid);
+    }
+    return p.join(_workspaceDir, '${_canvasId ?? 'default'}_sessions.json');
+  }
+
+  /// 旧布局会话文件路径（历史版本存在 editor 目录，T1 迁移用）。
+  String _legacySessionsPath(String canvasId) =>
+      p.join(_workspaceDir, '${canvasId}_sessions.json');
+
+  /// 迁移旧布局会话文件到画布目录（一次性；旧文件存在而新文件缺失时复制）。
+  ///
+  /// 历史版本把会话存在 `{workspaceDir}/{canvasId}_sessions.json`，
+  /// 删除画布时只删 canvas 目录 → 遗留孤儿会话文件。T1 后会话并入画布目录，
+  /// 此迁移保证老用户升级后历史会话不丢、且后续删除画布能一并清理。
+  void _migrateLegacySession(String canvasId) {
+    if (resolveSessionsPath == null) return;
+    final legacy = File(_legacySessionsPath(canvasId));
+    if (!legacy.existsSync()) return;
+    try {
+      final target = File(resolveSessionsPath!(canvasId));
+      if (target.existsSync()) {
+        // 新文件已存在：旧文件纯属孤儿，直接删除
+        legacy.deleteSync();
+        return;
+      }
+      Directory(p.dirname(target.path)).createSync(recursive: true);
+      legacy.copySync(target.path);
+      legacy.deleteSync();
+      debugPrint('[HtmlAiService] 📦 迁移旧会话 → 画布目录: $canvasId');
+    } catch (e) {
+      debugPrint('[HtmlAiService] ⚠ 迁移旧会话失败: $e');
+    }
+  }
 
   /// 保存当前会话到画布文件。
   void _saveCanvasSession() {
@@ -305,6 +382,7 @@ class HtmlAiService extends ChangeNotifier {
     try {
       final sessionJson = _assembly!.session.toJson();
       final file = File(_sessionsPath);
+      if (!file.parent.existsSync()) file.parent.createSync(recursive: true);
       file.writeAsStringSync(jsonEncode({
         'canvasId': _canvasId,
         'updatedAt': DateTime.now().toIso8601String(),
@@ -319,6 +397,8 @@ class HtmlAiService extends ChangeNotifier {
   /// 从画布文件恢复历史会话。
   void _restoreCanvasSession() {
     if (_canvasId == null || _assembly == null) return;
+    // T1：老用户历史会话从 editor 目录迁入画布目录
+    _migrateLegacySession(_canvasId!);
     try {
       final file = File(_sessionsPath);
       if (!file.existsSync()) return;
@@ -344,6 +424,9 @@ class HtmlAiService extends ChangeNotifier {
           ?.map((e) => e as Map<String, dynamic>)
           .toList();
 
+      _sessionMessageCount = restored.messages.length;
+      _restoredFromSession = _sessionMessageCount > 0;
+
       debugPrint('[HtmlAiService] 📂 恢复画布会话: $_canvasId (${restored.messages.length} 条消息)');
     } catch (e) {
       debugPrint('[HtmlAiService] ⚠ 恢复会话失败: $e');
@@ -355,15 +438,16 @@ class HtmlAiService extends ChangeNotifier {
     _saveCanvasSession(); // 保存当前
     _canvasId = newCanvasId;
     uiMessages = null;
+    _sessionMessageCount = 0;
+    _restoredFromSession = false;
     _accumulatedText = '';
     _accumulatedReasoning = '';
 
-    // 重建 Agent（新画布 = 新会话）
+    // 重建 Agent（新画布 = 新会话）；_ensureAgent 内部会恢复该画布会话
     _sub?.cancel(); _sub = null;
     _assembly?.dispose(); _assembly = null;
 
     await _ensureAgent();
-    _restoreCanvasSession();
   }
 
   /// 初始化工作区默认文件。
@@ -484,6 +568,8 @@ class HtmlAiService extends ChangeNotifier {
 
   // ═══════ System Prompt ═══════
 
+  /// 基础 Agent 提示词（职责 + 工具 + 工作流 + 设计原则），
+  /// 末尾追加 [htmlCreatorSkillBody]（T3-P3B 专业 UI skill）。
   String get _systemPrompt => '''
 你是 Evergreen 平台的 HTML 插件创作 Agent。你拥有文件系统操作能力和视觉评判能力。
 
@@ -493,15 +579,26 @@ class HtmlAiService extends ChangeNotifier {
 - **get_theme_colors()** — 获取当前全局主题色板（hex 值与 --evg-* CSS 变量对照）
 - **view_html_result(aspect)** — 提交当前渲染结果进行视觉评判
 - **export_html_plugin(plugin_id, plugin_name)** — 导出为 Evergreen 插件
+- **platform_api_call(service, path, {method, body})** — 通用 core 服务 HTTP 转发（agent/config/data/module/theme/core 6 组服务端口自动发现）
+- **get_config_value(key)** — 读取平台配置项（ConfigHttpServer）
+- **save_credential(key, value)** — 写入凭证/配置到平台（ConfigHttpServer）
+- **list_data_sources()** — 列出数据中枢全部数据源（名称/状态/格式快照）
+- **read_data_source(name)** — 读取指定数据源当前值（截断 JSON）
+- **check_ui_quality(aspect)** — 静态 UI 质量自检（主题 token / 结构 / 溢出风险），view_html_result 前必须调用
 
 ## 工作流程（必须严格遵守）
 1. 先用 read_html_file 读取当前文件内容
 2. 根据用户需求和数据源格式，用 write_html_file 写入/修改文件
-3. **立即调用 view_html_result 进行视觉评判**
-   - 若返回 PASS → 进入步骤 4
+3. **立即调用 check_ui_quality 自检**
+   - 若 FAIL → 按行号修复，回到步骤 2
+   - 若 PASS → 进入步骤 4
+4. **调用 view_html_result 进行视觉评判**
+   - 若返回 PASS → 进入步骤 5
    - 若返回 FAIL（附带原因）→ 根据原因修改代码，回到步骤 2
    - 最多重试 5 轮，5 轮仍未 PASS 则告知用户当前状态
-4. 全部 PASS 后，调用 export_html_plugin 导出插件
+5. 全部 PASS 后，调用 export_html_plugin 导出插件
+   （需要平台配置/凭证先 get_config_value / save_credential；
+    需要取数先 list_data_sources / read_data_source）
 
 ## 文件约定
 - index.html — HTML 结构（不含 <style>/<script>，由系统自动注入 CSS/JS）
@@ -517,6 +614,10 @@ class HtmlAiService extends ChangeNotifier {
 - 禁止：3列等宽卡、假数据(99.99%)、空洞词(Elevate/Seamless)、紫色按钮发光
 - 交互：骨架屏 Loading、美观空状态、内联错误提示
 - 数据：用真实字段名，列表→card网格，单对象→详情面板
+
+---
+
+$htmlCreatorSkillBody
 ''';
 
   // ═══════ 默认模板 ═══════
