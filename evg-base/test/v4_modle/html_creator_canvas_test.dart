@@ -14,6 +14,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 import 'package:evergreen_base/renderer/templates/v4_modle/components/creative/html-creator/services/canvas_manager.dart';
 
 void main() {
@@ -68,12 +69,15 @@ void main() {
   group('会话文件路径', () {
     test('旧布局会话路径并入画布目录 canvases/{id}/session.json', () {
       final path = canvasSessionsPath('canvas_abc');
-      expect(path, contains('canvases/canvas_abc/session.json'));
+      expect(path, contains(p.join('canvases', 'canvas_abc', 'session.json')));
     });
 
     test('I1 实例会话路径按实例隔离 canvases/{id}/instances/{iid}/session.json', () {
       final path = instanceSessionsPath('canvas_abc', 'instance_1');
-      expect(path, contains('canvases/canvas_abc/instances/instance_1/session.json'));
+      expect(
+        path,
+        contains(p.join('canvases', 'canvas_abc', 'instances', 'instance_1', 'session.json')),
+      );
     });
   });
 
