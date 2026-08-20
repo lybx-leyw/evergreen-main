@@ -248,9 +248,12 @@ evg-base/lib/core/agent/
 
 ## 9. 当前状态
 
-- [x] P0：基线盘点 + 本计划 + CSV 追踪表
-- [ ] P1：叶子基础包
-- [ ] P2：Provider / Tool / 执行安全
+> 进度追踪以磁盘为准：`PROGRESS.md`（进度日志）+ `MIGRATION_MATRIX.csv`（逐文件状态）。
+> 每次推进必须同步更新两处，并在提交信息中引用进度计数。
+
+- [x] P0：基线盘点 + 本计划 + CSV 追踪表（PR #51）
+- [x] P1：叶子基础包 — 已完成（13 个包 65 行 done；含 event/eventwire/stats/trajectory 与杂项测试）
+- [~] P2：Provider / Tool / 执行安全 — 进行中（sysproxy/secrets/shellparse/netclient 已完成，77/2086 done）
 - [ ] P3：上下文知识层
 - [ ] P4：事实合约与证据内核
 - [ ] P5：Agent Runtime 主循环

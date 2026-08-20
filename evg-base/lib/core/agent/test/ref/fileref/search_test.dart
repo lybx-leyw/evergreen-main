@@ -10,7 +10,8 @@ void main() {
     try {
       Directory(p.join(tmp.path, 'src')).createSync();
       File(p.join(tmp.path, 'src', 'plan.dart')).writeAsStringSync('');
-      File(p.join(tmp.path, 'node_modules', 'x.js')).createSync(recursive: true);
+      File(p.join(tmp.path, 'node_modules', 'x.js'))
+          .createSync(recursive: true);
       final hits = fileref.search(tmp.path, 'plan', 10);
       expect(hits.map((h) => h.path), contains('src/plan.dart'));
       expect(hits.map((h) => h.path), isNot(contains('node_modules/x.js')));

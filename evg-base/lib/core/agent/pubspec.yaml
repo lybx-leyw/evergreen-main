@@ -8,6 +8,7 @@ dependencies:
   characters: ^1.3.0
   dio:
     path: lib/dio_stub
+  glob: ^2.1.2
   path: ^1.8.0
   uuid:
     path: lib/uuid_stub

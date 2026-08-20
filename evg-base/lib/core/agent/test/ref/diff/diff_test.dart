@@ -41,8 +41,12 @@ void main() {
     final old = '1\n2\n3\n4\n5\n';
     final neu = '1\n2\nThree\n4\n5\n';
     final c = diff.buildWithOptions(
-        'm.txt', old, neu, diff.Kind.modify,
-        const diff.BuildOptions(contextLines: 0, mode: diff.OutputMode.preview));
+        'm.txt',
+        old,
+        neu,
+        diff.Kind.modify,
+        const diff.BuildOptions(
+            contextLines: 0, mode: diff.OutputMode.preview));
     expect(c.mode, 'preview');
     expect(c.diff, contains('--- before/m.txt'));
     expect(c.diff, contains('+++ after/m.txt'));
@@ -53,7 +57,10 @@ void main() {
 
   test('custom labels', () {
     final c = diff.buildWithOptions(
-        'x.txt', 'old\n', 'new\n', diff.Kind.modify,
+        'x.txt',
+        'old\n',
+        'new\n',
+        diff.Kind.modify,
         const diff.BuildOptions(
             contextLines: 1, oldLabel: 'left', newLabel: 'right'));
     expect(c.diff, contains('--- left'));
@@ -97,7 +104,8 @@ void main() {
   });
 
   test('minimal edit script', () {
-    final c = diff.build('min.txt', 'x\nx\nx\n', 'x\nx\ny\nx\n', diff.Kind.modify);
+    final c =
+        diff.build('min.txt', 'x\nx\nx\n', 'x\nx\ny\nx\n', diff.Kind.modify);
     expect(c.added, 1);
     expect(c.removed, 0);
   });

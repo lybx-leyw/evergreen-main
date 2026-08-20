@@ -23,6 +23,12 @@ analyzer:
     # 嵌套子包质量门禁：cd <子包> && dart analyze / flutter test。
     - "lib/core/**"
     - "lib/renderer/**"
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
 
 linter:
   rules:
