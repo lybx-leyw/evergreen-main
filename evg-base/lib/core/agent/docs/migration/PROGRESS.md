@@ -11,7 +11,7 @@
 | 指标 | 值 |
 | --- | --- |
 | 目标 | `.reasonix-ref/internal` 93 包 / 2,086 个 Go 文件全量移植到 `evg-base/lib/core/agent` |
-| 当前 CSV 状态 | `done 65 / pending 2021`（更新于 2026-08-20） |
+| 当前 CSV 状态 | `done 69 / pending 2017`（更新于 2026-08-20） |
 | 当前分支 | `feat/reasonix-agent-full-migration-plan` |
 | 关联 PR | #51（计划 + CSV 基线） |
 | 用户约定 | 移植期间**不运行** `dart analyze` / `dart test`；全部 Phase 完成后统一 debug |
@@ -22,7 +22,8 @@
 | --- | --- | --- |
 | P0 | ✅ done | PLAN.md + MIGRATION_MATRIX.csv + GENERATE_MATRIX.sh（PR #51） |
 | P1 | ✅ done | 叶子基础包 13 个包全部移植（含 event/eventwire/stats/trajectory 与杂项测试），65/2086 done |
-| P2–P12 | ⏳ pending | 见 PLAN.md 第 5 节 |
+| P2 | 🔄 in_progress | 执行安全/Provider/Tool 批次：sysproxy 已完成，继续按依赖推进 |
+| P3–P12 | ⏳ pending | 见 PLAN.md 第 5 节 |
 
 ## 三、已提交批次明细
 
@@ -41,15 +42,17 @@
 - 测试：`test/ref/{event,eventwire,stats,trajectory}/`
 - 补齐杂项：`frontmatter/list_test`、`fileref/skip_test`、`diff/diff_extra_test`、`diff/largediff_test`
 
+### P2-a：sysproxy（本次提交，69/2086 → done）
+- 包：`sysproxy`（sysproxy.go + system_other.go + system_windows.go + 测试）
+- 镜像：`ref/sysproxy/`；测试：`test/ref/sysproxy/`
+- Windows WinHTTP 绑定当前为适配器占位，CSV 备注标记 `platform-adapter`
+
 ## 四、进行中 / 下一步
 
-### 当前批次：P1 已完成
-- event：14 行全部 done（11 个实现 + 3 个测试）
-- eventwire：6 行全部 done（wire/approval/receipt + 3 个测试；approval/receipt 与 wire.dart 合并实现，以 re-export 保留文件映射）
-- stats：6 行全部 done（4 个实现 + 2 个测试）
-- trajectory：2 行全部 done（recorder + 测试）
-- 杂项测试：`frontmatter/list_test.go`、`fileref/skip_test.go`、`diff/diff_extra_test.go`、`diff/largediff_test.go` 已补
-- 依赖 stub：`ref/{billing,provider,evidence,usagecatalog}` 随用随补，CSV 中对应正式批次仍为 pending
+### 当前批次：P2 已启动
+- sysproxy：4 行 done（纯解析 + 非 Windows 适配 + Windows 适配器占位）
+- 下一步按依赖/难度继续：`shellparse` / `secrets` / `proc` 等叶子，再进入 `provider` / `tool` 主包
+- P1 已完成明细保留在本文件上方
 
 ### 后续批次
 P2：provider / tool / shellsafe / shellparse / shellrun / sandbox / proc / secrets / netclient / sysproxy / boundedllm

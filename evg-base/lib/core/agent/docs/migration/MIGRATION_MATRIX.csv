@@ -1909,10 +1909,10 @@ store,store/remote.go,impl,lib/core/agent/ref/store/remote.dart,P1,done,ported R
 store,store/remote_test.go,test,lib/core/agent/test/ref/store/remote_test.dart,P1,done,ported R1
 store,store/session.go,impl,lib/core/agent/ref/store/session.dart,P1,done,ported R1
 store,store/session_test.go,test,lib/core/agent/test/ref/store/session_test.dart,P1,done,ported R1
-sysproxy,sysproxy/sysproxy.go,impl,lib/core/agent/ref/sysproxy/sysproxy.dart,P2,pending,
-sysproxy,sysproxy/sysproxy_test.go,test,lib/core/agent/test/ref/sysproxy/sysproxy_test.dart,P2,pending,
-sysproxy,sysproxy/system_other.go,impl,lib/core/agent/ref/sysproxy/system_other.dart,P2,pending,platform-adapter
-sysproxy,sysproxy/system_windows.go,impl,lib/core/agent/ref/sysproxy/system_windows.dart,P2,pending,platform-adapter
+sysproxy,sysproxy/sysproxy.go,impl,lib/core/agent/ref/sysproxy/sysproxy.dart,P2,done,ported R2
+sysproxy,sysproxy/sysproxy_test.go,test,lib/core/agent/test/ref/sysproxy/sysproxy_test.dart,P2,done,ported R2
+sysproxy,sysproxy/system_other.go,impl,lib/core/agent/ref/sysproxy/system_other.dart,P2,done,ported R2 platform-adapter
+sysproxy,sysproxy/system_windows.go,impl,lib/core/agent/ref/sysproxy/system_windows.dart,P2,done,ported R2 platform-adapter (WinHTTP not yet bound)
 taskcatalog,taskcatalog/benchmark_test.go,test,lib/core/agent/test/ref/taskcatalog/benchmark_test.dart,P11,pending,
 taskcatalog,taskcatalog/catalog.go,impl,lib/core/agent/ref/taskcatalog/catalog.dart,P11,pending,
 taskcatalog,taskcatalog/catalog_test.go,test,lib/core/agent/test/ref/taskcatalog/catalog_test.dart,P11,pending,

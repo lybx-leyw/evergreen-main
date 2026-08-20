@@ -253,7 +253,7 @@ evg-base/lib/core/agent/
 
 - [x] P0：基线盘点 + 本计划 + CSV 追踪表（PR #51）
 - [x] P1：叶子基础包 — 已完成（13 个包 65 行 done；含 event/eventwire/stats/trajectory 与杂项测试）
-- [ ] P2：Provider / Tool / 执行安全
+- [~] P2：Provider / Tool / 执行安全 — 进行中（sysproxy 已完成，69/2086 done）
 - [ ] P3：上下文知识层
 - [ ] P4：事实合约与证据内核
 - [ ] P5：Agent Runtime 主循环
