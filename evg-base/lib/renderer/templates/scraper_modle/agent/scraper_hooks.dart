@@ -43,11 +43,16 @@ class ScraperHooks implements agent.ToolHooks {
   ///
   /// 可豁免：lint violation / 假数据 / 证据终闸等「工作流门控」。
   /// 不可豁免：命令黑名单、凭证非法等硬安全，永不因用户放行而绕过。
+  ///
+  /// P1-D：page_fill/page_submit（页面写操作）也需用户一次性授权——
+  /// 未经授权时 preToolUse 直接拦截，指引 AI 先 guard_override。
   static bool _isOverridableTool(String name) => switch (name) {
         'run_python_scraper' ||
         'export_and_register_scraper' ||
         'build_selected_source' ||
-        'register_batch' =>
+        'register_batch' ||
+        'page_fill' ||
+        'page_submit' =>
           true,
         _ => false,
       };
@@ -108,6 +113,20 @@ class ScraperHooks implements agent.ToolHooks {
               '请用 build_selected_source 修正为真实抓取后重试]');
         }
         // 放宽：无捕获日志证据仅警告，不阻断（数据分类由 AI 自主，不强求 GET）
+        return (false, '');
+
+      case 'page_fill':
+      case 'page_submit':
+        // P1-D：页面写操作（填表/提交）守卫——须经 guard_override 用户一次性
+        // 授权。只读页面操作（page_click / page_scroll）不在此列（无需授权）。
+        // 授权在工具执行内还有 scope 越界校验兜底（表单 action 越界拒绝）。
+        if (!workflow.consumeOverride(name)) {
+          return (true, '[error: 页面写操作（$name）需要用户授权。'
+              '→ 若确实需要填表/提交表单（如登录、搜索、筛选），请先调用 '
+              'guard_override("$name", "<理由>") 请求用户一次性放行，'
+              '用户同意后再重新调用本工具。'
+              '只读页面操作（page_click / page_scroll）无需授权。]');
+        }
         return (false, '');
 
       case 'run_terminal_command':

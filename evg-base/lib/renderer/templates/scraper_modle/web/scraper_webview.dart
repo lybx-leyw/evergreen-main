@@ -199,6 +199,139 @@ const String _httpInterceptorJs = '''
 })();
 ''';
 
+// ═══════ P1-D：页面操作 JS 脚本（点击/填表/提交/滚动）═══════
+//
+// 参数（selector/value/direction）经 jsonEncode 注入 JS 字符串字面量，
+// 防引号/反斜杠破坏脚本、防注入；返回 JSON 字符串由工具层解析。
+// 全部通过 [_ScraperWebViewState._evaluateJs] 执行（Android
+// runJavaScriptReturningResult / Windows executeScript 原生回传）。
+
+/// 点击元素：滚动到可见 → 合成 mousedown/mouseup/click 事件序列
+/// （比 element.click() 兼容更多框架，如监听 mousedown 的菜单）。
+String _buildClickScript(String selector) => r'''
+(function() {
+  var sel = ''' +
+      jsonEncode(selector) +
+      r''';
+  try {
+    var el = document.querySelector(sel);
+    if (!el) return JSON.stringify({ ok: false, message: '未找到元素: ' + sel });
+    var r = el.getBoundingClientRect();
+    if (r.width === 0 && r.height === 0) {
+      return JSON.stringify({ ok: false, message: '元素不可见(宽高为0): ' + sel });
+    }
+    if (el.scrollIntoView) { try { el.scrollIntoView({ block: 'center' }); } catch(e) {} }
+    var out = { ok: true, message: '', tag: (el.tagName || '').toLowerCase() };
+    try {
+      var t = (el.innerText || el.textContent || el.value || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+      if (t) out.text = t;
+    } catch(e) {}
+    var opts = {
+      bubbles: true, cancelable: true, view: window,
+      clientX: (r.left + r.width / 2) || 0,
+      clientY: (r.top + r.height / 2) || 0
+    };
+    el.dispatchEvent(new MouseEvent('mousedown', opts));
+    el.dispatchEvent(new MouseEvent('mouseup', opts));
+    el.dispatchEvent(new MouseEvent('click', opts));
+    out.title = document.title || '';
+    out.url = location.href;
+    return JSON.stringify(out);
+  } catch(e) {
+    return JSON.stringify({ ok: false, message: String(e) });
+  }
+})()
+''';
+
+/// 填充表单字段：原生 value setter（绕过 React 受控组件）+ input/change 事件。
+String _buildFillScript(String selector, String value) => r'''
+(function() {
+  var sel = ''' +
+      jsonEncode(selector) +
+      r''';
+  var val = ''' +
+      jsonEncode(value) +
+      r''';
+  try {
+    var el = document.querySelector(sel);
+    if (!el) return JSON.stringify({ ok: false, message: '未找到元素: ' + sel });
+    var tag = (el.tagName || '').toLowerCase();
+    if (tag !== 'input' && tag !== 'textarea' && tag !== 'select') {
+      return JSON.stringify({ ok: false, message: '非表单字段(仅 input/textarea/select): ' + sel });
+    }
+    var type = (el.type || '').toLowerCase();
+    if (el.readOnly) {
+      return JSON.stringify({ ok: false, message: '字段只读，拒绝填充: ' + sel });
+    }
+    if (tag === 'select') {
+      el.value = val;
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    } else {
+      var proto = tag === 'textarea' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      var setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
+      if (setter) { setter.call(el, val); } else { el.value = val; }
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    return JSON.stringify({ ok: true, tag: tag, type: type, title: document.title || '', url: location.href });
+  } catch(e) {
+    return JSON.stringify({ ok: false, message: String(e) });
+  }
+})()
+''';
+
+/// 提交表单：requestSubmit() 优先（触发校验 + submit 事件），降级 submit()。
+/// 返回绝对化 action（供工具层 scope 校验）。
+String _buildSubmitScript(String formSelector) => r'''
+(function() {
+  var sel = ''' +
+      jsonEncode(formSelector) +
+      r''';
+  try {
+    var form = document.querySelector(sel);
+    if (!form) return JSON.stringify({ ok: false, message: '未找到表单: ' + sel });
+    if (form.tagName.toLowerCase() !== 'form') {
+      return JSON.stringify({ ok: false, message: '目标不是 <form> 元素: ' + sel });
+    }
+    var out = { ok: true, action: form.action || '', method: (form.method || 'get').toLowerCase() };
+    if (typeof form.requestSubmit === 'function') {
+      form.requestSubmit();
+    } else {
+      form.submit();
+    }
+    out.title = document.title || '';
+    out.url = location.href;
+    return JSON.stringify(out);
+  } catch(e) {
+    return JSON.stringify({ ok: false, message: String(e) });
+  }
+})()
+''';
+
+/// 滚动页面（bottom/top/up/down），返回滚动前后位置（供工具层判断懒加载触发）。
+String _buildScrollScript(String direction) => r'''
+(function() {
+  var dir = ''' +
+      jsonEncode(direction) +
+      r''';
+  try {
+    var beforeY = window.scrollY || 0;
+    var maxY = Math.max(
+      document.body ? document.body.scrollHeight : 0,
+      document.documentElement ? document.documentElement.scrollHeight : 0
+    );
+    if (dir === 'bottom') window.scrollTo(0, maxY);
+    else if (dir === 'top') window.scrollTo(0, 0);
+    else if (dir === 'up') window.scrollBy(0, -Math.max(1, window.innerHeight * 0.8));
+    else if (dir === 'down') window.scrollBy(0, Math.max(1, window.innerHeight * 0.8));
+    else return JSON.stringify({ ok: false, message: '未知方向(仅 bottom/top/up/down): ' + dir });
+    return JSON.stringify({ ok: true, from: beforeY, to: window.scrollY || 0, max: maxY, title: document.title || '', url: location.href });
+  } catch(e) {
+    return JSON.stringify({ ok: false, message: String(e) });
+  }
+})()
+''';
+
 // ═══════ ScraperWebView ═══════
 
 /// Phase 4：浏览器 JS/导航执行通道（探索模式工具消费）。
@@ -215,6 +348,24 @@ class ScraperWebViewBridge {
   Future<String?> Function(String script)? evaluateJavaScript;
   Future<void> Function(String url)? navigateTo;
   Future<String?> Function()? currentUrl;
+
+  /// P1-D：页面操作通道——点击元素（合成 MouseEvent）。
+  ///
+  /// 全部经 [_ScraperWebViewState._evaluateJs] 注入合成事件脚本，返回 JSON 字符串
+  /// （`{ok, message, tag, text, title, url}`），由工具层 [_decodeJsJson] 解析。
+  Future<String?> Function(String selector)? jsClick;
+
+  /// P1-D：页面操作通道——填充表单字段（原生 value setter + input/change 事件，
+  /// 兼容 React 受控组件）。返回 `{ok, tag, type, title, url}`。
+  Future<String?> Function(String selector, String value)? jsFill;
+
+  /// P1-D：页面操作通道——提交表单（`form.requestSubmit()` 优先，触发校验与
+  /// submit 事件）。返回 `{ok, action, method, title, url}`。
+  Future<String?> Function(String formSelector)? jsSubmit;
+
+  /// P1-D：页面操作通道——滚动页面（bottom/top/up/down，触发懒加载）。
+  /// 返回 `{ok, from, to, max, title, url}`。
+  Future<String?> Function(String direction)? jsScroll;
 
   /// JS 通道是否已就绪（WebView 初始化完成后由 [ScraperWebView] 设为 true）。
   bool ready = false;
@@ -310,7 +461,12 @@ class _ScraperWebViewState extends State<ScraperWebView> {
         ..ready = false
         ..evaluateJavaScript = _evaluateJs
         ..navigateTo = _navigateToUrl
-        ..currentUrl = _getCurrentUrl;
+        ..currentUrl = _getCurrentUrl
+        // P1-D：页面操作通道（点击/填表/提交/滚动——全部经 _evaluateJs 注入合成事件脚本）
+        ..jsClick = _jsClick
+        ..jsFill = _jsFill
+        ..jsSubmit = _jsSubmit
+        ..jsScroll = _jsScroll;
     }
     _initWebView();
   }
@@ -358,6 +514,24 @@ class _ScraperWebViewState extends State<ScraperWebView> {
   /// 当前 URL（地址栏最新值；初始未导航时回退初始 URL）。
   Future<String?> _getCurrentUrl() async =>
       _prevUrl.isNotEmpty ? _prevUrl : widget.initialUrl;
+
+  // ── P1-D：页面操作通道实现（全部走 _evaluateJs）──
+
+  /// 点击页面元素（合成 mousedown/mouseup/click 事件）。
+  Future<String?> _jsClick(String selector) =>
+      _evaluateJs(_buildClickScript(selector));
+
+  /// 填充表单字段（原生 value setter + input/change 事件）。
+  Future<String?> _jsFill(String selector, String value) =>
+      _evaluateJs(_buildFillScript(selector, value));
+
+  /// 提交表单（requestSubmit 优先，触发校验与 submit 事件）。
+  Future<String?> _jsSubmit(String formSelector) =>
+      _evaluateJs(_buildSubmitScript(formSelector));
+
+  /// 滚动页面（bottom/top/up/down，触发懒加载）。
+  Future<String?> _jsScroll(String direction) =>
+      _evaluateJs(_buildScrollScript(direction));
 
   Future<void> _initWebView() {
     if (Platform.isAndroid) return _initAndroidWebView();

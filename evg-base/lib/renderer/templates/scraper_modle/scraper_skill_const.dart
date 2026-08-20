@@ -465,6 +465,10 @@ const String scraperExploreSkillBody = r'''
 工具: explore_page_snapshot()       — 采集当前页结构化快照（标题/面包屑/导航菜单/表单
                                       字段/按钮/分页链接/表格列头），导航后先快照判型
 工具: navigate_get(url)             — 唯一导航通道：纯 GET（同域/页数/请求/1s 节流守卫，上限可在授权弹窗调）
+工具: page_click(selector)          — 点击当前页元素（菜单/按钮/翻页/懒加载；点击前校验目标链接/表单 action 不越界；只读放行）
+工具: page_fill(selector, value)    — 填充表单字段（登录/搜索输入；⚠️ 写操作，先 guard_override("page_fill", 理由) 授权）
+工具: page_submit(form)             — 提交表单（触发登录/搜索请求进日志；表单 action 须在授权范围；⚠️ 写操作，先 guard_override("page_submit", 理由) 授权）
+工具: page_scroll(direction)        — 滚动页面（bottom/top/up/down；触发懒加载后回读日志/资源；只读放行）
 工具: list_captured_requests()      — 读取捕获日志中的全部请求（GET/POST/导航/响应等全量，每条带证据 id: log-N；支持 offset/limit 分页）
 工具: read_request_by_id(id)         — 按证据 id 读单条请求全文（headers/body/responseBody 不截断）
 工具: list_python_capabilities()     — 本机嵌入 Python 实际可用的第三方模块清单（构建前必查）
@@ -514,7 +518,11 @@ ConfigHttpServer → 环境变量）。若目标接口需要新凭据：ask 用�
 > 以下红线仅约束**导航通道（navigate_get）**；**数据分类**（present_data_sources）
 > 不受同域/GET 限制——你自主判断有价值的内容，不强求 GET 或同域。
 
-1. **只允许 GET**：navigate_get 是唯一导航通道。禁止任何 POST/表单提交/js: 伪协议。
+1. **只允许 GET**：navigate_get 是唯一**导航**通道（纯 GET），禁止任何 POST/
+   js: 伪协议。**页面操作工具（page_click / page_fill / page_submit / page_scroll）
+   是唯一例外**——它们模拟真实用户交互（点菜单/填表/提交/滚动），受双重约束：
+   所有操作的目标链接/表单 action 越出授权范围会被**拒绝执行**；
+   填表/提交（page_fill/page_submit）每次需经 guard_override 用户一次性授权。
 2. **同域**：首次导航锁定域名，之后仅允许同域（含子域）链接；跨域链接被守卫过滤。
 3. **上限**：20 页（去重计数，分页参数 page/p/pn/pageNum 已归一同页）/
    50 请求（**按真实捕获日志条数计数**，非导航次数）；触达上限后停止探索进入归类。
@@ -549,6 +557,7 @@ ConfigHttpServer → 环境变量）。若目标接口需要新凭据：ask 用�
 | 栏目门户站 | 顶部/侧边导航多个栏目、一级页面即入口 | 先扫骨架（栏目链接），按目标挑栏目下钻 |
 | 列表+分页站 | 列表页带 `?page=` / `?p=` / `?pn=` 参数 | 分页参数归一到同一列表，验证 1 页即可推断全量结构，不必逐页导航 |
 | SPA 单页应用 | `<a href>` 稀少，数据靠 fetch/XHR 动态加载 | 重点用 explore_network_resources 找动态接口，比 navigate_get 更高效 |
+| 交互型站点（登录/点击展开/懒加载） | 数据在登录、点击、滚动**之后**才出现，静态扫不到 | 模拟真实用户路径：page_click 点菜单进栏目 → page_fill/page_submit 登录或搜索 → page_scroll 触发懒加载 → 再回读日志（见 §6） |
 
 ### 2. 广度扫骨架 → 按目标深度下钻（核心节奏）
 
@@ -589,6 +598,26 @@ ConfigHttpServer → 环境变量）。若目标接口需要新凭据：ask 用�
 `ask()` 确认目标（如"您想抓取这个站点的哪些数据？"），拿到目标后再按 §2 节奏
 扫骨架 → 下钻。不要为了"少问问题"而猜测目标乱扫。
 
+### 6. 交互型站点操作路径（P1-D）
+
+遇到需要交互才能触达数据的站点（登录墙、点击展开的菜单、滚动懒加载列表），
+**不要放弃或只扫静态页**——按真实用户路径操作：
+
+1. **点菜单进栏目**：`page_click('nav 选择器')` 进入目标栏目（点击前自动校验
+   目标链接不越界）；菜单在折叠区时先 `page_scroll('down')` 滚动到可见再点；
+2. **填表登录/搜索**：快照看到登录/搜索表单后——凭据先 `set_env_var` 写入 →
+   `guard_override("page_fill", "需要登录/搜索")` 授权 → `page_fill('#username', '<账号>')`
+   逐个字段填充 → `guard_override("page_submit", "提交登录/搜索")` 授权 →
+   `page_submit('form 选择器')` 提交；
+3. **触发懒加载**：列表/瀑布流页 `page_scroll('bottom')` 滚到底，触发分页请求；
+4. **操作后立即回读**：`list_captured_requests()` / `explore_network_resources()`
+   查看交互触发的数据接口（登录成功 → Set-Cookie / 200；搜索 → 结果 JSON）；
+5. 操作导致页面跳转时，回读后按目标继续下钻，或 `navigate_get` 返回授权页面。
+
+> 写操作（page_fill / page_submit）**每次**都需要用户授权——被守卫拒绝时按
+> 消息指引先 `guard_override`，不要反复调用未授权工具；只读操作
+> （page_click / page_scroll）直接可用。
+
 ---
 
 ## 四、工作流程（严格遵守）
@@ -601,6 +630,11 @@ ConfigHttpServer → 环境变量）。若目标接口需要新凭据：ask 用�
 > **导航后先 `explore_page_snapshot()` 判型**（P1-C）：快照返回标题/面包屑/
 > 导航菜单/表单字段/按钮/分页链接/表格列头，据此判断页面是列表页/详情页/
 > 登录页/占位页，再决定深挖、填表还是放弃——不要"盲导航"。
+>
+> **交互型站点**（P1-D）：登录墙/点击展开/懒加载页面用 `page_click` /
+> `page_fill` / `page_submit` / `page_scroll` 模拟真实用户路径
+> （点菜单 → 填表 → 提交 → 滚动触发懒加载 → 回读日志），见「三、探索策略
+> 启发式 §6」——不要因静态页扫不到数据就提前放弃。
 
 循环执行直到无新链接或触达上限：
 1. `explore_page_links()` 枚举当前页链接（守卫已过滤跨域/非 http 链接）

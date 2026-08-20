@@ -305,10 +305,16 @@ bool exploreToolAllowedForPhase(String toolName, ExplorePhase phase) {
     case ExplorePhase.exploring:
       // present_data_sources 在 exploring 也放行：工具内部会先 startCategorizing()
       // 再 presentCandidates，让 AI 触达上限后能从 exploring 自然切换到归类/确认。
+      // P1-D：页面操作工具（page_click/page_fill/page_submit/page_scroll）放行——
+      // 交互型站点（登录/点击展开/懒加载）需模拟真实用户操作才能触达深层接口
       return toolName == 'explore_page_links' ||
           toolName == 'navigate_get' ||
           toolName == 'explore_network_resources' ||
           toolName == 'explore_page_snapshot' ||
+          toolName == 'page_click' ||
+          toolName == 'page_fill' ||
+          toolName == 'page_submit' ||
+          toolName == 'page_scroll' ||
           toolName == 'present_data_sources';
     case ExplorePhase.categorizing:
     case ExplorePhase.confirming:
@@ -351,11 +357,17 @@ String blockedExploreToolMessage(String toolName, ExplorePhase phase) {
           'explore_page_links',
           'explore_network_resources',
           'explore_page_snapshot',
+          'page_click',
+          'page_fill',
+          'page_submit',
+          'page_scroll',
           'navigate_get',
           'present_data_sources',
         ],
         '继续枚举链接/导航（explore_page_links / navigate_get），'
-            '导航后先 explore_page_snapshot 判断页面类型，'
+            '导航后先 explore_page_snapshot 判断页面类型；'
+            '交互型站点用 page_click 点菜单、page_fill+page_submit 登录或搜索、'
+            'page_scroll 触发懒加载，操作后回读日志；'
             '探索完毕后调用 present_data_sources 进入归类。',
       ),
     ExplorePhase.categorizing ||

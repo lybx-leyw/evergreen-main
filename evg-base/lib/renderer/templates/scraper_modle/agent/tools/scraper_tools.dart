@@ -591,10 +591,11 @@ class GuardOverrideTool extends SimpleTool {
       : super(
           name: 'guard_override',
           description: '当你被工作流门控拦截（如代码 lint violation、疑似假数据、'
-              '数据源无日志证据等），且你确信当前操作是真实/合理的，可调用本工具'
+              '数据源无日志证据、页面写操作 page_fill/page_submit 未授权等），'
+              '且你确信当前操作是真实/合理的，可调用本工具'
               '请求用户对**本次拦截**做一次性放行。用户同意后，重新调用被拦工具'
               '即可通过；用户拒绝则需继续修正。'
-              '⚠️ 仅适用于工作流门控（lint/假数据/证据）；'
+              '⚠️ 仅适用于工作流门控（lint/假数据/证据/页面写操作授权）；'
               '命令黑名单、凭证非法等硬安全不可豁免。'
               '仅在确实被拦截且用户应知情决策时使用，不要滥用。',
           schema: const {
@@ -604,7 +605,7 @@ class GuardOverrideTool extends SimpleTool {
                 'type': 'string',
                 'description': '被拦截的工具名（如 run_python_scraper / '
                     'export_and_register_scraper / build_selected_source / '
-                    'register_batch）',
+                    'register_batch / page_fill / page_submit）',
               },
               'reason': {
                 'type': 'string',
@@ -621,11 +622,14 @@ class GuardOverrideTool extends SimpleTool {
             if (toolName.isEmpty) return '[error: tool_name 参数为空]';
             if (reason.isEmpty) return '[error: reason 参数为空]';
             // 仅可豁免工具允许请求放行（硬安全工具拒绝，防 AI 尝试豁免命令黑名单）
+            // P1-D：page_fill/page_submit（页面写操作）纳入可豁免（用户授权后放行）
             const overridable = {
               'run_python_scraper',
               'export_and_register_scraper',
               'build_selected_source',
               'register_batch',
+              'page_fill',
+              'page_submit',
             };
             if (!overridable.contains(toolName)) {
               return '[error: 工具 "$toolName" 不属于可豁免的门控，'
