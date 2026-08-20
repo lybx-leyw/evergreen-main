@@ -1,4 +1,5 @@
-import 'package:evergreen_base/core/agent/ref/frontmatter/frontmatter.dart' as fm;
+import 'package:evergreen_base/core/agent/ref/frontmatter/frontmatter.dart'
+    as fm;
 import 'package:test/test.dart';
 
 void main() {
@@ -36,12 +37,14 @@ void main() {
   });
 
   test('split quoted values', () {
-    final (front, _) = fm.split('---\nname: test\ndescription: "quoted desc"\n---\n');
+    final (front, _) =
+        fm.split('---\nname: test\ndescription: "quoted desc"\n---\n');
     expect(front['description'], 'quoted desc');
   });
 
   test('split single quotes', () {
-    final (front, _) = fm.split("---\nname: test\ndescription: 'single quoted'\n---\n");
+    final (front, _) =
+        fm.split("---\nname: test\ndescription: 'single quoted'\n---\n");
     expect(front['description'], 'single quoted');
   });
 
@@ -71,15 +74,16 @@ void main() {
   });
 
   test('split multiline literal', () {
-    final (front, body) = fm.split('---\nname: test\ndescription: "run: with colon"\nnotes: |\n  first line\n  second line\n---\nbody');
+    final (front, body) = fm.split(
+        '---\nname: test\ndescription: "run: with colon"\nnotes: |\n  first line\n  second line\n---\nbody');
     expect(front['description'], 'run: with colon');
     expect(front['notes'], 'first line\nsecond line');
     expect(body, 'body');
   });
 
   test('decode reports malformed YAML', () {
-    final (_, err) = fm.decode('---\nname: [unterminated\n---\nbody', null,
-        const fm.DecodeOptions());
+    final (_, err) = fm.decode(
+        '---\nname: [unterminated\n---\nbody', null, const fm.DecodeOptions());
     expect(err, isNotNull);
   });
 }
