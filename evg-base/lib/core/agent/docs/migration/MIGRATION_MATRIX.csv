@@ -1273,15 +1273,15 @@ filelock,filelock/lock_windows.go,impl,lib/core/agent/ref/filelock/lock_windows.
 fileref,fileref/search.go,impl,lib/core/agent/ref/fileref/search.dart,P1,done,ported R1
 fileref,fileref/search_test.go,test,lib/core/agent/test/ref/fileref/search_test.dart,P1,done,ported R1
 fileref,fileref/skip_test.go,test,lib/core/agent/test/ref/fileref/skip_test.dart,P1,pending,
-fileutil,fileutil/atomicwrite.go,impl,lib/core/agent/ref/fileutil/atomicwrite.dart,P1,pending,
-fileutil,fileutil/atomicwrite_test.go,test,lib/core/agent/test/ref/fileutil/atomicwrite_test.dart,P1,pending,
-fileutil,fileutil/globset.go,impl,lib/core/agent/ref/fileutil/globset.dart,P1,pending,
-fileutil,fileutil/globset_test.go,test,lib/core/agent/test/ref/fileutil/globset_test.dart,P1,pending,
-fileutil,fileutil/replacefallback_other.go,impl,lib/core/agent/ref/fileutil/replacefallback_other.dart,P1,pending,platform-adapter
-fileutil,fileutil/replacefallback_windows.go,impl,lib/core/agent/ref/fileutil/replacefallback_windows.dart,P1,pending,platform-adapter
-fileutil,fileutil/replacefallback_windows_test.go,test,lib/core/agent/test/ref/fileutil/replacefallback_windows_test.dart,P1,pending,platform-adapter
-fileutil,fileutil/encoding/encoding.go,impl,lib/core/agent/ref/fileutil/encoding/encoding.dart,P1,pending,
-fileutil,fileutil/encoding/encoding_test.go,test,lib/core/agent/test/ref/fileutil/encoding/encoding_test.dart,P1,pending,
+fileutil,fileutil/atomicwrite.go,impl,lib/core/agent/ref/fileutil/atomicwrite.dart,P1,done,ported R2
+fileutil,fileutil/atomicwrite_test.go,test,lib/core/agent/test/ref/fileutil/atomicwrite_test.dart,P1,done,ported R2
+fileutil,fileutil/globset.go,impl,lib/core/agent/ref/fileutil/globset.dart,P1,done,ported R2
+fileutil,fileutil/globset_test.go,test,lib/core/agent/test/ref/fileutil/globset_test.dart,P1,done,ported R2
+fileutil,fileutil/replacefallback_other.go,impl,lib/core/agent/ref/fileutil/replacefallback_other.dart,P1,done,ported R2
+fileutil,fileutil/replacefallback_windows.go,impl,lib/core/agent/ref/fileutil/replacefallback_windows.dart,P1,done,ported R2
+fileutil,fileutil/replacefallback_windows_test.go,test,lib/core/agent/test/ref/fileutil/replacefallback_windows_test.dart,P1,done,ported R2
+fileutil,fileutil/encoding/encoding.go,impl,lib/core/agent/ref/fileutil/encoding/encoding.dart,P1,done,ported R2
+fileutil,fileutil/encoding/encoding_test.go,test,lib/core/agent/test/ref/fileutil/encoding/encoding_test.dart,P1,done,ported R2
 frontmatter,frontmatter/frontmatter.go,impl,lib/core/agent/ref/frontmatter/frontmatter.dart,P1,done,ported R1
 frontmatter,frontmatter/frontmatter_test.go,test,lib/core/agent/test/ref/frontmatter/frontmatter_test.dart,P1,done,ported R1
 frontmatter,frontmatter/list_test.go,test,lib/core/agent/test/ref/frontmatter/list_test.dart,P1,pending,
