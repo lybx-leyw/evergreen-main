@@ -101,6 +101,218 @@ Map<String, dynamic>? _decodeJsJson(String? raw) {
   }
 }
 
+// ═══════ explore_page_snapshot（P1-C · 导航后快照判型）═══════
+
+/// 采集当前页结构化摘要的 JS：`document.title` / 面包屑 / 导航菜单 /
+/// 表单字段 / 按钮 / 分页链接 / 表格列头。
+///
+/// 解决 AI"导航后失明"——navigate_get 只回计数，本快照让 AI 判断页面类型
+/// （列表页/详情页/登录页/占位页），据此决定下钻、填表还是放弃。
+const String explorePageSnapshotScript = r'''
+(function() {
+  function txt(el) {
+    return (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+  }
+  function href(el) {
+    try { return el.href || ''; } catch (e) { return ''; }
+  }
+  var out = { title: document.title || '', url: location.href, breadcrumbs: [], navMenus: [], forms: [], buttons: [], pagination: [], tableHeaders: [] };
+  try {
+    // 面包屑：aria-label=breadcrumb / class 含 breadcrumb / nav
+    var crumbs = document.querySelectorAll('[aria-label="breadcrumb"], .breadcrumb, nav[aria-label="面包屑"], .crumbs');
+    for (var i = 0; i < crumbs.length && i < 3; i++) {
+      var text = txt(crumbs[i]);
+      if (text) out.breadcrumbs.push(text.slice(0, 200));
+    }
+    // 导航菜单：nav / header 内的链接（最多 30 条）
+    var navs = document.querySelectorAll('nav, header nav, .nav, .menu');
+    var seen = {};
+    for (var i = 0; i < navs.length && i < 3; i++) {
+      var links = navs[i].querySelectorAll('a[href]');
+      var items = [];
+      for (var j = 0; j < links.length && items.length < 30; j++) {
+        var u = href(links[j]);
+        if (!u || !/^https?:/i.test(u) || seen[u]) continue;
+        seen[u] = true;
+        var t = txt(links[j]);
+        if (t) items.push({ url: u, text: t });
+      }
+      if (items.length) out.navMenus.push(items);
+    }
+    // 表单字段：name + type（登录/搜索/筛选表单识别）
+    var forms = document.querySelectorAll('form');
+    for (var i = 0; i < forms.length && i < 5; i++) {
+      var fields = [];
+      var els = forms[i].querySelectorAll('input, select, textarea');
+      for (var j = 0; j < els.length && fields.length < 15; j++) {
+        var el = els[j];
+        var name = el.name || el.id || '';
+        var type = el.type || el.tagName.toLowerCase();
+        if (!name) continue;
+        if (type === 'hidden' || type === 'submit' || type === 'button') continue;
+        fields.push({ name: name, type: type });
+      }
+      if (fields.length) out.forms.push({ action: forms[i].action || '', fields: fields });
+    }
+    // 按钮文本（提交/登录/搜索等动作按钮）
+    var btns = document.querySelectorAll('button, input[type="submit"], input[type="button"]');
+    var bseen = {};
+    for (var i = 0; i < btns.length && out.buttons.length < 20; i++) {
+      var btxt = txt(btns[i]);
+      if (!btxt) continue;
+      if (bseen[btxt]) continue;
+      bseen[btxt] = true;
+      out.buttons.push(btxt.slice(0, 40));
+    }
+    // 分页链接：href 含 page/p/pn / 文本含 下一页|next|» | .pagination
+    var pageLinks = document.querySelectorAll('a[href*="page"], a[href*="?p="], a[href*="&p="], a[href*="pn="], .pagination a[href]');
+    var pseen = {};
+    for (var i = 0; i < pageLinks.length && out.pagination.length < 10; i++) {
+      var pu = href(pageLinks[i]);
+      if (!pu || pseen[pu]) continue;
+      pseen[pu] = true;
+      var pt = txt(pageLinks[i]);
+      out.pagination.push({ url: pu, text: pt ? pt.slice(0, 30) : '' });
+    }
+    // 表格列头（数据表识别）
+    var ths = document.querySelectorAll('table th');
+    var hseen = {};
+    for (var i = 0; i < ths.length && out.tableHeaders.length < 15; i++) {
+      var ht = txt(ths[i]);
+      if (!ht || hseen[ht]) continue;
+      hseen[ht] = true;
+      out.tableHeaders.push(ht);
+    }
+  } catch (e) {
+    out.error = String(e);
+  }
+  return JSON.stringify(out);
+})()
+''';
+
+/// 工具：采集当前页结构化快照（标题/面包屑/导航/表单/按钮/分页/表格列头）。
+///
+/// P1-C：navigate_get 只回计数，AI 导航后"失明"。本工具让 AI 在导航后
+/// 立即判断页面类型（列表页/详情页/登录页/占位页），据此决定深挖、
+/// 填表登录还是放弃——深度下钻有了可解释依据。
+class ExplorePageSnapshotTool extends SimpleTool {
+  final ExploreWorkflow exploreWorkflow;
+  final Future<String?> Function(String script) evaluateJs;
+
+  ExplorePageSnapshotTool({
+    required this.exploreWorkflow,
+    required this.evaluateJs,
+  }) : super(
+          name: 'explore_page_snapshot',
+          description: '采集当前页面的结构化快照：标题/面包屑/导航菜单/表单字段'
+              '（name+type）/按钮文本/分页链接/表格列头。用于 navigate_get 后'
+              '判断页面类型（列表/详情/登录/占位），再决定深挖或放弃。'
+              '只读取页面结构，不触发任何请求。',
+          schema: const {
+            'type': 'object',
+            'properties': {},
+          },
+          readOnly: true,
+          execute: (args) async {
+            try {
+              final raw = await evaluateJs(explorePageSnapshotScript);
+              final json = _decodeJsJson(raw);
+              if (json == null) {
+                return '[error: 浏览器 JS 通道不可用或页面未就绪。'
+                    '→ 先调用 check_explore_ready 确认 WebView 是否已加载页面；'
+                    '若页面尚未加载，可 navigate_get 访问目标页后再快照。]';
+              }
+              // P1-B：快照成功 = 二次探索产出（导航后重读页面结构不算空转）
+              exploreWorkflow.noteSecondaryExploration();
+
+              final buf = StringBuffer();
+              final title = (json['title'] as String? ?? '').trim();
+              final url = (json['url'] as String? ?? '').trim();
+              buf.writeln('## 📄 页面快照'
+                  '${title.isNotEmpty ? '\n标题: $title' : ''}'
+                  '${url.isNotEmpty ? '\nURL: $url' : ''}');
+
+              final crumbs = (json['breadcrumbs'] as List<dynamic>? ?? const [])
+                  .whereType<String>();
+              if (crumbs.isNotEmpty) {
+                buf.writeln('面包屑: ${crumbs.join(' → ')}');
+              }
+
+              final navs = (json['navMenus'] as List<dynamic>? ?? const [])
+                  .whereType<List<dynamic>>()
+                  .toList();
+              if (navs.isNotEmpty) {
+                buf.writeln('导航菜单:');
+                var shown = 0;
+                for (final menu in navs) {
+                  for (final item in menu.whereType<Map<String, dynamic>>()) {
+                    final u = (item['url'] as String? ?? '').trim();
+                    if (validateExploreUrl(u, baseHost: exploreWorkflow.baseHost) != null) continue;
+                    final t = (item['text'] as String? ?? '').trim();
+                    buf.writeln('- $u${t.isNotEmpty ? '  # $t' : ''}');
+                    if (++shown >= 40) break;
+                  }
+                }
+                if (shown == 0) buf.writeln('（导航链接均为非同域，已过滤）');
+              }
+
+              final forms = (json['forms'] as List<dynamic>? ?? const [])
+                  .whereType<Map<String, dynamic>>()
+                  .toList();
+              if (forms.isNotEmpty) {
+                buf.writeln('表单:');
+                for (final f in forms) {
+                  final action = (f['action'] as String? ?? '').trim();
+                  final fields = (f['fields'] as List<dynamic>? ?? const [])
+                      .whereType<Map<String, dynamic>>()
+                      .toList();
+                  buf.writeln('- form${action.isNotEmpty ? ' action=$action' : ''}: '
+                      '${fields.map((x) => '${x['name']}(${x['type']})').join(', ')}');
+                }
+              } else {
+                buf.writeln('表单: 无');
+              }
+
+              final buttons = (json['buttons'] as List<dynamic>? ?? const [])
+                  .whereType<String>()
+                  .toList();
+              if (buttons.isNotEmpty) {
+                buf.writeln('按钮: ${buttons.join(' / ')}');
+              }
+
+              final paging = (json['pagination'] as List<dynamic>? ?? const [])
+                  .whereType<Map<String, dynamic>>()
+                  .toList();
+              if (paging.isNotEmpty) {
+                buf.writeln('分页链接:');
+                for (final p in paging) {
+                  final u = (p['url'] as String? ?? '').trim();
+                  if (validateExploreUrl(u, baseHost: exploreWorkflow.baseHost) != null) continue;
+                  final t = (p['text'] as String? ?? '').trim();
+                  buf.writeln('- $u${t.isNotEmpty ? '  # $t' : ''}');
+                }
+              }
+
+              final headers = (json['tableHeaders'] as List<dynamic>? ?? const [])
+                  .whereType<String>()
+                  .toList();
+              if (headers.isNotEmpty) {
+                buf.writeln('表格列头: ${headers.join(' | ')}');
+              }
+
+              if (buf.length < 30) {
+                return '(页面快照为空——页面可能未加载完成或为空白/占位页。'
+                    '可 navigate_get 访问已知地址后再快照，或结束探索进入归类。)';
+              }
+              return buf.toString();
+            } catch (e) {
+              debugPrint('[ExplorePageSnapshot] 💥 $e');
+              return '[error: 采集页面快照失败: $e]';
+            }
+          },
+        );
+}
+
 // ═══════ explore_page_links ═══════
 
 /// 工具：枚举当前页 http(s) 链接（GET 探索起点）。
@@ -990,6 +1202,11 @@ List<Tool> createScraperExploreTools({
       evaluateJs: evaluateJs,
     ),
     ExploreNetworkResourcesTool(
+      exploreWorkflow: exploreWorkflow,
+      evaluateJs: evaluateJs,
+    ),
+    // P1-C：导航后快照判型（解决"导航后失明"）
+    ExplorePageSnapshotTool(
       exploreWorkflow: exploreWorkflow,
       evaluateJs: evaluateJs,
     ),

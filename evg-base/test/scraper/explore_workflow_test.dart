@@ -329,9 +329,12 @@ void main() {
     });
 
     test('探索工具按阶段切换', () {
-      // exploring：枚举/导航
+      // exploring：枚举/导航/快照
       expect(exploreToolAllowedForPhase('explore_page_links', ExplorePhase.exploring), isTrue);
       expect(exploreToolAllowedForPhase('navigate_get', ExplorePhase.exploring), isTrue);
+      // P1-C：页面快照 exploring 放行
+      expect(exploreToolAllowedForPhase('explore_page_snapshot', ExplorePhase.exploring), isTrue);
+      expect(exploreToolAllowedForPhase('explore_page_snapshot', ExplorePhase.building), isFalse);
       // present_data_sources 在 exploring 也放行，由工具内部切到 categorizing
       expect(exploreToolAllowedForPhase('present_data_sources', ExplorePhase.exploring), isTrue);
       // categorizing/confirming：仅 present

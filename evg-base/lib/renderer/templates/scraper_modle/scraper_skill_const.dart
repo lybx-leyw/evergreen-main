@@ -462,6 +462,8 @@ const String scraperExploreSkillBody = r'''
 ```
 工具: explore_page_links()          — 枚举当前页面所有 http(s) 链接（url + 文本）
 工具: explore_network_resources()   — 枚举当前页运行时资源（fetch/XHR 等动态接口，SPA 必备）
+工具: explore_page_snapshot()       — 采集当前页结构化快照（标题/面包屑/导航菜单/表单
+                                      字段/按钮/分页链接/表格列头），导航后先快照判型
 工具: navigate_get(url)             — 唯一导航通道：纯 GET（同域/页数/请求/1s 节流守卫，上限可在授权弹窗调）
 工具: list_captured_requests()      — 读取捕获日志中的全部请求（GET/POST/导航/响应等全量，每条带证据 id: log-N；支持 offset/limit 分页）
 工具: read_request_by_id(id)         — 按证据 id 读单条请求全文（headers/body/responseBody 不截断）
@@ -575,9 +577,9 @@ ConfigHttpServer → 环境变量）。若目标接口需要新凭据：ask 用�
 
 每次 navigate_get 成功**之后**，立即按顺序：
 
-1. `list_captured_requests()` 回读该页触发的请求日志（看是否有数据接口/响应体样本）；
-2. `explore_page_links()` 回读新页面的链接，判断页面类型（列表/详情/表单/空白）；
-3. 视需要 `read_request_by_id(log-N)` 读响应体样本验证字段。
+1. `explore_page_snapshot()` 采集页面快照，判断页面类型（列表/详情/登录/占位）；
+2. `list_captured_requests()` 回读该页触发的请求日志（看是否有数据接口/响应体样本）；
+3. `explore_page_links()` 回读新页面的链接，确认后续下钻入口。
 
 禁止连续盲导航（导航后不回读直接再导航），那会耗尽预算且拿不到任何证据。
 
@@ -595,15 +597,21 @@ ConfigHttpServer → 环境变量）。若目标接口需要新凭据：ask 用�
 
 > 策略节奏见「三、探索策略启发式」：先扫骨架 → 按【用户数据目标】下钻 →
 > 甄别噪音链接 → 导航后回读。目标缺失先 ask 确认。
+>
+> **导航后先 `explore_page_snapshot()` 判型**（P1-C）：快照返回标题/面包屑/
+> 导航菜单/表单字段/按钮/分页链接/表格列头，据此判断页面是列表页/详情页/
+> 登录页/占位页，再决定深挖、填表还是放弃——不要"盲导航"。
 
 循环执行直到无新链接或触达上限：
 1. `explore_page_links()` 枚举当前页链接（守卫已过滤跨域/非 http 链接）
 2. `explore_network_resources()` 枚举当前页运行时资源（fetch/XHR 动态接口——
    SPA 站点数据接口往往没有 <a href> 锚点，这一步是发现它们的关键通道）
 3. 挑选疑似数据接口/列表页的链接，`navigate_get(url)` 逐页访问
-4. `list_captured_requests()` 查看页面触发的**全部**请求日志（GET/POST/导航/响应体样本）
-5. 记录候选数据接口（返回 JSON 数据的接口优先，但你自主判断价值）
-6. 触达页数/请求上限或没有新链接 → 进入归类
+4. **导航后立即 `explore_page_snapshot()` 判断页面类型**（列表/详情/登录/占位），
+   再决定是否继续下钻——登录页/占位页及时放弃，列表/详情页继续深挖
+5. `list_captured_requests()` 查看页面触发的**全部**请求日志（GET/POST/导航/响应体样本）
+6. 记录候选数据接口（返回 JSON 数据的接口优先，但你自主判断价值）
+7. 触达页数/请求上限或没有新链接 → 进入归类
 
 ### Step 2：归类（categorizing）
 

@@ -208,4 +208,73 @@ void main() {
       expect(out, isNot(contains('evil.com')));
     });
   });
+
+  group('P1-C · explore_page_snapshot（导航后快照判型）', () {
+    test('解析结构化快照：标题/表单/按钮/表格列头', () async {
+      final w = ExploreWorkflow();
+      w.startExploring(startUrl: 'https://a.com/');
+      final inner = jsonEncode({
+        'title': '课程列表 - 教务系统',
+        'url': 'https://a.com/courses',
+        'breadcrumbs': ['首页', '教学', '课程列表'],
+        'navMenus': [
+          [
+            {'url': 'https://a.com/courses', 'text': '课程列表'},
+            {'url': 'https://evil.com/x', 'text': '外部'},
+          ],
+        ],
+        'forms': [
+          {
+            'action': '/search',
+            'fields': [
+              {'name': 'keyword', 'type': 'text'},
+              {'name': 'page', 'type': 'number'},
+            ],
+          },
+        ],
+        'buttons': ['搜索', '登录'],
+        'pagination': [
+          {'url': 'https://a.com/courses?page=2', 'text': '下一页'},
+          {'url': 'https://evil.com/p', 'text': 'x'},
+        ],
+        'tableHeaders': ['课程名', '教师', '学分'],
+      });
+      final tool = ExplorePageSnapshotTool(
+        exploreWorkflow: w,
+        evaluateJs: (s) async => jsonEncode(inner),
+      );
+      final out = await tool.execute({});
+      expect(out, contains('课程列表 - 教务系统'));
+      expect(out, contains('面包屑'));
+      expect(out, contains('keyword(text)'));
+      expect(out, contains('搜索'));
+      expect(out, contains('课程名 | 教师 | 学分'));
+      // 跨域导航/分页被过滤
+      expect(out, isNot(contains('evil.com')));
+      // 快照成功 = 二次探索产出（清空熔断）
+      expect(w.stallDetected, isFalse);
+    });
+
+    test('JS 通道不可用 → error', () async {
+      final w = ExploreWorkflow();
+      w.startExploring();
+      final tool = ExplorePageSnapshotTool(
+        exploreWorkflow: w,
+        evaluateJs: (s) async => null,
+      );
+      final out = await tool.execute({});
+      expect(out, contains('[error:'));
+    });
+
+    test('快照为空 → 提示占位/空白页', () async {
+      final w = ExploreWorkflow();
+      w.startExploring(startUrl: 'https://a.com/');
+      final tool = ExplorePageSnapshotTool(
+        exploreWorkflow: w,
+        evaluateJs: (s) async => jsonEncode({'title': '', 'url': ''}),
+      );
+      final out = await tool.execute({});
+      expect(out, contains('页面快照为空'));
+    });
+  });
 }

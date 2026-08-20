@@ -308,6 +308,7 @@ bool exploreToolAllowedForPhase(String toolName, ExplorePhase phase) {
       return toolName == 'explore_page_links' ||
           toolName == 'navigate_get' ||
           toolName == 'explore_network_resources' ||
+          toolName == 'explore_page_snapshot' ||
           toolName == 'present_data_sources';
     case ExplorePhase.categorizing:
     case ExplorePhase.confirming:
@@ -349,10 +350,12 @@ String blockedExploreToolMessage(String toolName, ExplorePhase phase) {
         <String>[
           'explore_page_links',
           'explore_network_resources',
+          'explore_page_snapshot',
           'navigate_get',
           'present_data_sources',
         ],
         '继续枚举链接/导航（explore_page_links / navigate_get），'
+            '导航后先 explore_page_snapshot 判断页面类型，'
             '探索完毕后调用 present_data_sources 进入归类。',
       ),
     ExplorePhase.categorizing ||
