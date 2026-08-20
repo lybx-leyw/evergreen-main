@@ -58,6 +58,15 @@ class HttpRequestLog {
   final Map<String, String>? headers;
   final String? body;
 
+  /// HTTP 响应状态码（P2-2：如 200/401/403）。null = 未知（请求尚未收到响应）。
+  final int? statusCode;
+
+  /// 响应头（P2-2：CDP responseReceived 透传；含 Set-Cookie 等登录态关键头）。
+  final Map<String, String>? responseHeaders;
+
+  /// 资源类型（P2-2：CDP requestWillBeSent 的 type：Document/Fetch/XHR/Script 等）。
+  final String? resourceType;
+
   /// 响应体（仅 CDP 主方案对 application/json 响应捕获，≤32KB）。
   /// 供 AI 推断 schema 时优先使用（样本更准）。
   final String? responseBody;
@@ -74,6 +83,9 @@ class HttpRequestLog {
     required this.url,
     this.headers,
     this.body,
+    this.statusCode,
+    this.responseHeaders,
+    this.resourceType,
     this.responseBody,
     this.id = '',
   });
@@ -85,6 +97,9 @@ class HttpRequestLog {
         url: url,
         headers: headers,
         body: body,
+        statusCode: statusCode,
+        responseHeaders: responseHeaders,
+        resourceType: resourceType,
         responseBody: responseBody,
         id: newId,
       );
@@ -98,6 +113,10 @@ class HttpRequestLog {
       url: json['url'] as String? ?? '',
       headers: (json['headers'] as Map?)?.cast<String, String>(),
       body: json['body'] as String?,
+      statusCode: (json['statusCode'] as num?)?.toInt(),
+      responseHeaders:
+          (json['responseHeaders'] as Map?)?.cast<String, String>(),
+      resourceType: json['resourceType'] as String?,
       responseBody: json['responseBody'] as String?,
       id: json['id'] as String? ?? '',
     );
@@ -109,6 +128,9 @@ class HttpRequestLog {
         'url': url,
         if (headers != null) 'headers': headers,
         if (body != null) 'body': body,
+        if (statusCode != null) 'statusCode': statusCode,
+        if (responseHeaders != null) 'responseHeaders': responseHeaders,
+        if (resourceType != null) 'resourceType': resourceType,
         if (responseBody != null) 'responseBody': responseBody,
         if (id.isNotEmpty) 'id': id,
       };
@@ -117,9 +139,13 @@ class HttpRequestLog {
   String toLogLine() {
     final buf = StringBuffer();
     buf.writeln(
-        '[${timestamp.toString().substring(0, 19)}] $method  $url');
+        '[${timestamp.toString().substring(0, 19)}] $method  $url'
+        '${statusCode != null ? '  [HTTP $statusCode]' : ''}');
     if (headers != null && headers!.isNotEmpty) {
       buf.writeln('  Headers: $headers');
+    }
+    if (responseHeaders != null && responseHeaders!.isNotEmpty) {
+      buf.writeln('  ResponseHeaders: $responseHeaders');
     }
     if (body != null && body!.isNotEmpty) {
       buf.writeln('  Body: $body');
@@ -132,12 +158,31 @@ class HttpRequestLog {
   }
 
   /// 生成 LLM 友好的日志摘要（响应体优先，提升 AI 推断字段准确率）。
+  ///
+  /// P2-2：透传 statusCode、Set-Cookie 与关键响应头（content-type /
+  /// content-length / location / www-authenticate）——AI 据此区分 200/401/403、
+  /// 识别登录态建立（Set-Cookie），不再"盲"分析。
   String toAiSummary() {
     final ts = timestamp.toString().substring(0, 19);
     final h = headers?.entries
             .where((e) =>
-                ['authorization', 'cookie', 'x-api-key', 'content-type']
+                ['authorization', 'cookie', 'x-api-key', 'content-type',
+                        'x-csrf-token']
                     .contains(e.key.toLowerCase()))
+            .map((e) => '  ${e.key}: ${e.value}')
+            .join('\n') ??
+        '';
+    // P2-2：关键响应头白名单（Set-Cookie 登录态 / Content-Type 类型判断 /
+    // Location 重定向 / WWW-Authenticate 认证质询）
+    final rh = responseHeaders?.entries
+            .where((e) => {
+                  'set-cookie',
+                  'content-type',
+                  'content-length',
+                  'location',
+                  'www-authenticate',
+                  'x-csrf-token',
+                }.contains(e.key.toLowerCase()))
             .map((e) => '  ${e.key}: ${e.value}')
             .join('\n') ??
         '';
@@ -147,7 +192,11 @@ class HttpRequestLog {
     final rb = responseBody != null && responseBody!.isNotEmpty
         ? '\n  ResponseBody (${responseBody!.length} chars): ${responseBody!.length > 2048 ? '${responseBody!.substring(0, 2048)}…' : responseBody}'
         : '';
-    return '[$ts] $method $url\n$h$b$rb';
+    final statusLine = statusCode != null ? '  [HTTP $statusCode]' : '';
+    final respHead = rh.isNotEmpty
+        ? '\n  ResponseHeaders:\n$rh'
+        : '';
+    return '[$ts] $method $url$statusLine\n$h$respHead$b$rb';
   }
 }
 

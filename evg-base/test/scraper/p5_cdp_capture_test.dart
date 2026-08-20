@@ -29,12 +29,14 @@ class FakeCdpServer {
     required this.bodyToReturn,
     this.base64 = false,
     this.mimeType = 'application/json',
+    this.statusCode = 200,
     this.errorOnEnable = false,
   });
 
   final String bodyToReturn;
   final bool base64;
   final String mimeType;
+  final int statusCode;
   final bool errorOnEnable;
 
   late HttpServer _httpServer;
@@ -116,8 +118,12 @@ class FakeCdpServer {
         'requestId': 'req1',
         'response': {
           'url': 'https://x.com/api/data',
-          'status': 200,
+          'status': statusCode,
           'mimeType': mimeType,
+          'headers': {
+            'content-type': 'application/json',
+            'set-cookie': 'session=abc123; Path=/',
+          },
         },
       },
     }));
@@ -267,6 +273,104 @@ void main() {
 
       expect(log.toAiSummary(), contains('ResponseBody'));
       expect(log.toLogLine(), contains('ResponseBody'));
+    });
+
+    test('P2-2：statusCode/responseHeaders/resourceType 结构化往返', () {
+      final log = HttpRequestLog(
+        timestamp: DateTime.now(),
+        method: 'RESPONSE',
+        url: 'https://x.com/api/data',
+        statusCode: 200,
+        responseHeaders: const {
+          'set-cookie': 'session=abc; Path=/',
+          'content-type': 'application/json',
+        },
+        resourceType: 'XHR',
+      );
+
+      final j = log.toJson();
+      expect(j['statusCode'], 200);
+      expect(j['responseHeaders'], isNotNull);
+      expect(j['resourceType'], 'XHR');
+
+      final back = HttpRequestLog.fromJson(j);
+      expect(back.statusCode, 200);
+      expect(back.responseHeaders?['set-cookie'], 'session=abc; Path=/');
+      expect(back.resourceType, 'XHR');
+    });
+
+    test('P2-2：toAiSummary 透传状态码与 Set-Cookie/关键响应头', () {
+      final log = HttpRequestLog(
+        timestamp: DateTime.now(),
+        method: 'GET',
+        url: 'https://x.com/api/data',
+        statusCode: 401,
+        responseHeaders: const {
+          'set-cookie': 'session=expired; Path=/',
+          'content-type': 'application/json',
+          'x-csrf-token': 'tok123',
+        },
+      );
+      final s = log.toAiSummary();
+      expect(s, contains('[HTTP 401]'));
+      expect(s, contains('set-cookie'));
+      expect(s, contains('session=expired'));
+      expect(s, contains('x-csrf-token'));
+    });
+  });
+
+  group('P2-2 CDP 结构化字段透传', () {
+    test('responseReceived 事件日志携带 statusCode/responseHeaders/resourceType', () async {
+      const body = '{"ok":true}';
+      final server = FakeCdpServer(bodyToReturn: body);
+      final port = await server.start();
+      final client = CdpNetworkClient(debugPort: port);
+      final events = <CdpNetworkEvent>[];
+      final sub = client.networkEvents.listen(events.add);
+      final ok = await client.connect();
+      expect(ok, isTrue);
+
+      final resp = await _awaitEvent(events, 'responseReceived');
+      expect(resp, isNotNull);
+      expect(resp!.statusCode, 200);
+      // URL 不再拼状态文本（状态进结构化字段）
+      expect(resp.log.url, 'https://x.com/api/data');
+      expect(resp.log.statusCode, 200);
+      expect(resp.log.responseHeaders?['set-cookie'], 'session=abc123; Path=/');
+      expect(resp.log.responseHeaders?['content-type'], 'application/json');
+
+      final req = await _awaitEvent(events, 'requestWillBeSent');
+      expect(req, isNotNull);
+      expect(req!.log.resourceType, 'XHR');
+
+      await sub.cancel();
+      client.dispose();
+      await server.stop();
+    });
+
+    test('失败响应（401）statusCode 结构化保留', () async {
+      final server = FakeCdpServer(
+        bodyToReturn: '{"error":"unauthorized"}',
+        mimeType: 'application/json',
+        statusCode: 401,
+      );
+      final port = await server.start();
+      final client = CdpNetworkClient(debugPort: port);
+      final events = <CdpNetworkEvent>[];
+      final sub = client.networkEvents.listen(events.add);
+      final ok = await client.connect();
+      expect(ok, isTrue);
+
+      final resp = await _awaitEvent(events, 'responseReceived');
+      expect(resp, isNotNull);
+      expect(resp!.statusCode, 401);
+      expect(resp.log.statusCode, 401);
+      // AI 摘要含 401 → 可区分登录态失效
+      expect(resp.log.toAiSummary(), contains('[HTTP 401]'));
+
+      await sub.cancel();
+      client.dispose();
+      await server.stop();
     });
   });
 }

@@ -140,6 +140,28 @@ void main() {
       final miss = await tool.execute({'id': 'log-99'});
       expect(miss, contains('[error:'));
     });
+
+    test('read_request_by_id：P2-2 返回状态码/响应头/Set-Cookie/资源类型', () async {
+      final capture = ScraperWorkflow();
+      capture.addLog(HttpRequestLog(
+        timestamp: DateTime.now(),
+        method: 'GET',
+        url: 'https://a.com/api/data',
+        statusCode: 401,
+        responseHeaders: const {
+          'set-cookie': 'session=expired; Path=/',
+          'content-type': 'application/json',
+        },
+        resourceType: 'XHR',
+      ));
+      final tool = ReadRequestByIdTool(captureWorkflow: capture);
+      final out = await tool.execute({'id': 'log-1'});
+      expect(out, contains('statusCode: 401'));
+      expect(out, contains('resourceType: XHR'));
+      expect(out, contains('set-cookie'));
+      expect(out, contains('session=expired'));
+      expect(out, contains('responseHeaders'));
+    });
   });
 
   group('Phase 2/3 · verify_login_flow / execute_built_source', () {

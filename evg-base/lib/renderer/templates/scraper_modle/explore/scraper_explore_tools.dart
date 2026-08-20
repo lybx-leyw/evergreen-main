@@ -447,9 +447,24 @@ class ReadRequestByIdTool extends SimpleTool {
             buf.writeln('## 请求证据 $id（全文）');
             buf.writeln('method: ${found.method}');
             buf.writeln('url: ${found.url}');
+            // P2-2：状态码/资源类型/响应头（Set-Cookie 登录态）全量返回，
+            // AI 据此区分 200/401/403、识别登录态建立
+            if (found.statusCode != null) {
+              buf.writeln('statusCode: ${found.statusCode}');
+            }
+            if (found.resourceType != null &&
+                found.resourceType!.isNotEmpty) {
+              buf.writeln('resourceType: ${found.resourceType}');
+            }
             if (found.headers != null && found.headers!.isNotEmpty) {
               buf.writeln('headers:');
               found.headers!.forEach((k, v) => buf.writeln('  $k: $v'));
+            }
+            if (found.responseHeaders != null &&
+                found.responseHeaders!.isNotEmpty) {
+              buf.writeln('responseHeaders:');
+              found.responseHeaders!
+                  .forEach((k, v) => buf.writeln('  $k: $v'));
             }
             if (found.body != null && found.body!.isNotEmpty) {
               buf.writeln('body (${found.body!.length} chars):\n${found.body}');

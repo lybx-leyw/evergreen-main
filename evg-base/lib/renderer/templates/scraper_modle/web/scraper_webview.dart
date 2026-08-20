@@ -111,9 +111,43 @@ const String _httpInterceptorJs = '''
           } catch(be) {}
         }
         sendToDart(payload);
-        return origFetch.apply(this, args);
+        var promise = origFetch.apply(this, args);
+        // P2-2：fetch clone() 尽力补响应状态/头/体（Android JS 降级方案）——
+        // clone 读取不消费原响应体，AI 据此区分 200/401/403、识别 Set-Cookie
+        try {
+          if (promise && typeof promise.then === 'function') {
+            promise.then(function(resp) {
+              try {
+                if (!resp || typeof resp.clone !== 'function') return;
+                var respPayload = {
+                  timestamp: new Date().toISOString(),
+                  method: 'RESPONSE',
+                  url: (resp.url && resp.url.length ? resp.url : payload.url) || '',
+                  statusCode: (typeof resp.status === 'number') ? resp.status : null,
+                  responseHeaders: {},
+                };
+                try {
+                  if (resp.headers && typeof resp.headers.forEach === 'function') {
+                    resp.headers.forEach(function(v, k) { respPayload.responseHeaders[k] = v; });
+                  }
+                } catch(he2) {}
+                sendToDart(respPayload);
+                var cloned = resp.clone();
+                cloned.text().then(function(text) {
+                  try {
+                    if (text && typeof text === 'string') {
+                      respPayload.responseBody = text.substring(0, 32768);
+                      sendToDart(respPayload);
+                    }
+                  } catch(be2) {}
+                }).catch(function() {});
+              } catch(re) {}
+            }).catch(function() {});
+          }
+        } catch(pe) {}
+        return promise;
       };
-      console.log('[EVG Scraper] fetch hooked');
+      console.log('[EVG Scraper] fetch hooked (P2-2 clone response capture)');
     }
   } catch (e) {
     console.error('[EVG Scraper] fetch hook failed:', e);
