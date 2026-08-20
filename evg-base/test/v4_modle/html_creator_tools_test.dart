@@ -26,7 +26,7 @@ void main() {
       expect(issues, isNotEmpty);
       expect(issues.any((i) => i.contains('style.css:2') && i.contains('#ffffff')), isTrue);
       expect(issues.any((i) => i.contains('style.css:3') && i.contains('#333')), isTrue);
-      expect(issues.any((i) => i.contains('style.css:4') && i.contains('#e5e7eb')), isTrue);
+      expect(issues.any((i) => i.contains('style.css:5') && i.contains('#e5e7eb')), isTrue);
     });
 
     test('var(--evg-*) 兜底色放行', () {

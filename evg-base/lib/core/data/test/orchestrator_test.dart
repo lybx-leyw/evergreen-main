@@ -3,7 +3,14 @@
 /// 覆盖：注册/获取/刷新/过期/状态/连通性/异常/批量/自动刷新。
 
 import 'package:test/test.dart';
-import '../data.dart';
+// 注意：这里精确 import 纯数据层文件，而非 barrel `data.dart`——
+// `data.dart` 会 export `data_http_server.dart` / `plugin/data_source_loader.dart`，
+// 它们依赖根包（evg-base）的 core 结构（greenix_path / plugin_runner 等），
+// 在 data 子包独立 `dart test` 时跨包 import 解析不到，导致编译失败。
+import '../orchestrator.dart';
+import '../type.dart';
+import '../exceptions.dart';
+import '../cache.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 测试辅助
