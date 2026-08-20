@@ -219,7 +219,7 @@ class _SettingsViewState extends ConsumerState<SettingsView> {
         );
       case SettingType.option:
         final opts = d.options ?? [];
-        if (opts.isEmpty) return _buildTextField(item, scheme);
+        if (opts.isEmpty) return _buildTextWithSuggestions(item, scheme);
         final cur = opts.any((o) => o.value == item.value) ? item.value : opts.first.value;
         return DropdownButtonFormField<String>(
           value: cur,
@@ -235,8 +235,41 @@ class _SettingsViewState extends ConsumerState<SettingsView> {
           },
         );
       default:
-        return _buildTextField(item, scheme);
+        // string / path：自由文本输入；带 suggestions 时额外渲染快捷填充 chips
+        return _buildTextWithSuggestions(item, scheme);
     }
+  }
+
+  /// 自由文本输入。声明了 `suggestions` 时，下方渲染可点击的快捷填充建议
+  /// （仅作提示，不限制输入——用户可填写任意 OpenAI 兼容模型 id）。
+  Widget _buildTextWithSuggestions(({SettingDecl decl, String value}) item, ColorScheme scheme) {
+    final d = item.decl;
+    final suggestions = d.suggestions;
+    if (suggestions == null || suggestions.isEmpty) {
+      return _buildTextField(item, scheme);
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildTextField(item, scheme),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 6,
+          runSpacing: 4,
+          children: [
+            for (final s in suggestions)
+              ActionChip(
+                label: Text(s.label, style: const TextStyle(fontSize: 12)),
+                visualDensity: VisualDensity.compact,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                onPressed: () => setState(() {
+                  _controllers[d.key]?.text = s.value;
+                }),
+              ),
+          ],
+        ),
+      ],
+    );
   }
 
   Widget _buildTextField(({SettingDecl decl, String value}) item, ColorScheme scheme) {

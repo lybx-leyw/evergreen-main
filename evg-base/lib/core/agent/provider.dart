@@ -177,23 +177,39 @@ class ProviderEvent {
 // ═══════ DeepSeekProvider ═══════
 
 /// DeepSeek API Provider。支持流式、function calling、自动重试。
+///
+/// [baseUrl] 可指向任意 OpenAI 兼容端点（如自定义代理 / 中转），
+/// 默认 `https://api.deepseek.com`。模型 id 不做白名单限制——
+/// 填写任意 OpenAI 兼容模型 id（如 `deepseek-chat`、`gpt-4o`）均可直通。
 class DeepSeekProvider implements Provider {
   final Dio _dio;
   final String _apiKey;
+  final String _baseUrl;
   String _model;
   String _thinking = 'enabled';
   String _reasoningEffort = '';
   TokenUsage? _lastUsage;
 
-  static const String _baseUrl = 'https://api.deepseek.com';
+  static const String defaultBaseUrl = 'https://api.deepseek.com';
+
+  /// 归一化 baseUrl：去首尾空白、去末尾斜杠，空值回退默认地址。
+  static String normalizeBaseUrl(String url) {
+    var u = url.trim();
+    while (u.endsWith('/')) {
+      u = u.substring(0, u.length - 1);
+    }
+    return u.isEmpty ? defaultBaseUrl : u;
+  }
 
   DeepSeekProvider({
     required Dio dio,
     required String apiKey,
     String model = 'deepseek-v4-flash',
     String thinking = 'enabled',
+    String baseUrl = defaultBaseUrl,
   })  : _dio = dio,
         _apiKey = apiKey,
+        _baseUrl = normalizeBaseUrl(baseUrl),
         _model = model,
         _thinking = thinking;
 

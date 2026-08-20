@@ -80,6 +80,16 @@ void main() {
       final d = SettingDecl.string(key: 'k', label: 'L');
       expect(d.isSecure, false);
     });
+
+    test('string 构造函数可携带 suggestions', () {
+      final d = SettingDecl.string(
+        key: 'm', label: 'M',
+        suggestions: const [SettingOption(value: 'a', label: 'A')],
+      );
+      expect(d.type, SettingType.string);
+      expect(d.suggestions, hasLength(1));
+      expect(d.suggestions!.first.value, 'a');
+    });
   });
 
   // ───────────────────────────────────────────────────────────────────────
@@ -178,6 +188,35 @@ void main() {
       try {
         await initSettings(prefs, pluginDirs: [dir.path]);
         expect(prefs.getString('T5_KEY'), 'implicit_string');
+      } finally {
+        dir.deleteSync(recursive: true);
+      }
+    });
+
+    test('string 类型 suggestions 解析（对象 / 纯字符串两种写法）', () async {
+      final dir = _tmpConfigDir({
+        'id': 't6',
+        'name': 'Sug',
+        'settings': [
+          {
+            'key': 'T6_MODEL', 'label': 'M', 'type': 'string', 'default': 'a',
+            'suggestions': [
+              {'value': 'a', 'label': 'A 模型'},
+              'deepseek-chat',
+            ],
+          },
+        ],
+      });
+      try {
+        await initSettings(prefs, pluginDirs: [dir.path]);
+        final all = getAllSettings(prefs);
+        final item = all.firstWhere((s) => s.decl.key == 'T6_MODEL');
+        expect(item.decl.type, SettingType.string);
+        expect(item.decl.suggestions, hasLength(2));
+        expect(item.decl.suggestions![0].value, 'a');
+        expect(item.decl.suggestions![0].label, 'A 模型');
+        expect(item.decl.suggestions![1].value, 'deepseek-chat');
+        expect(item.decl.suggestions![1].label, 'deepseek-chat');
       } finally {
         dir.deleteSync(recursive: true);
       }
@@ -320,6 +359,32 @@ void main() {
         await initSettings(prefs, pluginDirs: [dir.path]);
         await setSetting(prefs, 'TV_OPT2', 'a');
         expect(prefs.getString('TV_OPT2'), 'a');
+      } finally {
+        dir.deleteSync(recursive: true);
+      }
+    });
+
+    test('string 类型接受任意模型 id——suggestions 不参与写入校验', () async {
+      final dir = _tmpConfigDir({
+        'id': 'tv4',
+        'name': 'TV4',
+        'settings': [
+          {
+            'key': 'TV_MODEL', 'label': 'M', 'type': 'string', 'default': 'deepseek-v4-flash',
+            'suggestions': [
+              {'value': 'deepseek-v4-flash', 'label': 'V4 Flash'},
+              {'value': 'deepseek-chat', 'label': 'Chat'},
+            ],
+          },
+        ],
+      });
+      try {
+        await initSettings(prefs, pluginDirs: [dir.path]);
+        // 自由填写任意 OpenAI 兼容模型 id（不在 suggestions 中）——必须写入成功
+        await setSetting(prefs, 'TV_MODEL', 'gpt-4o');
+        expect(prefs.getString('TV_MODEL'), 'gpt-4o');
+        await setSetting(prefs, 'TV_MODEL', 'custom-model@org/deploy');
+        expect(prefs.getString('TV_MODEL'), 'custom-model@org/deploy');
       } finally {
         dir.deleteSync(recursive: true);
       }

@@ -22,6 +22,7 @@
   - `bool` → 开关滑块
   - `option` → 下拉选择框
   - `string` / `path` → 文本输入框（安全字段用密码类型）
+- `string` 类型声明 `suggestions` 时，文本输入框下方渲染快捷填充建议（仅提示，不限制输入）
 - 在线编辑即时保存（Toast 提示）
 - JSON 导出 / 导入
 - 刷新按钮
@@ -52,3 +53,6 @@ pyinstaller --onefile --windowed settings.py
 ```
 
 支持的 `type`：`string`、`bool`、`option`、`path`。
+
+`string` / `path` 可附带 `suggestions`（快捷填充建议列表，元素为 `{"value","label"}` 或纯字符串），
+仅作 UI 提示，不限制用户填写任意值——例如模型 id 支持自由填写以兼容任意 OpenAI 端点。

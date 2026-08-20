@@ -3,13 +3,15 @@
   "name": "Evergreen Core 默认设置",
   "settings": [
     {"key":"DEEPSEEK_API_KEY",     "label":"DeepSeek API Key",  "type":"string", "isSecure":true,  "hint":"从 platform.deepseek.com 获取"},
-    {"key":"DEEPSEEK_MODEL",       "label":"DeepSeek 模型",     "type":"option", "default":"deepseek-v4-flash",
-      "options":[
+    {"key":"DEEPSEEK_MODEL",       "label":"DeepSeek 模型",     "type":"string", "default":"deepseek-v4-flash",
+      "suggestions":[
         {"value":"deepseek-v4-flash","label":"V4 Flash（快速）"},
         {"value":"deepseek-v4-pro",  "label":"V4 Pro（平衡）"},
-        {"value":"deepseek-v4-max",  "label":"V4 Max（最强）"}
+        {"value":"deepseek-v4-max",  "label":"V4 Max（最强）"},
+        {"value":"deepseek-chat",    "label":"DeepSeek Chat（OpenAI 兼容）"},
+        {"value":"deepseek-reasoner","label":"DeepSeek Reasoner（OpenAI 兼容）"}
       ],
-      "hint":"模型选择影响速度、质量和成本"
+      "hint":"可自由填写任意 OpenAI 兼容模型 id（配合自定义 API 地址使用），点击下方建议可快速填入"
     },
     {"key":"DEEPSEEK_BASE_URL",    "label":"API 地址",          "type":"string", "default":"https://api.deepseek.com/v1", "hint":"自定义 API 代理地址（兼容 OpenAI 格式）"},
     {"key":"DEEPSEEK_THINKING",    "label":"深度思考",           "type":"bool",   "default":"true",  "hint":"启用后 AI 会展示详细推理过程（消耗更多 token）"},

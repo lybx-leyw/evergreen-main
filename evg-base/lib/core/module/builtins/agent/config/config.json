@@ -12,14 +12,16 @@
     {
       "key": "DEEPSEEK_MODEL",
       "label": "模型",
-      "type": "option",
+      "type": "string",
       "default": "deepseek-v4-flash",
-      "options": [
+      "suggestions": [
         { "value": "deepseek-v4-flash", "label": "V4 Flash（快速）" },
         { "value": "deepseek-v4-pro", "label": "V4 Pro（平衡）" },
-        { "value": "deepseek-v4-max", "label": "V4 Max（最强）" }
+        { "value": "deepseek-v4-max", "label": "V4 Max（最强）" },
+        { "value": "deepseek-chat", "label": "DeepSeek Chat（OpenAI 兼容）" },
+        { "value": "deepseek-reasoner", "label": "DeepSeek Reasoner（OpenAI 兼容）" }
       ],
-      "hint": "模型选择影响速度、质量和成本"
+      "hint": "可自由填写任意 OpenAI 兼容模型 id（配合自定义 API 地址使用），点击下方建议可快速填入"
     },
     {
       "key": "DEEPSEEK_BASE_URL",

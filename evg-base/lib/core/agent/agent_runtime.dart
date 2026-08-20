@@ -49,11 +49,14 @@ final agentRuntimeProvider = Provider<AgentRuntime>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
   final apiKey = getSetting(prefs, 'DEEPSEEK_API_KEY');
   final model = getSetting(prefs, 'DEEPSEEK_MODEL');
+  final baseUrl = getSetting(prefs, 'DEEPSEEK_BASE_URL');
 
   final provider = agent.DeepSeekProvider(
     dio: Dio(),
     apiKey: apiKey,
     model: model.isNotEmpty ? model : 'deepseek-v4-flash',
+    // 空值由 Provider 内部回退到官方地址；非空则直连 OpenAI 兼容端点
+    baseUrl: baseUrl,
   );
 
   final globalStore = FileMemoryStore(greenixMemoriesDir);
