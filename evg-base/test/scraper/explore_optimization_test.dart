@@ -27,16 +27,38 @@ void main() {
   });
 
   group('Phase 10 · explorationSufficient（最小探索量门槛）', () {
+    (ExploreWorkflow, DateTime Function()) ready() {
+      var now = DateTime(2026, 1, 1, 12);
+      final w = ExploreWorkflow(clock: () => now);
+      w.startExploring(startUrl: 'https://site.com/');
+      final advance = () => now = now.add(const Duration(seconds: 2));
+      return (w, advance);
+    }
+
     test('0 导航 → 不充分', () {
       final w = ExploreWorkflow();
       w.startExploring(startUrl: 'https://site.com/');
       expect(w.explorationSufficient, isFalse);
     });
 
-    test('至少 1 次导航 → 充分', () {
-      final w = ExploreWorkflow();
-      w.startExploring(startUrl: 'https://site.com/');
+    test('默认门槛 3 页：1-2 页不充分', () {
+      final (w, advance) = ready();
+      advance();
       w.recordNavigation('https://site.com/a');
+      expect(w.explorationSufficient, isFalse);
+      advance();
+      w.recordNavigation('https://site.com/b');
+      expect(w.explorationSufficient, isFalse);
+    });
+
+    test('默认门槛 3 页：≥3 个去重页 → 充分', () {
+      final (w, advance) = ready();
+      advance();
+      w.recordNavigation('https://site.com/a');
+      advance();
+      w.recordNavigation('https://site.com/b');
+      advance();
+      w.recordNavigation('https://site.com/c');
       expect(w.explorationSufficient, isTrue);
     });
 

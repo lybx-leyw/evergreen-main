@@ -131,6 +131,8 @@ class ExplorePageLinksTool extends SimpleTool {
                     '若页面尚未加载，可 navigate_get 访问目标页后再枚举链接；'
                     '若持续失败，请 ask 用户确认浏览器已打开目标网站并刷新页面。]';
               }
+              // P1-B：枚举成功 = 二次探索产出（重访后重新枚举不算空转）
+              exploreWorkflow.noteSecondaryExploration();
               final count = json['count'] as int? ?? 0;
               final links = (json['links'] as List<dynamic>? ?? const [])
                   .whereType<Map<String, dynamic>>()
@@ -199,6 +201,8 @@ class ExploreNetworkResourcesTool extends SimpleTool {
                     '若页面尚未加载，可 navigate_get 访问目标页后再枚举资源；'
                     '若持续失败，请 ask 用户确认浏览器已打开目标网站并刷新页面。]';
               }
+              // P1-B：资源枚举成功 = 二次探索产出（SPA 重访后重新枚举不算空转）
+              exploreWorkflow.noteSecondaryExploration();
               final count = json['count'] as int? ?? 0;
               final resources =
                   (json['resources'] as List<dynamic>? ?? const [])
@@ -251,9 +255,11 @@ class NavigateGetTool extends SimpleTool {
           name: 'navigate_get',
           description: '以 GET 方式导航内嵌浏览器到指定 URL（探索模式唯一导航通道）。'
               '守卫约束：仅 http/https；同域（首次导航锁定域名）；'
-              '页数上限（默认 20 页）；请求上限（默认 50）；1s 节流；'
+              '页数上限（默认 20 页，分页参数 page/p/pn/pageNum 归一同页）；'
+              '请求上限（默认 50，按真实捕获日志计数）；1s 节流；'
               '空转熔断（连续 3 次导航无新页面触发，熔断期间重复访问'
-              '已探索页面会被拒绝——请立即换新链接或结束探索进入归类，'
+              '已探索页面会被拒绝——可对当前页重新枚举链接/资源或读取日志'
+              '（二次探索）解除熔断，或换新链接 / 结束探索进入归类，'
               '禁止对同一页面无意义重试）。'
               '被守卫拒绝时请换一个链接或结束探索进入归类。'
               '禁止尝试 POST/表单提交/js: 伪协议。',
@@ -328,6 +334,10 @@ class ListCapturedRequestsTool extends SimpleTool {
           },
           readOnly: true,
           execute: (args) async {
+            // P1-B：读日志 = 二次探索产出（重访后重读日志不算空转）；
+            // 同时按真实捕获条数同步请求计数（AI 看到的请求数 = 日志条数）
+            exploreWorkflow.noteSecondaryExploration();
+            exploreWorkflow.syncCapturedRequests(captureWorkflow.logs.length);
             final base = exploreWorkflow.baseHost;
             final logs = captureWorkflow.logs.where((l) {
               if (!l.url.startsWith('http://') &&
@@ -392,8 +402,14 @@ class ListCapturedRequestsTool extends SimpleTool {
 class ReadRequestByIdTool extends SimpleTool {
   final ScraperWorkflow captureWorkflow;
 
-  ReadRequestByIdTool({required this.captureWorkflow})
-      : super(
+  /// P1-B：读日志工具注入探索工作流——按证据 id 精读视为二次探索产出
+  /// （重访后重读不算空转），并同步真实请求计数。
+  final ExploreWorkflow? exploreWorkflow;
+
+  ReadRequestByIdTool({
+    required this.captureWorkflow,
+    this.exploreWorkflow,
+  }) : super(
           name: 'read_request_by_id',
           description: '按证据 id（log-N）读取单条捕获请求的完整内容'
               '（method/url/headers/body/responseBody 全文，不再截断）。'
@@ -411,6 +427,9 @@ class ReadRequestByIdTool extends SimpleTool {
           },
           readOnly: true,
           execute: (args) async {
+            // P1-B：读单条日志同样算二次探索产出（按 id 精读 = 主动分析）。
+            exploreWorkflow?.noteSecondaryExploration();
+            exploreWorkflow?.syncCapturedRequests(captureWorkflow.logs.length);
             final id = (args['id'] as String? ?? '').trim();
             if (id.isEmpty) return '[error: id 参数为空]';
             HttpRequestLog? found;
@@ -967,7 +986,10 @@ List<Tool> createScraperExploreTools({
       captureWorkflow: captureWorkflow,
       exploreWorkflow: exploreWorkflow,
     ),
-    ReadRequestByIdTool(captureWorkflow: captureWorkflow),
+    ReadRequestByIdTool(
+      captureWorkflow: captureWorkflow,
+      exploreWorkflow: exploreWorkflow,
+    ),
     ListPythonCapabilitiesTool(
       listCapabilities: listPythonCapabilities ?? () => const [],
     ),

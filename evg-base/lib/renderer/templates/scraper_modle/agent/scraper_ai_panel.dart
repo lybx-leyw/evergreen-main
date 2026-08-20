@@ -1981,7 +1981,7 @@ ${ew.stallDetected ? '- 空转熔断已触发，请切换策略（换入口/换�
     }
     final wf = widget.workflow;
     buf.writeln('- 已捕获请求: ${wf.logs.length} 条'
-        '（${ew?.requestsCaptured ?? 0} 条探索导航计数）');
+        '（探索计数: ${ew?.requestsCaptured ?? 0}，按真实捕获日志同步）');
     buf.writeln('- 已访问页: ${ew?.uniquePages ?? 0} / ${ew?.limits.maxPages ?? 20}'
         ' · 请求上限: ${ew?.limits.maxRequests ?? 50}');
     buf.writeln('- 锁定域名: ${(ew?.baseHost ?? '').isEmpty ? '（未锁定）' : ew!.baseHost}');

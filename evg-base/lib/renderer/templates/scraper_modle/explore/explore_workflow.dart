@@ -201,6 +201,9 @@ class ExploreLimits {
   final int stallWindow;
 
   /// Phase 10：归类前最小探索页数（去重）。0 = 不设页数门槛。
+  ///
+  /// P1-B：默认 1 → 3——单一页面无法支撑"摸清栏目骨架 + 下钻目标栏目"，
+  /// 至少 3 个去重页才能提供可靠的归类依据（授权弹窗可调）。
   final int minPagesForCategorize;
 
   /// Phase 10：归类前最小探索请求数。0 = 不设请求门槛。
@@ -213,7 +216,7 @@ class ExploreLimits {
     this.sameDomainOnly = true,
     this.stallThreshold = 3,
     this.stallWindow = 6,
-    this.minPagesForCategorize = 1,
+    this.minPagesForCategorize = 3,
     this.minRequestsForCategorize = 0,
   });
 }
@@ -442,6 +445,10 @@ class ExploreWorkflow {
 
   /// P1-1 空转熔断观察窗口：最近 [ExploreLimits.stallWindow] 次导航是否产出
   /// 新页面（环形窗口，先进先出）。
+  ///
+  /// P1-B：重访（重复导航已访问页）本身仍计入窗口，但「二次探索」——
+  /// 重访后重新枚举链接/资源或读取日志（[noteSecondaryExploration]）——
+  /// 会清空窗口并解除熔断，避免把主动分析误判为空转。
   final List<bool> _stallWindow = [];
 
   /// 熔断是否已触发（触发后重复导航已探索页面会被拒绝；新页面导航自动恢复）。
@@ -767,7 +774,9 @@ class ExploreWorkflow {
         !_stallWindow.any((e) => e)) {
       _stallDetected = true;
       _stallMessage = '连续 ${limits.stallThreshold} 次导航无新页面，'
-          '探索疑似空转，重复导航将被拒绝';
+          '探索疑似空转，重复导航将被拒绝。'
+          '可对当前页重新枚举链接/资源或读取日志（二次探索）解除熔断，'
+          '或切换策略（换新入口 / 结束探索进入归类）';
       onStallDetected?.call(_stallMessage);
     }
   }
@@ -776,6 +785,10 @@ class ExploreWorkflow {
   ///
   /// 达到请求上限时通过 [onLimitReached] 提示一次（不硬阻断——提示后
   /// 由 AI 停止循环；navigate 受节流与页数守卫硬约束）。
+  ///
+  /// P1-B 语义修正：本计数只作「导航数」下限——真实请求数由
+  /// [syncCapturedRequests] 按捕获日志条数同步（AI 看到的请求计数与
+  /// 日志条数一致，消除"50 请求实为 50 次导航"的误导）。
   void recordRequest() {
     _requestsCaptured++;
     if (_requestsCaptured >= limits.maxRequests && !_requestsLimitNotified) {
@@ -785,11 +798,58 @@ class ExploreWorkflow {
     _notify();
   }
 
-  /// URL 去重键：去 fragment、host 小写。
+  /// P1-B：按真实捕获日志条数同步请求计数（取较大值，只增不减）。
+  ///
+  /// 由捕获层（WebView onRequestCaptured / 日志读取工具）调用，
+  /// 使请求上限与实际捕获日志一致：`?page=1/2/3` 等分页导航不会再
+  /// 把一次导航误计为多次请求，AI 看到的请求计数 = 日志条数。
+  void syncCapturedRequests(int logCount) {
+    if (logCount <= _requestsCaptured) return;
+    _requestsCaptured = logCount;
+    if (_requestsCaptured >= limits.maxRequests && !_requestsLimitNotified) {
+      _requestsLimitNotified = true;
+      onLimitReached?.call('已触达请求数上限（${limits.maxRequests} 请求，'
+          '按真实捕获日志计数）');
+    }
+    _notify();
+  }
+
+  /// P1-B：记录一次「二次探索」产出（重访已访问页后重新枚举链接/资源/读日志）。
+  ///
+  /// 重访本身不算空转——只要 AI 在已访问页上重新枚举/读取了信息（说明它
+  /// 在主动分析而非原地打转），就清空熔断观察窗口并解除已触发的熔断。
+  /// 由探索工具（explore_page_links / explore_network_resources /
+  /// list_captured_requests / read_request_by_id）成功执行后调用。
+  void noteSecondaryExploration() {
+    if (_stallWindow.isEmpty && !_stallDetected) return;
+    _stallWindow.clear();
+    _stallDetected = false;
+    _stallMessage = '';
+    _notify();
+  }
+
+  /// URL 去重键：去 fragment、host 小写、**分页类 query 参数归一**。
+  ///
+  /// P1-B：分页参数（page/p/pn/pageNum 等）值归一到 `{N}` 后参与去重——
+  /// `?page=1/2/3` 视为同一页，避免列表分页烧光页数预算；其余 query 保留
+  /// （排序/筛选参数不同仍算不同页）。
   static String _urlKey(String url) {
     try {
       final uri = Uri.parse(url.trim());
-      return uri.replace(fragment: '').toString().toLowerCase();
+      final query = uri.queryParameters;
+      if (query.isEmpty) {
+        return uri.replace(fragment: '').toString().toLowerCase();
+      }
+      // 仅归一已知分页参数（值 → {N}），其余参数保留原样
+      const paginationKeys = {'page', 'p', 'pn', 'pagenum', 'page_no', 'pageindex'};
+      final normalized = <String, String>{};
+      query.forEach((k, v) {
+        normalized[k] = paginationKeys.contains(k.toLowerCase()) ? '{N}' : v;
+      });
+      return uri
+          .replace(fragment: '', queryParameters: normalized)
+          .toString()
+          .toLowerCase();
     } catch (_) {
       return url.trim().toLowerCase();
     }
