@@ -54,4 +54,31 @@ void main() {
       expect(skill, contains('不要为了"少问问题"而猜测目标乱扫'));
     });
   });
+
+  group('scraperExploreSkillBody 页面操作工具与红线例外（P1-D）', () {
+    test('工具清单含 4 个页面操作工具', () {
+      expect(skill, contains('page_click'));
+      expect(skill, contains('page_fill'));
+      expect(skill, contains('page_submit'));
+      expect(skill, contains('page_scroll'));
+    });
+
+    test('守卫红线声明页面操作工具为 GET-only 唯一例外', () {
+      expect(skill, contains('唯一例外'));
+      expect(skill, contains('guard_override'));
+      expect(skill, contains('越出授权范围会被**拒绝执行**'));
+    });
+
+    test('体量预估含交互型站点行', () {
+      expect(skill, contains('交互型站点'));
+      expect(skill, contains('懒加载'));
+    });
+
+    test('含「交互型站点操作路径（P1-D）」章节', () {
+      expect(skill, contains('交互型站点操作路径'));
+      expect(skill, contains("page_click('nav 选择器')"));
+      expect(skill, contains("page_submit('form 选择器')"));
+      expect(skill, contains('触发懒加载'));
+    });
+  });
 }

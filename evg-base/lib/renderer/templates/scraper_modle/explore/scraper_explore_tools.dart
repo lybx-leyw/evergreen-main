@@ -101,6 +101,62 @@ Map<String, dynamic>? _decodeJsJson(String? raw) {
   }
 }
 
+// ═══════ P1-D：页面操作前检查脚本（不触发任何副作用）═══════
+
+/// 检查点击目标元素（**不点击**）：tag / href（`<a>` 目标）/
+/// formAction（提交按钮所在表单 action）/ 可见性 / 文本。
+///
+/// 供 page_click 在点击前做 scope 越界校验——防御"点击指向授权范围外的链接/表单"。
+String _inspectClickTargetScript(String selector) => r'''
+(function() {
+  var sel = ''' +
+      jsonEncode(selector) +
+      r''';
+  try {
+    var el = document.querySelector(sel);
+    if (!el) return JSON.stringify({ found: false, message: '未找到元素: ' + sel });
+    var out = { found: true, tag: (el.tagName || '').toLowerCase() };
+    try {
+      if (el.href) out.href = el.href;                        // <a> 目标 URL
+      if (el.form && el.form.action) out.formAction = el.form.action; // 提交按钮所在表单
+      var t = (el.innerText || el.textContent || el.title || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+      if (t) out.text = t;
+    } catch(e) {}
+    var r = el.getBoundingClientRect();
+    out.visible = (r.width > 0 && r.height > 0);
+    return JSON.stringify(out);
+  } catch(e) {
+    return JSON.stringify({ found: false, message: String(e) });
+  }
+})()
+''';
+
+/// 检查表单（**不提交**）：action（绝对化 URL）/ method。
+///
+/// 供 page_submit 在提交前校验表单 action 是否落在授权范围。
+String _inspectFormScript(String formSelector) => r'''
+(function() {
+  var sel = ''' +
+      jsonEncode(formSelector) +
+      r''';
+  try {
+    var form = document.querySelector(sel);
+    if (!form) return JSON.stringify({ found: false, message: '未找到表单: ' + sel });
+    if (form.tagName.toLowerCase() !== 'form') {
+      return JSON.stringify({ found: false, message: '目标不是 <form> 元素: ' + sel });
+    }
+    return JSON.stringify({ found: true, action: form.action || '', method: (form.method || 'get').toLowerCase() });
+  } catch(e) {
+    return JSON.stringify({ found: false, message: String(e) });
+  }
+})()
+''';
+
+/// 页面操作通道不可用的统一错误提示（浏览器未就绪/未注入操作脚本）。
+String _pageOpChannelError(String tool) =>
+    '[error: 页面操作通道（$tool）不可用——浏览器未就绪或未注入操作脚本。'
+    '→ 先 check_explore_ready 确认 WebView 已加载页面后重试。]';
+
 // ═══════ explore_page_snapshot（P1-C · 导航后快照判型）═══════
 
 /// 采集当前页结构化摘要的 JS：`document.title` / 面包屑 / 导航菜单 /
@@ -313,10 +369,368 @@ class ExplorePageSnapshotTool extends SimpleTool {
         );
 }
 
+// ═══════ P1-D：AI 页面操作工具（点击/填表/提交/滚动）═══════
+
+/// 工具：点击当前页面元素（菜单/按钮/翻页/懒加载触发）。
+///
+/// P1-D：交互型站点的数据往往在"点击后才出现"（点菜单进栏目、点加载更多
+/// 触发分页请求）。点击前先检查目标元素——若目标是 `<a href>` 或提交按钮，
+/// 校验其链接/form action 是否越出授权范围（越界**拒绝点击**）；
+/// 点击后返回页面标题/URL 与已捕获请求数，供 AI 判断交互是否触达数据接口。
+class PageClickTool extends SimpleTool {
+  final ExploreWorkflow exploreWorkflow;
+
+  /// JS 执行通道（点击前检查目标元素用）。
+  final Future<String?> Function(String script) evaluateJs;
+
+  /// 页面点击通道（桥层注入合成事件）。
+  final Future<String?> Function(String selector)? jsClick;
+
+  PageClickTool({
+    required this.exploreWorkflow,
+    required this.evaluateJs,
+    this.jsClick,
+  }) : super(
+          name: 'page_click',
+          description: '点击当前页面上的元素（菜单/按钮/翻页/「加载更多」等）。'
+              '点击前自动校验：若目标是链接/提交按钮，其 href / 表单 action '
+              '越出授权范围则**拒绝点击**（不会触发越界导航）。'
+              '点击后返回页面标题/URL 与已捕获请求数，可 list_captured_requests '
+              '回读点击触发的数据请求。用于交互型站点：点菜单进目标栏目、'
+              '点「加载更多」触发分页请求。只读操作，无需授权。',
+          schema: const {
+            'type': 'object',
+            'properties': {
+              'selector': {
+                'type': 'string',
+                'description': 'CSS 选择器（如 "nav a[href*=\\\"/course\\\"]"、'
+                    '"button.load-more"、".pagination .next"）',
+              },
+            },
+            'required': ['selector'],
+          },
+          readOnly: true,
+          execute: (args) async {
+            final selector = (args['selector'] as String? ?? '').trim();
+            if (selector.isEmpty) return '[error: selector 参数为空]';
+            if (jsClick == null) return _pageOpChannelError('page_click');
+            try {
+              // 1) 点击前检查目标元素（不点击、无副作用）
+              final rawInspect = await evaluateJs(_inspectClickTargetScript(selector));
+              final inspect = _decodeJsJson(rawInspect);
+              if (inspect == null || inspect['found'] != true) {
+                return '[error: 页面操作 JS 通道不可用或元素不存在'
+                    '（selector="$selector"）。'
+                    '→ 先 explore_page_snapshot 确认页面结构与选择器，'
+                    '或 check_explore_ready 检查浏览器通道。]';
+              }
+              if (inspect['visible'] == false) {
+                return '[error: 目标元素不可见（宽高为 0），点击无意义。'
+                    '→ 可先用 page_scroll 滚动到目标区域再点击。]';
+              }
+              // 2) 越界校验：链接/表单 action 不得超出授权范围
+              final base = exploreWorkflow.baseHost;
+              final href = (inspect['href'] as String? ?? '').trim();
+              final formAction = (inspect['formAction'] as String? ?? '').trim();
+              for (final target in [
+                if (href.isNotEmpty) href,
+                if (formAction.isNotEmpty) formAction,
+              ]) {
+                final err = validateExploreUrl(target, baseHost: base);
+                if (err != null) {
+                  return '[error: 点击目标越界拒绝: $err'
+                      '（page_click 不得点击指向授权范围外的链接/表单）]';
+                }
+                final scope = exploreWorkflow.scope;
+                if (scope != null) {
+                  final scopeErr = scope.validateUrl(target);
+                  if (scopeErr != null) {
+                    return '[error: 点击目标超出用户授权范围: $scopeErr]';
+                  }
+                }
+              }
+              // 3) 执行点击
+              final raw = await jsClick!(selector);
+              final json = _decodeJsJson(raw);
+              if (json == null || json['ok'] != true) {
+                final msg = json?['message'];
+                return '[error: 点击失败${msg != null ? ': $msg' : ''}'
+                    '（selector="$selector"）。'
+                    '→ 换选择器，或用 explore_page_snapshot 确认页面结构。]';
+              }
+              // P1-D：点击 = 主动交互产出（重访/操作后不算空转）
+              exploreWorkflow.noteSecondaryExploration();
+              final tag = (json['tag'] as String? ?? '').trim();
+              final text = (json['text'] as String? ?? '').trim();
+              final title = (json['title'] as String? ?? '').trim();
+              final url = (json['url'] as String? ?? '').trim();
+              // 点击导致页面导航后回读：若当前 URL 越界给出警告
+              var warn = '';
+              if (url.isNotEmpty) {
+                final uErr = validateExploreUrl(url, baseHost: base);
+                final scopeErr = exploreWorkflow.scope?.validateUrl(url);
+                if (uErr != null || scopeErr != null) {
+                  warn = '\n⚠️ 点击后页面当前 URL 超出授权范围（$url），'
+                      '请 navigate_get 返回授权页面继续探索。';
+                }
+              }
+              return '✅ 已点击 ${tag.isNotEmpty ? '<$tag>' : '元素'}'
+                  '${text.isNotEmpty ? '「$text」' : ''}（selector="$selector"）'
+                  '${title.isNotEmpty ? '\n页面标题: $title' : ''}'
+                  '${url.isNotEmpty ? '\n当前 URL: $url' : ''}'
+                  '\n已捕获请求 ${exploreWorkflow.requestsCaptured} 条'
+                  '（可 list_captured_requests / explore_network_resources 回读）'
+                  '$warn';
+            } catch (e) {
+              debugPrint('[PageClick] 💥 $e');
+              return '[error: 点击执行异常: $e]';
+            }
+          },
+        );
+}
+
+/// 工具：向当前页面表单字段填充值（input/textarea/select）。
+///
+/// P1-D：登录/搜索/筛选表单填写。用原生 value setter + input/change 事件
+/// （兼容 React 受控组件）。**写操作**：需用户经 guard_override 一次性授权。
+class PageFillTool extends SimpleTool {
+  final ExploreWorkflow exploreWorkflow;
+
+  /// 页面填充通道（桥层注入）。
+  final Future<String?> Function(String selector, String value)? jsFill;
+
+  PageFillTool({
+    required this.exploreWorkflow,
+    this.jsFill,
+  }) : super(
+          name: 'page_fill',
+          description: '向当前页面的表单字段填充值（input/textarea/select；'
+              '原生 value setter + input/change 事件，兼容 React 受控组件）。'
+              '用于登录/搜索/筛选表单填写。'
+              '⚠️ 写操作：调用前需 guard_override("page_fill", "<理由>") 请求用户'
+              '一次性授权，用户同意后才能执行。',
+          schema: const {
+            'type': 'object',
+            'properties': {
+              'selector': {
+                'type': 'string',
+                'description': 'CSS 选择器（如 "#username"、"input[name=\\\"keyword\\\"]"）',
+              },
+              'value': {
+                'type': 'string',
+                'description': '要填充的值（账号/密码/关键词等；凭据先 set_env_var 写入）',
+              },
+            },
+            'required': ['selector', 'value'],
+          },
+          readOnly: false,
+          execute: (args) async {
+            final selector = (args['selector'] as String? ?? '').trim();
+            final value = args['value'] as String? ?? '';
+            if (selector.isEmpty) return '[error: selector 参数为空]';
+            if (jsFill == null) return _pageOpChannelError('page_fill');
+            try {
+              final raw = await jsFill!(selector, value);
+              final json = _decodeJsJson(raw);
+              if (json == null || json['ok'] != true) {
+                final msg = json?['message'];
+                return '[error: 填充失败${msg != null ? ': $msg' : ''}'
+                    '（selector="$selector"）。'
+                    '→ 用 explore_page_snapshot 查看表单字段（name+type）后换正确选择器。]';
+              }
+              // P1-D：填表 = 主动交互产出（不算空转）
+              exploreWorkflow.noteSecondaryExploration();
+              final tag = (json['tag'] as String? ?? '').trim();
+              final type = (json['type'] as String? ?? '').trim();
+              final title = (json['title'] as String? ?? '').trim();
+              final url = (json['url'] as String? ?? '').trim();
+              return '✅ 已填充 <$tag${type.isNotEmpty ? ' type=$type' : ''}>'
+                  '（selector="$selector"）'
+                  '${title.isNotEmpty ? '\n页面标题: $title' : ''}'
+                  '${url.isNotEmpty ? '\n当前 URL: $url' : ''}'
+                  '\n→ 如需提交表单，先 guard_override("page_submit", "<理由>") '
+                  '授权后调用 page_submit。';
+            } catch (e) {
+              debugPrint('[PageFill] 💥 $e');
+              return '[error: 填充执行异常: $e]';
+            }
+          },
+        );
+}
+
+/// 工具：提交当前页面的表单（登录/搜索/筛选）。
+///
+/// P1-D：提交触发登录/搜索请求进入捕获日志（GET/POST 均记录），AI 据此
+/// 读到登录接口与 Set-Cookie 登录态。提交前校验表单 action 在授权范围内
+/// （越界**拒绝提交**）。**写操作**：需用户经 guard_override 一次性授权。
+class PageSubmitTool extends SimpleTool {
+  final ExploreWorkflow exploreWorkflow;
+
+  /// JS 执行通道（提交前检查表单 action 用）。
+  final Future<String?> Function(String script) evaluateJs;
+
+  /// 页面提交通道（桥层注入）。
+  final Future<String?> Function(String formSelector)? jsSubmit;
+
+  PageSubmitTool({
+    required this.exploreWorkflow,
+    required this.evaluateJs,
+    this.jsSubmit,
+  }) : super(
+          name: 'page_submit',
+          description: '提交当前页面的表单（form.requestSubmit 优先，触发校验与'
+              'submit 事件）。提交前自动校验表单 action 在授权范围内（越界拒绝）；'
+              '提交后返回 action/method 与已捕获请求数——登录/搜索请求会进入捕获'
+              '日志，可 list_captured_requests 回读（含 200/401、Set-Cookie）。'
+              '⚠️ 写操作：调用前需 guard_override("page_submit", "<理由>") 请求'
+              '用户一次性授权。',
+          schema: const {
+            'type': 'object',
+            'properties': {
+              'form': {
+                'type': 'string',
+                'description': 'CSS 选择器（如 "form.login-form"；'
+                    'explore_page_snapshot 返回的 form action 对应表单）',
+              },
+            },
+            'required': ['form'],
+          },
+          readOnly: false,
+          execute: (args) async {
+            final formSel = (args['form'] as String? ?? '').trim();
+            if (formSel.isEmpty) return '[error: form 参数为空]';
+            if (jsSubmit == null) return _pageOpChannelError('page_submit');
+            try {
+              // 1) 提交前检查表单 action（不提交、无副作用）
+              final rawInspect = await evaluateJs(_inspectFormScript(formSel));
+              final inspect = _decodeJsJson(rawInspect);
+              if (inspect == null || inspect['found'] != true) {
+                return '[error: 页面操作 JS 通道不可用或表单不存在'
+                    '（form="$formSel"）。'
+                    '→ 先 explore_page_snapshot 查看表单字段后换选择器。]';
+              }
+              // 2) 越界校验：表单 action 必须落在授权范围
+              final action = (inspect['action'] as String? ?? '').trim();
+              final base = exploreWorkflow.baseHost;
+              if (action.isNotEmpty) {
+                final err = validateExploreUrl(action, baseHost: base);
+                if (err != null) {
+                  return '[error: 表单提交越界拒绝: $err'
+                      '（表单 action=$action 不在授权范围内，禁止提交）]';
+                }
+                final scope = exploreWorkflow.scope;
+                if (scope != null) {
+                  final scopeErr = scope.validateUrl(action);
+                  if (scopeErr != null) {
+                    return '[error: 表单 action 超出用户授权范围: $scopeErr]';
+                  }
+                }
+              }
+              // 3) 执行提交
+              final raw = await jsSubmit!(formSel);
+              final json = _decodeJsJson(raw);
+              if (json == null || json['ok'] != true) {
+                final msg = json?['message'];
+                return '[error: 表单提交失败${msg != null ? ': $msg' : ''}'
+                    '（form="$formSel"）。'
+                    '→ 检查表单选择器，或先 page_fill 填充必填字段后重试。]';
+              }
+              // P1-D：提交 = 主动交互产出（不算空转）
+              exploreWorkflow.noteSecondaryExploration();
+              final outAction = (json['action'] as String? ?? '').trim();
+              final method = (json['method'] as String? ?? '').trim();
+              final title = (json['title'] as String? ?? '').trim();
+              final url = (json['url'] as String? ?? '').trim();
+              return '✅ 已提交表单'
+                  '（${method.isEmpty ? '?' : method}'
+                  '${outAction.isNotEmpty ? ' action=$outAction' : ''}）'
+                  '${title.isNotEmpty ? '\n页面标题: $title' : ''}'
+                  '${url.isNotEmpty ? '\n当前 URL: $url' : ''}'
+                  '\n已捕获请求 ${exploreWorkflow.requestsCaptured} 条'
+                  '（登录/搜索接口在此，可 list_captured_requests 回读）';
+            } catch (e) {
+              debugPrint('[PageSubmit] 💥 $e');
+              return '[error: 提交执行异常: $e]';
+            }
+          },
+        );
+}
+
+/// 工具：滚动当前页面（bottom/top/up/down，触发懒加载）。
+///
+/// P1-D：列表/瀑布流页面数据靠滚动懒加载，滚动到底后新请求进入捕获日志。
+/// 返回滚动前后位置与已捕获请求数。只读操作，无需授权。
+class PageScrollTool extends SimpleTool {
+  final ExploreWorkflow exploreWorkflow;
+
+  /// 页面滚动通道（桥层注入）。
+  final Future<String?> Function(String direction)? jsScroll;
+
+  PageScrollTool({
+    required this.exploreWorkflow,
+    this.jsScroll,
+  }) : super(
+          name: 'page_scroll',
+          description: '滚动当前页面（bottom=滚到底部触发懒加载 / top=回顶部 / '
+              'up / down=半屏滚动）。滚动后返回滚动位置与已捕获请求数，'
+              '可 explore_network_resources / list_captured_requests 回读'
+              '懒加载触发的新请求。只读操作，无需授权。',
+          schema: const {
+            'type': 'object',
+            'properties': {
+              'direction': {
+                'type': 'string',
+                'enum': ['bottom', 'top', 'up', 'down'],
+                'description': 'bottom=到底部（触发懒加载）、top=回顶部、'
+                    'up/down=半屏滚动',
+              },
+            },
+            'required': ['direction'],
+          },
+          readOnly: true,
+          execute: (args) async {
+            final direction = (args['direction'] as String? ?? '').trim().toLowerCase();
+            if (direction.isEmpty) {
+              return '[error: direction 参数为空（bottom/top/up/down）]';
+            }
+            if (jsScroll == null) return _pageOpChannelError('page_scroll');
+            try {
+              final raw = await jsScroll!(direction);
+              final json = _decodeJsJson(raw);
+              if (json == null || json['ok'] != true) {
+                final msg = json?['message'];
+                return '[error: 滚动失败${msg != null ? ': $msg' : ''}]';
+              }
+              // P1-D：滚动 = 主动交互产出（懒加载触发不算空转）
+              exploreWorkflow.noteSecondaryExploration();
+              final from = json['from'];
+              final to = json['to'];
+              final max = json['max'];
+              final title = (json['title'] as String? ?? '').trim();
+              final url = (json['url'] as String? ?? '').trim();
+              final dirLabel = switch (direction) {
+                'bottom' => '页面底部',
+                'top' => '页面顶部',
+                _ => direction,
+              };
+              return '✅ 已滚动到 $dirLabel'
+                  '（y: ${from ?? '?'} → ${to ?? '?'} / 最大 ${max ?? '?'}）'
+                  '${title.isNotEmpty ? '\n页面标题: $title' : ''}'
+                  '${url.isNotEmpty ? '\n当前 URL: $url' : ''}'
+                  '\n已捕获请求 ${exploreWorkflow.requestsCaptured} 条'
+                  '（懒加载请求可 explore_network_resources / '
+                  'list_captured_requests 回读）';
+            } catch (e) {
+              debugPrint('[PageScroll] 💥 $e');
+              return '[error: 滚动执行异常: $e]';
+            }
+          },
+        );
+}
+
 // ═══════ explore_page_links ═══════
 
 /// 工具：枚举当前页 http(s) 链接（GET 探索起点）。
-class ExplorePageLinksTool extends SimpleTool {
   final ExploreWorkflow exploreWorkflow;
   final Future<String?> Function(String script) evaluateJs;
 
@@ -1174,6 +1588,8 @@ CandidateDataSource? _findConfirmedSource(ExploreWorkflow ew, String name) {
 /// UI 层注入回调：
 /// - [evaluateJs] — JS 执行通道（ScraperWebViewBridge）
 /// - [navigateTo] — GET 导航通道
+/// - [jsClick] / [jsFill] / [jsSubmit] / [jsScroll] — P1-D 页面操作通道
+///   （点击/填表/提交/滚动；全部经桥层 _evaluateJs 注入合成事件脚本）
 /// - [presentSources] — 候选多选弹窗（返回用户选择，可改名）
 /// - [buildSource] — 逐源构建插件并返回完整日志
 /// - [registerBatch] — 批量注册 + orch.get 验证并返回完整日志
@@ -1184,6 +1600,10 @@ List<Tool> createScraperExploreTools({
   required ScraperWorkflow captureWorkflow,
   required Future<String?> Function(String script) evaluateJs,
   required Future<void> Function(String url) navigateTo,
+  Future<String?> Function(String selector)? jsClick,
+  Future<String?> Function(String selector, String value)? jsFill,
+  Future<String?> Function(String formSelector)? jsSubmit,
+  Future<String?> Function(String direction)? jsScroll,
   required Future<List<CandidateDataSource>> Function(
       List<CandidateDataSource> candidates) presentSources,
   required Future<String> Function(String name, String code) buildSource,
@@ -1209,6 +1629,25 @@ List<Tool> createScraperExploreTools({
     ExplorePageSnapshotTool(
       exploreWorkflow: exploreWorkflow,
       evaluateJs: evaluateJs,
+    ),
+    // P1-D：AI 页面操作工具（点击/填表/提交/滚动——触达"交互后才出现"的深层接口）
+    PageClickTool(
+      exploreWorkflow: exploreWorkflow,
+      evaluateJs: evaluateJs,
+      jsClick: jsClick,
+    ),
+    PageFillTool(
+      exploreWorkflow: exploreWorkflow,
+      jsFill: jsFill,
+    ),
+    PageSubmitTool(
+      exploreWorkflow: exploreWorkflow,
+      evaluateJs: evaluateJs,
+      jsSubmit: jsSubmit,
+    ),
+    PageScrollTool(
+      exploreWorkflow: exploreWorkflow,
+      jsScroll: jsScroll,
     ),
     NavigateGetTool(
       exploreWorkflow: exploreWorkflow,

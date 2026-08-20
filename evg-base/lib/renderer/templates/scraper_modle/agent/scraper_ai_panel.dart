@@ -545,6 +545,28 @@ class ScraperAIPanelState extends ConsumerState<ScraperAIPanel> {
                     }
                     await b.navigateTo!(url);
                   },
+                  // P1-D：AI 页面操作通道（点击/填表/提交/滚动——经桥层 _evaluateJs
+                  // 注入合成事件脚本；桥未就绪时返回 null → 工具层提示通道不可用）
+                  jsClick: (selector) async {
+                    final b = widget.webBridge;
+                    if (b == null || !b.ready || b.jsClick == null) return null;
+                    return b.jsClick!(selector);
+                  },
+                  jsFill: (selector, value) async {
+                    final b = widget.webBridge;
+                    if (b == null || !b.ready || b.jsFill == null) return null;
+                    return b.jsFill!(selector, value);
+                  },
+                  jsSubmit: (formSelector) async {
+                    final b = widget.webBridge;
+                    if (b == null || !b.ready || b.jsSubmit == null) return null;
+                    return b.jsSubmit!(formSelector);
+                  },
+                  jsScroll: (direction) async {
+                    final b = widget.webBridge;
+                    if (b == null || !b.ready || b.jsScroll == null) return null;
+                    return b.jsScroll!(direction);
+                  },
                   presentSources: _presentExploreSources,
                   buildSource: _buildExploreSource,
                   registerBatch: _registerExploreBatch,
