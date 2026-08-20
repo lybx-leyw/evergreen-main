@@ -1,6 +1,6 @@
 package,source_go,kind,target_dart,phase,status,notes
-ablation,ablation/ablation.go,impl,lib/core/agent/ref/ablation/ablation.dart,P1,pending,
-ablation,ablation/ablation_test.go,test,lib/core/agent/test/ref/ablation/ablation_test.dart,P1,pending,
+ablation,ablation/ablation.go,impl,lib/core/agent/ref/ablation/ablation.dart,P1,done,ported R1
+ablation,ablation/ablation_test.go,test,lib/core/agent/test/ref/ablation/ablation_test.dart,P1,done,ported R1
 acp,acp/client_integration_test.go,test,lib/core/agent/test/ref/acp/client_integration_test.dart,P11,pending,
 acp,acp/clientio.go,impl,lib/core/agent/ref/acp/clientio.dart,P11,pending,
 acp,acp/dispatch.go,impl,lib/core/agent/ref/acp/dispatch.dart,P11,pending,
@@ -1060,9 +1060,9 @@ desktoplauncher,desktoplauncher/executable_path_other_test.go,test,lib/core/agen
 desktoplauncher,desktoplauncher/executable_path_windows.go,impl,lib/core/agent/ref/desktoplauncher/executable_path_windows.dart,P11,pending,platform-adapter
 desktoplauncher,desktoplauncher/executable_path_windows_test.go,test,lib/core/agent/test/ref/desktoplauncher/executable_path_windows_test.dart,P11,pending,platform-adapter
 desktoplauncher,desktoplauncher/launcher.go,impl,lib/core/agent/ref/desktoplauncher/launcher.dart,P11,pending,
-diff,diff/diff.go,impl,lib/core/agent/ref/diff/diff.dart,P1,pending,
+diff,diff/diff.go,impl,lib/core/agent/ref/diff/diff.dart,P1,done,ported R1
 diff,diff/diff_extra_test.go,test,lib/core/agent/test/ref/diff/diff_extra_test.dart,P1,pending,
-diff,diff/diff_test.go,test,lib/core/agent/test/ref/diff/diff_test.dart,P1,pending,
+diff,diff/diff_test.go,test,lib/core/agent/test/ref/diff/diff_test.dart,P1,done,ported R1
 diff,diff/largediff_test.go,test,lib/core/agent/test/ref/diff/largediff_test.dart,P1,pending,
 doctor,doctor/billing.go,impl,lib/core/agent/ref/doctor/billing.dart,P11,pending,
 doctor,doctor/billing_test.go,test,lib/core/agent/test/ref/doctor/billing_test.dart,P11,pending,
@@ -1266,12 +1266,12 @@ extension,extension/uihub/hub.go,impl,lib/core/agent/ref/extension/uihub/hub.dar
 extension,extension/uihub/hub_test.go,test,lib/core/agent/test/ref/extension/uihub/hub_test.dart,P9,pending,
 extensioncontract,extensioncontract/capability.go,impl,lib/core/agent/ref/extensioncontract/capability.dart,P9,pending,
 extensioncontract,extensioncontract/capability_test.go,test,lib/core/agent/test/ref/extensioncontract/capability_test.dart,P9,pending,
-filelock,filelock/filelock.go,impl,lib/core/agent/ref/filelock/filelock.dart,P1,pending,
-filelock,filelock/filelock_test.go,test,lib/core/agent/test/ref/filelock/filelock_test.dart,P1,pending,
-filelock,filelock/lock_unix.go,impl,lib/core/agent/ref/filelock/lock_unix.dart,P1,pending,platform-adapter
-filelock,filelock/lock_windows.go,impl,lib/core/agent/ref/filelock/lock_windows.dart,P1,pending,platform-adapter
-fileref,fileref/search.go,impl,lib/core/agent/ref/fileref/search.dart,P1,pending,
-fileref,fileref/search_test.go,test,lib/core/agent/test/ref/fileref/search_test.dart,P1,pending,
+filelock,filelock/filelock.go,impl,lib/core/agent/ref/filelock/filelock.dart,P1,done,ported R1
+filelock,filelock/filelock_test.go,test,lib/core/agent/test/ref/filelock/filelock_test.dart,P1,done,ported R1
+filelock,filelock/lock_unix.go,impl,lib/core/agent/ref/filelock/lock_unix.dart,P1,done,ported R1
+filelock,filelock/lock_windows.go,impl,lib/core/agent/ref/filelock/lock_windows.dart,P1,done,ported R1
+fileref,fileref/search.go,impl,lib/core/agent/ref/fileref/search.dart,P1,done,ported R1
+fileref,fileref/search_test.go,test,lib/core/agent/test/ref/fileref/search_test.dart,P1,done,ported R1
 fileref,fileref/skip_test.go,test,lib/core/agent/test/ref/fileref/skip_test.dart,P1,pending,
 fileutil,fileutil/atomicwrite.go,impl,lib/core/agent/ref/fileutil/atomicwrite.dart,P1,pending,
 fileutil,fileutil/atomicwrite_test.go,test,lib/core/agent/test/ref/fileutil/atomicwrite_test.dart,P1,pending,
@@ -1282,8 +1282,8 @@ fileutil,fileutil/replacefallback_windows.go,impl,lib/core/agent/ref/fileutil/re
 fileutil,fileutil/replacefallback_windows_test.go,test,lib/core/agent/test/ref/fileutil/replacefallback_windows_test.dart,P1,pending,platform-adapter
 fileutil,fileutil/encoding/encoding.go,impl,lib/core/agent/ref/fileutil/encoding/encoding.dart,P1,pending,
 fileutil,fileutil/encoding/encoding_test.go,test,lib/core/agent/test/ref/fileutil/encoding/encoding_test.dart,P1,pending,
-frontmatter,frontmatter/frontmatter.go,impl,lib/core/agent/ref/frontmatter/frontmatter.dart,P1,pending,
-frontmatter,frontmatter/frontmatter_test.go,test,lib/core/agent/test/ref/frontmatter/frontmatter_test.dart,P1,pending,
+frontmatter,frontmatter/frontmatter.go,impl,lib/core/agent/ref/frontmatter/frontmatter.dart,P1,done,ported R1
+frontmatter,frontmatter/frontmatter_test.go,test,lib/core/agent/test/ref/frontmatter/frontmatter_test.dart,P1,done,ported R1
 frontmatter,frontmatter/list_test.go,test,lib/core/agent/test/ref/frontmatter/list_test.dart,P1,pending,
 gitcmd,gitcmd/gitcmd.go,impl,lib/core/agent/ref/gitcmd/gitcmd.dart,P11,pending,
 gitcmd,gitcmd/gitcmd_test.go,test,lib/core/agent/test/ref/gitcmd/gitcmd_test.dart,P11,pending,
@@ -1435,16 +1435,16 @@ migration,migration/migration_test.go,test,lib/core/agent/test/ref/migration/mig
 netclient,netclient/dialer.go,impl,lib/core/agent/ref/netclient/dialer.dart,P2,pending,
 netclient,netclient/netclient.go,impl,lib/core/agent/ref/netclient/netclient.dart,P2,pending,
 netclient,netclient/netclient_test.go,test,lib/core/agent/test/ref/netclient/netclient_test.dart,P2,pending,
-nilutil,nilutil/nil.go,impl,lib/core/agent/ref/nilutil/nil.dart,P1,pending,
-nilutil,nilutil/nil_test.go,test,lib/core/agent/test/ref/nilutil/nil_test.dart,P1,pending,
+nilutil,nilutil/nil.go,impl,lib/core/agent/ref/nilutil/nil.dart,P1,done,ported R1
+nilutil,nilutil/nil_test.go,test,lib/core/agent/test/ref/nilutil/nil_test.dart,P1,done,ported R1
 notify,notify/sender_darwin.go,impl,lib/core/agent/ref/notify/sender_darwin.dart,P11,pending,platform-adapter
 notify,notify/sender_linux.go,impl,lib/core/agent/ref/notify/sender_linux.dart,P11,pending,platform-adapter
 notify,notify/sender_other.go,impl,lib/core/agent/ref/notify/sender_other.dart,P11,pending,platform-adapter
 notify,notify/sender_windows.go,impl,lib/core/agent/ref/notify/sender_windows.dart,P11,pending,platform-adapter
 notify,notify/sink.go,impl,lib/core/agent/ref/notify/sink.dart,P11,pending,
 notify,notify/sink_test.go,test,lib/core/agent/test/ref/notify/sink_test.dart,P11,pending,
-outputstyle,outputstyle/outputstyle.go,impl,lib/core/agent/ref/outputstyle/outputstyle.dart,P1,pending,
-outputstyle,outputstyle/outputstyle_test.go,test,lib/core/agent/test/ref/outputstyle/outputstyle_test.dart,P1,pending,
+outputstyle,outputstyle/outputstyle.go,impl,lib/core/agent/ref/outputstyle/outputstyle.dart,P1,done,ported R1
+outputstyle,outputstyle/outputstyle_test.go,test,lib/core/agent/test/ref/outputstyle/outputstyle_test.dart,P1,done,ported R1
 permission,permission/bash_approval.go,impl,lib/core/agent/ref/permission/bash_approval.dart,P2,pending,
 permission,permission/bash_approval_test.go,test,lib/core/agent/test/ref/permission/bash_approval_test.dart,P2,pending,
 permission,permission/bash_decompose.go,impl,lib/core/agent/ref/permission/bash_decompose.dart,P2,pending,
@@ -1905,10 +1905,10 @@ stats,stats/recorder.go,impl,lib/core/agent/ref/stats/recorder.dart,P1,pending,
 stats,stats/stats_test.go,test,lib/core/agent/test/ref/stats/stats_test.dart,P1,pending,
 stats,stats/usage_catalog.go,impl,lib/core/agent/ref/stats/usage_catalog.dart,P1,pending,
 stats,stats/usage_catalog_lifecycle_test.go,test,lib/core/agent/test/ref/stats/usage_catalog_lifecycle_test.dart,P1,pending,
-store,store/remote.go,impl,lib/core/agent/ref/store/remote.dart,P1,pending,
-store,store/remote_test.go,test,lib/core/agent/test/ref/store/remote_test.dart,P1,pending,
-store,store/session.go,impl,lib/core/agent/ref/store/session.dart,P1,pending,
-store,store/session_test.go,test,lib/core/agent/test/ref/store/session_test.dart,P1,pending,
+store,store/remote.go,impl,lib/core/agent/ref/store/remote.dart,P1,done,ported R1
+store,store/remote_test.go,test,lib/core/agent/test/ref/store/remote_test.dart,P1,done,ported R1
+store,store/session.go,impl,lib/core/agent/ref/store/session.dart,P1,done,ported R1
+store,store/session_test.go,test,lib/core/agent/test/ref/store/session_test.dart,P1,done,ported R1
 sysproxy,sysproxy/sysproxy.go,impl,lib/core/agent/ref/sysproxy/sysproxy.dart,P2,pending,
 sysproxy,sysproxy/sysproxy_test.go,test,lib/core/agent/test/ref/sysproxy/sysproxy_test.dart,P2,pending,
 sysproxy,sysproxy/system_other.go,impl,lib/core/agent/ref/sysproxy/system_other.dart,P2,pending,platform-adapter
@@ -1957,10 +1957,10 @@ telemetry,telemetry/policy.go,impl,lib/core/agent/ref/telemetry/policy.dart,P11,
 telemetry,telemetry/policy_test.go,test,lib/core/agent/test/ref/telemetry/policy_test.dart,P11,pending,
 telemetry,telemetry/sink.go,impl,lib/core/agent/ref/telemetry/sink.dart,P11,pending,
 telemetry,telemetry/sink_test.go,test,lib/core/agent/test/ref/telemetry/sink_test.dart,P11,pending,
-testenv,testenv/home.go,impl,lib/core/agent/ref/testenv/home.dart,P1,pending,
-testenv,testenv/home_test.go,test,lib/core/agent/test/ref/testenv/home_test.dart,P1,pending,
-textutil,textutil/grapheme.go,impl,lib/core/agent/ref/textutil/grapheme.dart,P1,pending,
-textutil,textutil/grapheme_test.go,test,lib/core/agent/test/ref/textutil/grapheme_test.dart,P1,pending,
+testenv,testenv/home.go,impl,lib/core/agent/ref/testenv/home.dart,P1,done,ported R1
+testenv,testenv/home_test.go,test,lib/core/agent/test/ref/testenv/home_test.dart,P1,done,ported R1
+textutil,textutil/grapheme.go,impl,lib/core/agent/ref/textutil/grapheme.dart,P1,done,ported R1
+textutil,textutil/grapheme_test.go,test,lib/core/agent/test/ref/textutil/grapheme_test.dart,P1,done,ported R1
 tool,tool/blocked.go,impl,lib/core/agent/ref/tool/blocked.dart,P2,pending,
 tool,tool/compress.go,impl,lib/core/agent/ref/tool/compress.dart,P2,pending,
 tool,tool/configwrite.go,impl,lib/core/agent/ref/tool/configwrite.dart,P2,pending,
