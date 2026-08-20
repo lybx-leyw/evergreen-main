@@ -1873,9 +1873,9 @@ sessiontemp,sessiontemp/context_deadline.go,impl,lib/core/agent/ref/sessiontemp/
 sessiontemp,sessiontemp/manager.go,impl,lib/core/agent/ref/sessiontemp/manager.dart,P3,pending,
 sessiontemp,sessiontemp/manager_test.go,test,lib/core/agent/test/ref/sessiontemp/manager_test.dart,P3,pending,
 sessiontemp,sessiontemp/manager_test_helpers.go,impl,lib/core/agent/ref/sessiontemp/manager_test_helpers.dart,P3,pending,
-shellparse,shellparse/bash.go,impl,lib/core/agent/ref/shellparse/bash.dart,P2,pending,
-shellparse,shellparse/bash_test.go,test,lib/core/agent/test/ref/shellparse/bash_test.dart,P2,pending,
-shellparse,shellparse/mask_test.go,test,lib/core/agent/test/ref/shellparse/mask_test.dart,P2,pending,
+shellparse,shellparse/bash.go,impl,lib/core/agent/ref/shellparse/bash.dart,P2,done,ported R2 (static scanner adapter)
+shellparse,shellparse/bash_test.go,test,lib/core/agent/test/ref/shellparse/bash_test.dart,P2,done,ported R2 (static scanner adapter)
+shellparse,shellparse/mask_test.go,test,lib/core/agent/test/ref/shellparse/mask_test.dart,P2,done,ported R2 (static scanner adapter)
 shellrun,shellrun/descriptor.go,impl,lib/core/agent/ref/shellrun/descriptor.dart,P2,pending,
 shellrun,shellrun/runner.go,impl,lib/core/agent/ref/shellrun/runner.dart,P2,pending,
 shellrun,shellrun/runner_test.go,test,lib/core/agent/test/ref/shellrun/runner_test.dart,P2,pending,
