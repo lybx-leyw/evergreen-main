@@ -450,7 +450,7 @@ class PageClickTool extends SimpleTool {
                 }
               }
               // 3) 执行点击
-              final raw = await jsClick!(selector);
+              final raw = await jsClick(selector);
               final json = _decodeJsJson(raw);
               if (json == null || json['ok'] != true) {
                 final msg = json?['message'];
@@ -530,7 +530,7 @@ class PageFillTool extends SimpleTool {
             if (selector.isEmpty) return '[error: selector 参数为空]';
             if (jsFill == null) return _pageOpChannelError('page_fill');
             try {
-              final raw = await jsFill!(selector, value);
+              final raw = await jsFill(selector, value);
               final json = _decodeJsJson(raw);
               if (json == null || json['ok'] != true) {
                 final msg = json?['message'];
@@ -627,7 +627,7 @@ class PageSubmitTool extends SimpleTool {
                 }
               }
               // 3) 执行提交
-              final raw = await jsSubmit!(formSel);
+              final raw = await jsSubmit(formSel);
               final json = _decodeJsJson(raw);
               if (json == null || json['ok'] != true) {
                 final msg = json?['message'];
@@ -695,7 +695,7 @@ class PageScrollTool extends SimpleTool {
             }
             if (jsScroll == null) return _pageOpChannelError('page_scroll');
             try {
-              final raw = await jsScroll!(direction);
+              final raw = await jsScroll(direction);
               final json = _decodeJsJson(raw);
               if (json == null || json['ok'] != true) {
                 final msg = json?['message'];
@@ -731,6 +731,7 @@ class PageScrollTool extends SimpleTool {
 // ═══════ explore_page_links ═══════
 
 /// 工具：枚举当前页 http(s) 链接（GET 探索起点）。
+class ExplorePageLinksTool extends SimpleTool {
   final ExploreWorkflow exploreWorkflow;
   final Future<String?> Function(String script) evaluateJs;
 
