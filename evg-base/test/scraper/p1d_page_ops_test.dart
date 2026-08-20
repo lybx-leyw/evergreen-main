@@ -128,7 +128,8 @@ void main() {
         evaluateJs: (s) async => js({'found': true, 'visible': true}),
       );
       final out = await tool.execute({'selector': 'button'});
-      expect(out, contains('通道不可用'));
+      expect(out, contains('页面操作通道（page_click）不可用'));
+      expect(out, contains('check_explore_ready'));
     });
   });
 
