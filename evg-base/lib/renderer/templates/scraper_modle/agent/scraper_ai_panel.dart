@@ -1559,9 +1559,19 @@ ${wf.errorMessage.isNotEmpty ? '- 最近错误: ${wf.errorMessage}' : ''}
       debugPrint('[ScraperAIPanel] ⚠ journal 读取失败: $e');
     }
 
+    // P1-A 用户需求注入：dataScope 是用户授权的数据目标，直接写进任务 prompt，
+    // 让 AI 的探索优先级围绕用户目标展开；为空时先 ask 确认，禁止盲目乱扫。
+    final userGoal = result.scope.dataScope.trim();
+    final goalPrompt = userGoal.isNotEmpty
+        ? '【用户数据目标】$userGoal\n'
+            '优先深挖与该目标相关的栏目/列表/详情/接口，其余页面只扫骨架不下钻。'
+        : '【用户数据目标】未填写 —— 先用 ask() 向用户确认本次想抓取的数据目标，'
+            '再据此制定探索优先级（该目标决定下钻哪些栏目，禁止无差别乱扫）。';
+
     _assembly!.controller.send('''
 【探索任务开始】请按探索 Skill 流程严格执行：
 ${journalEntry != null ? '\n【本域历史经验】\n${journalEntry.toPromptSummary()}\n' : ''}
+$goalPrompt
 Step 1 探索：explore_page_links() 枚举当前页链接；navigate_get(url) 逐页访问疑似
 数据接口（仅 GET、同域、注意 1s 节流与页数上限）；list_captured_requests() 阅读
 捕获的 GET 请求与响应体样本。直到无新链接或触达上限。
@@ -1601,6 +1611,7 @@ Step 5 注册：全部构建完成后调用 register_batch(names) 批量注册�
     final resume = '''
 断点续作：继续未完成的探索任务，不要重头开始。
 - 当前阶段: ${ew.phase.name}
+${(ew.scope?.dataScope ?? '').trim().isNotEmpty ? '- 用户数据目标: ${ew.scope!.dataScope.trim()}（继续围绕该目标下钻相关栏目）' : ''}
 - 已访问页: ${ew.uniquePages} / ${ew.limits.maxPages}；已捕获请求: ${ew.requestsCaptured} / ${ew.limits.maxRequests}
 - 候选数据源: ${ew.candidates.length} 个${ew.selected.isNotEmpty ? '（已确认 ${ew.selected.length} 个待构建）' : ''}
 ${ew.stallDetected ? '- 空转熔断已触发，请切换策略（换入口/换链接层级），不要重复已探索页面。' : ''}
