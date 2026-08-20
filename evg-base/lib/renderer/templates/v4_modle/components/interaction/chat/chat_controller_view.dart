@@ -788,12 +788,17 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
         return;
       }
 
+      final model = getSetting(prefs, 'DEEPSEEK_MODEL');
+      final baseUrl = getSetting(prefs, 'DEEPSEEK_BASE_URL');
+
       final provider = agent.DeepSeekProvider(
         dio: Dio(BaseOptions(
           connectTimeout: const Duration(seconds: 30),
           receiveTimeout: const Duration(seconds: 120),
         )),
         apiKey: apiKey,
+        model: model.isNotEmpty ? model : 'deepseek-v4-flash',
+        baseUrl: baseUrl,
       );
 
       final skillIdx = ref.read(skillIndexProvider);

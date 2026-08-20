@@ -46,6 +46,10 @@ class SettingDecl {
   final List<SettingOption>? options;
   final String? hint;
 
+  /// 可选建议值（string/path 类型的快捷填充项，如常用模型 id）。
+  /// 仅作为 UI 提示，不参与 [setSetting] 的写入校验——保证可自由填写任意值。
+  final List<SettingOption>? suggestions;
+
   const SettingDecl({
     required this.key,
     required this.label,
@@ -54,6 +58,7 @@ class SettingDecl {
     this.isSecure = false,
     this.options,
     this.hint,
+    this.suggestions,
   });
 
   const SettingDecl.string({
@@ -62,6 +67,7 @@ class SettingDecl {
     this.defaultValue,
     this.isSecure = false,
     this.hint,
+    this.suggestions,
   })  : type = SettingType.string,
         options = null;
 
@@ -72,7 +78,8 @@ class SettingDecl {
     this.hint,
   })  : type = SettingType.bool_,
         isSecure = false,
-        options = null;
+        options = null,
+        suggestions = null;
 
   const SettingDecl.path({
     required this.key,
@@ -81,7 +88,8 @@ class SettingDecl {
     this.hint,
   })  : type = SettingType.path,
         isSecure = false,
-        options = null;
+        options = null,
+        suggestions = null;
 
   const SettingDecl.option({
     required this.key,
@@ -91,7 +99,8 @@ class SettingDecl {
     this.hint,
   })  : type = SettingType.option,
         isSecure = false,
-        options = options;
+        options = options,
+        suggestions = null;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -100,6 +109,26 @@ class SettingDecl {
 
 Map<String, SettingDecl> _decls = {};
 
+/// 解析建议值列表：兼容两种写法——
+/// 1) 纯字符串 `["deepseek-chat", "gpt-4o"]`
+/// 2) 对象 `[{"value": "...", "label": "..."}]`
+List<SettingOption>? _parseSuggestions(Map<String, dynamic> m) {
+  final raw = m['suggestions'] as List<dynamic>?;
+  if (raw == null || raw.isEmpty) return null;
+  final out = <SettingOption>[];
+  for (final item in raw) {
+    if (item is String) {
+      out.add(SettingOption(value: item, label: item));
+    } else if (item is Map<String, dynamic>) {
+      out.add(SettingOption(
+        value: item['value'] as String,
+        label: item['label'] as String? ?? item['value'] as String,
+      ));
+    }
+  }
+  return out.isEmpty ? null : out;
+}
+
 SettingDecl _parseSetting(Map<String, dynamic> m) {
   final key = m['key'] as String;
   final label = m['label'] as String;
@@ -107,6 +136,7 @@ SettingDecl _parseSetting(Map<String, dynamic> m) {
   final isSecure = m['isSecure'] as bool? ?? false;
   final defaultValue = m['default'] as String?;
   final hint = m['hint'] as String?;
+  final suggestions = _parseSuggestions(m);
 
   switch (type) {
     case 'bool':
@@ -129,6 +159,7 @@ SettingDecl _parseSetting(Map<String, dynamic> m) {
     default:
       return SettingDecl.string(
         key: key, label: label, defaultValue: defaultValue, isSecure: isSecure, hint: hint,
+        suggestions: suggestions,
       );
   }
 }

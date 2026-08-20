@@ -516,12 +516,19 @@ class AppBootstrap {
     if (apiKey.isEmpty) {
       Log().warn('[BOOT] ⚠ DEEPSEEK_API_KEY 未设置！AI 对话将不可用。请在设置中配置 API Key。');
     }
+    final model = getSetting(p, 'DEEPSEEK_MODEL');
+    final baseUrl = getSetting(p, 'DEEPSEEK_BASE_URL');
     final dioAgent = Dio(BaseOptions(
       connectTimeout: const Duration(seconds: 30),
       receiveTimeout: const Duration(seconds: 120),
     ));
     _agentDio = dioAgent;
-    final provider = agent.DeepSeekProvider(dio: dioAgent, apiKey: apiKey);
+    final provider = agent.DeepSeekProvider(
+      dio: dioAgent,
+      apiKey: apiKey,
+      model: model.isNotEmpty ? model : 'deepseek-v4-flash',
+      baseUrl: baseUrl,
+    );
     final registry = agent.Registry();
     memoryStore = FileMemoryStore(greenixMemoriesDir);
     sessionStore = FileSessionStore(greenixSessionsDir);

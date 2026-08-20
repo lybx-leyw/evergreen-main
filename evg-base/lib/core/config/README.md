@@ -61,7 +61,7 @@
 
 | 类型 | 字段 |
 |------|------|
-| `SettingDecl` | `key`, `label`, `type`, `defaultValue`, `isSecure`, `options`, `hint` |
+| `SettingDecl` | `key`, `label`, `type`, `defaultValue`, `isSecure`, `options`, `hint`, `suggestions` |
 | `SettingType` | `string` / `bool_` / `path` / `option` |
 | `SettingOption` | `value`, `label` |
 | `PermissionDecl` | `key`, `label`, `description`, `defaultGranted` |
@@ -104,6 +104,7 @@
 | `isSecure` | 否 | string | 敏感标记，仅 string 有效 |
 | `hint` | 否 | string/path/option | 帮助文本 |
 | `options` | 是* | option | `[{"value":"...","label":"..."}]` |
+| `suggestions` | 否 | string/path | 快捷填充建议（仅 UI 提示，**不参与写入校验**，可自由填写任意值）；元素支持 `{"value","label"}` 或纯字符串两种写法 |
 
 **permissions 条目：**
 
