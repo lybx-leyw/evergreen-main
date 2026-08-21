@@ -148,7 +148,7 @@ class DeepSearchRunner {
     void Function(agent.AgentEvent event)? onEvent,
     Duration timeout = const Duration(minutes: 20),
   }) async {
-    final taskId = task.id;
+    final taskId = task.id.replaceAll(RegExp(r'[^A-Za-z0-9_.-]'), '_');
     final agentWs = p.join(workspaceRoot, 'agents', taskId);
     Directory(agentWs).createSync(recursive: true);
 
