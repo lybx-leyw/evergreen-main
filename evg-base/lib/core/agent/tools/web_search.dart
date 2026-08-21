@@ -185,6 +185,9 @@ class WebFetchTool extends Tool {
           },
         ),
       );
+      if (response.statusCode == null || response.statusCode! < 200 || response.statusCode! >= 300) {
+        return '[获取页面失败: HTTP ${response.statusCode}]';
+      }
 
       final html = response.data?.toString() ?? '';
       if (html.isEmpty) return '页面内容为空';
