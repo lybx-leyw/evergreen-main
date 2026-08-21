@@ -287,6 +287,13 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
       pythonPath: pythonPath,
       ocrApiKey: ocrApiKey,
     );
+    // C 阶段：采集前记录 OCR 能力，扫描版材料失败时用户能看到真实原因。
+    try {
+      final readiness = await OcrPipeline(Dio(), null, ocrApiKey).checkReadiness();
+      _appendEvent('info', 'OCR 就绪：${readiness.summarize()}');
+    } catch (e) {
+      _appendEvent('warn', 'OCR 就绪检查失败：$e');
+    }
 
     // 并行执行（共享 Provider，各任务独立 AgentAssembly）
     await Future.wait(pending.map((task) async {
