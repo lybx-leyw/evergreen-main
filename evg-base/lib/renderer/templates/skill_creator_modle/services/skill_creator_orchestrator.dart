@@ -558,6 +558,12 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
 
   /// 材料全文提取（PDF → 文本；扫描版降级 OCR）。
   Future<void> _processMaterial(MaterialItem m) async {
+    // 重试前清除旧文本引用，避免失败后继续消费上一次的过期结果。
+    if (m.textPath != null) {
+      try { File(m.textPath!).deleteSync(); } catch (_) {}
+      m.textPath = null;
+    }
+    m.processingError = null;
     final localPath = m.localPath;
     if (localPath == null || !File(localPath).existsSync()) {
       m.readability = 'skipped';
