@@ -17,6 +17,7 @@ class ArxivSearchTool extends Tool {
   Future<String> execute(Map<String, dynamic> args) async {
     final q = args['query']?.toString().trim() ?? '';
     if (q.isEmpty) return '[error: arxiv query is empty]';
+    if (q.length > 2048) return '[error: arxiv query exceeds 2048 characters]';
     try {
       final r = await dio.get('https://export.arxiv.org/api/query', queryParameters: {
         'search_query': 'all:$q', 'start': 0, 'max_results': (args['max_results'] as num?)?.toInt() ?? 5,
@@ -45,6 +46,7 @@ class GithubSearchTool extends Tool {
   Future<String> execute(Map<String, dynamic> args) async {
     final q = args['query']?.toString().trim() ?? '';
     if (q.isEmpty) return '[error: github query is empty]';
+    if (q.length > 2048) return '[error: github query exceeds 2048 characters]';
     try {
       final r = await dio.get('https://api.github.com/search/repositories', queryParameters: {'q': q, 'per_page': (args['max_results'] as num?)?.toInt() ?? 5}, options: Options(receiveTimeout: const Duration(seconds: 30), sendTimeout: const Duration(seconds: 10), headers: {'Accept': 'application/vnd.github+json', 'User-Agent': 'Evergreen-Research-Agent'}));
       final items = (r.data is Map ? (r.data['items'] as List? ?? const []) : const []).map((x) => {'name': x['full_name'], 'url': x['html_url'], 'description': x['description'], 'language': x['language'], 'stars': x['stargazers_count'], 'updatedAt': x['updated_at']}).toList();
@@ -63,6 +65,7 @@ class CrossrefSearchTool extends Tool {
   Future<String> execute(Map<String, dynamic> args) async {
     final q = args['query']?.toString().trim() ?? '';
     if (q.isEmpty) return '[error: crossref query is empty]';
+    if (q.length > 2048) return '[error: crossref query exceeds 2048 characters]';
     try {
       final r = await dio.get('https://api.crossref.org/works', queryParameters: {'query': q, 'rows': (args['max_results'] as num?)?.toInt() ?? 5}, options: Options(receiveTimeout: const Duration(seconds: 30), sendTimeout: const Duration(seconds: 10), headers: {'User-Agent': 'Evergreen-Research-Agent/1.0'}));
       final message = r.data is Map ? r.data['message'] : null;
