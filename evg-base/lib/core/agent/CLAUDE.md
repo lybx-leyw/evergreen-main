@@ -9,6 +9,9 @@
 | 适用 | AI 协作者（agent 子包） |
 
 > 本文件为 AI 协作入口，提供模块架构、设计决策、开发约定、测试策略和跨模块接口契约。
+>
+> **HTML-first 事实**：用户侧插件创作主路径是 HTML/JS。Agent 为 `html-creator` 提供 AI 辅助生成/改稿，
+> 并为 HTML 插件暴露 `platform.ai.chat` JS Bridge；Agent 工具插件（`.exe`）仍是开发者模式能力。
 
 ---
 
@@ -83,14 +86,15 @@ lib/core/agent/
 ├── agent/          ← 主循环 (agent/session/compose/gate/hooks)
 ├── controller/     ← 状态机 (send/cancel/approve/reject)
 ├── memory/         ← 三 scope 记忆 (facade/router/agent + stores)
-├── skill/          ← Skill 加载与索引
+├── skill/          ← Skill 加载/索引/生成/改写 (skill_generator/skill_rewriter)
 ├── compact/        ← AI 上下文压实
 ├── evidence/       ← 审计收据与账本
 ├── output_style/   ← 4 种输出风格
-├── tools/          ← 15 个内置工具 (plugin_bridge/workspace/read_file/write_file/...)
+├── guardian/       ← Agent 守护策略（GuardianPolicy / GuardianReviewTool）
+├── tools/          ← 18 个内置工具 (plugin_bridge/workspace/read_file/write_file/ask/guardian_review/...)
 ├── docs/           ← api-contracts.md + agent-http-api.md
-├── example/        ← 18 Demo + 4 插件模板
-├── test/           ← 9 文件 174 用例
+├── example/        ← Demo + 插件模板
+├── test/           ← 13 个测试文件（229 个 test 调用）
 └── lib/            ← 5 个 stub 包 (dio/flutter/riverpod/shared_preferences/uuid)
 ```
 
@@ -162,7 +166,23 @@ MemoryFacade (统一入口)
 - **三种 arg 风格**：`stdin` (JSON→stdin)、`args+flag` (`--key value`)、`args+positional` (按序传值)
 - **manifest.json 必写**：name + description + schema + readOnly + argMode + argSpec
 
-### 7. Stub 隔离
+### 7. Guardian 守护策略
+
+`guardian/guardian.dart` + `guardian/guardian_policy.dart` 提供 Agent 行为的规则守护；
+`tools/guardian_review_tool.dart` 将守护审查暴露为 Agent 可调用工具，用于高风险操作前的人工/策略复核。
+
+### 8. Skill 生成与改写
+
+- `skill/skill_generator.dart`：AI 生成新 Skill 的管线
+- `skill/skill_rewriter.dart`：按反馈/评审改写已有 Skill
+- 供 `skill-creator` 创作中心使用，是 Agent 侧“技能生产”能力
+
+### 9. AskTool 与 Hooks
+
+- `tools/ask_tool.dart`：Agent 在运行中向用户提问/确认
+- `agent/hooks.dart`：`ToolHooks` 扩展点（LoggingHooks / NoOpHooks / CompositeHooks），用于在工具执行前后注入横切逻辑
+
+### 10. Stub 隔离
 
 5 个 stub 包位于 `lib/` 下，隔离外部 Flutter 依赖：
 - `dio_stub` — HTTP 客户端
@@ -217,7 +237,7 @@ MemoryFacade (统一入口)
 
 ## 测试策略
 
-| 文件 | 用例 | 覆盖 |
+| 文件 | test 调用数 | 覆盖 |
 |------|------|------|
 | `tool_test.dart` | 25 | Tool 接口、Registry、BuiltinRegistry、Previewer |
 | `registry_test.dart` | 14 | 跨插件调度、并行工具、边界条件 |
@@ -226,9 +246,13 @@ MemoryFacade (统一入口)
 | `plugin_bridge_test.dart` | 18 | PluginManifest 解析、ArgSpec、discover/registerAll/refresh |
 | `provider_test.dart` | 26 | AiUnavailableException、MockEventStream、OCR |
 | `compact_test.dart` | 13 | Context Compaction、sanitizeToolPairing |
-| `integration_test.dart` | 18 | 跨插件联调、OCR E2E、StormBreaker、FinalReadiness |
+| `integration_test.dart` | 20 | 跨插件联调、OCR E2E、StormBreaker、FinalReadiness |
 | `scripted_server_test.dart` | 16 | ScriptedAgentHttpServer HTTP SSE + 场景[3][4] |
-| **合计** | **174** | `dart test` → All passed · `dart analyze` → 0 issues |
+| `hooks_test.dart` | 10 | ToolHooks / LoggingHooks / CompositeHooks |
+| `ask_tool_test.dart` | 9 | AskTool 提问/确认 |
+| `large_file_tools_test.dart` | 14 | 大文件读写/边界 |
+| `skill_rewriter_test.dart` | 21 | Skill 改写管线 |
+| **合计** | **229** | `dart test` → All passed · `dart analyze` → 0 issues |
 
 运行：
 ```bash
@@ -259,7 +283,9 @@ cd lib/core/agent && dart pub get && dart test
 - **Mock 流**：`MockEventStream.generate()` — 渲染工程师不依赖真实 LLM 即可开发 UI
 - **ChatMessage**：渲染层专用的消息模型，支持 `addUser/addAssistant/addToolCall/addToolResult/clear`
 - **Controller**：`send(input, {attachments})` / `cancel()` / `approve()` / `reject()`
+- **HTML 插件 JS Bridge**：`html_modle` 的 `platform.ai.chat(prompt, style)` 经 `AgentHttpServer`
+  转发到 Agent 会话，是 HTML 插件获得 AI 能力的主通道。
 
 ---
 
-_版本: 1.0 (2026-07-06)_
+_版本: 1.1 (2026-08-21，对齐 HTML-first 与新增子系统)_

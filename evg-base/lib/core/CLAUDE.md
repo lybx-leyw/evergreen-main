@@ -10,6 +10,12 @@
 
 > **模块定位**：Evergreen 三层架构（`core/` → `plugins/` → `renderer/`）的上游基础设施层。
 > **责任人**：Core 工程师
+>
+> **用户插件方向（当前事实）**：面向用户侧的插件创作已明确以 **HTML 为主**——用户自写 HTML/CSS/JS，
+> 平台通过 `html-creator` 提供创作中心、实时预览、AI 辅助生成和一键导出。
+> 导出的插件是 `plugins/<id>/module/index.html + manifest.json`（`"template":"html"`），
+> 运行时由 `html_modle` 以 WebView 加载，并通过 `platform.*` JS Bridge 调用 core 服务。
+> Dart/JSON 模块声明、`.exe` 数据源/Agent 工具仍是开发者模式/高级能力，不应作为用户创作的主要入口。
 
 ---
 
@@ -20,6 +26,11 @@ lib/core/
 ├── errors.dart              # AppError 基类 + 14 种子类错误
 ├── log.dart                 # Log 单例（debug→stderr, release→文件轮转）
 ├── result.dart              # Result<T> sealed class（Ok / Err）
+├── agent/                   # AI Agent 运行时 + 工具 + 记忆 + Skill + 守护
+├── config/                  # 设置/权限/插件源 + ConfigHttpServer
+├── data/                    # 数据谱仪器：DataType/Orchestrator/Cache + 数据源
+├── module/                  # 模块描述符/注册表/加载器/进程管理
+├── theme/                   # 主题描述符/Store/Loader + ThemeHttpServer
 ├── services/                # 平台级基础服务
 │   ├── services.dart        #   barrel 导出
 │   ├── core_http_server.dart #   微服务网格（8 REST 端点）
@@ -34,6 +45,8 @@ lib/core/
 │   ├── greenix_path.dart    #   运行时路径管理
 │   ├── path_sandbox.dart    #   路径沙箱
 │   └── file_utils.dart      #   文件管理器
+├── plugin/                  # 插件运行器/桥接相关
+├── feedback/                # 用户反馈收集
 ├── example/                 # 跨模块联动示例
 │   ├── example.dart         #   交互式菜单（15 功能）
 │   └── plugins/             #   示例插件（mesh_demo / ocean_theme / super_app）
@@ -49,7 +62,7 @@ lib/core/
 │   ├── dio_stub/            #   dio 包 stub（Dio / Response / Options）
 │   └── core/                #   文本版 Core 自证应用
 ├── docs/
-│   └── plugin-format.md     #   .plugin 包格式规范 v1.0
+│   ├── plugin-format.md     #   .plugin 包格式规范 v1.0
 │   └── plugin-authoring-guide-core-services.md # 插件打包与分发指南
 ├── scripts/                 # OCR 子进程脚本
 ├── pubspec.yaml             # 依赖声明（stub 指向 lib/）
@@ -253,4 +266,5 @@ CoreHttpServer(PluginInstaller installer, OcrPipeline ocrPipeline, UpdateService
 
 | 日期 | 变更 |
 |------|------|
+| 2026-08-21 | 对齐 HTML-first 插件创作：补充用户侧 HTML 插件路径、更新目录结构与平台 bridge 说明 |
 | 2026-07-06 | 初始版本：创建 CLAUDE.md，修复 dio stub 路径，全量测试通过（84 用例），README 审核同步 |

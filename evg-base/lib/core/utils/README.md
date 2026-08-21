@@ -9,6 +9,8 @@
 | 适用 | utils（路径/沙箱/Python 环境） |
 
 > 源码 `safe_parse.dart` `token_estimator.dart` `python_env.dart` `greenix_path.dart` `path_sandbox.dart` `file_utils.dart`、测试（待添加）
+>
+> HTML-first 下，这些工具主要为平台内部、Agent 工具与高级插件服务；普通 HTML 插件通过 JS Bridge 访问平台能力，不直接调用 Dart utils。
 
 通用工具——安全解析、Token 估算、Python 环境、运行路径、路径沙箱、文件管理。仅面向平台开发者。
 

@@ -10,8 +10,9 @@
 
 > **示例 & 测试路径**
 > - 平台开发者 → `example/example.dart`
-> - 插件开发者 → `example/plugins/<name>/`（插件模板，含 manifest.json + plugin.py + README）
-> - 源码 → `agent.dart` `tool.dart` `provider.dart` `agent_runtime.dart` `session_manager.dart` `agent/` `controller/` `memory/` `skill/` `compact/` `evidence/` `output_style/` `tools/` `test/` `docs/`
+> - Agent 工具插件开发者（开发者模式）→ `example/plugins/<name>/`（插件模板，含 manifest.json + plugin.py + README）
+> - HTML 插件作者（用户侧主路径）→ 使用 `html-creator` 编写 HTML/CSS/JS，通过 `platform.ai.chat` / `platform.api.call` 调用 Agent 能力
+> - 源码 → `agent.dart` `tool.dart` `provider.dart` `agent_runtime.dart` `session_manager.dart` `agent/` `controller/` `memory/` `skill/` `compact/` `evidence/` `output_style/` `guardian/` `tools/` `test/` `docs/`
 > - 接口契约 → `docs/api-contracts.md`（Sprint 1 冻结：I1–I++ 全部接口签名 + Skill 格式 + Compaction 阈值 + 降级路径）
 
 ---
@@ -409,9 +410,11 @@ server.stop();
 
 ---
 
-## 插件开发（插件开发者）
+## 插件开发（Agent 工具插件 · 开发者模式）
 
 > **完整示例模板**：`example/plugins/time/`（Python + args + flag）、`example/plugins/date/`（Python + stdin）、`example/plugins/weather/`（Python + args + flag + 短 flag）、`example/plugins/random/`（C + args + flag），含 manifest.json + 源码 + README，复制改改就能用。
+>
+> 注意：普通用户创作插件不需要编写 `.exe` Agent 工具；用户侧主路径是 `html-creator` 中的 HTML/JS 插件。
 
 ### 第一步：写一个可执行程序
 
@@ -535,9 +538,10 @@ stdout 作为结果返回 Agent。stderr 附加尾部。非零退出码返回 `[
 | 核心（tool/event/message/provider/agent/session/compose/gate/controller） | 9 | ~2,550 | — | ★★★★ |
 | 记忆（memory/agent/facade/router） | 4 | ~705 | 24 | ★★★★ |
 | 插件系统（plugin_bridge/workspace/read_file/write_file/skill） | 5 | ~1,020 | — | ★★★★ |
+| 守护/提问/大文件/Skill 改写（guardian/ask/large_file/skill_rewriter） | 4+ | — | 54 | ★★★★ |
 | 示例（example.dart + 4 插件） | 5 | — | — | ★★★★ |
-| 测试（9 文件） | 9 | — | 174 | All passed |
-| **合计** | — | — | **174** | `dart analyze` → 0 issues |
+| 测试（13 文件） | 13 | — | 229 | All passed |
+| **合计** | — | — | **229** | `dart analyze` → 0 issues |
 
 > 完整自评明细见 `CLAUDE.md`。
 

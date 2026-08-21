@@ -10,6 +10,9 @@
 
 > 声明式模块系统：`manifest.json` → `ModuleDescriptor` → `ModuleRegistry` → 渲染管线。  
 > 源码: `module_descriptor.dart` `module_registry.dart` `module_loader.dart` | 示例: `example/` | 教程: `docs/` | 测试: `test/`
+>
+> **用户侧事实**：普通用户不直接编写复杂 `ModuleDescriptor`。用户通过 `html-creator` 编写 HTML/CSS/JS，
+> 导出的 manifest 仅需 `"template":"html"` + 基本元数据；模块系统保留给内置功能、开发者模式和高级 JSON 模板。
 
 ---
 
@@ -18,7 +21,7 @@
 ### ModuleDescriptor — 模块描述符
 
 ```dart
-const ModuleDescriptor(id, name, {description, icon, route, ui, ...})
+const ModuleDescriptor(id, name, {description, icon, route, template, nav, pages, workspace, ...})
 ModuleDescriptor.fromJson(Map<String,dynamic>)   // manifest 解析
 ModuleDescriptor.fromJsonString(String)          // JSON 字符串解析
 .toJson() → Map<String,dynamic>
@@ -29,30 +32,24 @@ ModuleDescriptor.fromJsonString(String)          // JSON 字符串解析
 | `id` | ✓ | `String` | — | 全局唯一标识 |
 | `name` | ✓ | `String` | — | 展示名称 |
 | `description` | | `String` | `""` | 描述 |
-| `icon` | | `IconData?` | — | 图标 |
-| `route` | | `String?` | — | 主路由；`null` = 纯服务 |
-| `ui` | | `String` | `"default"` | `default`/`chat`/`spreadsheet`/`document`/`presentation`/`dashboard`/`editor` |
-| `sidebar` | | `SidebarDescriptor?` | — | 侧边栏 |
-| `secondaryNavs` | | `List<NavDescriptor>` | `[]` | 子导航 |
-| `layout` | | `LayoutDescriptor` | `const` | 布局 |
-| `dataBindings` | | `List<DataBindingDescriptor>` | `[]` | 数据绑定 |
-| `chat` | | `ChatOptions?` | — | `ui:"chat"` 专用 |
-| `spreadsheet` | | `SpreadsheetOptions?` | — | `ui:"spreadsheet"` 专用 |
-| `document` | | `DocEditorOptions?` | — | `ui:"document"` 专用 |
-| `presentation` | | `PresentationOptions?` | — | `ui:"presentation"` 专用 |
-| `input` | | `InputOptions?` | — | 键盘交互 |
-| `actions` | | `ActionDescriptor?` | — | 鼠标/触摸交互（旧版） |
-| `media` | | `MediaDescriptor?` | — | 内嵌文件 |
-| `workspace` | | `WorkspaceDescriptor?` | — | 文件工作区 |
-| `timeline` | | `TimelineDescriptor?` | — | 时间线 |
-| `map` | | `MapDescriptor?` | — | 地图 |
-| `form` | | `FormDescriptor?` | — | 表单 |
-| `process` | | `ProcessDescriptor?` | — | 模块级后端进程 |
+| `icon` | | `int?` | — | Material Icon codePoint |
+| `route` | | `String?` | — | 路由；`null` = 纯服务 |
+| `version` | | `String` | `"0.0.0"` | 语义版本号 |
 | `dependencies` | | `List<String>` | `[]` | 依赖模块 id |
 | `activateSkills` | | `List<String>` | `[]` | 自动激活的 Skill 名 |
-| `version` | | `String` | `"0.0.0"` | 语义版本号 |
-| `pages` | | `List<PageDescriptor>` | `[]` | 多页面（composite 模式） |
-| `actionButtons` | | `List<ActionButtonDescriptor>` | `[]` | 动作按钮（composite 模式） |
+| `style` | | `StyleDescriptor` | `const` | 模块级默认样式 |
+| `nav` | | `NavObjectDescriptor` | `const` | 导航配置（sidebar + secondary） |
+| `process` | | `List<ProcessDescriptor>` | `[]` | 模块级后端进程 |
+| `events` | | `EventDescriptor` | `const` | 模块级事件 |
+| `actions` | | `ActionDescriptor?` | — | 交互动作（旧版） |
+| `dataBindings` | | `List<DataBindingDescriptor>` | `[]` | 数据绑定 |
+| `workspace` | | `WorkspaceDescriptor?` | — | 文件工作区 |
+| `pages` | | `List<PageDescriptor>` | `[]` | 多页面 |
+| `theme` | | `Map<String, Map<String, String>>?` | — | 模块级 theme 覆盖 |
+| `template` | | `String` | `"v4"` | 渲染模板：`v4` / `html` / `scraper` / `theme-creator` / `skill-creator` / `dsh` / `zju` / `paper_reading` |
+| `dataSource` | | `DataSourceDescriptor?` | — | 模块级数据源（`orch://<type>`） |
+| `modleRoute` | | `String?` | — | 模板内子路由（如 zdbk 的 score/notifications） |
+| `dataSources` | | `Map<String, DataSourceDescriptor>?` | — | 命名多数据源 |
 
 **便捷属性**: `isServiceOnly`（无 UI）、`hasSidebar`（在侧边栏）、`allRoutePaths`（全部路由）
 
@@ -78,7 +75,7 @@ ModuleDescriptor.fromJsonString(String)          // JSON 字符串解析
 |------|------|
 | `loadBuiltinModules(dir, registry)` | 加载内置模块 |
 | `scanModules(dir)` → `List<ModuleDescriptor>` | 扫描目录，不启动进程 |
-| `scanAndLoadModules(dir, registry)` → `Future<List<ModuleLoader>>` | 扫描 + 注册 + 并行启动 exe |
+| `scanAndLoadModules(dir, registry)` → `Future<List<ModuleLoader>>` | 扫描 + 注册 + 并行加载（HTML 模块仅注册/加载静态资源，有后端进程的模块才启动 exe） |
 
 **ModuleLoader 类**: `ModuleLoader(manifest, workingDir, {required projectRoot})` → `start()` / `stop()` / `isRunning` / `port`
 
@@ -115,7 +112,7 @@ ModuleDescriptor.fromJsonString(String)          // JSON 字符串解析
 | `search` | `SearchDescriptor?` | `null` | `{enabled, placeholder:"搜索..."}` |
 | `panels` | `List<PanelDescriptor>` | `[]` | `{id, label, path, isDefault}` |
 
-### ChatOptions（`ui:"chat"`）
+### ChatOptions（对话组件配置）
 
 | 子组 | 字段 | 类型 | 默认 | 说明 |
 |------|------|------|------|------|
@@ -125,15 +122,15 @@ ModuleDescriptor.fromJsonString(String)          // JSON 字符串解析
 | `stream` | `enabled` / `animation` / `cursorStyle` | `bool`/`String`/`String` | `true`/`"typewriter"`/`"blinking"` | 流式输出 |
 | — | `placeholder` / `multi_session` | `String`/`bool` | `"输入消息..."`/`false` | 占位/多会话 |
 
-### SpreadsheetOptions（`ui:"spreadsheet"`）
+### SpreadsheetOptions（电子表格组件配置）
 
 `formulas` `charts` `sheets` `conditionalFormatting`（`bool`, `false`）| `resizableColumns`（`bool`, `true`）| `columns`（`int`, `26`）| `rows`（`int`, `100`）
 
-### DocEditorOptions（`ui:"document"`）
+### DocEditorOptions（文档编辑器配置）
 
 `trackChanges` `comments` `tableOfContents` `footnotes` `headersFooters`（`bool`, `false`）| `pageSetup`（`bool`, `true`）| `exportFormats`（`List<String>`, `["pdf","docx"]`）
 
-### PresentationOptions（`ui:"presentation"`）
+### PresentationOptions（演示文稿配置）
 
 `transitions` `animations` `speakerNotes` `presenterView` `slideMaster`（`bool`, `false`）| `layouts`（`List<String>`, `["title","content","blank","two-column"]`）| `exportFormats`（`List<String>`, `["pdf","pptx"]`）
 
@@ -244,13 +241,31 @@ GET /module/search?q=&dim=&cat=    /module/nav    /module/routes
 | manifest.json 完整参考 | [`docs/plugin-authoring-guide-module.md`](docs/plugin-authoring-guide-module.md) |
 | 完整示例 | `example/example.dart` + `example/plugins/my_module/` |
 
-### 最简插件
+### 用户侧最简 HTML 插件（推荐）
 
-```json
-{ "type": "module", "id": "my_plugin", "name": "我的插件" }
+```
+plugins/my-html-plugin/
+└── module/
+    ├── manifest.json
+    └── index.html
 ```
 
-放入 `plugins/my_plugin/module/manifest.json`，启动自动加载。
+`manifest.json`：
+
+```json
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "my-html-plugin",
+  "name": "我的 HTML 插件",
+  "template": "html",
+  "route": "/my-html-plugin"
+}
+```
+
+`index.html` 即用户自写 HTML/JS 的入口，运行时可通过 `platform.data.*` / `platform.ai.*` /
+`platform.settings.*` / `platform.theme.getColors()` 等 JS Bridge 调用平台能力。
+完整创作流程优先使用 `html-creator`，无需手工维护 manifest。
 
 ---
 

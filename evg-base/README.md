@@ -8,7 +8,7 @@
 | 负责人 | 待补充 |
 | 适用 | 平台底层全仓 |
 
-Flutter 桌面应用平台底层——双轨架构（`core/` 声明 + `renderer/` 渲染）。提供模块系统、Agent 运行时、数据谱仪器、主题引擎、OCR 服务。外部插件放入 `plugins/` 目录即热加载，无需修改 base 源码。
+Flutter 桌面应用平台底层——双轨架构（`core/` 服务 + `renderer/` 渲染）。提供模块系统、Agent 运行时、数据谱仪器、主题引擎、OCR 服务。**用户侧插件创作以 HTML 为主**：用户通过 `html-creator` 自写 HTML/CSS/JS，平台提供实时预览、AI 辅助生成与一键导出；外部插件放入 `plugins/` 目录即热加载，无需修改 base 源码。
 
 ## 架构
 
@@ -30,9 +30,13 @@ evergreen-base/
 │   │   └── utils/        safe_parse / token_estimator / greenix_path / python_env
 │   │
 │   ├── renderer/                    下游——Flutter UI 渲染（只读 core/）
-│   │   ├── widgets/      原子渲染组件（AppShell / CommandPalette / MessageBubble …）
-│   │   ├── shared/       组合视图 + 调度 + 主题解析 + 布局引擎
-│   │   └── compositions/ 高级多视图叠加工作区
+│   │   ├── app/          应用壳、主题服务、全局 Provider
+│   │   ├── atomic/       原子取数原语
+│   │   ├── components/   共享组件（widgets + shared）
+│   │   ├── module/       模块调度（ModuleDispatch / ModulePage）
+│   │   ├── multi_agent/  多 Agent 并行视图
+│   │   ├── page/         页面视图（市场/设置/数据看板/文件/全局记忆）
+│   │   └── templates/    模板路由（v4 / html / scraper / theme-creator / skill-creator / dsh / zju / paper_reading）
 │   │
 │   ├── theme/                        兼容性 stub → Breakpoints 常量
 │   └── generated/                    兼容性 stub → re-export providers.dart
@@ -66,10 +70,11 @@ ISCC.exe scripts\installer.iss
 
 ```
 plugins/<name>/
-  agent/manifest.json + .exe      ← PluginBridge（AI 工具）
-  module/manifest.json            ← ModuleLoader（UI 模块）
+  module/index.html               ← HTML 插件主文件（用户侧主路径）
+  module/manifest.json            ← 模块声明（HTML 插件模板为 "template":"html"）
+  agent/manifest.json + .exe      ← PluginBridge（AI 工具，开发者模式）
   theme/theme.json                ← ThemeLoader（配色主题）
-  data/manifest.json              ← DataSourceLoader（数据源）
+  data/manifest.json              ← DataSourceLoader（数据源，开发者模式）
   config/config.json              ← SettingsLoader（设置项）
 ```
 

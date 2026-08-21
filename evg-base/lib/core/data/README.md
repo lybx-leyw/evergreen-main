@@ -10,7 +10,8 @@
 
 > **快速导航**
 > - 平台开发者 → `example/example.dart` | 测试：`test/orchestrator_test.dart` + `test/cache_test.dart`
-> - 插件开发者 → `docs/plugin-authoring-guide-data.md` | 示例：`example/plugins/douban/`
+> - 数据源插件开发者（开发者模式）→ `docs/plugin-authoring-guide-data.md` | 示例：`example/plugins/douban/`
+> - HTML 插件作者 → 使用 `platform.data.*` JS Bridge 读取数据中枢，无需自建数据源
 > - 核心源码 → `type.dart` `cache.dart` `orchestrator.dart` `data_http_server.dart` `plugin/`
 
 ## 平台开发 API
