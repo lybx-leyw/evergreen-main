@@ -579,6 +579,7 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
     try {
       final text =
           await PymupdfTool.extractText(localPath, pythonPath: pythonPath);
+      if (text.trim().isEmpty) throw StateError('PDF 没有文本层');
       if (text.length > 20 * 1024 * 1024) {
         m.processingError = '提取文本超过 20MiB 上限';
         m.readability = 'unreadable';
