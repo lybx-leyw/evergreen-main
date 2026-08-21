@@ -58,6 +58,7 @@ class WebSearchTool extends Tool {
             '$host/search',
             queryParameters: {'q': query, 'cc': 'cn'},
             options: Options(
+              connectTimeout: const Duration(seconds: 10),
               receiveTimeout: const Duration(seconds: 10),
               headers: {
                 'User-Agent':
@@ -74,6 +75,9 @@ class WebSearchTool extends Tool {
       }
 
       if (html == null || html.isEmpty) return '[搜索失败: 无法连接搜索服务]';
+      if (html.length > 8 * 1024 * 1024) {
+        html = html.substring(0, 8 * 1024 * 1024);
+      }
 
       // 提取搜索结果——适应多种 HTML 结构
       final results = <String>[];
@@ -158,6 +162,7 @@ class WebFetchTool extends Tool {
       final response = await _dio.get(
         url,
         options: Options(
+          connectTimeout: const Duration(seconds: 15),
           receiveTimeout: const Duration(seconds: 30),
           followRedirects: true,
           headers: {
