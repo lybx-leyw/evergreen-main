@@ -92,21 +92,21 @@ class SearchTask {
   }) : materialIds = materialIds ?? [];
 
   factory SearchTask.fromJson(Map<String, dynamic> json) => SearchTask(
-        id: json['id'] as String? ?? '',
+        id: json['id']?.toString() ?? '',
         source: SearchSource.values.firstWhere(
             (s) => s.name == json['source'],
             orElse: () => SearchSource.web),
-        query: json['query'] as String? ?? '',
+        query: json['query']?.toString() ?? '',
         status: TaskStatus.values.firstWhere(
             (s) => s.name == json['status'],
             orElse: () => TaskStatus.pending),
         verdict: TaskVerdict.values.firstWhere(
             (v) => v.name == json['verdict'],
             orElse: () => TaskVerdict.none),
-        feedback: json['feedback'] as String? ?? '',
-        resultSummary: json['resultSummary'] as String? ?? '',
-        materialIds: (json['materialIds'] as List?)?.cast<String>() ?? [],
-        attempts: json['attempts'] as int? ?? 0,
+        feedback: json['feedback']?.toString() ?? '',
+        resultSummary: json['resultSummary']?.toString() ?? '',
+        materialIds: (json['materialIds'] as List?)?.whereType<String>().toList() ?? [],
+        attempts: (json['attempts'] as num?)?.toInt() ?? 0,
       );
 
   Map<String, dynamic> toJson() => {
@@ -174,16 +174,16 @@ class MaterialItem {
         source: SearchSource.values.firstWhere(
             (s) => s.name == json['source'],
             orElse: () => SearchSource.web),
-        title: json['title'] as String? ?? '',
-        url: json['url'] as String? ?? '',
-        type: json['type'] as String? ?? 'article',
-        localPath: json['localPath'] as String?,
-        textPath: json['textPath'] as String?,
-        authors: json['authors'] as String?,
-        year: json['year'] as String?,
-        summary: json['summary'] as String? ?? '',
-        readability: json['readability'] as String? ?? 'ok',
-        processingError: json['processingError'] as String?,
+        title: json['title']?.toString() ?? '',
+        url: json['url']?.toString() ?? '',
+        type: json['type']?.toString() ?? 'article',
+        localPath: json['localPath']?.toString(),
+        textPath: json['textPath']?.toString(),
+        authors: json['authors']?.toString(),
+        year: json['year']?.toString(),
+        summary: json['summary']?.toString() ?? '',
+        readability: json['readability']?.toString() ?? 'ok',
+        processingError: json['processingError']?.toString(),
         ocrAttempts: json['ocrAttempts'] as int? ?? 0,
       );
 
@@ -230,10 +230,10 @@ class WorkflowEvent {
         at: json['at'] != null
             ? (DateTime.tryParse(json['at'] as String) ?? DateTime.now())
             : DateTime.now(),
-        level: json['level'] as String? ?? 'info',
-        phase: json['phase'] as String? ?? '',
-        message: json['message'] as String? ?? '',
-        agentId: json['agentId'] as String?,
+        level: json['level']?.toString() ?? 'info',
+        phase: json['phase']?.toString() ?? '',
+        message: json['message']?.toString() ?? '',
+        agentId: json['agentId']?.toString(),
       );
 
   Map<String, dynamic> toJson() => {
