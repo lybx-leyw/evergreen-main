@@ -162,7 +162,8 @@ class WebFetchTool extends Tool {
       return '[error: 仅允许有效的 http/https URL]';
     }
     final host = parsed.host.toLowerCase();
-    if (host == 'localhost' || host == '127.0.0.1' || host == '::1' || host == '0.0.0.0' || host == '169.254.169.254') {
+    final privateIpv4 = RegExp(r'^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)').hasMatch(host);
+    if (host == 'localhost' || host == '127.0.0.1' || host == '::1' || host == '0.0.0.0' || host == '169.254.169.254' || privateIpv4) {
       return '[error: 禁止访问本机或云元数据地址]';
     }
 
