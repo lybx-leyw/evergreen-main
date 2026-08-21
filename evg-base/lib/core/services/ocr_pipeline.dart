@@ -85,6 +85,10 @@ class OcrPipeline {
   /// 下载图片后优先用 DeepSeek-OCR，失败降级到 Tesseract。
   /// 返回识别文本，失败返回空字符串（与 _ocrOneSlide 接口兼容）。
   Future<String> recognizeUrl(String imageUrl) async {
+    final parsed = Uri.tryParse(imageUrl);
+    if (parsed == null || parsed.host.isEmpty || !{'http', 'https'}.contains(parsed.scheme.toLowerCase())) {
+      return '';
+    }
     // Level 1: download → DeepSeek-OCR
     if (_apiKey.isNotEmpty) {
       try {
