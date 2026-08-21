@@ -256,7 +256,7 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
       provider: _provider,
       requirement: _workflow.requirement,
     );
-    _workflow.tasks = plans.map((m) {
+    _workflow.tasks = plans.take(10).map((m) {
       final source = SearchSource.values.firstWhere(
           (s) => s.name == m['source'],
           orElse: () => SearchSource.web);
