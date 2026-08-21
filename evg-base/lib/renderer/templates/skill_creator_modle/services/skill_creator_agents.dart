@@ -241,7 +241,9 @@ class DeepSearchRunner {
       controller.cancel();
       sub.cancel();
       return DeepSearchResult(
-        error: '深寻超时（${timeout.inMinutes}min）或中断: $e',
+        error: e is TimeoutException
+            ? '深寻超时（${timeout.inMinutes}min）: $e'
+            : '深寻 Agent 失败: $e',
         rawText: raw ?? '',
       );
     } finally {
