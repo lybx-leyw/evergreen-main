@@ -588,6 +588,11 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
         _appendEvent('info', '材料进入 OCR：${m.title}');
         final ocrText = await _ocr.recognizeFile(localPath);
         if (ocrText != null && ocrText.isNotEmpty) {
+          if (ocrText.length > 20 * 1024 * 1024) {
+            m.readability = 'unreadable';
+            m.processingError = 'OCR 文本超过 20MiB 上限';
+            return;
+          }
           File(textPath).writeAsStringSync(ocrText);
           m.textPath = textPath;
           m.readability = 'ocr';
