@@ -161,6 +161,7 @@ class WebFetchTool extends Tool {
   Future<String> execute(Map<String, dynamic> args) async {
     final url = args['url']?.toString() ?? '';
     if (url.isEmpty) return '[error: URL 为空]';
+    if (url.length > 8192) return '[error: URL 超过 8192 字符上限]';
     final parsed = Uri.tryParse(url);
     if (parsed == null || parsed.host.isEmpty || parsed.userInfo.isNotEmpty || !{'http', 'https'}.contains(parsed.scheme.toLowerCase())) {
       return '[error: 仅允许有效的 http/https URL]';

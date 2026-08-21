@@ -62,6 +62,7 @@ class DownloadFileTool extends Tool {
     if (url.isEmpty || savePath.isEmpty) {
       return '[error: url 与 save_path 必填]';
     }
+    if (url.length > 8192) return '[error: URL 超过 8192 字符上限]';
     final parsedUrl = Uri.tryParse(url);
     if (parsedUrl == null || parsedUrl.host.isEmpty || parsedUrl.userInfo.isNotEmpty || !{'http', 'https'}.contains(parsedUrl.scheme.toLowerCase())) {
       return '[error: 仅允许 http/https 下载地址]';
