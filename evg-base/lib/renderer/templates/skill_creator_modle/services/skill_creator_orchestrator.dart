@@ -314,6 +314,7 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
       _agentStatus[task.id] = 'running';
       notifyListeners();
       task.status = TaskStatus.running;
+      task.attempts++;
       _saveSession();
 
       final result = await runner.run(
