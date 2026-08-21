@@ -156,7 +156,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       final loc = state.matchedLocation;
       if (loc != '/') return null;
       final mode = ref.read(appModeProvider);
-      final pluginStates = ref.read(pluginStateProvider);
+      final pluginStates = ref.read(pluginStateProvider).records;
       final target = defaultRouteForMode(
         mode: mode,
         registry: registry,

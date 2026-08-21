@@ -5,14 +5,16 @@
 ///
 /// 公开类：[EvergreenModulePage]
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/marketplace/plugin_state_provider.dart';
 import 'module_dispatch.dart';
 
 /// 模块完整页面。
 ///
 /// [workingDirectory] 为模块插件目录（如 `plugins/vocab-tutor/`），
 /// 透传给 composite 模式的 [CompositeView] 用于进程管理。
-class EvergreenModulePage extends StatelessWidget {
+class EvergreenModulePage extends ConsumerStatefulWidget {
   final ModuleDescriptor descriptor;
   final String? workingDirectory;
   final String renderMode;
@@ -28,12 +30,26 @@ class EvergreenModulePage extends StatelessWidget {
   });
 
   @override
+  ConsumerState<EvergreenModulePage> createState() => _EvergreenModulePageState();
+}
+
+class _EvergreenModulePageState extends ConsumerState<EvergreenModulePage> {
+  @override
+  void initState() {
+    super.initState();
+    // 记录插件打开时间（lastUsedAt）——驱动插件中心「按最近使用」排序。
+    // 页面每次被打开（路由推入）都会新建 State，initState 恰好对应一次「使用」。
+    // 内置模块（无状态记录）也会由 touch() 补建默认记录。
+    ref.read(pluginStateProvider.notifier).touch(widget.descriptor.id);
+  }
+
+  @override
   Widget build(BuildContext context) {
     return ModuleDispatch(
-      descriptor: descriptor,
-      workingDirectory: workingDirectory,
-      renderMode: renderMode,
-      initialPrompt: initialPrompt,
+      descriptor: widget.descriptor,
+      workingDirectory: widget.workingDirectory,
+      renderMode: widget.renderMode,
+      initialPrompt: widget.initialPrompt,
     );
   }
 }

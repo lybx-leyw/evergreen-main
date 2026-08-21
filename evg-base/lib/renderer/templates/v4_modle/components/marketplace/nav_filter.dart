@@ -44,3 +44,48 @@ List<NavEntry> filterNavFlatByPluginState(
       final st = states[e.moduleId];
       return st == null || (st.enabled && st.sidebarVisible);
     }).toList();
+
+/// 按用户布局配置重排侧边栏导航分组。
+///
+/// 用户在插件中心拖拽调整的「分组顺序 / 组内插件顺序」最终要反映到侧边栏：
+/// - 分组间顺序：优先用 `config.groups[label].order`（用户拖拽值），
+///   未自定义的分组回退到 manifest `sectionOrder + 1000`（排在用户调过序的分组之后，
+///   保持相互间的 manifest 相对顺序）；
+/// - 组内条目顺序：优先用 `states[moduleId].sortOrder`（用户拖拽值），
+///   未自定义的条目回退到 manifest `order + 1000`（同上）。
+///
+/// 纯函数：不改动入参，返回新列表。
+List<(SidebarSection, List<NavEntry>)> applyUserNavLayout(
+  List<(SidebarSection, List<NavEntry>)> groups,
+  PluginCenterConfig config,
+  Map<String, PluginStateRecord> states,
+) {
+  final out = <(SidebarSection, List<NavEntry>)>[];
+  for (final (section, entries) in groups) {
+    final userOrdered = List<NavEntry>.from(entries)
+      ..sort((a, b) {
+        final oa = states[a.moduleId]?.sortOrder ?? a.order + 1000;
+        final ob = states[b.moduleId]?.sortOrder ?? b.order + 1000;
+        final c = oa.compareTo(ob);
+        return c != 0 ? c : a.order.compareTo(b.order);
+      });
+    out.add((section, userOrdered));
+  }
+  out.sort((a, b) {
+    final oa = config.groups[a.$1.label]?.order ?? a.$1.order + 1000;
+    final ob = config.groups[b.$1.label]?.order ?? b.$1.order + 1000;
+    final c = oa.compareTo(ob);
+    return c != 0 ? c : a.$1.order.compareTo(b.$1.order);
+  });
+  return out;
+}
+
+/// 扁平导航的用户布局版本（collapsed 侧边栏 / 移动端底部导航用）。
+///
+/// 扁平列表不携带分组信息，因此先按分组重排、再展开，保证与分组视图一致。
+List<NavEntry> applyUserNavLayoutFlat(
+  List<(SidebarSection, List<NavEntry>)> groups,
+  PluginCenterConfig config,
+  Map<String, PluginStateRecord> states,
+) =>
+    applyUserNavLayout(groups, config, states).expand((g) => g.$2).toList();
