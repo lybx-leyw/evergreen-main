@@ -77,14 +77,54 @@ Future<String> singleRound({
   return text;
 }
 
+/// 找到与 text[openIdx] 配对的闭合括号位置（考虑字符串和嵌套）。
+/// openIdx 处的字符必须是 '[' 或 '{'。
+int? _findMatchingBracket(String text, int openIdx) {
+  if (openIdx < 0 || openIdx >= text.length) return null;
+  final open = text[openIdx];
+  final close = open == '[' ? ']' : (open == '{' ? '}' : null);
+  if (close == null) return null;
+
+  var depth = 0;
+  var inString = false;
+  var escape = false;
+  for (var i = openIdx; i < text.length; i++) {
+    final ch = text[i];
+    if (inString) {
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (ch == '\\') {
+        escape = true;
+        continue;
+      }
+      if (ch == '"') inString = false;
+      continue;
+    }
+    if (ch == '"') {
+      inString = true;
+      continue;
+    }
+    if (ch == open) {
+      depth++;
+    } else if (ch == close) {
+      depth--;
+      if (depth == 0) return i;
+    }
+  }
+  return null;
+}
+
 /// 从回复中提取 JSON（去代码块包裹），失败返回 null。
 Map<String, dynamic>? extractJsonObject(String text) {
   var t = text.trim();
   final m = RegExp(r'```(?:json)?\s*\n?([\s\S]*?)```').firstMatch(t);
   if (m != null) t = m.group(1)!.trim();
   final start = t.indexOf('{');
-  final end = t.lastIndexOf('}');
-  if (start < 0 || end <= start) return null;
+  if (start < 0) return null;
+  final end = _findMatchingBracket(t, start);
+  if (end == null) return null;
   try {
     final v = jsonDecode(t.substring(start, end + 1));
     if (v is Map<String, dynamic>) return v;
@@ -428,9 +468,12 @@ Future<List<Map<String, dynamic>>> planTasks({
   final m = RegExp(r'```(?:json)?\s*\n?([\s\S]*?)```').firstMatch(t);
   if (m != null) t = m.group(1)!.trim();
   final start = t.indexOf('[');
-  final end = t.lastIndexOf(']');
-  if (start < 0 || end <= start) {
+  if (start < 0) {
     throw StateError('规划结果格式不正确（缺 JSON 数组）: $raw');
+  }
+  final end = _findMatchingBracket(t, start);
+  if (end == null) {
+    throw StateError('规划结果格式不正确（JSON 数组未闭合）: $raw');
   }
   try {
     final list = jsonDecode(t.substring(start, end + 1));

@@ -250,6 +250,11 @@ class SkillCreatorWorkflow {
   /// 当前阶段。
   SkillCreatorPhase phase;
 
+  /// 断点续做阶段：流水线异常中断前「下一个待执行」的阶段。
+  /// 失败时 [phase] 会被置为 [SkillCreatorPhase.error]，但此字段保留
+  /// 真实的续做起点，供 [resume] 从 error 恢复（可序列化，跨会话续做）。
+  SkillCreatorPhase? resumePhase;
+
   /// 用户需求（规划 agent ask 澄清后的定稿）。
   String requirement;
 
@@ -276,6 +281,7 @@ class SkillCreatorWorkflow {
 
   SkillCreatorWorkflow({
     this.phase = SkillCreatorPhase.idle,
+    this.resumePhase,
     this.requirement = '',
     this.round = 0,
     List<SearchTask>? tasks,
@@ -293,6 +299,11 @@ class SkillCreatorWorkflow {
         phase: SkillCreatorPhase.values.firstWhere(
             (p) => p.name == json['phase'],
             orElse: () => SkillCreatorPhase.idle),
+        resumePhase: json['resumePhase'] != null
+            ? SkillCreatorPhase.values.firstWhere(
+                (p) => p.name == json['resumePhase'],
+                orElse: () => SkillCreatorPhase.idle)
+            : null,
         requirement: json['requirement'] as String? ?? '',
         round: (json['round'] as num?)?.toInt() ?? 0,
         tasks: (json['tasks'] as List? ?? const [])
@@ -314,6 +325,7 @@ class SkillCreatorWorkflow {
 
   Map<String, dynamic> toJson() => {
         'phase': phase.name,
+        if (resumePhase != null) 'resumePhase': resumePhase!.name,
         'requirement': requirement,
         'round': round,
         'tasks': tasks.map((t) => t.toJson()).toList(),

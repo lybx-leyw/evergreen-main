@@ -116,6 +116,16 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
         _workflow.phase == SkillCreatorPhase.done) {
       return;
     }
+    // error 状态：恢复到失败前「下一个待执行」阶段（resumePhase），
+    // 否则 runPipeline 的 while 会因 phase==error 直接跳过、什么都不重跑。
+    if (_workflow.phase == SkillCreatorPhase.error) {
+      final rp = _workflow.resumePhase;
+      _workflow.phase = (rp == null ||
+              rp == SkillCreatorPhase.idle ||
+              rp == SkillCreatorPhase.done)
+          ? SkillCreatorPhase.planning
+          : rp;
+    }
     _appendEvent('info', '断点续做：从 ${_workflow.phase.name} 阶段继续');
     _saveSession();
     await runPipeline();
@@ -152,6 +162,8 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
       while (_workflow.phase != SkillCreatorPhase.done &&
           _workflow.phase != SkillCreatorPhase.error &&
              guard < 10) {
+        // 记录断点：当前阶段即「下一个待执行」阶段，供异常后 resume 恢复。
+        _workflow.resumePhase = _workflow.phase;
         if (_cancelRequested) {
           _appendEvent('warn', '流水线已由用户停止，可从当前阶段续做。');
           break;

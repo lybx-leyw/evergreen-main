@@ -110,6 +110,7 @@ void main() {
     test('任务/材料/事件/导出路径完整往返', () {
       final wf = SkillCreatorWorkflow(
         phase: SkillCreatorPhase.integrating,
+        resumePhase: SkillCreatorPhase.collecting,
         requirement: '创建论文速读 skill',
         round: 1,
         tasks: [
@@ -131,6 +132,7 @@ void main() {
 
       final restored = SkillCreatorWorkflow.fromJson(wf.toJson());
       expect(restored.phase, SkillCreatorPhase.integrating);
+      expect(restored.resumePhase, SkillCreatorPhase.collecting);
       expect(restored.requirement, contains('论文'));
       expect(restored.round, 1);
       expect(restored.tasks.length, 1);
