@@ -385,11 +385,13 @@ class DeepSearchRunner {
   }
 
   String _userPrompt(SearchTask task, String feedback) {
+    final query = task.query.length > 4096 ? task.query.substring(0, 4096) : task.query;
+    final boundedFeedback = feedback.length > 16384 ? feedback.substring(0, 16384) : feedback;
     final fb = feedback.trim().isEmpty
         ? '（首次执行）'
-        : '\n【规划 Agent 的交涉反馈】$feedback\n请据此修订或返工后重新采集。';
+        : '\n【规划 Agent 的交涉反馈】$boundedFeedback\n请据此修订或返工后重新采集。';
     return '''
-主题需求：${task.query}
+主题需求：$query
 来源：${searchSourceLabel(task.source)}
 执行轮次：第 ${task.attempts + 1} 次
 $fb
