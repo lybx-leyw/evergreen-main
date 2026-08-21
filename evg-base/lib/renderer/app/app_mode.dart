@@ -76,6 +76,18 @@ const List<String> kDevPluginIds = [
   'skill-creator',
 ];
 
+/// 仅 Windows 开放（安卓不开放）的开发者插件 id。
+///
+/// 这些插件依赖 WebView2 / 桌面端能力，安卓版不提供；在安卓端
+/// 开发者模式主区渲染占位页、窄轨入口弱化 + 点击拦截（提示用 Windows 版）。
+/// 与 [kDevPluginIds] 为子集关系；新增 Windows-only 插件时在此登记即可，
+/// 供 [DevModeHub] 与 [ModeRail] 共用（单真相源，避免两处硬编码漂移）。
+const Set<String> kWindowsOnlyPluginIds = {
+  'scraper',
+  'dsh',
+  'skill-creator',
+};
+
 /// 切换模式并持久化。持久化失败静默降级（不影响本次切换）。
 /// 启动时载入由 app_bootstrap 在 ProviderScope 注入时完成（避免默认模式闪动）。
 Future<void> setAppMode(WidgetRef ref, AppMode mode) async {

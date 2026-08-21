@@ -5,557 +5,409 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Evergreen 插件开发指南 · 互动版</title>
     <style>
-        /* ===== 全局重置与基础 ===== */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
-            --bg: #ffffff;
-            --bg-card: #f8fafc;
-            --text: #1a1a2e;
-            --text-secondary: #3d3d5c;
-            --border: #e2e8f0;
-            --accent: #0f7b6e;
-            --accent-light: #1a9c8a;
-            --accent-glow: rgba(15, 123, 110, 0.12);
-            --accent-border: rgba(15, 123, 110, 0.25);
-            --shadow: 0 8px 32px rgba(0, 0, 0, 0.06);
-            --radius: 16px;
+            --bg: #ffffff; --bg-card: #f8fafc; --text: #1a1a2e; --text-secondary: #3d3d5c;
+            --border: #e2e8f0; --accent: #0f7b6e; --accent-light: #1a9c8a;
+            --accent-glow: rgba(15, 123, 110, 0.12); --accent-border: rgba(15, 123, 110, 0.25);
+            --shadow: 0 8px 32px rgba(0, 0, 0, 0.06); --radius: 16px;
             --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             --font-sans: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', sans-serif;
-            --font-serif: 'Georgia', 'Times New Roman', serif;
-            --max-width: 880px;
+            --font-serif: 'Georgia', 'Times New Roman', serif; --max-width: 920px;
         }
-
-        /* 深色主题（通过 JS 切换） */
         [data-theme="dark"] {
-            --bg: #0f0f1a;
-            --bg-card: #1a1a2e;
-            --text: #e8e8f0;
-            --text-secondary: #b0b0c8;
-            --border: #2d2d44;
-            --accent: #2eccb0;
-            --accent-light: #45d9c0;
-            --accent-glow: rgba(46, 204, 176, 0.15);
-            --accent-border: rgba(46, 204, 176, 0.30);
+            --bg: #0f0f1a; --bg-card: #1a1a2e; --text: #e8e8f0; --text-secondary: #b0b0c8;
+            --border: #2d2d44; --accent: #2eccb0; --accent-light: #45d9c0;
+            --accent-glow: rgba(46, 204, 176, 0.15); --accent-border: rgba(46, 204, 176, 0.30);
             --shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
         }
-
         body {
-            font-family: var(--font-sans);
-            background: var(--bg);
-            color: var(--text);
-            line-height: 1.7;
-            transition: background var(--transition), color var(--transition);
-            padding: 20px;
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
+            font-family: var(--font-sans); background: var(--bg); color: var(--text);
+            line-height: 1.7; transition: background var(--transition), color var(--transition);
+            padding: 20px; min-height: 100vh; display: flex; justify-content: center; align-items: flex-start;
         }
-
-        /* ===== 主容器 ===== */
-        .app {
-            width: 100%;
-            max-width: var(--max-width);
-            margin: 0 auto;
-            padding: 30px 0 60px;
-        }
-
-        /* ===== 顶部栏 ===== */
+        .app { width: 100%; max-width: var(--max-width); margin: 0 auto; padding: 30px 0 60px; }
         .header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding-bottom: 24px;
-            border-bottom: 2px solid var(--border);
-            margin-bottom: 32px;
-            flex-wrap: wrap;
-            gap: 12px;
+            display: flex; justify-content: space-between; align-items: center; padding-bottom: 24px;
+            border-bottom: 2px solid var(--border); margin-bottom: 32px; flex-wrap: wrap; gap: 12px;
         }
-
-        .header-title {
-            font-family: var(--font-serif);
-            font-size: 1.7rem;
-            font-weight: 700;
-            letter-spacing: -0.01em;
-            color: var(--text);
-        }
-
-        .header-title span {
-            color: var(--accent);
-        }
-
-        .header-controls {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-
+        .header-title { font-family: var(--font-serif); font-size: 1.7rem; font-weight: 700; letter-spacing: -0.01em; color: var(--text); }
+        .header-title span { color: var(--accent); }
+        .header-controls { display: flex; gap: 10px; align-items: center; }
         .btn-theme {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 30px;
-            padding: 8px 16px;
-            font-size: 0.85rem;
-            font-weight: 500;
-            color: var(--text-secondary);
-            cursor: pointer;
-            transition: var(--transition);
-            display: flex;
-            align-items: center;
-            gap: 6px;
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: 30px; padding: 8px 16px;
+            font-size: 0.85rem; font-weight: 500; color: var(--text-secondary); cursor: pointer; transition: var(--transition);
+            display: flex; align-items: center; gap: 6px;
         }
-
-        .btn-theme:hover {
-            border-color: var(--accent);
-            color: var(--text);
-            background: var(--accent-glow);
-        }
-
+        .btn-theme:hover { border-color: var(--accent); color: var(--text); background: var(--accent-glow); }
         .step-counter {
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-            background: var(--bg-card);
-            padding: 4px 14px;
-            border-radius: 30px;
-            border: 1px solid var(--border);
-            font-variant-numeric: tabular-nums;
+            font-size: 0.9rem; color: var(--text-secondary); background: var(--bg-card); padding: 4px 14px;
+            border-radius: 30px; border: 1px solid var(--border); font-variant-numeric: tabular-nums;
         }
-
-        /* ===== 卡片主体 ===== */
         .card {
-            background: var(--bg-card);
-            border-radius: var(--radius);
-            border: 1px solid var(--border);
-            box-shadow: var(--shadow);
-            padding: 40px 44px;
-            transition: background var(--transition), border var(--transition), box-shadow var(--transition);
-            margin-bottom: 28px;
-            min-height: 360px;
-            position: relative;
+            background: var(--bg-card); border-radius: var(--radius); border: 1px solid var(--border);
+            box-shadow: var(--shadow); padding: 40px 44px; transition: background var(--transition), border var(--transition), box-shadow var(--transition);
+            margin-bottom: 28px; min-height: 360px; position: relative;
         }
-
-        /* 装饰性顶部光晕 */
         .card::before {
-            content: '';
-            position: absolute;
-            top: -1px;
-            left: 10%;
-            width: 80%;
-            height: 3px;
+            content: ''; position: absolute; top: -1px; left: 10%; width: 80%; height: 3px;
             background: linear-gradient(90deg, transparent, var(--accent), var(--accent-light), transparent);
-            border-radius: 0 0 4px 4px;
-            opacity: 0.6;
+            border-radius: 0 0 4px 4px; opacity: 0.6;
         }
-
-        /* ===== 内容排版 ===== */
-        .step-content {
-            animation: fadeUp 0.4s ease;
+        .step-content { animation: fadeUp 0.4s ease; }
+        @keyframes fadeUp { 0% { opacity: 0; transform: translateY(12px); } 100% { opacity: 1; transform: translateY(0); } }
+        .step-content h1, .step-content h2, .step-content h3 {
+            font-family: var(--font-serif); font-weight: 700; letter-spacing: -0.01em;
+            margin-top: 0; margin-bottom: 0.6em; color: var(--text);
         }
-
-        @keyframes fadeUp {
-            0% { opacity: 0; transform: translateY(12px); }
-            100% { opacity: 1; transform: translateY(0); }
-        }
-
-        .step-content h1,
-        .step-content h2,
-        .step-content h3 {
-            font-family: var(--font-serif);
-            font-weight: 700;
-            letter-spacing: -0.01em;
-            margin-top: 0;
-            margin-bottom: 0.6em;
-            color: var(--text);
-        }
-
-        .step-content h1 {
-            font-size: 2rem;
-            border-left: 4px solid var(--accent);
-            padding-left: 18px;
-        }
-
-        .step-content h2 {
-            font-size: 1.5rem;
-            margin-top: 1.2em;
-            border-bottom: 1px solid var(--border);
-            padding-bottom: 0.3em;
-        }
-
-        .step-content h3 {
-            font-size: 1.15rem;
-            margin-top: 1em;
-            color: var(--accent-light);
-        }
-
-        .step-content p {
-            margin-bottom: 1em;
-            color: var(--text-secondary);
-        }
-
-        .step-content ul,
-        .step-content ol {
-            margin: 0.8em 0 1.2em 1.5em;
-            color: var(--text-secondary);
-        }
-
-        .step-content li {
-            margin-bottom: 0.4em;
-        }
-
+        .step-content h1 { font-size: 1.9rem; border-left: 4px solid var(--accent); padding-left: 18px; }
+        .step-content h2 { font-size: 1.45rem; margin-top: 1.2em; border-bottom: 1px solid var(--border); padding-bottom: 0.3em; }
+        .step-content h3 { font-size: 1.12rem; margin-top: 1em; color: var(--accent-light); }
+        .step-content p { margin-bottom: 1em; color: var(--text-secondary); }
+        .step-content ul, .step-content ol { margin: 0.8em 0 1.2em 1.5em; color: var(--text-secondary); }
+        .step-content li { margin-bottom: 0.4em; }
         .step-content code {
-            background: var(--bg);
-            padding: 0.2em 0.5em;
-            border-radius: 6px;
-            font-size: 0.88em;
-            font-family: 'JetBrains Mono', 'Cascadia Code', monospace;
-            border: 1px solid var(--border);
-            color: var(--accent);
+            background: var(--bg); padding: 0.2em 0.5em; border-radius: 6px; font-size: 0.88em;
+            font-family: 'JetBrains Mono', 'Cascadia Code', monospace; border: 1px solid var(--border); color: var(--accent);
         }
-
         .step-content pre {
-            background: var(--bg);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 16px 20px;
-            overflow-x: auto;
-            font-size: 0.85rem;
-            line-height: 1.5;
-            font-family: 'JetBrains Mono', 'Cascadia Code', monospace;
-            color: var(--text);
-            margin: 1.2em 0;
+            background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px;
+            overflow-x: auto; font-size: 0.85rem; line-height: 1.5; font-family: 'JetBrains Mono', 'Cascadia Code', monospace;
+            color: var(--text); margin: 1.2em 0;
         }
-
-        .step-content pre code {
-            background: transparent;
-            border: none;
-            padding: 0;
-            color: inherit;
-        }
-
-        .step-content table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 1.2em 0;
-            font-size: 0.92rem;
-        }
-
-        .step-content th,
-        .step-content td {
-            border: 1px solid var(--border);
-            padding: 10px 14px;
-            text-align: left;
-        }
-
-        .step-content th {
-            background: var(--bg);
-            font-weight: 600;
-            color: var(--text);
-        }
-
-        .step-content td {
-            color: var(--text-secondary);
-        }
-
+        .step-content pre code { background: transparent; border: none; padding: 0; color: inherit; }
+        .step-content table { width: 100%; border-collapse: collapse; margin: 1.2em 0; font-size: 0.92rem; }
+        .step-content th, .step-content td { border: 1px solid var(--border); padding: 10px 14px; text-align: left; }
+        .step-content th { background: var(--bg); font-weight: 600; color: var(--text); }
+        .step-content td { color: var(--text-secondary); }
         .step-content blockquote {
-            border-left: 4px solid var(--accent);
-            background: var(--bg);
-            padding: 12px 20px;
-            margin: 1.2em 0;
-            border-radius: 0 8px 8px 0;
-            color: var(--text-secondary);
+            border-left: 4px solid var(--accent); background: var(--bg); padding: 12px 20px;
+            margin: 1.2em 0; border-radius: 0 8px 8px 0; color: var(--text-secondary);
         }
-
-        .step-content blockquote strong {
-            color: var(--text);
-        }
-
-        .step-content hr {
-            border: none;
-            border-top: 1px solid var(--border);
-            margin: 2em 0;
-        }
-
-        /* 强调装饰块 */
+        .step-content blockquote strong { color: var(--text); }
+        .step-content hr { border: none; border-top: 1px solid var(--border); margin: 2em 0; }
         .highlight-box {
-            background: var(--accent-glow);
-            border: 1px solid var(--accent-border);
-            border-radius: 10px;
-            padding: 16px 22px;
-            margin: 1.2em 0;
-            color: var(--text-secondary);
+            background: var(--accent-glow); border: 1px solid var(--accent-border); border-radius: 10px;
+            padding: 16px 22px; margin: 1.2em 0; color: var(--text-secondary);
         }
-
-        .highlight-box strong {
-            color: var(--accent);
-        }
-
-        /* ===== 导航底部 ===== */
-        .nav-footer {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 16px;
-            flex-wrap: wrap;
-            margin-top: 8px;
-        }
-
+        .highlight-box strong { color: var(--accent); }
+        .nav-footer { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: 8px; }
         .nav-btn {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 30px;
-            padding: 10px 28px;
-            font-size: 0.95rem;
-            font-weight: 500;
-            color: var(--text);
-            cursor: pointer;
-            transition: var(--transition);
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: 30px; padding: 10px 28px;
+            font-size: 0.95rem; font-weight: 500; color: var(--text); cursor: pointer; transition: var(--transition);
+            display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
         }
-
-        .nav-btn:hover:not(:disabled) {
-            border-color: var(--accent);
-            background: var(--accent-glow);
-            transform: translateY(-1px);
-            box-shadow: var(--shadow);
-        }
-
-        .nav-btn:disabled {
-            opacity: 0.35;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-
-        .nav-btn .arrow {
-            font-size: 1.2rem;
-            line-height: 1;
-        }
-
-        .nav-btn-primary {
-            background: var(--accent);
-            border-color: var(--accent);
-            color: #fff;
-        }
-
-        .nav-btn-primary:hover:not(:disabled) {
-            background: var(--accent-light);
-            border-color: var(--accent-light);
-            color: #fff;
-        }
-
-        .nav-dots {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-
-        .dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--border);
-            transition: var(--transition);
-            cursor: pointer;
-        }
-
-        .dot.active {
-            background: var(--accent);
-            transform: scale(1.25);
-            box-shadow: 0 0 12px var(--accent-glow);
-        }
-
-        .dot:hover:not(.active) {
-            background: var(--text-secondary);
-        }
-
-        /* ===== 响应式 ===== */
+        .nav-btn:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-glow); transform: translateY(-1px); box-shadow: var(--shadow); }
+        .nav-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; box-shadow: none; }
+        .nav-btn .arrow { font-size: 1.2rem; line-height: 1; }
+        .nav-btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+        .nav-btn-primary:hover:not(:disabled) { background: var(--accent-light); border-color: var(--accent-light); color: #fff; }
+        .nav-dots { display: flex; gap: 8px; align-items: center; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); transition: var(--transition); cursor: pointer; }
+        .dot.active { background: var(--accent); transform: scale(1.25); box-shadow: 0 0 12px var(--accent-glow); }
+        .dot:hover:not(.active) { background: var(--text-secondary); }
         @media (max-width: 640px) {
-            .card {
-                padding: 24px 20px;
-            }
-            .header-title {
-                font-size: 1.3rem;
-            }
-            .step-content h1 {
-                font-size: 1.5rem;
-                padding-left: 12px;
-            }
-            .step-content h2 {
-                font-size: 1.2rem;
-            }
-            .nav-footer {
-                flex-direction: column;
-                align-items: stretch;
-            }
-            .nav-btn {
-                justify-content: center;
-            }
-            .nav-dots {
-                justify-content: center;
-                order: -1;
-            }
+            .card { padding: 24px 20px; }
+            .header-title { font-size: 1.3rem; }
+            .step-content h1 { font-size: 1.5rem; padding-left: 12px; }
+            .step-content h2 { font-size: 1.2rem; }
+            .nav-footer { flex-direction: column; align-items: stretch; }
+            .nav-btn { justify-content: center; }
+            .nav-dots { justify-content: center; order: -1; }
         }
-
-        /* ===== 滚动条美化 ===== */
-        ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-        }
-        ::-webkit-scrollbar-track {
-            background: var(--bg);
-        }
-        ::-webkit-scrollbar-thumb {
-            background: var(--border);
-            border-radius: 10px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: var(--accent);
-        }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
     </style>
 </head>
 <body>
     <div class="app" id="app">
-        <!-- 顶部 -->
         <header class="header">
             <div class="header-title">📘 插件开发指南 <span>· 互动版</span></div>
             <div class="header-controls">
-                <span class="step-counter" id="stepCounter">1 / 8</span>
+                <span class="step-counter" id="stepCounter">1 / 10</span>
                 <button class="btn-theme" id="themeToggle" aria-label="切换主题">
                     <span id="themeIcon">🌙</span> <span id="themeLabel">深色</span>
                 </button>
             </div>
         </header>
-
-        <!-- 卡片 -->
         <div class="card" id="card">
-            <div class="step-content" id="stepContent">
-                <!-- 由 JS 动态渲染 -->
-            </div>
+            <div class="step-content" id="stepContent"></div>
         </div>
-
-        <!-- 底部导航 -->
         <div class="nav-footer">
-            <button class="nav-btn" id="prevBtn" disabled>
-                <span class="arrow">←</span> 上一步
-            </button>
-            <div class="nav-dots" id="dotsContainer">
-                <!-- 由 JS 生成 -->
-            </div>
-            <button class="nav-btn nav-btn-primary" id="nextBtn">
-                下一步 <span class="arrow">→</span>
-            </button>
+            <button class="nav-btn" id="prevBtn" disabled><span class="arrow">←</span> 上一步</button>
+            <div class="nav-dots" id="dotsContainer"></div>
+            <button class="nav-btn nav-btn-primary" id="nextBtn">下一步 <span class="arrow">→</span></button>
         </div>
     </div>
 
     <script>
         (function() {
             'use strict';
-
-            // ===== 步骤数据（基于 plugin_guide.md 章节） =====
             const STEPS = [
                 {
-                    title: '前言 · 两条路径',
+                    title: '前言 · 认识 Evergreen 插件',
                     content: `
                         <h1>Evergreen 插件开发指南</h1>
-                        <p><strong>适用版本：</strong>v2.0（beta 之后、正式版之前的代码基线）<br>
-                        <strong>面向读者：</strong>不太熟悉编程、但想给 Evergreen 加一个自己插件的同学</p>
-                        <blockquote>本指南只讲「怎么开发插件」，不要求你改 Dart 框架代码（除非你选路径 A 的自写模板档位）。</blockquote>
+                        <p><strong>适用版本：</strong>v2.0（beta 之后的代码基线）<br>
+                        <strong>面向读者：</strong>不熟悉编程、但想给 Evergreen 加一个插件的同学；也欢迎懂编程的同学直接跳到 Dart 插件章节。</p>
+                        <blockquote>本指南讲「怎么开发插件」，不要求改 Evergreen 的框架源码。所有路径都从<strong>一个文件夹 + 一个 manifest.json</strong>出发。</blockquote>
                         <h2>先看懂三句话</h2>
-                        <p>Evergreen 是一个<strong>本地优先、AI 原生</strong>的桌面工具平台。它本身几乎是空的，所有功能都由<strong>插件（plugin）</strong>提供。插件放在仓库的：</p>
-                        <pre>evg-base/plugins/&lt;你的插件id&gt;/</pre>
-                        <p>平台启动时会自动扫描 <code>plugins/</code> 下的每个子目录，找到里面的 <code>module/manifest.json</code>，就知道「有这么一个插件、它叫什么、长什么样、点开它在哪个位置」。</p>
+                        <p>Evergreen 是一个<strong>本地优先、AI 原生</strong>的桌面/移动微工具平台，所有功能都由<strong>插件（plugin）</strong>提供。插件就住在仓库的：</p>
+                        <pre>evg-base/plugins/&lt;你的插件id&gt;/
+    └── module/
+        └── manifest.json     ← 插件的「身份证」</pre>
+                        <p>平台启动时会自动扫描 <code>plugins/</code> 下的每个子目录，读到 <code>module/manifest.json</code>，就知道「有这个插件、它叫什么、长什么样、点开去哪里」。</p>
                         <div class="highlight-box">
-                            <strong>💡 核心认知：</strong> 插件分两条创作路径，你可以任选一条——Dart 内置（高性能）或 HTML 网页（自由界面）。
+                            <strong>💡 当前最重要的事实：</strong> 用户侧插件创作已切换为 <strong>HTML 为主</strong>。你写 HTML / CSS / JS，平台内置的
+                            <strong>「HTML 插件创作中心」（html-creator）</strong>帮你实时预览、AI 辅助生成、一键导出。
                         </div>
+                        <h2>两条创作路径</h2>
                         <table>
-                            <thead>
-                                <tr><th>路径</th><th>你写什么</th><th>适合谁</th><th>优点</th><th>缺点</th></tr>
-                            </thead>
+                            <thead><tr><th>路径</th><th>你写什么</th><th>定位</th><th>适合谁</th></tr></thead>
                             <tbody>
-                                <tr><td><strong>A. Dart 内置</strong></td><td>Dart 界面（复用模板则免写）+ manifest</td><td>想要最快、最丝滑的体验</td><td>全链路 Dart 直通，性能高，UI 一体化</td><td>要会 Dart（或只复用现有模板）</td></tr>
-                                <tr><td><strong>B. HTML 插件</strong></td><td>普通网页（.html/.css/.js）+ manifest</td><td>会一点前端 / 想要完全自由的界面</td><td>用你熟悉的网页技术，界面自由</td><td>跑在网页容器里，略慢一丢丢</td></tr>
+                                <tr><td><strong>路径一：HTML 插件</strong></td><td>网页（.html/.css/.js）+ manifest</td><td><strong>用户侧主路径</strong>，普通用户入口</td><td>会一点网页 / 想快速做工具 / 完全不会编程但想用 AI 生成</td></tr>
+                                <tr><td><strong>路径二：Dart 插件</strong></td><td>Dart/JSON 声明（+ 可选 .exe）</td><td><strong>开发者模式 / 高级能力</strong></td><td>懂编程、要极致性能、要写后端进程</td></tr>
                             </tbody>
                         </table>
-                        <p>两条路径<strong>共享同一套「插件目录 + manifest 声明 + 数据中枢」机制</strong>，差别只在「界面由谁画、数据怎么来」。</p>
+                        <p>两条路径<strong>共享同一套「插件目录 + manifest 声明 + 数据中枢」机制</strong>，差别只在「界面由谁画」。数据、设置、AI 能力两条路都能用。</p>
                     `
                 },
                 {
-                    title: '插件目录结构',
+                    title: '插件的家：目录结构与六维模型',
                     content: `
                         <h1>一个插件的目录长什么样</h1>
-                        <p>无论选哪条路径，你的插件都是一个文件夹。最小骨架：</p>
-                        <pre>evg-base/plugins/my-first-tool/
-├── module/                ← 必须有：告诉平台「这是一个模块」
-│   └── manifest.json      ← 必须有：插件的身份证
-├── data/                  ← 可选：如果你要自带数据源
-│   └── manifest.json
-└── index.html             ← 仅路径 B 需要：你的网页界面</pre>
+                        <p>无论哪条路径，你的插件都是一个文件夹。Evergreen 采用「<strong>六维插件模型</strong>」——一个插件目录可以同时装下面 6 种子目录，互不冲突，平台按子目录自动发现：</p>
+                        <table>
+                            <thead><tr><th>子目录</th><th>里面放</th><th>被谁加载</th><th>作用</th></tr></thead>
+                            <tbody>
+                                <tr><td><code>module/</code></td><td><code>manifest.json</code>（HTML 插件还要 <code>index.html</code>）</td><td>ModuleLoader → ModuleRegistry</td><td>一个「页面/模块」，最重要</td></tr>
+                                <tr><td><code>agent/</code></td><td><code>manifest.json</code> + <code>.exe</code></td><td>PluginBridge → toolRegistry</td><td>给 AI 加一个可调用的工具</td></tr>
+                                <tr><td><code>data/</code></td><td><code>manifest.json</code> + <code>.exe</code></td><td>DataSourceLoader → DataOrchestrator</td><td>自带一个数据源</td></tr>
+                                <tr><td><code>config/</code></td><td><code>config.json</code></td><td>SettingsLoader → SharedPreferences</td><td>声明设置项</td></tr>
+                                <tr><td><code>theme/</code></td><td><code>theme.json</code></td><td>ThemeLoader → ThemeStore</td><td>一套主题配色</td></tr>
+                                <tr><td><code>skill/</code></td><td><code>*.md</code></td><td>SkillLoader → SkillIndex</td><td>给 AI 的技能包</td></tr>
+                            </tbody>
+                        </table>
                         <div class="highlight-box">
-                            <strong>⚠️ 注意：</strong> 插件的正式身份证号是 manifest 里的 <code>"id"</code> 字段。但<strong>强烈建议</strong>让文件夹名和 <code>id</code> 保持一致（都用 <code>my-first-tool</code>），否则自己和别人都会看晕。一旦定下就不要随便改 id，改了等于换了一个新插件。
+                            <strong>⚠️ 身份证规则：</strong> 正式 id 是 manifest 里的 <code>"id"</code> 字段。强烈建议让<strong>文件夹名与 id 一致</strong>（如文件夹 <code>my-tool</code>，id 也用 <code>"my-tool"</code>）。id 一旦定下别乱改，改了等于换新插件。
                         </div>
-                        <p>平台扫描规则（来自 <code>lib/core/module/module_loader.dart</code>）：</p>
+                        <h2>平台怎么发现你的插件</h2>
+                        <p>扫描规则来自 <code>evg-base/lib/core/module/module_loader.dart</code>：</p>
                         <ul>
                             <li>只认 <code>plugins/&lt;id&gt;/module/manifest.json</code> 这个文件。</li>
-                            <li>文件里 <code>"type"</code> 必须是 <code>"module"</code>，否则被忽略。</li>
-                            <li>解析失败会在日志里警告，但<strong>不会</strong>让整个程序崩溃——所以写错了也能安全重试。</li>
+                            <li>manifest 里 <code>"type"</code> 必须是 <code>"module"</code>，否则被忽略。</li>
+                            <li>解析失败只在日志里警告，<strong>不会</strong>让整个程序崩溃——写错了能安全重试。</li>
+                            <li>未知字段一律<strong>静默忽略</strong>（容错设计，不是 bug）。</li>
                         </ul>
+                        <h2>Windows 下绝对路径示例</h2>
+                        <p>仓库副本在 <code>d:\\evg-workplace\\</code> 时，你的插件最终落在：</p>
+                        <pre>d:\\evg-workplace\\evg-base\\plugins\\my-tool\\module\\manifest.json
+d:\\evg-workplace\\evg-base\\plugins\\my-tool\\module\\index.html  ← 仅 HTML 插件需要</pre>
                     `
                 },
                 {
-                    title: 'Path A：Dart 内置插件',
+                    title: '开发者模式 & AI 插件创作中心',
                     content: `
-                        <h1>Path A：Dart 内置插件</h1>
-                        <p>Path A 用 Dart（Flutter）画界面。<strong>先记住一个核心认知：</strong></p>
-                        <blockquote>平台靠 manifest 里的 <strong><code>template</code> 字段</strong>决定「用哪个渲染器」来画你（默认 <code>'v4'</code>），<strong>不是</strong>靠 <code>renderMode</code> 字段。</blockquote>
-                        <p>平台已经内置了 8 个模板渲染器（来自 <code>lib/renderer/templates/generated/template_registry.g.dart</code>）：</p>
+                        <h1>项目有「开发者模式」，里面就是 AI 插件创作中心</h1>
+                        <p>Evergreen 有 <strong>三种视图模式</strong>（左栏顶部视图图标 → 扇形菜单切换，已持久化记忆）：</p>
                         <table>
-                            <thead>
-                                <tr><th><code>template</code> 值</th><th>渲染器</th><th>用途</th></tr>
-                            </thead>
+                            <thead><tr><th>模式</th><th>枚举</th><th>主区</th><th>说明</th></tr></thead>
                             <tbody>
-                                <tr><td><code>v4</code>（默认，可不写）</td><td>V4ModleTemplate</td><td>通用复合视图：多页 + 组件槽位</td></tr>
-                                <tr><td><code>zju</code> / <code>classroom</code> / <code>zdbk</code></td><td>ZjuModleTemplate</td><td>浙大场景</td></tr>
-                                <tr><td><code>paper_reading</code></td><td>PaperReadingModleTemplate</td><td>论文阅读</td></tr>
-                                <tr><td><code>html</code></td><td>HtmlModleTemplate</td><td>网页容器（路径 B）</td></tr>
-                                <tr><td><code>scraper</code></td><td>ScraperTemplate</td><td>爬虫</td></tr>
-                                <tr><td><code>theme-creator</code></td><td>ThemeCreatorModleTemplate</td><td>主题创作</td></tr>
-                            </tbody>
-                        </table>
-                        <p>Path A 再分两种「子模式」：</p>
-                        <table>
-                            <thead>
-                                <tr><th>子模式</th><th>代表例子</th><th>怎么被平台发现</th><th>要不要写 Dart</th><th>改完要不要重编译</th></tr>
-                            </thead>
-                            <tbody>
-                                <tr><td><strong>A1 硬编码内置</strong></td><td><code>zju_modle</code></td><td>写在框架代码里</td><td>要</td><td>要</td></tr>
-                                <tr><td><strong>A2 声明式 Dart 模块</strong></td><td><code>data-dashboard</code></td><td>manifest 声明，靠 <code>template</code>/<code>pages</code> 决定渲染</td><td>可选（复用模板则 0 行 Dart）</td><td>不用（热加载）</td></tr>
+                                <tr><td>AI 视图</td><td><code>AppMode.ai</code></td><td>AI 助手</td><td>默认模式</td></tr>
+                                <tr><td><strong>开发者模式</strong></td><td><code>AppMode.developer</code></td><td><code>/dev-hub</code></td><td>创作中心聚集地</td></tr>
+                                <tr><td>插件视图</td><td><code>AppMode.plugins</code></td><td>全部插件侧栏</td><td>浏览/使用所有插件</td></tr>
                             </tbody>
                         </table>
                         <div class="highlight-box">
-                            <strong>✅ 推荐：</strong> A2 档位一（复用 v4 模板）—— 写 0 行 Dart，只写 manifest，就能拥有数据面板。
+                            <strong>🔧 开发者模式（/dev-hub）里有 5 个创作中心</strong>（顺序即索引，见 <code>app_mode.dart</code> 的 <code>kDevPluginIds</code>）：<br>
+                            主题创作（theme-creator）· <strong>插件制作（html-creator）</strong> · 数据爬取（scraper） · DSH · Skill 创作（skill-creator）<br>
+                            深链可直接进入：<code>/dev-hub?plugin=html-creator</code>
                         </div>
+                        <h2>AI 插件创作中心 = html-creator</h2>
+                        <p><code>html-creator</code> 本身也是一个插件（id：<code>html-creator</code>，<code>template: "html"</code>，路由 <code>/html-creator</code>）。它是<strong>三栏 IDE</strong>：</p>
+                        <ul>
+                            <li><strong>左栏 · 数据中枢</strong>：浏览所有已注册数据源，把数据接进你的插件。</li>
+                            <li><strong>中栏 · 编辑器</strong>：写 HTML / CSS / JS（可拖拽分栏、窄屏自动变 Tab）。</li>
+                            <li><strong>右栏 · 实时预览</strong>：WebView 即时渲染，主题色自动注入。</li>
+                            <li><strong>AI 面板</strong>：用自然语言让 AI 生成 / 改稿整个插件。</li>
+                            <li><strong>一键导出</strong>：把工程写成 <code>plugins/&lt;id&gt;/module/index.html + manifest.json</code>，同时同步到内置资产目录（<code>assets/plugins_bundle/</code>）。</li>
+                        </ul>
+                        <div class="highlight-box">
+                            <strong>✅ 对新手最重要的结论：</strong> 想加插件 → 切到 <strong>开发者模式 → 插件制作（html-creator）</strong> → 写网页或让 AI 生成 → 导出，完事。根本不需要懂 Dart。
+                        </div>
+                        <p>创作中心的导出逻辑见 <code>evg-base/lib/renderer/templates/v4_modle/components/creative/html-creator/services/html_export_service.dart</code>，它把插件同时写到两个目标：运行期目录 <code>{pluginsDir}/{id}/module/</code> 与内置资产目录 <code>{assetsBundleDir}/{id}/module/</code>。</p>
                     `
                 },
                 {
-                    title: 'Path A · 复用模板与自写模板',
+                    title: '路径一：HTML 插件（主路径）',
                     content: `
-                        <h1>A2 档位一：复用现有模板（写 0 行 Dart）</h1>
-                        <p>如果你的工具本质上是「多页数据面板 / 卡片 / 表格 / 表单」这类，直接复用 <code>v4</code> 模板——<strong>只写 manifest，不写任何 Dart</strong>。真实例子 <code>plugins/data-dashboard/module/manifest.json</code>：</p>
+                        <h1>路径一：HTML 插件 = 一个网页 + 一个 manifest</h1>
+                        <p>这是当前用户侧主路径。你的插件界面就是一个<strong>普通网页</strong>，平台用内置 WebView 显示，并注入 <code>platform.*</code> 接口读数据、调 AI、读设置。</p>
+                        <h2>步骤一：写 manifest（关键字段 template:"html"）</h2>
                         <pre>{
   "schemaVersion": "2.0",
-  "renderMode": "dart",
+  "type": "module",          ← 必须
+  "id": "my-first-tool",     ← 全局唯一，建议与文件夹同名
+  "name": "我的数据面板",
+  "template": "html",        ← 关键：告诉平台「用网页画我」
+  "version": "1.0.0",
+  "route": "/my-first-tool", ← 以 / 开头，全局唯一
+  "nav": {
+    "sidebar": { "section": "自定义", "order": 99 }
+  }
+}</pre>
+                        <p>这个文件放在 <code>plugins/my-first-tool/module/manifest.json</code>。</p>
+                        <h2>步骤二：写 index.html</h2>
+                        <p>在 <code>module/</code> 里放 <code>index.html</code>（即 <code>module/index.html</code>）。完整网页，任意前端写法：</p>
+                        <pre>&lt;!DOCTYPE html&gt;
+&lt;html lang="zh-CN"&gt;
+&lt;head&gt;
+  &lt;meta charset="UTF-8"&gt;
+  &lt;title&gt;我的面板&lt;/title&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;h1&gt;你好，Evergreen&lt;/h1&gt;
+  &lt;button onclick="loadData()"&gt;加载数据&lt;/button&gt;
+  &lt;pre id="out"&gt;&lt;/pre&gt;
+  &lt;script&gt;
+    async function loadData() {
+      const d = await platform.data.get('my_source');
+      document.getElementById('out').textContent = JSON.stringify(d, null, 2);
+    }
+  &lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;</pre>
+                        <h2>步骤三：用 platform.* 借平台能力</h2>
+                        <p>平台在网页加载时自动注入全局对象 <strong><code>platform</code></strong>（来自 <code>html_modle/bridge_script.dart</code>，Windows 与 Android 同一套 bridge）。</p>
+                        <div class="highlight-box">
+                            <strong>最关键的一行：</strong> <code>const data = await platform.data.get('数据源名字');</code>
+                        </div>
+                        <p>主题色会自动注入为 CSS 变量 <code>--evg-*</code>（<code>--evg-background</code>、<code>--evg-text</code>、<code>--evg-accent</code> 等），你在 CSS 里直接用，主题切换时实时更新。</p>
+                    `
+                },
+                {
+                    title: 'HTML 插件 JS 桥接 API 速查',
+                    content: `
+                        <h1>platform.* 速查表</h1>
+                        <p>网页里可用的 <code>platform</code> 对象，统一兼容 Windows（webview_windows）与 Android（webview_flutter），不用管底层差异。</p>
+                        <h2>读数据 platform.data</h2>
+                        <table>
+                            <thead><tr><th>方法</th><th>作用</th><th>示例</th></tr></thead>
+                            <tbody>
+                                <tr><td><code>data.get(name)</code></td><td>拉取数据源（优先缓存）</td><td><code>await platform.data.get('my_source')</code></td></tr>
+                                <tr><td><code>data.list()</code></td><td>列出所有已注册数据源</td><td><code>await platform.data.list()</code></td></tr>
+                                <tr><td><code>data.refresh(name)</code></td><td>强制重新拉取</td><td><code>await platform.data.refresh('my_source')</code></td></tr>
+                                <tr><td><code>data.subscribe(name, cb)</code></td><td>订阅变化（约 5 秒轮询）</td><td><code>platform.data.subscribe('my_source', evt =&gt; render(evt.data))</code></td></tr>
+                                <tr><td><code>data.testConnectivity()</code></td><td>测试数据源连通性</td><td><code>await platform.data.testConnectivity()</code></td></tr>
+                            </tbody>
+                        </table>
+                        <h2>调 AI platform.ai</h2>
+                        <pre>const reply = await platform.ai.chat('帮我总结这段数据');
+// 可选风格：explanatory / learning / concise / socratic</pre>
+                        <h2>调核心接口 platform.api</h2>
+                        <pre>const r = await platform.api.call('core', '/core/plugins');
+// service 取值：agent / module / data / theme / config / core</pre>
+                        <h2>读写设置 platform.settings</h2>
+                        <pre>const v = await platform.settings.get('someKey');
+await platform.settings.set('someKey', 'newValue');</pre>
+                        <h2>读主题色 platform.theme</h2>
+                        <pre>const colors = await platform.theme.getColors();
+// 同时平台已注入 CSS 变量 --evg-*，CSS 里可直接用</pre>
+                        <h2>页内事件 platform.emit / platform.on</h2>
+                        <pre>platform.emit('my-event', { value: 1 });
+platform.on('my-event', (payload) =&gt; console.log(payload));</pre>
+                    `
+                },
+                {
+                    title: '让插件有数据：数据中枢',
+                    content: `
+                        <h1>数据从哪来：数据中枢（DataOrchestrator）</h1>
+                        <p>不管路径一还是路径二，要展示真实数据，都来自<strong>数据中枢</strong>。两种方式：</p>
+                        <ul>
+                            <li><strong>(a) 复用已有数据源</strong>：直接用别人/平台注册好的名字，比如 <code>platform.data.get('某名字')</code>。</li>
+                            <li><strong>(b) 自己注册一个新数据源</strong>：写 <code>plugins/&lt;id&gt;/data/manifest.json</code> + 一个后端程序。</li>
+                        </ul>
+                        <h2>data/manifest.json 长什么样</h2>
+                        <pre>{
+  "type": "data-source",
+  "id": "my-first-tool",
+  "name": "我的数据源",
+  "process": "fetcher.py",
+  "preferredPort": 0,
+  "dataTypes": [
+    {
+      "name": "my_source",        ← 全局唯一，platform.data.get('my_source') 用它
+      "category": "自定义",
+      "displayName": "我的数据",
+      "ttl": "5m",
+      "persistentKey": "my_source_cache",
+      "endpoint": "/api/data"
+    }
+  ]
+}</pre>
+                        <p>放在 <code>plugins/my-first-tool/data/manifest.json</code>，后端程序（<code>fetcher.py</code> 或 <code>fetcher.exe</code>）放同目录。</p>
+                        <h2>后端程序要满足的契约（开发者模式能力）</h2>
+                        <ol>
+                            <li>监听 <code>127.0.0.1</code> 上的某个端口。</li>
+                            <li>启动后往<strong>标准输出</strong>打印一行 <code>PORT:12345</code>（必须 flush）。</li>
+                            <li>提供 <code>GET /health</code> → 返回 <code>200 OK</code>。</li>
+                            <li>提供数据端点（就是 <code>endpoint</code> 写的路径），返回 <code>200 OK</code> + JSON。</li>
+                            <li>收到终止信号后干净退出。</li>
+                        </ol>
+                        <p>最小可用的 Python 后端（零第三方依赖）：</p>
+                        <pre>from http.server import BaseHTTPRequestHandler, HTTPServer
+import json
+
+class H(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == '/health':
+            self.send_response(200); self.end_headers()
+            self.wfile.write(b'{"status":"ok"}')
+        elif self.path == '/api/data':
+            body = json.dumps({"items": [1, 2, 3]}).encode()
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(body)
+        else:
+            self.send_response(404); self.end_headers()
+
+srv = HTTPServer(("127.0.0.1", 0), H)
+port = srv.server_address[1]
+print(f"PORT:{port}", flush=True)   ← 端口上报，平台靠它发现你
+srv.serve_forever()</pre>
+                        <p>数据源生命周期：平台启动程序 → 读 <code>PORT:</code> → 探活 <code>/health</code> → 注册到数据中枢 → 之后 <code>get</code> 就走 HTTP。平台 10 秒没探测到端口就终止进程。</p>
+                    `
+                },
+                {
+                    title: '路径二 · Dart 插件：template 与 v4 声明',
+                    content: `
+                        <h1>Dart 插件（开发者模式 / 高级能力）</h1>
+                        <p>这条路径用 Dart/JSON「声明」界面。核心认知：</p>
+                        <blockquote>平台靠 manifest 里的 <strong><code>template</code> 字段</strong>决定用哪个渲染器（默认 <code>'v4'</code>），<strong>不是</strong>靠 <code>renderMode</code> 字段。</blockquote>
+                        <h2>平台内置的模板渲染器</h2>
+                        <p>清单见 <code>evg-base/lib/renderer/templates/templates_index.json</code>（配合 <code>tool/gen_template_registry.dart</code> 生成注册表）：</p>
+                        <table>
+                            <thead><tr><th><code>template</code> 值</th><th>渲染器</th><th>用途</th></tr></thead>
+                            <tbody>
+                                <tr><td><code>v4</code>（默认可不写）</td><td>V4ModleTemplate</td><td>通用组件式模块：多页 + 槽位</td></tr>
+                                <tr><td><code>html</code></td><td>HtmlModleTemplate</td><td>网页容器（路径一）</td></tr>
+                                <tr><td><code>scraper</code></td><td>ScraperTemplate</td><td>所见即所得爬虫</td></tr>
+                                <tr><td><code>theme-creator</code> / <code>skill-creator</code></td><td>对应创作中心模板</td><td>主题 / Skill 创作</td></tr>
+                                <tr><td><code>dsh</code></td><td>DshModleTemplate</td><td>DeepSeek Harness</td></tr>
+                                <tr><td><code>paper_reading</code></td><td>PaperReadingModleTemplate</td><td>论文阅读</td></tr>
+                                <tr><td><code>zju</code> / <code>classroom</code> / <code>zdbk</code></td><td>ZjuModleTemplate</td><td>浙大校园场景</td></tr>
+                            </tbody>
+                        </table>
+                        <h2>复用 v4：写 0 行 Dart 就能有数据面板</h2>
+                        <p>用 <code>pages</code> 声明页面 + 布局 + 组件，全是 JSON：</p>
+                        <pre>{
+  "schemaVersion": "2.0",
   "type": "module",
   "id": "my-data-panel",
   "name": "我的数据面板",
-  "description": "一句话说明这个插件干嘛的",
   "icon": "storage",
   "route": "/my-data-panel",
   "version": "1.0.0",
@@ -580,197 +432,140 @@
     }
   ]
 }</pre>
-                        <p><strong>要点：</strong></p>
                         <ul>
-                            <li>没写 <code>template</code> 字段 → 默认 <code>v4</code> → 走 <code>pages</code> 调度。</li>
-                            <li><code>pages[].layout.slots.&lt;id&gt;.component.type</code> 是组件名（如 <code>data-dashboard</code>）。</li>
-                            <li><code>config.dataSource.endpoint</code> 写 <code>orch://&lt;数据源名&gt;</code> 就能把数据灌进去。</li>
+                            <li>没写 <code>template</code> → 默认 <code>v4</code> → 走 <code>pages</code> 调度。</li>
+                            <li><code>pages[].layout.slots.&lt;id&gt;.component.type</code> 是组件名（35+ 种组件：chat、data-table、chart、form、calendar、lottery-wheel、mindmap…）。</li>
+                            <li><code>endpoint: "orch://&lt;数据源名&gt;"</code> 把数据灌进组件。</li>
                         </ul>
-                        <hr>
-                        <h1>A2 档位二：自写全新 Dart 模板</h1>
-                        <p>如果你要的是独一无二、v4 给不了的界面，才需要写一个全新的 Dart 模板，并把它注册进 <code>TemplateRegistry</code>。分三步：</p>
+                        <h2>v4 布局范式（5 种）</h2>
+                        <table>
+                            <thead><tr><th>类型</th><th>行为</th><th>参数</th></tr></thead>
+                            <tbody>
+                                <tr><td><code>grid</code></td><td>多列网格</td><td><code>columns</code>(1-12) + <code>gap</code></td></tr>
+                                <tr><td><code>flex</code></td><td>Row/Column/Wrap</td><td><code>direction</code> + <code>justify</code></td></tr>
+                                <tr><td><code>fullscreen</code></td><td>单槽填满</td><td>—</td></tr>
+                                <tr><td><code>absolute</code></td><td>Stack + Positioned 绝对定位</td><td>—</td></tr>
+                                <tr><td><code>dock</code></td><td>上下左右中停靠</td><td>—</td></tr>
+                            </tbody>
+                        </table>
+                    `
+                },
+                {
+                    title: '路径二 · 进阶：.exe 进程与四级生命周期',
+                    content: `
+                        <h1>Dart 插件可以挂后端 .exe 进程</h1>
+                        <p>除了 <code>pages</code> 纯声明，Dart 插件还能给<strong>不同层级</strong>挂独立的 .exe 进程跑业务逻辑。这是 Evergreen 最强大的开发者能力：</p>
+                        <table>
+                            <thead><tr><th>层级</th><th>manifest 路径</th><th>生命周期</th></tr></thead>
+                            <tbody>
+                                <tr><td>① 模块级</td><td><code>process[]</code></td><td>模块加载 → 卸载</td></tr>
+                                <tr><td>② 页面级</td><td><code>pages[].globalProcess</code></td><td>页面激活 → 切走</td></tr>
+                                <tr><td>③ 栏位/组件级</td><td><code>pages[].layout.slots.&lt;key&gt;.process</code></td><td>栏可见 → 隐藏</td></tr>
+                                <tr><td>④ 动作级</td><td><code>actionButtons[].process</code></td><td>按钮触发 → 完成即退出</td></tr>
+                            </tbody>
+                        </table>
+                        <p>每个进程声明 <code>exe</code>（可执行文件路径）和 <code>protocol</code>（目前统一 <code>"http"</code>）。</p>
+                        <h2>标准 .exe 契约（不限于 Python）</h2>
                         <ol>
-                            <li>在 <code>lib/renderer/templates/&lt;你的模板名&gt;_modle/</code> 新建 Dart 文件，实现 <code>ModleRenderer</code>。</li>
-                            <li>注册模板：编辑 <code>templates/templates_index.json</code> 与构建配置，运行 <code>dart tool/gen_template_registry.dart</code>。</li>
+                            <li>启动 HTTP 服务，监听 <code>127.0.0.1</code> 随机端口（<code>HTTPServer("127.0.0.1", 0)</code> 让 OS 分配）。</li>
+                            <li>stdout 首行打印 <code>PORT:&lt;端口&gt;</code>（<code>flush=True</code>），平台捕获后知道端口。</li>
+                            <li>之后全部 HTTP + JSON 通信，支持 GET/POST。</li>
+                            <li>组件可见时启动、隐藏时终止，平台统一管理生命周期。</li>
+                        </ol>
+                        <p>任何能起 HTTP Server + 打印端口号的语言都能写插件：Python stdlib 零依赖，Go <code>net/http</code>、Node.js <code>http</code> 同样可以。</p>
+                        <h2>dataSource 数据绑定（不用写 .exe 也能定时拉数据）</h2>
+                        <pre>"dataSource": {
+  "endpoint": "/api/lottery/draw",   ← 相对模块进程端口，或 core 服务
+  "refreshInterval": 15,             ← 自动刷新秒数，0 = 不自动
+  "dataPath": "history",             ← 从响应 JSON 里取数据的路径
+  "transform": "rarityToPie"         ← 前端注册的变形函数名
+}</pre>
+                        <p>dataSource 可以声明在页面级（整页共享）或组件级（单组件独立）。renderer 按声明定时拉取，组件只管收数据。</p>
+                    `
+                },
+                {
+                    title: '路径二 · 深入：端口发现与自写模板',
+                    content: `
+                        <h1>核心机制：文件系统即注册中心</h1>
+                        <p>平台启动 6 个微服务，每个绑定 <code>127.0.0.1</code> 随机端口，并把端口写进文件。你的 .exe 读这些文件就能发现所有上游服务——不需要 consul / etcd / 环境变量：</p>
+                        <table>
+                            <thead><tr><th>端口文件</th><th>服务</th><th>职责</th></tr></thead>
+                            <tbody>
+                                <tr><td><code>.agent_port</code></td><td>AgentHttpServer</td><td>AI 对话 / 会话 / 工具 / 记忆 / 技能</td></tr>
+                                <tr><td><code>.config_port</code></td><td>ConfigHttpServer</td><td>设置 / 权限 / 插件源</td></tr>
+                                <tr><td><code>.data_port</code></td><td>DataHttpServer</td><td>数据中枢</td></tr>
+                                <tr><td><code>.module_port</code></td><td>ModuleHttpServer</td><td>模块查询 / 导航 / 路由</td></tr>
+                                <tr><td><code>.theme_port</code></td><td>ThemeHttpServer</td><td>主题</td></tr>
+                                <tr><td><code>.core_port</code></td><td>CoreHttpServer</td><td>安装 / 卸载 / 更新 / OCR</td></tr>
+                            </tbody>
+                        </table>
+                        <p>模块级 .exe 常充当<strong>聚合代理</strong>：读这些端口文件发现上游服务，转发/聚合数据请求，成为整个模块的 API 中枢。</p>
+                        <h2>模块生命周期：register → seal</h2>
+                        <pre>manifest.json → ModuleDescriptor.fromJson() → registry.register()
+→ scanAndLoadModules() 启动所有 .exe 进程
+→ discoverCapabilities() → registry.setCapabilities()
+→ registry.seal()          ← 锁定后只读，写入抛 StateError
+→ ModuleHttpServer 启动（仅在 seal 后）
+→ 路由表 / 侧边栏导航 / 命令面板条目全自动生成</pre>
+                        <p>seal 时会校验依赖：任何模块声明了不存在的依赖 id，启动即失败（而非运行时静默异常）。</p>
+                        <h2>自写全新 Dart 模板（真正的进阶）</h2>
+                        <p>只有当你需要独一无二、v4 给不了的界面时才需要。三步：</p>
+                        <ol>
+                            <li>在 <code>evg-base/lib/renderer/templates/&lt;你的模板名&gt;_modle/</code> 建 Dart 文件，实现 <code>ModleRenderer</code>（<code>build(context, {descriptor, workingDirectory})</code> 返回 Widget）。</li>
+                            <li>在 <code>templates/templates_index.json</code> 登记一条，并运行 <code>dart tool/gen_template_registry.dart --profile release_full</code> 重新生成 <code>template_registry.g.dart</code>（否则 AOT tree-shaker 会裁掉它）。</li>
                             <li>manifest 里写 <code>"template": "my-tool"</code>。</li>
                         </ol>
                         <div class="highlight-box">
-                            <strong>⚠️ 新手提示：</strong> 档位二需要能跑起 Flutter 构建。如果只是想「加个功能」，优先档位一或路径 B。
+                            <strong>⚠️ 分层红线（复述项目约定）：</strong> <code>core/</code> 不引用 Flutter Widget；<code>renderer/</code> 只消费 core 的 barrel 公共 API、不写业务逻辑；插件不能反向依赖 renderer 内部实现。
                         </div>
                     `
                 },
                 {
-                    title: 'Path B：HTML 插件',
+                    title: '常见问题 & 关键文件索引',
                     content: `
-                        <h1>Path B：HTML 插件</h1>
-                        <p>这一条路径最适合「我会写网页（HTML/CSS/JS），想做个漂亮界面」的同学。你的插件界面就是一个网页，平台用内置浏览器把它显示出来，并给你一套 <code>platform.*</code> 接口去读数据、调 AI、读设置。</p>
-                        <h2>步骤一：写 manifest</h2>
-                        <pre>{
-  "schemaVersion": "2.0",
-  "type": "module",
-  "id": "my-first-tool",
-  "name": "我的数据面板",
-  "template": "html",            ← 关键：告诉平台「用网页来画我」
-  "version": "1.0.0",
-  "route": "/my-first-tool",
-  "nav": {
-    "sidebar": {
-      "section": "自定义",
-      "sectionOrder": 99,
-      "order": 99
-    }
-  }
-}</pre>
-                        <p><code>template: "html"</code> 是路径 B 的灵魂（对照路径 A 的 <code>template: "v4"</code>）。</p>
-                        <h2>步骤二：写 index.html</h2>
-                        <p>在 <code>module/</code> 旁边放一个 <code>index.html</code>（也就是 <code>module/index.html</code>）。这是一个<strong>完整的普通网页</strong>，你可以用任何前端写法。</p>
-                        <pre>&lt;!DOCTYPE html&gt;
-&lt;html lang="zh-CN"&gt;
-&lt;head&gt;
-  &lt;meta charset="UTF-8"&gt;
-  &lt;title&gt;我的面板&lt;/title&gt;
-&lt;/head&gt;
-&lt;body&gt;
-  &lt;h1&gt;你好，Evergreen&lt;/h1&gt;
-  &lt;button onclick="loadData()"&gt;加载数据&lt;/button&gt;
-  &lt;pre id="out"&gt;&lt;/pre&gt;
-  &lt;script&gt;
-    async function loadData() {
-      const d = await platform.data.get('my_source');
-      document.getElementById('out').textContent = JSON.stringify(d, null, 2);
-    }
-  &lt;/script&gt;
-&lt;/body&gt;
-&lt;/html&gt;</pre>
-                        <h2>步骤三：让网页读平台能力（JS 桥接）</h2>
-                        <p>平台会在网页加载时自动注入一个全局对象 <strong><code>platform</code></strong>。你的 JS 通过它「借用」Evergreen 的能力。</p>
-                        <div class="highlight-box">
-                            <strong>最关键的一行：</strong> <code>const data = await platform.data.get('数据源名字');</code>
-                        </div>
-                    `
-                },
-                {
-                    title: 'Path B · JS 桥接 API',
-                    content: `
-                        <h1>Path B 的 JS 桥接 API（<code>platform.*</code> 速查）</h1>
-                        <p>网页里能用的 <code>platform</code> 对象，来自 <code>lib/renderer/templates/html_modle/bridge_script.dart</code>。它同时兼容 Windows 和安卓的底层通道，你不用管差异。</p>
-                        <h2>读数据 <code>platform.data</code></h2>
-                        <table>
-                            <thead>
-                                <tr><th>方法</th><th>作用</th><th>示例</th></tr>
-                            </thead>
-                            <tbody>
-                                <tr><td><code>data.get(name)</code></td><td>拉取某个数据源（优先缓存）</td><td><code>const d = await platform.data.get('my_source')</code></td></tr>
-                                <tr><td><code>data.list()</code></td><td>列出所有已注册数据源</td><td><code>const all = await platform.data.list()</code></td></tr>
-                                <tr><td><code>data.refresh(name)</code></td><td>强制重新拉取</td><td><code>await platform.data.refresh('my_source')</code></td></tr>
-                                <tr><td><code>data.subscribe(name, cb)</code></td><td>订阅变化（约 5 秒轮询）</td><td><code>platform.data.subscribe('my_source', evt => render(evt.data))</code></td></tr>
-                            </tbody>
-                        </table>
-                        <h2>调 AI <code>platform.ai</code></h2>
-                        <pre>const reply = await platform.ai.chat('帮我总结这段数据');
-// 可选风格：explanatory / learning / concise / socratic</pre>
-                        <h2>调核心接口 <code>platform.api</code></h2>
-                        <pre>const r = await platform.api.call('core', '/core/plugins');
-// service 取值：agent / module / data / theme / config / core</pre>
-                        <h2>读/写设置 <code>platform.settings</code></h2>
-                        <pre>const v = await platform.settings.get('someKey');
-await platform.settings.set('someKey', 'newValue');</pre>
-                        <h2>读主题色 <code>platform.theme</code></h2>
-                        <pre>const colors = await platform.theme.getColors();
-// 平台也会注入 CSS 变量（--evg-*），可在 CSS 里直接用</pre>
-                        <h2>事件 <code>platform.emit</code> / <code>platform.on</code></h2>
-                        <pre>platform.emit('my-event', { value: 1 });
-platform.on('my-event', (payload) => console.log(payload));</pre>
-                    `
-                },
-                {
-                    title: '数据源 · 让插件有数据',
-                    content: `
-                        <h1>数据源：让你的插件「有数据」</h1>
-                        <p>无论 A 还是 B，如果你要展示真实数据，数据都来自 <strong>数据中枢（DataOrchestrator）</strong>。你可以：</p>
-                        <ul>
-                            <li><strong>(a) 复用已有数据源</strong>：直接用别人/平台已经注册好的 <code>orch://&lt;名字&gt;</code>。</li>
-                            <li><strong>(b) 自己注册一个新数据源</strong>：写一个 <code>plugins/&lt;id&gt;/data/manifest.json</code> + 一个后端程序（<code>.exe</code> / <code>.py</code>）。</li>
-                        </ul>
-                        <h2>data/manifest.json 长什么样</h2>
-                        <pre>{
-  "type": "data-source",
-  "id": "my-first-tool",
-  "name": "我的数据源",
-  "process": "fetcher.exe",
-  "preferredPort": 0,
-  "dataTypes": [
-    {
-      "name": "my_source",      ← 全局唯一，后面 platform.data.get('my_source') 用的就是它
-      "category": "自定义",
-      "displayName": "我的数据",
-      "ttl": "5m",
-      "persistentKey": "my_source_cache",
-      "endpoint": "/api/data"
-    }
-  ]
-}</pre>
-                        <h2>后端程序要满足的契约</h2>
-                        <ol>
-                            <li>监听 <code>127.0.0.1</code> 上的某个端口。</li>
-                            <li>启动后往<strong>标准输出</strong>打印一行：<code>PORT:12345</code>。</li>
-                            <li>提供 <code>GET /health</code> → 返回 <code>200 OK</code>。</li>
-                            <li>提供数据接口（就是上面 <code>endpoint</code> 写的路径），返回 <code>200 OK</code> + JSON。</li>
-                            <li>收到系统终止信号后干净退出。</li>
-                        </ol>
-                        <div class="highlight-box">
-                            <strong>📁 完整 Path B 插件的最小全貌：</strong>
-                            <pre style="margin-top:8px;">plugins/my-first-tool/
-├── module/
-│   ├── manifest.json    ← template:"html"
-│   └── index.html       ← 调 platform.data.get('my_source')
-└── data/
-    ├── manifest.json    ← type:"data-source"
-    └── fetcher.py       ← 后端</pre>
-                        </div>
-                    `
-                },
-                {
-                    title: '常见问题与关键文件索引',
-                    content: `
-                        <h1>常见问题（给新手的避坑）</h1>
-                        <h2>Q1：我改了 manifest，界面没变？</h2>
-                        <p>平台是「扫描式」加载，一般重启应用即可生效。若是 <code>template:"html"</code>，改 <code>index.html</code> 通常热刷新就能看到；若是 Dart（A2），可能需要重新构建。</p>
-                        <h2>Q2：我的 route 填什么？</h2>
-                        <p>以 <code>/</code> 开头、<code>plugins/</code> 下唯一即可，例如 <code>/my-first-tool</code>。不要和已有插件撞（<code>/ai-assistant</code>、<code>/data-dashboard</code> 等已占用）。</p>
+                        <h1>常见问题（避坑）</h1>
+                        <h2>Q1：改了 manifest，界面没变？</h2>
+                        <p>平台是「扫描式」加载，一般重启应用生效。<code>template:"html"</code> 的插件改 <code>index.html</code> 通常热刷新可见；Dart 声明改动多数也要重启/重载。</p>
+                        <h2>Q2：route 填什么？</h2>
+                        <p>以 <code>/</code> 开头、全局唯一，如 <code>/my-first-tool</code>。别和已占用路由撞（<code>/ai-assistant</code>、<code>/data-dashboard</code>、<code>/html-creator</code>、<code>/dev-hub</code> 等）。</p>
                         <h2>Q3：左侧栏分组怎么选？</h2>
                         <p><code>nav.sidebar.section</code> 填 <code>"base主功能"</code>、<code>"base系统"</code> 或 <code>"自定义"</code>。新插件建议先用 <code>"自定义"</code>。</p>
-                        <h2>Q4：我不会 Dart，能走 Path A 吗？</h2>
-                        <p>可以走 <strong>A2 档位一</strong>（复用 v4 模板，不写 Dart 代码）。但如果要<strong>完全自定义界面</strong>，档位二必须写 Dart——那种情况建议直接选 Path B。</p>
-                        <h2>Q5：数据名字写错了会怎样？</h2>
-                        <p><code>platform.data.get('错误名字')</code> 会解析不到，界面可能空白或报错。先用 <code>platform.data.list()</code> 确认。</p>
-                        <h2>Q6：后端程序一定要 <code>.exe</code> 吗？</h2>
-                        <p>不一定。扩展名是 <code>.py</code>，或显式写了 <code>runtime: "python"</code> → 自动用 Python 解释器跑；其它（如 <code>.exe</code>）→ 直接当作可执行文件跑。</p>
+                        <h2>Q4：完全不会编程能做插件吗？</h2>
+                        <p>能。走 <strong>开发者模式 → 插件制作（html-creator）→ AI 面板</strong>，用自然语言让 AI 生成插件，再导出即可。这是平台「AI 原生」的核心体验。</p>
+                        <h2>Q5：数据名写错会怎样？</h2>
+                        <p><code>platform.data.get('错误名字')</code> 取不到数据，界面可能空白。先用 <code>platform.data.list()</code> 确认。</p>
+                        <h2>Q6：后端程序一定要 .exe 吗？</h2>
+                        <p>不一定。扩展名是 <code>.py</code> 或显式 <code>runtime: "python"</code> → 自动用 Python 解释器跑；其它（.exe）→ 直接当可执行文件跑。</p>
+                        <h2>Q7：我不懂 Dart，能走路径二吗？</h2>
+                        <p>能走「复用 v4」档位：只写 manifest 声明 <code>pages</code>，0 行 Dart。只有自写全新模板才必须写 Dart。</p>
                         <hr>
                         <h1>关键文件索引</h1>
                         <table>
-                            <thead>
-                                <tr><th>你想了解</th><th>看这个文件</th></tr>
-                            </thead>
+                            <thead><tr><th>你想了解</th><th>看这个文件</th></tr></thead>
                             <tbody>
-                                <tr><td>插件是怎么被扫描发现的</td><td><code>evg-base/lib/core/module/module_loader.dart</code></td></tr>
-                                <tr><td>manifest 有哪些字段</td><td><code>evg-base/lib/core/module/module_descriptor.dart</code></td></tr>
-                                <tr><td>调度逻辑（决定用哪个模板画）</td><td><code>evg-base/lib/renderer/module/module_dispatch.dart</code></td></tr>
-                                <tr><td>8 个模板的注册清单</td><td><code>evg-base/lib/renderer/templates/generated/template_registry.g.dart</code></td></tr>
-                                <tr><td>HTML 插件的桥接 API</td><td><code>evg-base/lib/renderer/templates/html_modle/bridge_script.dart</code></td></tr>
-                                <tr><td>数据中枢怎么工作</td><td><code>evg-base/lib/core/data/orchestrator.dart</code></td></tr>
-                                <tr><td>现成的 HTML 插件例子</td><td><code>evg-base/plugins/html-creator/my-plugin/</code></td></tr>
-                                <tr><td>现成的 Dart 模块例子</td><td><code>evg-base/plugins/ai-assistant/</code>、<code>evg-base/plugins/data-dashboard/</code></td></tr>
+                                <tr><td>AI 协作总入口 / 架构总览</td><td><code>CLAUDE.md</code>、<code>.internal/CLAUDE.md</code></td></tr>
+                                <tr><td>插件扫描发现</td><td><code>evg-base/lib/core/module/module_loader.dart</code></td></tr>
+                                <tr><td>manifest 全部字段</td><td><code>evg-base/lib/core/module/module_descriptor.dart</code></td></tr>
+                                <tr><td>注册 / seal / 查询</td><td><code>evg-base/lib/core/module/module_registry.dart</code></td></tr>
+                                <tr><td>四级进程生命周期</td><td><code>evg-base/lib/core/module/process_manager.dart</code></td></tr>
+                                <tr><td>模块调度（选模板）</td><td><code>evg-base/lib/renderer/module/module_dispatch.dart</code></td></tr>
+                                <tr><td>10 条模板路由清单</td><td><code>evg-base/lib/renderer/templates/templates_index.json</code> + <code>generated/template_registry.g.dart</code></td></tr>
+                                <tr><td>HTML 插件 JS Bridge</td><td><code>evg-base/lib/renderer/templates/html_modle/bridge_script.dart</code></td></tr>
+                                <tr><td>HTML 创作中心（三栏 IDE）</td><td><code>evg-base/lib/renderer/templates/v4_modle/components/creative/html-creator/</code></td></tr>
+                                <tr><td>导出服务（双目录同步）</td><td><code>.../html-creator/services/html_export_service.dart</code></td></tr>
+                                <tr><td>开发者模式 / 三模式视图</td><td><code>evg-base/lib/renderer/app/app_mode.dart</code>、<code>dev_mode_hub.dart</code>、<code>mode_rail.dart</code></td></tr>
+                                <tr><td>数据中枢</td><td><code>evg-base/lib/core/data/orchestrator.dart</code></td></tr>
+                                <tr><td>现成 HTML 插件例子</td><td><code>evg-base/plugins/html-creator/my-plugin/</code></td></tr>
+                                <tr><td>现成 Dart 模块例子</td><td><code>evg-base/plugins/ai-assistant/</code>、<code>evg-base/plugins/data-dashboard/</code></td></tr>
                             </tbody>
                         </table>
                         <blockquote>
-                            <strong>小结：</strong> 两条路都从 <code>plugins/&lt;id&gt;/module/manifest.json</code> 出发。<strong>A 路</strong>靠 <code>template</code> 指向某个 Dart 模板（默认 <code>v4</code>，配合 <code>pages</code> 布局声明，可以一行 Dart 都不写）来画界面；<strong>B 路</strong>靠 <code>template: "html"</code> + <code>module/index.html</code> 用网页画界面，通过 <code>platform.*</code> 桥接读数据/调 AI。数据不管是哪条路，最终都汇到数据中枢 <code>orch://&lt;名字&gt;</code>。
+                            <strong>小结：</strong> 想快速加功能 → <strong>开发者模式 → 插件制作（html-creator）</strong>，写网页或让 AI 生成，导出即用（<code>template:"html"</code>）。懂编程、要极致 → <strong>Dart 插件</strong>：用 <code>template</code> 指向渲染器（默认 <code>v4</code>），用 <code>pages</code> 声明界面，可选挂 .exe 进程跑业务逻辑；数据一律汇到数据中枢 <code>orch://&lt;名字&gt;</code>。两条路共享同一套「目录 + manifest + 数据中枢」机制。
                         </blockquote>
                     `
                 }
             ];
 
-            // ===== 状态 =====
             let currentStep = 0;
             const totalSteps = STEPS.length;
             const card = document.getElementById('card');
@@ -783,27 +578,19 @@ platform.on('my-event', (payload) => console.log(payload));</pre>
             const themeIcon = document.getElementById('themeIcon');
             const themeLabel = document.getElementById('themeLabel');
 
-            // ===== 渲染当前步骤 =====
             function renderStep(index) {
                 const step = STEPS[index];
                 stepContent.innerHTML = step.content;
                 stepCounter.textContent = (index + 1) + ' / ' + totalSteps;
-
-                // 更新按钮状态
                 prevBtn.disabled = index === 0;
                 nextBtn.textContent = index === totalSteps - 1 ? '🎉 完成' : '下一步 →';
-
-                // 更新原点
                 document.querySelectorAll('.dot').forEach((dot, i) => {
                     dot.classList.toggle('active', i === index);
                 });
-
-                // 滚动到顶部
                 card.scrollTop = 0;
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             }
 
-            // ===== 生成原点 =====
             function buildDots() {
                 dotsContainer.innerHTML = '';
                 for (let i = 0; i < totalSteps; i++) {
@@ -821,7 +608,6 @@ platform.on('my-event', (payload) => console.log(payload));</pre>
                 }
             }
 
-            // ===== 导航 =====
             function goToStep(index) {
                 if (index < 0 || index >= totalSteps) return;
                 currentStep = index;
@@ -836,12 +622,10 @@ platform.on('my-event', (payload) => console.log(payload));</pre>
                 if (currentStep < totalSteps - 1) {
                     goToStep(currentStep + 1);
                 } else {
-                    // 最后一页：回到开头（可视为重新开始）
                     goToStep(0);
                 }
             });
 
-            // ===== 键盘支持 =====
             document.addEventListener('keydown', function(e) {
                 if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
                     e.preventDefault();
@@ -852,7 +636,6 @@ platform.on('my-event', (payload) => console.log(payload));</pre>
                 }
             });
 
-            // ===== 主题切换 =====
             let isDark = false;
 
             function setTheme(dark) {
@@ -867,19 +650,16 @@ platform.on('my-event', (payload) => console.log(payload));</pre>
                 setTheme(!isDark);
             });
 
-            // 恢复上次主题
             const savedTheme = localStorage.getItem('plugin-guide-theme');
             if (savedTheme === 'dark') {
                 setTheme(true);
             } else if (savedTheme === 'light') {
                 setTheme(false);
             } else {
-                // 检测系统偏好
                 const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
                 setTheme(prefersDark);
             }
 
-            // ===== 初始化 =====
             buildDots();
             renderStep(currentStep);
         })();

@@ -52,8 +52,8 @@ class DevModeHub extends ConsumerWidget {
     final pages = <Widget>[];
     for (int i = 0; i < kDevPluginIds.length; i++) {
       final id = kDevPluginIds[i];
-      // 仅 Windows 插件（scraper / dsh 依赖 WebView2）在安卓端渲染占位页。
-      if ((id == 'scraper' || id == 'dsh') && isAndroid) {
+      // 仅 Windows 插件（scraper / dsh / skill-creator 依赖 WebView2 或桌面能力）在安卓端渲染占位页。
+      if (kWindowsOnlyPluginIds.contains(id) && isAndroid) {
         pages.add(_AndroidPlaceholder(label: _labelFor(id)));
         continue;
       }

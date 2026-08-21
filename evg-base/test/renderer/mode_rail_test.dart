@@ -174,4 +174,32 @@ void main() {
     // 系统按钮不受影响
     expect(find.byTooltip('显示设置'), findsOneWidget);
   });
+
+  testWidgets('安卓：开发者模式点 Skill 创作 → 提示仅 Windows 版，不导航', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    // 注册含 skill-creator 的完整开发者插件集。
+    final r = ModuleRegistry();
+    r.registerAll([
+      _mod('ai-assistant', 'AI 助手', '/ai-assistant', '主功能'),
+      _mod('settings', '设置', '/settings', '系统'),
+      _mod('marketplace', '插件市场', '/marketplace', '系统'),
+      _mod('data-dashboard', '数据中枢', '/data-dashboard', '系统'),
+      _mod('theme-creator', '主题创作中心', '/theme-creator', '主功能'),
+      _mod('html-creator', 'HTML 插件创作中心', '/html-creator', '主功能'),
+      _mod('scraper', '所见即所得爬虫', '/scraper', '主功能'),
+      _mod('dsh', 'DSH', '/dsh', '主功能'),
+      _mod('skill-creator', 'Skill 创作中心', '/skill-creator', '主功能'),
+    ]);
+    r.seal();
+
+    await tester.pumpWidget(_wrap(AppMode.developer, r));
+    await tester.pump();
+
+    await tester.tap(find.byTooltip('Skill 创作'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Skill 创作仅支持 Windows 版'), findsOneWidget);
+    expect(find.text('PAGE-devhub'), findsNothing);
+    debugDefaultTargetPlatformOverride = null;
+  });
 }

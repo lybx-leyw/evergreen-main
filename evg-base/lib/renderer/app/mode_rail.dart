@@ -170,9 +170,8 @@ class ModeRail extends ConsumerWidget {
     if (registry.findById(id) == null) {
       return const SizedBox.shrink();
     }
-    // 仅 Windows 插件（scraper / dsh 依赖 WebView2）在安卓端弱化 + 拦截。
-    final isWindowsOnlyAndroid =
-        (id == 'scraper' || id == 'dsh') && _isAndroid;
+    // 仅 Windows 插件（scraper / dsh / skill-creator 依赖 WebView2 或桌面能力）在安卓端弱化 + 拦截。
+    final isWindowsOnlyAndroid = kWindowsOnlyPluginIds.contains(id) && _isAndroid;
     final active = location == '/dev-hub' && devIndex == index;
     return _RailButton(
       label: _devPluginNames[index],
