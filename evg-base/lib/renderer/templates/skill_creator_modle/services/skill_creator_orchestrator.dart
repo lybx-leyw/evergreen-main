@@ -343,6 +343,10 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
 
         // 材料入库 + 全文提取（PDF → 文本，扫描版降级 OCR）
         for (final rm in result.materials) {
+          if (_workflow.materials.length >= 1000) {
+            _appendEvent('warn', '材料总量已达 1000 条上限，跳过后续材料', agentId: task.id);
+            break;
+          }
           final m = MaterialItem(
             id: 'mat_${DateTime.now().millisecondsSinceEpoch}_${_workflow.materials.length}',
             source: task.source,
