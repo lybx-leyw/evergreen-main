@@ -1,35 +1,39 @@
-/// 主题创作中心主视图——三栏 IDE 编排。
+/// 主题创作中心主视图——三栏 IDE 编排 + 显式 AI 面板。
 ///
 /// 布局（参照 html-creator，宽屏 ≥900px）：
-/// - 左栏：草稿列表（新建/选择/删除）
+/// - 左栏：面板列表（新建/选择/重命名/删除，一面板一实例一草稿）
 /// - 中栏：编辑区（id/name + 8 个语义色）
 /// - 右栏：Dart 实时预览（草稿即时换肤）
+/// - 底部：显式 AI 面板（消息历史 + 绑定态徽标 + 断点续做）
 ///
-/// 窄屏（<900px）自动退化为上下堆叠（编辑在上、预览在下）。
-/// 数据流：草稿就地编辑 → 保存到 workspace JSON → 导出为主题插件
-/// （plugins/<id>/theme/theme.json）+ ThemeStore 热注册 → 设置页立即可切换。
+/// 窄屏（<900px）自动退化为 Tab 堆叠（面板/编辑/预览/AI）。
+///
+/// 数据流（会话-面板双向绑定，对齐 scraper / html-creator）：
+/// - 一面板一实例：加载/新建面板时 [ThemePanelManager.ensureInstance] 幂等分配
+///   固定实例（实例 ID == 主题 ID），实例 ID 永不变；
+/// - 一会话一固定历史按实例隔离：切换面板时先保存当前会话，再恢复新实例历史；
+/// - 会话文件内 panelId + instanceId 双向校验，孤儿会话不恢复；
+/// - 删除面板时先切走再删，避免自动保存把已删目录重建。
 library;
 
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:evergreen_base/core/config/settings.dart'
     show getSetting, setSetting;
-import 'package:evergreen_base/providers.dart';
 import 'package:evergreen_base/core/theme/builtin_themes.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
+import 'package:evergreen_base/providers.dart';
 
 import 'models/theme_draft.dart';
-import 'services/theme_draft_store.dart';
-import 'services/theme_exporter.dart';
 import 'services/theme_ai_service.dart';
-import 'services/theme_chat_store.dart';
-import 'widgets/theme_toolbar.dart';
-import 'widgets/theme_draft_list.dart';
+import 'services/theme_exporter.dart';
+import 'services/theme_panel_manager.dart';
+import 'view/theme_ai_panel.dart';
 import 'widgets/color_field.dart';
 import 'widgets/theme_preview.dart';
+import 'widgets/theme_toolbar.dart';
 
 /// 主题创作中心视图。
 class ThemeCreatorView extends ConsumerStatefulWidget {
@@ -42,87 +46,181 @@ class ThemeCreatorView extends ConsumerStatefulWidget {
 }
 
 class _ThemeCreatorViewState extends ConsumerState<ThemeCreatorView> {
-  late final ThemeDraftStore _store;
+  late final ThemePanelManager _panelMgr;
   late final ThemeExporter _exporter;
+  late final ThemeAiService _aiService;
+  final FocusNode _aiFocusNode = FocusNode();
 
-  List<ThemeDraft> _drafts = [];
+  List<ThemePanelMeta> _panels = [];
+  String? _currentPanelId;
   ThemeDraft? _current;
-  bool _dirty = false;
-  bool _aiBusy = false;
+
+  /// 当前实例（AI 面板绑定态徽标：实例名 / 实例 ID / 会话恢复态）。
+  String? _currentInstanceId;
+  String? _currentInstanceName;
 
   // 防抖自动保存
   Timer? _autoSaveTimer;
 
-  /// 竖版窄屏：当前激活的 Tab（0=草稿 1=编辑 2=预览）。默认编辑。
+  /// 竖版窄屏：当前激活的 Tab（0=面板 1=编辑 2=预览 3=AI）。默认编辑。
   int _narrowTab = 1;
 
   @override
   void initState() {
     super.initState();
-    _store = ThemeDraftStore();
+    _panelMgr = ThemePanelManager();
+    // 旧数据一次性迁移：老草稿 → 面板，老单例聊天 → 实例会话
+    _panelMgr.migrateLegacyIfNeeded();
     _exporter = ThemeExporter(resolvePluginsRoot());
-    _reloadDrafts();
-    if (_drafts.isEmpty) {
-      // 首次进入：从内置 dark 复制一个起点草稿
-      final seed = builtinThemes.firstWhere(
-        (t) => t.id == 'dark',
-        orElse: () => builtinThemes.first,
-      );
-      _current = ThemeDraft.fromDescriptor(seed);
-      _drafts = [_current!];
-      _saveNow();
-    } else {
-      _current = _drafts.first;
+
+    _aiService = ThemeAiService(
+      apiKey: _readApiKey(),
+      baseUrl: _readBaseUrl(),
+    );
+    // 会话文件按实例隔离（panels/{panelId}/instances/{instanceId}/session.json），
+    // 生命周期随面板——删除面板即删除实例与会话，不留孤儿文件。
+    _aiService.resolveSessionsPath = instanceSessionsPath;
+    // 未配置 API Key 时弹窗引导填写并保存。
+    _aiService.ensureApiKey = _promptApiKey;
+    // 会话落盘时写入当前草稿快照（断点续做恢复 UI 状态）。
+    _aiService.currentDraftProvider = () => _current;
+    // AI 生成成功 → 应用到当前面板草稿。
+    _aiService.onDraftGenerated = _applyAiDraft;
+
+    _panels = _panelMgr.listPanels();
+    if (_panels.isEmpty) {
+      // 首次进入：创建默认面板（从内置 dark 复制起点草稿）
+      final seed = _seedDraft();
+      final data = _panelMgr.createPanel(name: '我的主题', seedDraft: seed);
+      _panels = [data.meta];
     }
+    _loadPanel(_panels.first.id);
   }
 
   @override
   void dispose() {
     _autoSaveTimer?.cancel();
+    _aiFocusNode.dispose();
+    _aiService.dispose();
     super.dispose();
   }
 
-  // ═══════ 草稿操作 ═══════
-
-  void _reloadDrafts() {
-    _drafts = _store.list();
+  String _readApiKey() {
+    try {
+      return getSetting(ref.read(sharedPreferencesProvider), 'DEEPSEEK_API_KEY');
+    } catch (_) {
+      return '';
+    }
   }
 
-  void _saveNow() {
-    final c = _current;
-    if (c == null) return;
-    _store.save(c);
-    _dirty = false;
+  String _readBaseUrl() {
+    try {
+      final v = getSetting(ref.read(sharedPreferencesProvider), 'DEEPSEEK_BASE_URL');
+      return v.isNotEmpty ? v : 'https://api.deepseek.com/v1';
+    } catch (_) {
+      return 'https://api.deepseek.com/v1';
+    }
   }
 
-  void _scheduleAutoSave() {
-    _dirty = true;
-    _autoSaveTimer?.cancel();
-    _autoSaveTimer = Timer(const Duration(milliseconds: 1200), _saveNow);
+  /// 内置 dark 起点草稿（首次进入 / 面板草稿缺失兜底）。
+  ThemeDraft _seedDraft() {
+    final seed = builtinThemes.firstWhere(
+      (t) => t.id == 'dark',
+      orElse: () => builtinThemes.first,
+    );
+    return ThemeDraft.fromDescriptor(seed);
   }
 
-  void _newDraft() {
-    final c = _current;
-    // 新草稿以当前草稿为底（快速迭代），id 加序号防冲突
+  // ═══════ 面板操作（一面板一实例） ═══════
+
+  /// 加载面板：确保实例（幂等）→ 切换 AI 会话（保存旧/恢复新）→ 恢复面板状态。
+  Future<void> _loadPanel(String panelId) async {
+    if (_currentPanelId != null && _currentPanelId != panelId) {
+      _saveNow(); // 先保存当前面板
+    }
+    final instance = _panelMgr.ensureInstance(panelId);
+    await _aiService.switchPanel(panelId, instanceId: instance.id);
+    final data = _panelMgr.loadPanel(panelId);
+    if (data == null || !mounted) return;
+    final metaName = data.meta.name;
+    setState(() {
+      _currentPanelId = panelId;
+      _current = data.draft ?? _seedDraft();
+      _syncInstance();
+      _narrowTab = 1;
+    });
+    _refreshPanels();
+    // 切板提示：面板名 + 会话恢复态（断点续作 / 新会话）
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final resumed = _aiService.restoredFromSession;
+      final count = _aiService.sessionMessageCount;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+          resumed
+              ? '已切换到面板「$metaName」，恢复历史会话 $count 条'
+              : '已切换到面板「$metaName」（新会话）',
+        ),
+        duration: const Duration(seconds: 1),
+      ));
+    });
+  }
+
+  /// 新建面板：创建 → 确保实例 → 切换 AI 会话（新面板 = 新实例 = 新会话）。
+  Future<void> _newPanel() async {
+    _saveNow();
     var n = 1;
+    final used = _panels.map((p) => p.instanceId ?? '').toSet();
     String id;
     do {
       id = 'my_theme${n == 1 ? '' : '_$n'}';
       n++;
-    } while (_drafts.any((d) => d.id == id));
-    final base = c ?? ThemeDraft.fromDescriptor(builtinThemes.first);
-    final draft = ThemeDraft(
-      id: id,
-      name: '我的主题$n',
-      colors: Map.of(base.colors),
-    );
+    } while (used.contains(id));
+    final name = '我的主题${n - 1}';
+    final base = _current ?? _seedDraft();
+    final seed = ThemeDraft(id: id, name: name, colors: Map.of(base.colors));
+    final data = _panelMgr.createPanel(name: name, seedDraft: seed);
+    final instance = _panelMgr.ensureInstance(data.meta.id);
+    await _aiService.switchPanel(data.meta.id, instanceId: instance.id);
+    if (!mounted) return;
     setState(() {
-      _current = draft;
-      _drafts.add(draft);
+      _currentPanelId = data.meta.id;
+      _current = data.draft;
+      _syncInstance();
     });
-    _saveNow();
+    _refreshPanels();
   }
 
+  /// 删除面板：先切到别的面板再删（避免自动保存把已删目录重建）。
+  void _deletePanel(String panelId) {
+    if (_panels.length <= 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('至少保留一个面板')),
+      );
+      return;
+    }
+    if (_currentPanelId == panelId) {
+      final target = _panels.firstWhere((p) => p.id != panelId).id;
+      _loadPanel(target);
+    }
+    _panelMgr.deletePanel(panelId); // 删面板目录 = 实例 + 会话一并清理
+    _refreshPanels();
+    setState(() => _syncInstance());
+  }
+
+  /// 重命名面板（改名不改变 id，不丢草稿/会话；实例名同步）。
+  void _renamePanel(String panelId, String newName) {
+    final name = newName.trim();
+    if (name.isEmpty) return;
+    _panelMgr.renamePanel(panelId, name);
+    if (panelId == _currentPanelId) {
+      setState(() => _syncInstance());
+    }
+    _refreshPanels();
+    setState(() {});
+  }
+
+  /// 从内置主题复制为当前面板草稿（快速迭代起点）。
   void _copyFromBuiltin() {
     showModalBottomSheet<void>(
       context: context,
@@ -146,8 +244,7 @@ class _ThemeCreatorViewState extends ConsumerState<ThemeCreatorView> {
                   final draft = ThemeDraft.fromDescriptor(t);
                   setState(() {
                     _current = draft;
-                    _drafts = [draft, ..._drafts.where((d) => d.id != draft.id)];
-                  });
+                                });
                   _saveNow();
                 },
               ),
@@ -158,21 +255,30 @@ class _ThemeCreatorViewState extends ConsumerState<ThemeCreatorView> {
     );
   }
 
-  void _selectDraft(String id) {
-    final d = _store.load(id);
-    if (d == null) return;
-    setState(() => _current = d);
+  // ═══════ 草稿操作（当前面板草稿） ═══════
+
+  void _refreshPanels() {
+    _panels = _panelMgr.listPanels();
   }
 
-  void _deleteDraft(String id) {
-    if (_current?.id == id) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('不能删除当前编辑中的草稿')),
-      );
-      return;
-    }
-    _store.delete(id);
-    setState(() => _reloadDrafts());
+  /// 同步当前实例缓存（AI 面板绑定态徽标）。
+  void _syncInstance() {
+    final pid = _currentPanelId;
+    final inst = pid == null ? null : _panelMgr.tryLoadInstanceOf(pid);
+    _currentInstanceId = inst?.id;
+    _currentInstanceName = inst?.name;
+  }
+
+  void _saveNow() {
+    final c = _current;
+    final pid = _currentPanelId;
+    if (c == null || pid == null) return;
+    _panelMgr.savePanel(pid, draft: c);
+  }
+
+  void _scheduleAutoSave() {
+    _autoSaveTimer?.cancel();
+    _autoSaveTimer = Timer(const Duration(milliseconds: 1200), _saveNow);
   }
 
   void _setColor(String key, String value) {
@@ -180,7 +286,6 @@ class _ThemeCreatorViewState extends ConsumerState<ThemeCreatorView> {
     if (c == null) return;
     setState(() {
       c.colors[key] = value.trim();
-      _dirty = true;
     });
     _scheduleAutoSave();
   }
@@ -190,7 +295,6 @@ class _ThemeCreatorViewState extends ConsumerState<ThemeCreatorView> {
     if (c == null) return;
     setState(() {
       c.name = v;
-      _dirty = true;
     });
     _scheduleAutoSave();
   }
@@ -200,7 +304,6 @@ class _ThemeCreatorViewState extends ConsumerState<ThemeCreatorView> {
     if (c == null) return;
     setState(() {
       c.id = v.trim();
-      _dirty = true;
     });
     _scheduleAutoSave();
   }
@@ -209,8 +312,13 @@ class _ThemeCreatorViewState extends ConsumerState<ThemeCreatorView> {
 
   void _export() {
     final c = _current;
-    if (c == null) return;
+    final pid = _currentPanelId;
+    if (c == null || pid == null) return;
     _saveNow();
+    // 主题 ID 即实例 ID：导出时绑定，同步实例身份与会话路径（杜绝 ID 分叉）
+    _panelMgr.bindThemeId(pid, c.id);
+    _aiService.rebindInstanceId(c.id);
+    setState(() => _syncInstance());
     final store = ref.read(themeStoreProvider);
     final r = _exporter.exportAndRegister(c, store);
     if (!mounted) return;
@@ -237,88 +345,23 @@ class _ThemeCreatorViewState extends ConsumerState<ThemeCreatorView> {
     }
   }
 
-  Future<void> _aiGenerate() async {
-    final c = _current;
-    if (c == null || _aiBusy) return;
-
-    final prefs = ref.read(sharedPreferencesProvider);
-    var apiKey = getSetting(prefs, 'DEEPSEEK_API_KEY');
-    // 未配置 key：弹窗引导直接填写并保存（按钮不降级为禁用）。
-    if (apiKey.isEmpty) {
-      final input = await _promptApiKey();
-      if (input == null || !mounted) return;
-      apiKey = input;
-    }
-    final baseUrl = getSetting(prefs, 'DEEPSEEK_BASE_URL');
-    if (apiKey.isEmpty) return;
-
-    // 输入描述
-    final desc = await showDialog<String>(
-      context: context,
-      builder: (ctx) {
-        final ctrl = TextEditingController();
-        return AlertDialog(
-          title: const Text('🎨 AI 生成主题'),
-          content: TextField(
-            controller: ctrl,
-            autofocus: true,
-            decoration: const InputDecoration(
-              labelText: '描述你的主题',
-              hintText: '例如：温暖的学习书房，柔和的暖黄灯光',
-            ),
-            onSubmitted: (v) {
-              if (v.trim().isNotEmpty) Navigator.pop(ctx, v.trim());
-            },
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-            FilledButton(
-              onPressed: () {
-                final v = ctrl.text.trim();
-                if (v.isNotEmpty) Navigator.pop(ctx, v);
-              },
-              child: const Text('生成'),
-            ),
-          ],
-        );
-      },
+  /// AI 生成成功 → 应用到当前面板草稿并持久化。
+  void _applyAiDraft(ThemeDraft draft) {
+    if (!mounted) return;
+    setState(() {
+      _current = draft;
+    });
+    _saveNow();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('✨ 已生成主题「${draft.name}」，可微调后导出')),
     );
-    if (desc == null || desc.isEmpty || !mounted) return;
+  }
 
-    setState(() => _aiBusy = true);
-    try {
-      final service = ThemeAiService(
-        apiKey: apiKey,
-        baseUrl: baseUrl.isNotEmpty ? baseUrl : 'https://api.deepseek.com/v1',
-      );
-      // 断点续作：携带持久化历史（重启后返工不丢上下文）
-      final history = ThemeChatStore().toAgentMessages();
-      final draft = await service.generate(desc, history: history);
-      if (!mounted) return;
-      if (draft == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('AI 生成失败，请重试或检查 API Key')),
-        );
-        return;
-      }
-      setState(() {
-        _current = draft;
-        _drafts = [draft, ..._drafts.where((d) => d.id != draft.id)];
-      });
-      _saveNow();
-      // 记录本轮对话（用户指令 + 结果摘要），供下次迭代返工
-      ThemeChatStore().appendRound(
-        userPrompt: desc,
-        assistantSummary:
-            '已生成主题「${draft.name}」：' + jsonEncode(draft.toJson()),
-      );
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('✨ 已生成主题「${draft.name}」，可微调后导出')),
-      );
-    } finally {
-      if (mounted) setState(() => _aiBusy = false);
-    }
+  /// 工具栏「AI 助手」：窄屏切到 AI Tab，宽屏聚焦 AI 输入框。
+  void _focusAi() {
+    final isWide = MediaQuery.sizeOf(context).width >= 900;
+    if (!isWide) setState(() => _narrowTab = 3);
+    _aiFocusNode.requestFocus();
   }
 
   /// 未配置 DEEPSEEK_API_KEY 时弹窗引导填写并保存，保存后继续生成流程。
@@ -376,11 +419,12 @@ class _ThemeCreatorViewState extends ConsumerState<ThemeCreatorView> {
   @override
   Widget build(BuildContext context) {
     final c = _current;
+    final isWide = MediaQuery.sizeOf(context).width >= 900;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ThemeToolbar(
-          onNew: _newDraft,
+          onNew: _newPanel,
           onCopyBuiltin: _copyFromBuiltin,
           onSave: () {
             _saveNow();
@@ -392,56 +436,53 @@ class _ThemeCreatorViewState extends ConsumerState<ThemeCreatorView> {
           },
           onExport: _export,
           // 始终显示 AI 按钮（未配置 API Key 时为禁用态并提示），
-          // 避免按钮凭空消失让用户困惑。
-          onAiGenerate: _aiGenerate,
+          // 点击聚焦底部 AI 面板输入框。
+          onAiGenerate: _focusAi,
           exportEnabled: c?.canExport ?? false,
           aiEnabled: _aiEnabled,
-          aiBusy: _aiBusy,
+          aiBusy: _aiService.busy,
         ),
         Expanded(
           child: c == null
-              ? const Center(child: Text('无草稿，点击「新建」开始'))
-              : LayoutBuilder(
-                  builder: (context, constraints) {
-                    if (constraints.maxWidth >= 900) {
-                      return Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          SizedBox(
-                            width: 210,
-                            child: _buildListPanel(),
-                          ),
-                          const VerticalDivider(width: 1),
-                          Expanded(
-                            flex: 2,
-                            child: _buildEditorPanel(c),
-                          ),
-                          const VerticalDivider(width: 1),
-                          Expanded(
-                            flex: 3,
-                            child: _buildPreviewPanel(c),
-                          ),
-                        ],
-                      );
-                    }
-                    // 窄屏：Tab 切换 + 全宽渲染（草稿/编辑/预览），
-                    // IndexedStack 保活——编辑内容与滚动位置不丢失，
-                    // 草稿列表不再因窄屏而消失。
-                    return _buildNarrowBody(c);
-                  },
-                ),
+              ? const Center(child: Text('无面板，点击「新建面板」开始'))
+              : (isWide ? _buildWideBody(c) : _buildNarrowBody(c)),
         ),
+        // 宽屏：底部显式 AI 面板（窄屏已内置于 Tab 路线）
+        if (isWide)
+          SizedBox(
+            height: 250,
+            child: ThemeAiPanel(
+              aiService: _aiService,
+              instanceName: _currentInstanceName,
+              instanceId: _currentInstanceId,
+              focusNode: _aiFocusNode,
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildWideBody(ThemeDraft c) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(width: 210, child: _buildListPanel()),
+        const VerticalDivider(width: 1),
+        Expanded(flex: 2, child: _buildEditorPanel(c)),
+        const VerticalDivider(width: 1),
+        Expanded(flex: 3, child: _buildPreviewPanel(c)),
       ],
     );
   }
 
   // ── 竖版窄屏 Tab 导航 ──
 
-  /// 竖版 Tab 顺序：草稿 / 编辑 / 预览。
+  /// 竖版 Tab 顺序：面板 / 编辑 / 预览 / AI。
   static const _narrowTabs = <(IconData, String)>[
-    (Icons.folder_open, '草稿'),
+    (Icons.folder_open, '面板'),
     (Icons.palette_outlined, '编辑'),
     (Icons.visibility_outlined, '预览'),
+    (Icons.auto_awesome, 'AI'),
   ];
 
   Widget _buildNarrowBody(ThemeDraft c) {
@@ -455,6 +496,12 @@ class _ThemeCreatorViewState extends ConsumerState<ThemeCreatorView> {
               _buildListPanel(),
               _buildEditorPanel(c),
               _buildPreviewPanel(c),
+              ThemeAiPanel(
+                aiService: _aiService,
+                instanceName: _currentInstanceName,
+                instanceId: _currentInstanceId,
+                focusNode: _aiFocusNode,
+              ),
             ],
           ),
         ),
@@ -506,6 +553,8 @@ class _ThemeCreatorViewState extends ConsumerState<ThemeCreatorView> {
     );
   }
 
+  // ── 左栏：面板列表 ──
+
   Widget _buildListPanel() {
     final theme = Theme.of(context);
     return Container(
@@ -515,16 +564,18 @@ class _ThemeCreatorViewState extends ConsumerState<ThemeCreatorView> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
-            child: Text('草稿 (${_drafts.length})',
+            child: Text('面板 (${_panels.length})',
                 style: theme.textTheme.labelSmall
                     ?.copyWith(fontWeight: FontWeight.w600)),
           ),
           Expanded(
-            child: ThemeDraftList(
-              drafts: _drafts,
-              selectedId: _current?.id,
-              onSelect: _selectDraft,
-              onDelete: _deleteDraft,
+            child: _PanelList(
+              panels: _panels,
+              selectedId: _currentPanelId,
+              messageCountOf: _panelMgr.sessionMessageCountOf,
+              onSelect: _loadPanel,
+              onRename: _renamePanel,
+              onDelete: _deletePanel,
             ),
           ),
         ],
@@ -637,6 +688,155 @@ class _ThemeCreatorViewState extends ConsumerState<ThemeCreatorView> {
         ],
       ),
     );
+  }
+}
+
+/// 左栏面板列表——一面板一实例一草稿，支持选择 / 重命名 / 删除。
+class _PanelList extends StatelessWidget {
+  final List<ThemePanelMeta> panels;
+  final String? selectedId;
+  final int Function(String panelId) messageCountOf;
+  final ValueChanged<String> onSelect;
+  final void Function(String panelId, String newName) onRename;
+  final ValueChanged<String> onDelete;
+
+  const _PanelList({
+    required this.panels,
+    required this.selectedId,
+    required this.messageCountOf,
+    required this.onSelect,
+    required this.onRename,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    if (panels.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(16),
+        child: Text('暂无面板\n点击顶部「新建面板」开始',
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+      );
+    }
+    return ListView.builder(
+      itemCount: panels.length,
+      itemBuilder: (ctx, i) {
+        final p = panels[i];
+        final selected = p.id == selectedId;
+        final count = messageCountOf(p.id);
+        final themeId = p.instanceId ?? p.themeId;
+        return Material(
+          color: selected
+              ? theme.colorScheme.primaryContainer.withValues(alpha: 0.4)
+              : Colors.transparent,
+          child: InkWell(
+            onTap: () => onSelect(p.id),
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(p.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                      fontWeight: FontWeight.w600)),
+                            ),
+                            if (count > 0) ...[
+                              const SizedBox(width: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 4, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.primaryContainer
+                                      .withValues(alpha: 0.5),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text('$count 条',
+                                    style: TextStyle(
+                                        fontSize: 9,
+                                        color: theme.colorScheme.onPrimaryContainer)),
+                              ),
+                            ],
+                          ],
+                        ),
+                        Text(
+                          themeId != null && themeId.isNotEmpty
+                              ? '实例 #$themeId'
+                              : '（未分配实例）',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                              fontSize: 10,
+                              fontFamily: 'monospace'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined, size: 15),
+                    tooltip: '重命名面板',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => _promptRename(ctx, p),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 16),
+                    tooltip: '删除面板（含实例与会话）',
+                    onPressed: () => onDelete(p.id),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _promptRename(BuildContext ctx, ThemePanelMeta p) {
+    final ctrl = TextEditingController(text: p.name);
+    showDialog<String>(
+      context: ctx,
+      builder: (dctx) => AlertDialog(
+        title: const Text('重命名面板'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: '面板名（不改变 ID，不丢历史）',
+            isDense: true,
+            border: OutlineInputBorder(),
+          ),
+          onSubmitted: (v) {
+            if (v.trim().isNotEmpty) Navigator.pop(dctx, v.trim());
+          },
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dctx), child: const Text('取消')),
+          FilledButton(
+            onPressed: () {
+              final v = ctrl.text.trim();
+              if (v.isNotEmpty) Navigator.pop(dctx, v);
+            },
+            child: const Text('保存'),
+          ),
+        ],
+      ),
+    ).then((v) {
+      if (v is String && v.isNotEmpty) onRename(p.id, v);
+    });
   }
 }
 

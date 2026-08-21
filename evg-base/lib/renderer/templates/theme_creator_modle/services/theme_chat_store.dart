@@ -1,7 +1,10 @@
-/// 主题创作 AI 对话历史持久化——重启后迭代上下文不丢（断点续作）。
+/// ⚠️ 已废弃（降级为旧数据迁移工具）。
 ///
-/// 修复「AI 创作成一次性工具」：每次 generate 都携带历史指令与结果摘要，
-/// 用户返工（改亮一点/换风格）时 AI 知道之前的草稿，而不是从零开始。
+/// 主题创作中心已从「workspace 单会话」改造为「面板 ↔ 实例 ↔ 会话」双向绑定
+/// 模型（一面板一实例、一会话一固定历史、按实例隔离、断点续做）。
+/// 本类不再作为唯一历史来源——只由 [ThemePanelManager.migrateLegacyIfNeeded]
+/// 读取老版 `chats/chat.json` 并把历史迁入实例 `session.json`。
+/// 不要再在业务代码中新建实例读写历史。
 library;
 
 import 'dart:convert';
@@ -10,7 +13,7 @@ import 'dart:io';
 import 'package:evergreen_base/core/agent/agent.dart' as agent;
 import 'package:evergreen_base/core/utils/greenix_path.dart';
 
-/// 主题创作 AI 聊天历史存储（workspace 单会话）。
+/// 主题创作 AI 聊天历史存储（workspace 单会话，旧模型，仅迁移用）。
 class ThemeChatStore {
   final String rootDir;
 
