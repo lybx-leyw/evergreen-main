@@ -8,142 +8,148 @@
 | 负责人 | 待补充 |
 | 适用 | renderer 渲染层 |
 
-> 纯渲染层：读 `ModuleDescriptor`，按声明画 UI。不解析 manifest、不管理进程、不写业务逻辑。
+> 纯渲染层：读 `ModuleDescriptor`，按声明/模板画 UI。不解析 manifest、不管理进程、不写业务逻辑。
+> **用户侧插件创作主路径为 HTML**：`html-creator` 编写 HTML/CSS/JS → 导出 HTML 插件 → `html_modle` WebView 渲染。
 
 ---
 
 ## 架构定位
 
 ```
-core/ (服务层)  →  plugins/ (JSON声明+.exe)  →  renderer/ (渲染层) ← 我们在这里
+core/ (服务层) → plugins/ (声明+HTML/.exe) → renderer/ (渲染层)
 ```
 
-渲染层是 Evergreen 的**最下游纯消费者**：接收 `core/` 提供的 `ModuleDescriptor` + 运行时数据，通过 `ModuleDispatch` 按 `ui` 字段调度到范式视图。不调 HTTP、不管 `.exe` 进程、不解析 `manifest.json`。
+渲染层是最下游消费者：接收 `core/` 提供的 `ModuleDescriptor` + 运行时数据，通过 `ModuleDispatch` 按 `template` / `pages` / `workspace` 自动选择模板或范式视图。
 
 ---
 
-## 三层目录结构
+## 实际目录结构
 
 ```
 lib/renderer/
-├── widgets/       ← 第 1 层：61 个原子渲染组件
-├── shared/        ← 第 2 层：35 个范式视图 + 布局/调度/Token
-├── compositions/  ← 第 3 层：高级组合视图
-├── multi_agent/   ← 多智能体并行视图
-├── html/          ← HTML5 渲染引擎（Dart→HTML 离线导出）
-├── lib/           ← 11 个 Stub 包（独立 dart analyze）
-├── docs/          ← 设计规范 + 渲染常量 + 事件契约
-├── example/       ← 可运行示例
-└── test/          ← 组件级 widgetTest
+├── app/               # 应用壳（AppShell / CommandPalette / DebugErrorBar / DevModeHub）
+│   └── service/       # 全局 Provider、主题服务（ThemeProvider / RenderTokens）
+├── atomic/            # 原子取数原语（DataSourceResolver / JSONPath / TransformRegistry）
+├── components/        # 共享组件
+│   ├── shared/        # 组合基础设施（TemplateEngine / SlotScale / AgentTrace）
+│   └── shared/widgets/ # 原子组件（约 60 个）
+├── module/            # 模块调度（EvergreenModulePage / ModuleDispatch）
+├── multi_agent/       # 多 Agent 并行视图
+├── page/              # 页面视图（市场 / 设置 / 数据看板 / 文件 / 全局记忆 / Skill 管理）
+├── templates/         # 模板（modle）渲染器与注册表
+├── lib/               # 11 个 Stub 包
+├── docs/              # 设计规范 + 渲染常量
+└── renderer.dart      # barrel 导出
 ```
-
-### 第 1 层：widgets/ — 原子组件
-
-按领域分组（完整列表见 `widgets/` 目录）：
-
-| 分组 | 代表性组件 |
-|------|-----------|
-| 通用 | `toast`, `empty_state`, `error_card`, `evergreen_progress`, `loading_indicator` |
-| 应用壳 | `app_shell`, `command_palette`, `markdown_renderer` |
-| Chat | `message_bubble`, `thinking_block`, `tool_call_card`, `streaming_cursor`, `chat_input_bar` |
-| 数据展示 | `data_table`, `data_list`, `data_card_grid`, `dashboard_card` |
-| 交互 | `crud_toolbar`, `confirm_dialog`, `search_bar`, `export_menu`, `refresh_widget` |
-| 编辑器 | `code_editor`, `rich_text_editor`, `track_changes_gutter` |
-| 表单 | `type_check_input`, `select_input`, `form_field_renderer` |
-| 媒体 | `media_host`, `video_player`, `audio_player`, `image_viewer`, `document_viewer` |
-| Spreadsheet | `spreadsheet_cell`, `formula_bar`, `chart_renderer`, `sheet_tab_bar` |
-| Presentation | `slide_canvas`, `slide_sorter`, `speaker_notes_panel` |
-| 市场/权限 | `ability_tag`, `install_progress`, `permission_dialog`, `notification_card` |
-
-共享数据模型见 `widgets/models.dart`。
-
-### 第 2 层：shared/ — 范式调度 + 页面
-
-核心文件：
-
-| 类别 | 关键文件 | 职责 |
-|------|---------|------|
-| 调度 | `module_dispatch.dart` | 按 `ui` 值分发到 10 种范式 |
-| 调度 | `composite_view.dart` | composite 多页 Tab + SlotDispatch |
-| 布局 | `layout_engine.dart` | 6 层布局管线 |
-| 主题 | `theme_provider.dart` | ComponentTokens + 语义 Token |
-| Token | `render_tokens.dart` | 颜色/间距/尺寸常量（Dart + CSS 双格式） |
-| 渲染 | `plugin_renderer.dart` | 一键渲染：manifest → Widget 或 HTML |
-
-范式视图：`chat_controller_view`, `default_view`, `dashboard_view`, `editor_view`, `spreadsheet_view`, `document_view`, `presentation_view`, `settings_view`
-
-页面视图：`market_view`, `my_plugins_view`, `plugin_detail_view`, `permission_management_view`, `skill_management_view`, `global_memory_view`, `file_viewer`
-
-HTML 引擎：`html_renderer.dart`, `html_components.dart`, `html_layout.dart`, `html_style.dart`, `html_template.dart`
-
-### 第 3 层：compositions/ + multi_agent/
-
-- `workspace_hub.dart` — 文件树 + 编辑器 + Chat 侧栏三合一
-- `workspace_page.dart` — 工作区页面容器
-- `multi_agent_view.dart` — 2 页 × 2 列并行 Agent 视图
-- `single_agent_column.dart` — 单栏自包含 Agent 对话
 
 ---
 
-## 范式调度（10 种 UI 范式）
+## 模块调度（V2，不再使用 `ui` 字段）
 
-`ModuleDispatch.build(context)` 按 `descriptor.ui` 分发：
+`ModuleDispatch.build(context)` 按以下规则分发：
 
-| `ui` | 视图 | 场景 |
+| 条件 | 视图 | 说明 |
 |------|------|------|
-| `chat` | `ChatControllerView` | AI 对话（全屏/嵌入/紧凑） |
-| `settings` | `SettingsView` | 插件配置 |
-| `spreadsheet` | `SpreadsheetView` | 电子表格 |
-| `document` | `DocumentView` | 文档 |
-| `presentation` | `PresentationView` | 演示文稿 |
-| `dashboard` | `DashboardView` | KPI 仪表盘 |
-| `editor` | `EditorView` | 代码编辑 |
-| `composite` | `CompositeView` | 多页 Tab 工作区 |
-| `multichat` | `MultiAgentView` | 多 Agent 并行 |
-| 其他 | `DefaultView` | 通用数据绑定（**兜底，不崩溃**） |
+| `descriptor.id == 'ai-assistant'` | `ChatControllerView` | AI 助手专用全屏对话 |
+| `descriptor.template` 非空且非 `v4` | `TemplateRegistry.render` | 自定义模板：html / scraper / theme-creator / skill-creator / dsh / zju / paper_reading |
+| `descriptor.pages` 非空 | `TemplateRegistry.render` | 有 pages 时按模板路由（默认 v4 composite） |
+| `descriptor.workspace.enabled` | `EditorView` | 文件工作区 / 代码编辑 |
+| 其他 | `DefaultView` | 通用数据绑定兜底 |
+
+模板注册表（生成物 `templates/generated/template_registry.g.dart`）：
+
+| 模板名 | 渲染器 | 用途 |
+|--------|--------|------|
+| `v4` | `V4ModleTemplate` | 通用组件式模块 |
+| `html` | `HtmlModleTemplate` | HTML 插件（用户侧主路径） |
+| `scraper` | `ScraperTemplate` | 所见即所得爬虫 |
+| `theme-creator` | `ThemeCreatorModleTemplate` | 主题创作中心 |
+| `skill-creator` | `SkillCreatorModleTemplate` | Skill 创作中心 |
+| `dsh` | `DshModleTemplate` | DeepSeek Harness |
+| `paper_reading` | `PaperReadingModleTemplate` | 论文阅读 |
+| `zju` / `classroom` / `zdbk` | `ZjuModleTemplate` | 浙大校园 |
+
+---
+
+## HTML 插件渲染
+
+`html_modle` 是用户侧插件的核心模板：
+
+1. 本地 HTTP 服务加载 `plugins/<id>/module/index.html`（支持 css/js/json/png/svg 等静态资源）
+2. Windows WebView / Android WebView 加载页面
+3. 自动注入 `platform.*` JS Bridge
+4. 当前主题色板注入为 `--evg-*` CSS 变量，主题切换实时推送
+
+插件侧可用 API（Promise 风格）：
+
+```js
+const data = await platform.data.get('zju_scores');
+await platform.data.refresh('zju_scores');
+platform.data.subscribe('zju_scores', (payload) => console.log(payload));
+
+const reply = await platform.ai.chat('总结这段数据', 'concise');
+await platform.api.call('module', '/module/modules', { method: 'GET' });
+await platform.settings.set('THEME_MODE', 'dark');
+const colors = await platform.theme.getColors();
+platform.emit('my-event', { hello: 'world' });
+platform.on('theme:changed', (colors) => { ... });
+```
+
+---
+
+## 共享组件
+
+### 原子组件（components/shared/widgets/）
+
+按领域分组，代表性组件：
+
+| 分组 | 代表组件 |
+|------|----------|
+| 应用/通用 | `app_shell`, `command_palette`, `toast`, `empty_state`, `error_card` |
+| Chat | `message_bubble`, `thinking_block`, `tool_call_card`, `chat_input_bar` |
+| 数据展示 | `data_table`, `data_list`, `data_card_grid`, `dashboard_card`, `freshness_badge` |
+| 交互 | `crud_toolbar`, `confirm_dialog`, `search_bar`, `export_menu`, `refresh_widget` |
+| 编辑器 | `code_editor`, `rich_text_editor`, `track_changes_gutter` |
+| 表单 | `type_check_input`, `select_input`, `form_field_renderer` |
+| 媒体 | `media_host`, `video_player`, `audio_player`, `image_viewer`, `document_viewer`, `pdf_viewer` |
+| 办公 | `spreadsheet_cell`, `formula_bar`, `chart_renderer`, `slide_canvas`, `slide_sorter`, `speaker_notes_panel` |
+| 市场/权限 | `ability_tag`, `install_progress`, `permission_dialog`, `notification_card` |
+
+### 组合基础设施（components/shared/）
+
+- `template_engine.dart` — 模板引擎
+- `slot_scale.dart` — 槽位缩放
+- `trace/` — Agent 轨迹记录与视图
 
 ---
 
 ## 核心原则
 
-- **描述符驱动**：配置通过 `*Options` / `*Descriptor` 不可变类传入，运行时数据独立注入
+- **描述符/模板驱动**：配置通过 `*Options` / `*Descriptor` 不可变类传入，运行时数据独立注入
 - **未知静默忽略**：未识别字段/UI 值不抛异常，回退到 `DefaultView`
-- **三层严格隔离**：widgets/ 不写业务逻辑 → shared/ 不定义原子 UI → compositions/ 只做叠加组合
+- **渲染层不越界**：不解析 manifest、不管理 `.exe` 进程、不直连 core HTTP（HTML 插件除外——由 JS Bridge 转发）
 
 ---
 
-## Token 系统
+## 主题系统
+
+扁平 8 色语义色板（见 `core/theme`），渲染层负责：
 
 ```dart
-// 组件 Token — context.componentColor(组件名, 状态)
-final bg = context.componentColor('bubble', 'user') ?? primaryContainer;
-
-// 语义 Token — ThemeData 扩展
-final warning = Theme.of(context).evergreen.warning;
-
-// 主题构建
 final themeData = buildThemeFromDescriptor(descriptor);
+final bg = Theme.of(context).evergreen.warning;          // 语义色扩展
+final color = context.componentColor('bubble', 'user'); // 组件色（如有）
 ```
 
----
+HTML 插件使用 CSS 变量：
 
-## 渲染常量
-
-`shared/render_tokens.dart` 定义 5 个 Token 类（Dart + CSS 双格式）：
-
-```dart
-RenderTokens.colors.surface          // Color(0xFFFFFFFF) + "#FFFFFF"
-RenderTokens.spacing.md              // 16.0
-RenderTokens.radius.lg               // 12.0
-RenderTokens.font.chatBubbleMaxWidth // 0.75
-
-// HTML 引擎可用 CSS 变量:
-RenderTokensCss.cssVariables()       // → :root { --evg-surface: #FFFFFF; ... }
+```css
+:root {
+  --evg-background: #0D1117;
+  --evg-surface: #161B22;
+  --evg-accent: #58A6FF;
+}
 ```
-
-`docs/render_rules.dart` 定义 13 个规则类（设计工程师签字验收）。
-
-完整参考见 `shared/render_tokens.dart` 和 `docs/render_rules.dart`。
 
 ---
 
@@ -152,11 +158,9 @@ RenderTokensCss.cssVariables()       // → :root { --evg-surface: #FFFFFF; ... 
 | 禁止 | 原因 |
 |------|------|
 | widgets/ 调 API / 管状态 | 原子组件只渲染 |
-| shared/ 定义原子 UI | 组合层不重造轮子 |
 | 解析 manifest.json | 上游已解析为 `ModuleDescriptor` |
-| 管理 .exe 进程 | 进程生命周期归 ModuleLoader |
-| 直连 AgentHttpServer | ChatView 必须通过 `process.exe` 代理 |
-| import core/ 深层内部 | 只消费 barrel 公开 API |
+| 管理 .exe 进程 | 进程生命周期归 core |
+| 使用 `descriptor.ui` 字段 | V2 已删除，按 template/pages/workspace 分发 |
 | 未知字段抛异常 | 容错静默忽略 |
 
 ---
@@ -164,11 +168,10 @@ RenderTokensCss.cssVariables()       // → :root { --evg-surface: #FFFFFF; ... 
 ## 测试
 
 - `renderer/test/`：组件级 widgetTest
-- 项目根 `test/`：集成测试（当前因 core/ 层 V1→V2 迁移暂不可运行）
+- 项目根 `test/`：集成测试
 - `dart analyze lib/`：11 stub 包零问题
 
 ```dart
-// 典型组件测试模式
 testWidgets('renders DashboardCard', (tester) async {
   await tester.pumpWidget(MaterialApp(
     home: Scaffold(body: DashboardCard(title: '活跃用户', value: '1,234')),
@@ -187,7 +190,6 @@ testWidgets('renders DashboardCard', (tester) async {
 | `dart analyze lib/` | `renderer/` |
 | `dart pub get` | `renderer/` |
 | `flutter test` | 项目根 |
-| `flutter run -t example/main.dart` | 项目根 |
 
 ---
 
@@ -195,7 +197,5 @@ testWidgets('renders DashboardCard', (tester) async {
 
 - [CLAUDE.md](./CLAUDE.md) — AI 协作规范
 - [docs/plugin-authoring-guide-renderer.md](./docs/plugin-authoring-guide-renderer.md) — 插件开发者集成指南
-- [docs/event_contract.md](./docs/event_contract.md) — V2 事件系统契约
-- [docs/render_rules.dart](./docs/render_rules.dart) — 像素常量系统
-- [shared/render_tokens.dart](./shared/render_tokens.dart) — 共享渲染常量（Dart + CSS）
-- [example/](./example/) — 可运行示例
+- [templates/template_registry.dart](./templates/template_registry.dart) — 模板注册表
+- [templates/html_modle/html_modle_view.dart](./templates/html_modle/html_modle_view.dart) — HTML 插件视图

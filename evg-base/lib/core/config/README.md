@@ -9,6 +9,9 @@
 | 适用 | config 子包 |
 
 > 完整用法 → [`example/example.dart`](example/example.dart) | AI 协作指南 → [`CLAUDE.md`](CLAUDE.md)
+>
+> **HTML-first 事实**：用户 HTML 插件用 `platform.settings.get/set` 读写设置，无需手写 config.json；
+> 平台级/开发者模式插件仍可用 `config/config.json` 声明设置与权限。
 
 ---
 
@@ -50,6 +53,7 @@
 |------|------|------|
 | GET | `/config/health` | 健康检查 |
 | GET | `/config/settings` | 列出全部设置项 |
+| POST | `/config/settings` | 按 body `{"key","value"}` 写设置（动态注册） |
 | GET | `/config/settings/:key` | 读单个设置 |
 | POST | `/config/settings/:key` | 写设置 `{"value":"..."}` |
 | GET | `/config/permissions/:id` | 读插件权限 |
@@ -129,7 +133,7 @@
 | ConfigHttpServer 8 端点 | ✅ |
 | 配置导出/导入（含 AI 记忆） | ✅ |
 | 权限自动提取（config.json `permissions` 字段） | ✅ |
-| 测试：`dart test` 52 用例全量通过 | ✅ |
+| 测试：`dart test` 55 用例全量通过 | ✅ |
 | 静态分析：`dart analyze` 零错误零警告 | ✅ |
 | 示例：`dart run example/example.dart` 正常运行 | ✅ |
 

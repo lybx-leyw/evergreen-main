@@ -4,6 +4,11 @@
 
 Evergreen 2.0 采用**双轨架构**：`core/`（上游声明层）声明模块/主题/数据/Agent/配置，`renderer/`（下游渲染层）按声明渲染 UI。`lib/` 根目录负责将两者组装为完整应用。
 
+> **用户插件创作事实**：用户侧已切换为 **HTML 为主**。用户通过 `html-creator` 编写 HTML/CSS/JS，
+> 平台提供实时预览、AI 辅助生成与一键导出；导出物是 `plugins/<id>/module/index.html + manifest.json`
+> （`"template":"html"`），由 `renderer/templates/html_modle` 以 WebView 加载。JSON 声明模块、
+> `.exe` 数据源/Agent 工具保留为开发者模式与内置能力。
+
 ---
 
 ## 架构总览
@@ -15,7 +20,7 @@ lib/
 ├── providers.dart            # 应用级 Riverpod 提供者（moduleRegistryProvider）
 ├── evergreen_base.dart       # 对外 barrel——导出 core + renderer 全部公共 API
 │
-├── core/                     # 上游——声明与引擎（6 个子模块 + 3 个基础工具）
+├── core/                     # 上游——声明与引擎（agent/config/data/module/theme + services/utils/plugin/feedback）
 │   ├── agent/                #   AI Agent 运行时
 │   ├── config/               #   设置与配置
 │   ├── data/                 #   数据谱仪器
@@ -23,14 +28,18 @@ lib/
 │   ├── theme/                #   主题声明系统
 │   ├── services/             #   通用服务（OCR 等）
 │   ├── utils/                #   工具函数
-│   ├── errors.dart           #   AppError——13 种应用层错误
+│   ├── errors.dart           #   AppError——14 种应用层错误
 │   ├── log.dart              #   Log——日志单例
 │   └── result.dart           #   Result<T>——Dart 3 sealed class
 │
 ├── renderer/                 # 下游——Flutter UI 渲染（只读 core/）
-│   ├── widgets/              #   原子渲染组件（48 个 dart 文件）
-│   ├── shared/               #   组合视图 + 调度基础设施
-│   └── compositions/         #   高级多视图叠加工作区
+│   ├── app/                  #   应用壳、主题服务、全局 Provider
+│   ├── atomic/               #   原子取数原语（data_source_resolver/json_path）
+│   ├── components/           #   共享组件（widgets + shared）
+│   ├── module/               #   模块调度（ModuleDispatch / ModulePage）
+│   ├── multi_agent/          #   多 Agent 并行视图
+│   ├── page/                 #   页面视图（市场/设置/数据看板/文件/全局记忆）
+│   └── templates/            #   模板路由（v4/zju/html/scraper/theme-creator/skill-creator/dsh/paper_reading）
 │
 ├── theme/                    # 兼容性 stub——renderer 通过旧路径引用
 │   └── breakpoints.dart      #   → Breakpoints，值与 renderer 常量对齐
@@ -76,9 +85,13 @@ lib/
 
 | 层级 | Barrel | 说明 |
 |------|--------|------|
-| `renderer/widgets/` | `widgets.dart` | 48 个原子组件（AppShell、CommandPalette、MessageBubble…） |
-| `renderer/shared/` | `shared.dart` | 组合视图（ChatView…）+ 调度（ModuleDispatch、LayoutEngine）+ 主题解析 |
-| `renderer/compositions/` | `compositions.dart` | 高级工作区（WorkspaceHub） |
+| `renderer/app/` | `app.dart` | 应用壳、CommandPalette、DevModeHub、主题服务 |
+| `renderer/atomic/` | `atomic.dart` | 数据源解析、JSON Path、转换注册 |
+| `renderer/components/` | `components/shared/widgets/widgets.dart` | 共享原子组件（Chat、表格、编辑器、媒体…） |
+| `renderer/module/` | `module/module.dart` | ModuleDispatch / ModulePage（V2 按内容自动选视图） |
+| `renderer/multi_agent/` | `multi_agent_view.dart` | 多 Agent 并行工作区 |
+| `renderer/page/` | `page/page.dart` | 市场、设置、数据看板、文件查看器、全局记忆 |
+| `renderer/templates/` | `templates/template_registry.dart` | v4 / html / scraper / theme-creator / skill-creator / dsh / zju / paper_reading 模板路由 |
 
 ### 应用级
 
@@ -89,7 +102,7 @@ lib/
 | `generated/plugin_imports.g.dart` | 兼容性 stub — re-export `providers.dart` |
 
 > renderer 通过旧路径 `theme/breakpoints.dart` 和 `generated/plugin_imports.g.dart` 引用，
-> 实际逻辑分别委托到 `renderer/shared/renderer_providers.dart` 和 `providers.dart`。
+> 实际逻辑分别委托到 `renderer/app/service/providers/renderer_providers.dart` 和 `providers.dart`。
 > 新代码应直接从 `providers.dart` 导入。
 
 ---
@@ -123,9 +136,8 @@ lib/
 
 | 方法 | 说明 |
 |------|------|
-| `ThemeDescriptor.fromJson(json)` | 从 theme.json 解析 |
-| `semanticTokens` | 语义 token（primary、background…） |
-| `componentTokens` | 组件 token（bubble、sidebar…） |
+| `ThemeDescriptor.fromJson(json)` | 从 theme.json 解析（扁平 8 色） |
+| `color(key)` | 按 key 取色（background/surface/border/text/textSecondary/accent/error/others） |
 
 ---
 
@@ -133,10 +145,11 @@ lib/
 
 ```
 plugins/<name>/
-  agent/manifest.json + .exe      ← PluginBridge（AI 工具）
-  module/manifest.json            ← ModuleLoader（UI 声明）
+  module/index.html               ← HTML 插件主文件（用户侧主路径，可含 css/js）
+  module/manifest.json            ← 模块声明（HTML 插件模板为 "template":"html"）
+  agent/manifest.json + .exe      ← PluginBridge（AI 工具，开发者模式）
   theme/theme.json                ← ThemeLoader（配色声明）
-  data/manifest.json              ← DataSourceLoader（数据源）
+  data/manifest.json              ← DataSourceLoader（数据源，开发者模式）
   config/config.json              ← SettingsLoader（设置项）
 ```
 
@@ -153,7 +166,7 @@ import 'package:evergreen_base/core/module/modules.dart';
 
 final registry = ModuleRegistry();
 
-// 从 manifest.json 字符串注册
+// 从 manifest.json 字符串注册（HTML-first 用户插件）
 registry.registerFromJson('''
 {
   "type": "module",

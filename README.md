@@ -29,7 +29,7 @@ v2.0-alpha 作为 Evergreen 2.0 的预览版，我们近乎重写了整个 App�
 
 ## 内置插件资产
 
-> 2.0-beta 已集成 **12 个模块插件** + **15 个内置 Agent 工具**，覆盖 AI 对话、数据采集、学术研读、效率工具、创作定制全场景。
+> 2.0-beta 已集成 **13 个内置插件目录（11 个模块 + 1 个 Agent 工具 + 1 个主题）** + **18 个内置 Agent 工具**，覆盖 AI 对话、数据采集、学术研读、效率工具、创作定制全场景。
 
 ### AI 工具
 
@@ -37,7 +37,8 @@ v2.0-alpha 作为 Evergreen 2.0 的预览版，我们近乎重写了整个 App�
 |------|------|
 | **AI 助手** `ai-assistant` | 全功能聊天界面：多级深度思考、联网搜索（Bing）、工具调用、多会话管理 |
 | **Python 运行器** `python-runner` | Agent 可调用的本地 Python 3.10 环境：执行任意代码、pip 包管理、系统诊断 |
-| **HTML 创作中心** `html-creator` | 三栏 IDE：数据中枢浏览 → HTML/CSS/JS 编辑 → 实时预览 → AI 辅助生成 → 一键导出 |
+| **HTML 创作中心** `html-creator` | 三栏 IDE：数据中枢浏览 → HTML/CSS/JS 编辑 → 实时预览 → AI 辅助生成 → 一键导出（**用户侧插件创作主路径**） |
+| **DSH** `dsh` | DeepSeek Harness：平台级常驻 Agent Web UI，赋能数据源创作 |
 
 ### 数据与采集
 
@@ -60,11 +61,12 @@ v2.0-alpha 作为 Evergreen 2.0 的预览版，我们近乎重写了整个 App�
 | 插件 | 能力 |
 |------|------|
 | **主题创作中心** `theme-creator` | 8 色语义色板可视化编辑 + Dart 实时预览 + AI 生成 + 一键导出主题插件 |
+| **Skill 创作中心** `skill-creator` | 多 Agent 流水线：规划 → 采集 → 验收 → 整合 → 创造 → 终验 → 导出 Skill |
 | **温馨学习** `warm_study` | 暖色调主题（#FAF3E7 背景 + 8 色语义色板） |
 
 ### Agent 工具体系
 
-AI Agent 可调用 **15 个内置工具**，均通过 `function calling` 自动调度：
+AI Agent 可调用 **18 个内置工具**，均通过 `function calling` 自动调度：
 
 | 类别 | 工具 | 权限 |
 |------|------|------|
@@ -74,6 +76,7 @@ AI Agent 可调用 **15 个内置工具**，均通过 `function calling` 自动�
 | 数据 | `data_query` `get_user_info` | 只读 |
 | 技能 | `list_skills` `run_skill` | 只读 |
 | 执行 | `python_runner`（本地 Python 解释器） | 需确认 |
+| 提问/守护 | `ask`（向用户提问确认） `guardian_review`（策略守护审查） | 需确认 |
 
 ### 截图一览
 
@@ -100,13 +103,14 @@ AI Agent 可调用 **15 个内置工具**，均通过 `function calling` 自动�
 
 ## 架构特性
 
-- **双轨架构** — `PluginBridge`（Agent Tool 调 Python 插件）+ `ModuleLoader`（Flutter 模块插件），两种扩展方式解耦
+- **HTML-first 用户创作** — 用户通过 `html-creator` 自写 HTML/CSS/JS，导出 `"template":"html"` 插件；`html_modle` 用 WebView + JS Bridge 渲染，`platform.*` 提供数据/设置/主题/AI/API 能力
+- **双轨架构** — `PluginBridge`（Agent Tool 调 Python 插件）+ `ModuleLoader`（HTML/JSON 模块插件），两种扩展方式解耦
 - **声明式模块** — `ModuleDescriptor` JSON 注册 → `TemplateRegistry` 分派路由，未知字段静默忽略
-- **多模板共存** — v4（通用 composite）、paper_reading（论文三栏）、html（内嵌渲染）、scraper（爬虫生成）、theme_creator（主题编辑）、zju（浙大校园）等 7 套模板
+- **多模板共存** — v4（通用 composite）、html（WebView 渲染）、scraper（爬虫生成）、theme-creator（主题编辑）、skill-creator（Skill 创作）、dsh（DSH）、paper_reading（论文三栏）、zju/classroom/zdbk（浙大校园）共 10 条模板路由
 - **全流程插件系统** — 插件定义 → 打包 → 插件市场安装/卸载，完整闭环
 - **本地优先** — 数据走 `.greenix/` 工作区文件系统 + SharedPreferences，零服务端依赖
 - **Core 端口暴露** — core 的 6 组 HttpServer（Agent/Config/Data/Module/Theme/Core）各自在 projectRoot 写入 `.xxx_port` 端口文件；`CoreApiDiscovery` 读取端口映射并做 HTTP health 探测，HTML 插件 bridge 的 `forwardCoreHttp` 据此把插件请求转发到对应 core 服务
-- **三层架构** — `core/`（纯 Dart 服务层）→ `plugins/`（JSON 声明 + .exe）→ `renderer/`（纯 UI 渲染层），严格分层禁止跨层耦合
+- **三层架构** — `core/`（纯 Dart 服务层）→ `plugins/`（HTML/JSON 声明 + .exe）→ `renderer/`（纯 UI 渲染层），严格分层禁止跨层耦合
 - **CI/CD 就绪** — `Test` 工作流（push/PR 快速验证）+ `Release` 工作流（tag v* 触发或手动构建发布）
 
 ---
@@ -123,8 +127,8 @@ v2.0 将浙大校园功能从「外部插件」收敛为「内置模块 + 内置
 
 | 版本 | profile | 模板路由 | 产物 |
 |------|---------|----------|------|
-| **浙大专用版**（zju） | `release_full` | 全部 8 套，含 zju / classroom / zdbk | `EvergreenSetup-Zju-*.exe` / `evergreen-zju-*` |
-| **通用版**（std） | `release_std` | 5 套，浙大路由回退 v4 | `EvergreenSetup-Std-*.exe` / `evergreen-std-*` |
+| **浙大专用版**（zju） | `release_full` | 全部 10 条模板路由（8 个入口），含 zju / classroom / zdbk | `EvergreenSetup-Zju-*.exe` / `evergreen-zju-*` |
+| **通用版**（std） | `release_std` | 7 条模板路由，浙大路由回退 v4 | `EvergreenSetup-Std-*.exe` / `evergreen-std-*` |
 
 双通道控制（缺一不可）：
 
@@ -203,26 +207,28 @@ evergreen-main/
 │   │   │   └── feedback/       用户反馈收集
 │   │   │
 │   │   ├── renderer/           纯 UI 渲染层
-│   │   │   ├── app/            应用壳（AppShell / CommandPalette / DebugErrorBar）
+│   │   │   ├── app/            应用壳（AppShell / CommandPalette / DebugErrorBar / DevModeHub）
 │   │   │   ├── atomic/         共享原子取数原语（data_source_resolver / json_path）
 │   │   │   ├── components/     共享组件（MarkdownRenderer / ChatView / 图表 / 代码高亮）
 │   │   │   ├── module/         模块调度（ModuleDispatch / ModulePage）
 │   │   │   ├── multi_agent/    多 Agent 协作视图
 │   │   │   ├── page/           页面视图（市场 / 设置 / 数据看板 / 文件查看器 / 全局记忆）
-│   │   │   └── templates/      模块模板（v4_modle / zju_modle（路由 'zju'，含 zdbk、classroom 别名）/ html_modle / paper_reading_modle / scraper_modle / theme_creator_modle）
+│   │   │   └── templates/      模块模板（v4_modle / html_modle / scraper_modle / theme_creator_modle / skill_creator_modle / dsh_modle / paper_reading_modle / zju_modle（zju/classroom/zdbk））
 │   │   │
 │   │   └── theme/              根级兼容性 stub
 │   │
-│   ├── plugins/                插件仓库（12 个内置插件）
+│   ├── plugins/                内置插件仓库（13 个目录）
 │   │   ├── ai-assistant/       AI 助手
 │   │   ├── data-dashboard/     数据看板
-│   │   ├── html-creator/       HTML 创作中心
+│   │   ├── dsh/                DeepSeek Harness
+│   │   ├── html-creator/       HTML 创作中心（用户侧主路径）
 │   │   ├── marketplace/        插件市场
 │   │   ├── pdf_translate/      PDF 翻译
-│   │   ├── python-runner/      Python 运行器
+│   │   ├── python-runner/      Python 运行器（Agent 工具）
 │   │   ├── scraper/            爬虫生成器
 │   │   ├── settings/           设置面板
-│   │   ├── theme-creator/      主题创建器
+│   │   ├── skill-creator/      Skill 创作中心
+│   │   ├── theme-creator/      主题创作中心
 │   │   ├── view/               成绩 View
 │   │   └── warm_study/         温馨学习主题
 │   ├── scripts/                Python 管线脚本
@@ -262,18 +268,19 @@ evergreen-main/
 ```
 ┌──────────────────────────────────────────────┐
 │  renderer/    纯 UI 渲染层                    │
-│  ├─ 模板系统（v4 / paper_reading / ...）       │
-│  ├─ 共享组件（Markdown / Chat / 图表）         │
-│  └─ 原子取数原语                              │
+│  ├─ 模板系统（v4 / html / scraper / ...）      │
+│  ├─ HTML 插件（WebView + platform.* JS Bridge）│
+│  └─ 共享组件（Markdown / Chat / 图表）         │
 ├──────────────────────────────────────────────┤
-│  plugins/     JSON 声明式插件                  │
-│  ├─ config.json 定义模块                      │
-│  └─ .exe / .dart 可执行体                     │
+│  plugins/     HTML/JSON 声明式插件             │
+│  ├─ module/index.html + manifest.json         │
+│  ├─ config.json / theme.json / agent .exe     │
+│  └─ .exe / .dart 可执行体（开发者模式）        │
 ├──────────────────────────────────────────────┤
 │  core/        纯 Dart 服务层（禁止引用 Flutter）│
 │  ├─ 6 HttpServer（Agent/Config/Data/...）     │
 │  ├─ PluginBridge（Agent Tool ↔ 子进程）       │
-│  └─ ModuleLoader（模块热插拔）                │
+│  └─ ModuleLoader（HTML/模块热插拔）           │
 └──────────────────────────────────────────────┘
 ```
 
@@ -283,27 +290,45 @@ renderer 通过 Riverpod 从 core 取数据，不直调 HTTP；core 不引用任
 
 ## 创建新插件
 
-只需一个 JSON 声明文件即可注册模块：
+### 用户侧：HTML 插件（推荐）
+
+用户通过 **HTML 创作中心**（`html-creator`）编写 HTML/CSS/JS，平台提供实时预览、AI 辅助生成与一键导出。
+
+```
+plugins/<id>/
+└── module/
+    ├── index.html       ← 用户自写 HTML/JS，可含 css/js 等资源
+    └── manifest.json    ← 由创作中心导出
+```
+
+`manifest.json` 只需声明基本元数据和 HTML 模板：
 
 ```jsonc
 // plugins/<id>/module/manifest.json
 {
-  "id": "my-tool",
-  "name": "My Tool",
-  "version": "1.0.0",
-  "template": "v4",
-  "description": "...",
-  "pages": [
-    {
-      "id": "main",
-      "title": "主页",
-      "layout": { "type": "composite", "slots": [...] }
-    }
-  ]
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "my-html-plugin",
+  "name": "My HTML Plugin",
+  "template": "html",
+  "route": "/my-html-plugin",
+  "version": "1.0.0"
 }
 ```
 
-Python 脚本通过 `PluginBridge` 注册为 Agent 工具（本地子进程，JSON Lines 协议），或用 PyInstaller 打包为 `.exe` 供插件市场分发。
+`index.html` 中可通过 `platform.*` JS Bridge 调用平台能力：
+
+```js
+const data = await platform.data.get('some_data_type');
+const reply = await platform.ai.chat('总结这段数据');
+await platform.settings.set('THEME_MODE', 'dark');
+const colors = await platform.theme.getColors();
+```
+
+### 开发者模式：JSON 模块 / Agent 工具
+
+- JSON 声明模块：`plugins/<id>/module/manifest.json` + `pages`/`workspace` 等描述符，由 `ModuleDescriptor` 解析。
+- Agent 工具：`plugins/<id>/agent/manifest.json` + 可执行文件，通过 `PluginBridge` 注册（本地子进程，JSON Lines 协议），或用 PyInstaller 打包为 `.exe` 供插件市场分发。
 
 ---
 

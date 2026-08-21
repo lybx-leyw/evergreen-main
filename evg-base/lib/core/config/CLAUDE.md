@@ -9,6 +9,9 @@
 | 适用 | AI 协作者（config 子包） |
 
 > 面向 AI 协作者：架构概览、设计决策、开发约定、跨模块契约。
+>
+> **HTML-first 事实**：普通用户不直接编写 `config.json`；HTML 插件通过 `platform.settings.get/set`
+> 访问配置。`config.json` 声明式设置保留给内置功能与开发者模式插件。
 
 ---
 
@@ -94,8 +97,8 @@ lib/core/config/
 
 | 文件 | 用例数 | 覆盖范围 |
 |------|--------|---------|
-| `settings_test.dart` | 21 | SettingDecl 构造、initSettings（扫描/默认值/类型解析）、getSetting/setSetting（读写/校验）、getAllSettings、exportConfig/importConfig、异常 toString |
-| `permissions_test.dart` | 15 | PermissionDecl 构造、registerPermissions/getPermissions、setPermission/checkPermission、describePermission、PluginSource、getSources/addSource/removeSource、异常 toString |
+| `settings_test.dart` | 33 | SettingDecl 构造、initSettings（扫描/默认值/类型解析）、getSetting/setSetting（读写/校验）、getAllSettings、exportConfig/importConfig、异常 toString |
+| `permissions_test.dart` | 22 | PermissionDecl 构造、registerPermissions/getPermissions、setPermission/checkPermission、describePermission、PluginSource、getSources/addSource/removeSource、异常 toString |
 
 **运行**：
 ```bash
@@ -112,6 +115,7 @@ cd lib/core/config/ && dart pub get && dart test
 |------|------|------|
 | GET | `/config/health` | 健康检查 |
 | GET | `/config/settings` | 列出全部设置 |
+| POST | `/config/settings` | 按 body `{"key","value"}` 写设置（动态注册） |
 | GET/POST | `/config/settings/:key` | 读/写单个设置 |
 | GET/POST | `/config/permissions/:id` | 读/写插件权限 |
 | GET | `/config/sources` | 列出插件源 |
