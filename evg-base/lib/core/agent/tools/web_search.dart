@@ -175,6 +175,9 @@ class WebFetchTool extends Tool {
 
       final html = response.data?.toString() ?? '';
       if (html.isEmpty) return '页面内容为空';
+      if (html.length > 12 * 1024 * 1024) {
+        return '[获取页面失败: 页面超过 12MiB 处理上限]';
+      }
 
       // 提取正文（去除 HTML 标签、压缩空白）
       final bodyMatch = RegExp(r'<body[^>]*>(.*?)</body>', dotAll: true)
