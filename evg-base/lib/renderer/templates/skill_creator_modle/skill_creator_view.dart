@@ -454,7 +454,16 @@ class _WorkflowTree extends StatelessWidget {
         Icon(done ? Icons.check_circle : failed ? Icons.error : icon, size: 16, color: done ? scheme.primary : failed ? scheme.error : scheme.outline),
         const SizedBox(width: 8),
         Expanded(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis)),
-        Text(status, style: TextStyle(fontSize: 11, color: failed ? scheme.error : scheme.outline)),
+        const SizedBox(width: 8),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 160),
+          child: Text(
+            status,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 11, color: failed ? scheme.error : scheme.outline),
+          ),
+        ),
       ]),
     );
   }
