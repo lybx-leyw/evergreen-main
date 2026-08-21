@@ -74,7 +74,7 @@ class DownloadFileTool extends Tool {
     }
     try {
       final resolved = await InternetAddress.lookup(host);
-      if (resolved.any((a) => a.isLoopback || a.isLinkLocal || a.address.startsWith('10.') || a.address.startsWith('192.168.'))) {
+      if (resolved.any((a) => a.isLoopback || a.isLinkLocal || RegExp(r'^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)').hasMatch(a.address) || a.address.startsWith('fc') || a.address.startsWith('fd'))) {
         return '[error: DNS 解析到受限内网地址]';
       }
     } catch (_) { return '[error: 无法解析目标主机]'; }
