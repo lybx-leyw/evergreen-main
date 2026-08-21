@@ -533,12 +533,6 @@ class _NewSkillDialogState extends ConsumerState<_NewSkillDialog> {
     setState(() => _saving = true);
 
     try {
-      final skillsDir = Directory(greenixSkillsDir);
-      if (!skillsDir.existsSync()) {
-        skillsDir.createSync(recursive: true);
-      }
-
-      final filename = '${name.replaceAll(RegExp(r'\s+'), '-').toLowerCase()}.md';
       final frontmatter = StringBuffer();
       frontmatter.writeln('---');
       frontmatter.writeln('name: $name');
@@ -548,7 +542,7 @@ class _NewSkillDialogState extends ConsumerState<_NewSkillDialog> {
       frontmatter.writeln();
       frontmatter.writeln(body);
 
-      final file = File('${skillsDir.path}${Platform.pathSeparator}$filename');
+      final file = File(greenixSkillPath(name));
       await file.writeAsString(frontmatter.toString());
 
       if (mounted) {
