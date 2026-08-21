@@ -20,7 +20,7 @@ class ArxivSearchTool extends Tool {
     try {
       final r = await dio.get('https://export.arxiv.org/api/query', queryParameters: {
         'search_query': 'all:$q', 'start': 0, 'max_results': (args['max_results'] as num?)?.toInt() ?? 5,
-      }, options: Options(responseType: ResponseType.plain));
+      }, options: Options(responseType: ResponseType.plain, receiveTimeout: const Duration(seconds: 30), sendTimeout: const Duration(seconds: 10)));
       final xml = r.data?.toString() ?? '';
       final entries = RegExp(r'<entry>([\s\S]*?)</entry>').allMatches(xml).map((m) {
         final b = m.group(1)!;
@@ -46,7 +46,7 @@ class GithubSearchTool extends Tool {
     final q = args['query']?.toString().trim() ?? '';
     if (q.isEmpty) return '[error: github query is empty]';
     try {
-      final r = await dio.get('https://api.github.com/search/repositories', queryParameters: {'q': q, 'per_page': (args['max_results'] as num?)?.toInt() ?? 5}, options: Options(headers: {'Accept': 'application/vnd.github+json', 'User-Agent': 'Evergreen-Research-Agent'}));
+      final r = await dio.get('https://api.github.com/search/repositories', queryParameters: {'q': q, 'per_page': (args['max_results'] as num?)?.toInt() ?? 5}, options: Options(receiveTimeout: const Duration(seconds: 30), sendTimeout: const Duration(seconds: 10), headers: {'Accept': 'application/vnd.github+json', 'User-Agent': 'Evergreen-Research-Agent'}));
       final items = (r.data is Map ? (r.data['items'] as List? ?? const []) : const []).map((x) => {'name': x['full_name'], 'url': x['html_url'], 'description': x['description'], 'language': x['language'], 'stars': x['stargazers_count'], 'updatedAt': x['updated_at']}).toList();
       return jsonEncode({'source': 'github', 'query': q, 'results': items});
     } catch (e) { return '[error: github search failed: $e]'; }
@@ -64,7 +64,7 @@ class CrossrefSearchTool extends Tool {
     final q = args['query']?.toString().trim() ?? '';
     if (q.isEmpty) return '[error: crossref query is empty]';
     try {
-      final r = await dio.get('https://api.crossref.org/works', queryParameters: {'query': q, 'rows': (args['max_results'] as num?)?.toInt() ?? 5}, options: Options(headers: {'User-Agent': 'Evergreen-Research-Agent/1.0'}));
+      final r = await dio.get('https://api.crossref.org/works', queryParameters: {'query': q, 'rows': (args['max_results'] as num?)?.toInt() ?? 5}, options: Options(receiveTimeout: const Duration(seconds: 30), sendTimeout: const Duration(seconds: 10), headers: {'User-Agent': 'Evergreen-Research-Agent/1.0'}));
       final message = r.data is Map ? r.data['message'] : null;
       final raw = message is Map ? (message['items'] as List? ?? const []) : const [];
       String first(dynamic value) => value is List && value.isNotEmpty ? value.first.toString() : '';
