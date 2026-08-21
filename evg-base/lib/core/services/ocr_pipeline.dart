@@ -203,7 +203,8 @@ class OcrPipeline {
     List<Map<String, dynamic>> pages;
     try {
       final parsed = jsonDecode(imgProc.stdout as String) as Map<String, dynamic>;
-      pages = (parsed['pages'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      final rawPages = parsed['pages'] as List? ?? const [];
+      pages = rawPages.whereType<Map>().map((p) => Map<String, dynamic>.from(p)).toList();
     } catch (e) {
       Log().warn('OcrPipeline: failed to parse pdf_to_images output', error: e);
       try { await Directory(outDir).delete(recursive: true); } catch (_) {}
