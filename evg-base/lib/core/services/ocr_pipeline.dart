@@ -259,6 +259,10 @@ class OcrPipeline {
     );
 
     if (resp.data == null || resp.data!.isEmpty) return null;
+    if (resp.data!.length > 20 * 1024 * 1024) {
+      Log().warn('OcrPipeline: 远程图片超过 20MiB 上限');
+      return null;
+    }
 
     final suffix = p.extension(imageUrl).isNotEmpty
         ? p.extension(imageUrl)
