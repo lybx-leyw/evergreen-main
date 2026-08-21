@@ -116,6 +116,20 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
+  testWidgets('安卓：skill-creator 槽位为占位页（提示仅 Windows 版）', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    final registry =
+        _registry(['theme-creator', 'html-creator', 'scraper', 'dsh', 'skill-creator']);
+    await tester.pumpWidget(_wrap(registry, pluginsDir,
+        initialLocation: '/dev-hub?plugin=skill-creator'));
+    await tester.pump();
+
+    expect(find.text('Skill 创作仅支持 Windows 版'), findsOneWidget);
+    final stack = tester.widget<IndexedStack>(find.byType(IndexedStack));
+    expect(stack.children.length, 5, reason: '槽位数量不变，仅内容替换');
+    debugDefaultTargetPlatformOverride = null;
+  });
+
   testWidgets('插件缺失：对应槽位渲染「插件未安装」占位', (tester) async {
     // 显式非安卓：避免 scraper/dsh 槽位先落入安卓占位分支，验证 _MissingPluginPage。
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;

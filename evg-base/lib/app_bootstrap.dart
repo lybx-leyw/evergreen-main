@@ -36,6 +36,7 @@ import 'package:evergreen_base/core/agent/tools/plugin_bridge.dart';
 import 'package:evergreen_base/core/agent/tools/python_runner_tool.dart';
 import 'package:evergreen_base/core/agent/tools/read_file.dart';
 import 'package:evergreen_base/core/agent/tools/read_global_memory.dart';
+import 'package:evergreen_base/core/agent/tools/run_skill.dart';
 import 'package:evergreen_base/core/agent/tools/web_search.dart';
 import 'package:evergreen_base/core/agent/tools/write_file.dart';
 import 'package:evergreen_base/core/agent/tools/write_global_memory.dart';
@@ -559,6 +560,11 @@ class AppBootstrap {
     registry.register(ReadTailTool(workspaceDir: aiWorkspace));
     registry.register(FileInfoTool(workspaceDir: aiWorkspace));
     registry.register(DataQueryTool(orchestrator: orchestrator));
+    // Skill 工具 —— 与全局 agentRuntimeProvider / AgentAssembly.buildStandardTools 对齐
+    final skillToolLoader = SkillLoader([greenixSkillsDir, pluginsDir]);
+    registry.register(RunSkillTool(
+        skillToolLoader, skillIndex!, _agentProvider!, registry));
+    registry.register(ListSkillsTool(skillToolLoader, skillIndex!));
     // 注册嵌入式 Python 解释器工具——多级回退发现
     // ① .greenix/python/python.exe（安装包预置/CI 供给的嵌入式 Python，最高优先级）
     // ② 用户配置路径 → 系统 PATH（python3 → python → py -3）
@@ -622,6 +628,7 @@ class AppBootstrap {
       sink: sink,
       session: session,
       skillIndex: skillIndex,
+      skillIndexText: skillIndex?.indexText() ?? '',
     );
 
     agentServer = AgentHttpServer(
