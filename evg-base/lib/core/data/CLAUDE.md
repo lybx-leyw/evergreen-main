@@ -8,7 +8,10 @@
 | 负责人 | 待补充 |
 | 适用 | AI 协作者（data 子包） |
 
-> 维护者：Data 工程师 | 最后更新：2026-07-06
+> 维护者：Data 工程师 | 最后更新：2026-08-21
+>
+> **HTML-first 事实**：HTML 插件通过 `platform.data.get/refresh/subscribe/testConnectivity` 消费数据中枢；
+> 外部 `.exe` 数据源插件属于开发者模式，用户侧优先复用内置/已有数据源。
 
 ---
 
@@ -63,7 +66,7 @@ lib/core/data/
 │   ├── example.dart             # 完整 API 使用示例
 │   └── plugins/douban/          # 豆瓣 Top250 爬虫插件（真实可运行示例）
 ├── test/
-│   ├── orchestrator_test.dart   # 27 用例：注册/获取/刷新/状态/连通性/自动刷新/持久化恢复
+│   ├── orchestrator_test.dart   # 36 用例：注册/获取/刷新/状态/连通性/自动刷新/持久化恢复
 │   └── cache_test.dart          # 12 用例：读写/删除/清空/编码/批量
 ├── pubspec.yaml
 ├── dart_test.yaml               # concurrency: 1（缓存单例需要顺序执行）
@@ -186,7 +189,7 @@ final data = await orch.get(myType);
 
 ## 测试策略
 
-### orchestrator_test.dart（27 用例）
+### orchestrator_test.dart（36 用例）
 
 | 分组 | 用例数 | 覆盖内容 |
 |------|--------|----------|

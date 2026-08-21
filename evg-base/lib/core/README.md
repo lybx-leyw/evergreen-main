@@ -12,6 +12,10 @@
 
 Evergreen 平台底层依赖——对外提供统一的模块注册、AI 基建、OCR 服务、文件工作区等基础能力。
 
+> **用户插件创作事实**：用户侧主路径是 **HTML 插件**。用户通过 `html-creator` 编写 HTML/CSS/JS，
+> 导出为 `plugins/<id>/module/index.html + manifest.json`（`"template":"html"`），由 `html_modle` 渲染。
+> 本目录中的 JSON 声明模块、`.exe` 数据源/Agent 工具属于平台/开发者模式能力，供高级插件和内置功能使用。
+
 ---
 
 ## 子模块
@@ -30,7 +34,7 @@ Evergreen 平台底层依赖——对外提供统一的模块注册、AI 基建�
 
 | 文件 | 说明 |
 |------|------|
-| `errors.dart` | `AppError` — 13 种应用层错误（Network / Auth / Parse / AI / File / Render / …） |
+| `errors.dart` | `AppError` — 14 种应用层错误（Network / Auth / Parse / Cache / Timeout / Validation / Media / AI / Config / File / DataIntegrity / Render / …） |
 | `log.dart` | `Log` — 日志单例（debug→stderr、release→文件轮转） |
 | `result.dart` | `Result<T>` — Dart 3 sealed class（Ok / Err + map / flatMap / fold） |
 
@@ -42,11 +46,12 @@ Evergreen 平台底层依赖——对外提供统一的模块注册、AI 基建�
 
 ```
 plugins/<name>/
-  agent/manifest.json + .exe      ← AI 工具 (PluginBridge 扫描)
-  module/manifest.json            ← 页面模块 (ModuleLoader 扫描)
-  theme/theme.json                ← 配色主题 (ThemeLoader 扫描)
-  data/manifest.json              ← 数据源 (DataSourceLoader 扫描)
-  config/config.json              ← 配置项 (SettingsLoader 扫描)
+  module/index.html               ← HTML 插件（用户侧主路径，可含 css/js 等静态资源）
+  module/manifest.json            ← 页面模块声明（HTML 插件模板为 "template":"html"）
+  agent/manifest.json + .exe      ← AI 工具（开发者模式，PluginBridge 扫描）
+  theme/theme.json                ← 配色主题（ThemeLoader 扫描）
+  data/manifest.json              ← 数据源（开发者模式，DataSourceLoader 扫描）
+  config/config.json              ← 配置项（SettingsLoader 扫描）
 ```
 
 一个插件可同时提供多种类型——取名相同、各子目录互不冲突。

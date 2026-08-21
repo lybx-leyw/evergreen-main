@@ -9,17 +9,24 @@
 | 适用 | AI 协作者（module 子包） |
 
 > v1.1 | 2026-07-06 | `lib/core/module/`
+>
+> **HTML-first 事实**：用户侧插件创作主路径是 `html-creator` 导出的 HTML 插件
+> （`plugins/<id>/module/index.html + manifest.json`，`"template":"html"`）。
+> 本模块继续服务所有声明式模块（含 HTML 模板路由、v4 组件、内置模块、开发者模式）。
 
 ## 架构管线
 
 ```
 manifest.json → ModuleDescriptor.fromJson() → Registry.register() → seal()
-    → ModuleLoader (scan + start exe)
+    → ModuleLoader (scan + load；HTML 模块无 exe)
     → ModuleHttpServer (REST API)
     → ProcessManager (4级进程) → ExposeStateWriter (状态快照)
 ```
 
-**生命周期**: 声明(JSON) → 解析(Dart) → 注册 → 锁定(seal) → 加载(exe) → 服务(HTTP) → 进程管理 → 状态暴露
+**生命周期**: 声明(JSON) → 解析(Dart) → 注册 → 锁定(seal) → 按 `template` 路由（html/v4/zju/scraper/...）→ 加载/渲染 → 进程管理 → 状态暴露
+
+> 对 HTML 插件：`ModuleDescriptor` 仅承载元数据与 `template:"html"`，页面正文由 `index.html` 提供；
+> `html_modle` 通过 WebView + JS Bridge 渲染，不经过 v4 的组件树配置。
 
 ## 文件地图
 
@@ -27,7 +34,7 @@ manifest.json → ModuleDescriptor.fromJson() → Registry.register() → seal()
 lib/core/module/
 ├── module_descriptor.dart      ← 核心: ModuleDescriptor + 48 子描述符 (2685行)
 ├── module_registry.dart        ← 核心: 注册/查询/搜索/路由/导航 (318行)
-├── module_loader.dart          ← 扫描 + 启动 exe 后端 (251行)
+├── module_loader.dart          ← 扫描 + 加载/启动后端（HTML 模块无 exe） (251行)
 ├── module_http_server.dart     ← REST API: 6端点 (231行)
 ├── module_lifecycle.dart       ← 安装/卸载/禁用/升级 (318行)
 ├── process_manager.dart        ← 四级进程作用域 (430行)
@@ -80,9 +87,9 @@ JSON 数组 → `ActionButtonDescriptor[]`，JSON 对象 → 旧版 `ActionDescr
 ## 开发流程
 
 ### 新增 UI 范式
-1. `ModuleDescriptor` 的 `ui` 文档中增加范式名
+1. 在 `ModuleDescriptor` / `PageDescriptor` / `ComponentDescriptor` 中确认承载位置（V2 不使用顶层 `ui` 字段）
 2. 创建对应 Options 类（const 构造 + `fromJson`/`toJson`）
-3. `ModuleDescriptor` 新增字段 → `fromJson` 解析 → `toJson` 序列化
+3. 新增字段 → `fromJson` 解析 → `toJson` 序列化
 4. `modules.dart` 确认导出 → 更新 `README.md` 字段表 → `descriptor_test.dart` 新增测试
 
 ### 新增 ModuleDescriptor 字段
@@ -104,7 +111,7 @@ JSON 数组 → `ActionButtonDescriptor[]`，JSON 对象 → 旧版 `ActionDescr
 
 | 文件 | 行数 | 覆盖 |
 |------|------|------|
-| `descriptor_test.dart` | 850 | fromJson/toJson 往返、7种UI范式、子描述符边界、const 构造、activateSkills/version |
+| `descriptor_test.dart` | 850 | fromJson/toJson 往返、V2 pages/workspace/template 路由、子描述符边界、const 构造、activateSkills/version |
 | `registry_test.dart` | 404 | register/seal 不可变、findById/findByRoute、search(6维度)、listByCapability、导航(navGroups/navFlat/paletteItems)、依赖校验 |
 | `http_server_test.dart` | 245 | 6端点(health/modules/:id/search/nav/routes)、404/405、重复 start/stop |
 
