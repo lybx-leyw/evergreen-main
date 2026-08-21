@@ -263,7 +263,9 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
       return SearchTask(
         id: 'task_${DateTime.now().millisecondsSinceEpoch}_${_workflow.tasks.length + plans.indexOf(m)}',
         source: source,
-        query: m['query'] as String? ?? '',
+        query: (((m['query'] as String?) ?? '').trim().length > 4096)
+            ? ((m['query'] as String?) ?? '').trim().substring(0, 4096)
+            : ((m['query'] as String?) ?? '').trim(),
       );
     }).toList();
 
