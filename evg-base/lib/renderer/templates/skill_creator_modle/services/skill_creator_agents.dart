@@ -218,11 +218,12 @@ class DeepSearchRunner {
     late StreamSubscription<agent.AgentEvent> sub;
     sub = sink.stream.listen((e) {
       onEvent?.call(e);
-      if (e.kind == agent.EventKind.error && !done.isCompleted) {
-        done.completeError(StateError(e.error ?? e.text ?? '深寻 Agent 事件流错误'));
-        return;
-      }
       if (e.kind == agent.EventKind.turnDone) {
+        // turnDone 携带非 null 的 error 即本轮失败（AgentEvent 无 error 事件类型）。
+        if (e.error != null && !done.isCompleted) {
+          done.completeError(StateError(e.error ?? e.text ?? '深寻 Agent 事件流错误'));
+          return;
+        }
         String? last;
         for (final m in assembly.session.messages.reversed) {
           if (m.role == agent.Role.assistant && m.content.isNotEmpty) {
