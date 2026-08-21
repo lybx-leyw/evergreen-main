@@ -199,6 +199,19 @@ String get greenixMemoriesDir => p.join(_greenixBaseDir, 'memories');
 /// Skill 文件目录。
 String get greenixSkillsDir => p.join(_greenixBaseDir, 'skills');
 
+/// 构造 Skill 文件落盘路径，统一 AI 助手/技能管理与 Skill 创作中心的导出规则。
+///
+/// 与旧实现保持一致：`Directory(greenixSkillsDir)` + 平台分隔符，
+/// 文件名规则为“空白转 `-` + 小写”。
+String greenixSkillPath(String name) {
+  final skillsDir = Directory(greenixSkillsDir);
+  if (!skillsDir.existsSync()) {
+    skillsDir.createSync(recursive: true);
+  }
+  final filename = '${name.replaceAll(RegExp(r'\s+'), '-').toLowerCase()}.md';
+  return '${skillsDir.path}${Platform.pathSeparator}$filename';
+}
+
 /// 会话持久化目录。
 String get greenixSessionsDir => p.join(_greenixBaseDir, 'sessions');
 
