@@ -294,7 +294,7 @@ class SkillCreatorWorkflow {
             (p) => p.name == json['phase'],
             orElse: () => SkillCreatorPhase.idle),
         requirement: json['requirement'] as String? ?? '',
-        round: json['round'] as int? ?? 0,
+        round: (json['round'] as num?)?.toInt() ?? 0,
         tasks: (json['tasks'] as List? ?? const [])
             .whereType<Map>()
             .map((t) => SearchTask.fromJson(Map<String, dynamic>.from(t)))
