@@ -249,6 +249,9 @@ class DeepSearchRunner {
 
   /// 解析深寻 agent 结果（最后一段 JSON）。
   DeepSearchResult _parseResult(String raw, {required String agentWs}) {
+    if (raw.length > 2 * 1024 * 1024) {
+      return const DeepSearchResult(error: '深寻结果超过 2MiB 上限');
+    }
     final json = extractJsonObject(raw);
     if (json == null) {
       return DeepSearchResult(
