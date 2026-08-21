@@ -174,10 +174,11 @@ class DeepSearchRunner {
     ];
 
     // 注册嵌入式 Python runner（若存在），供 agent 执行辅助脚本
-    final bundledPython = Platform.isWindows
-        ? p.join(greenixPythonDir, 'python.exe')
-        : p.join(greenixPythonDir, 'bin', 'python3');
-    if (File(bundledPython).existsSync()) {
+    final pythonCandidates = Platform.isWindows
+        ? [p.join(greenixPythonDir, 'python.exe')]
+        : [p.join(greenixPythonDir, 'bin', 'python3'), p.join(greenixPythonDir, 'python3'), p.join(greenixPythonDir, 'python')];
+    final bundledPython = pythonCandidates.firstWhere((path) => File(path).existsSync(), orElse: () => '');
+    if (bundledPython.isNotEmpty) {
       seedTools.add(PythonRunnerTool(
         pythonExePath: bundledPython,
         pythonWorkDir: greenixPythonDir,
