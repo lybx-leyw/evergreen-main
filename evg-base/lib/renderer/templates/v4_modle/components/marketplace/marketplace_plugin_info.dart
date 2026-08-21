@@ -10,6 +10,23 @@ import 'package:flutter/material.dart';
 /// 仅描述 module 类型。这里统一承载 id/name/type/目录等管理所需字段，
 /// 让市场不再「只显示 module」。
 class PluginInfo {
+  const PluginInfo({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.type,
+    this.version,
+    this.iconCode,
+    required this.dirPath,
+    required this.isModule,
+    required this.hasSidebar,
+    required this.pageCount,
+    this.isBuiltin = false,
+    this.section = '未分组',
+    this.sectionOrder = 50,
+    this.order = 50,
+  });
+
   /// 稳定标识：优先 manifest.id，缺失时回退文件夹名（保证 state/uninstall 有 key）。
   final String id;
   final String name;
@@ -26,25 +43,19 @@ class PluginInfo {
   final bool hasSidebar;
   /// module 的页面数（非 module 为 0）。
   final int pageCount;
-
   /// 是否为内置模块（随应用分发，非 plugins/ 目录插件）——不可卸载。
   /// 内置模块由启动期注册进 ModuleRegistry（如 zju 9 个校园模块），
   /// 市场合并展示时置 true，卡片隐藏「卸载」按钮。
   final bool isBuiltin;
-
-  const PluginInfo({
-    required this.id,
-    required this.name,
-    required this.description,
-    required this.type,
-    this.version,
-    this.iconCode,
-    required this.dirPath,
-    required this.isModule,
-    required this.hasSidebar,
-    required this.pageCount,
-    this.isBuiltin = false,
-  });
+  /// 所属侧边栏分组名（manifest `nav.sidebar.section`；无侧栏时回退「未分组」）。
+  /// 插件中心「分组排序」与侧边栏组名开关共用此分组。
+  final String section;
+  /// 分组间的 manifest 排序权重（`nav.sidebar.sectionOrder`，默认 50）。
+  /// 用户未拖拽分组时，分组按此值排序。
+  final int sectionOrder;
+  /// 组内的 manifest 排序权重（`nav.sidebar.order`，默认 50）。
+  /// 用户未拖拽插件时，组内按此值排序。
+  final int order;
 
   /// 根据插件类型返回展示图标（manifest 无 icon 时回退）。
   IconData get typeIcon {

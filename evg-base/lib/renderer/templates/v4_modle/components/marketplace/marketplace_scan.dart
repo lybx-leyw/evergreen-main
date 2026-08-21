@@ -101,12 +101,21 @@ PluginInfo? _toPluginInfo(
   var hasSidebar = false;
   var pageCount = 0;
   int? iconCode;
+  var section = '未分组';
+  var sectionOrder = 50;
+  var order = 50;
   if (isModule) {
     try {
       final d = ModuleDescriptor.fromJson(json);
-      hasSidebar = d.nav.sidebar != null;
+      final sidebar = d.nav.sidebar;
+      hasSidebar = sidebar != null;
       pageCount = d.pages.length;
       iconCode = d.icon;
+      if (sidebar != null) {
+        section = sidebar.section;
+        sectionOrder = sidebar.sectionOrder;
+        order = sidebar.order;
+      }
     } catch (_) {
       // module 解析异常则降级为非模块信息（仍展示，只是无侧栏/页面信息）。
       isModule = false;
@@ -124,6 +133,9 @@ PluginInfo? _toPluginInfo(
     isModule: isModule,
     hasSidebar: hasSidebar,
     pageCount: pageCount,
+    section: section,
+    sectionOrder: sectionOrder,
+    order: order,
   );
 }
 
@@ -146,16 +158,22 @@ String _defaultTypeForSub(String subType) {
 /// 与 [scanPluginManifests] 扫描出的磁盘插件不同：
 /// - `isBuiltin: true` → 卡片显示「内置」徽标、隐藏「卸载」按钮；
 /// - `dirPath: ''` → 无磁盘目录，卸载/定位操作应被 UI 拦截。
-PluginInfo pluginInfoFromBuiltinModule(ModuleDescriptor d) => PluginInfo(
-      id: d.id,
-      name: d.name,
-      description: d.description,
-      type: 'module',
-      version: d.version,
-      iconCode: d.icon,
-      dirPath: '',
-      isModule: true,
-      hasSidebar: d.hasSidebar,
-      pageCount: d.pages.length,
-      isBuiltin: true,
-    );
+PluginInfo pluginInfoFromBuiltinModule(ModuleDescriptor d) {
+  final sidebar = d.nav.sidebar;
+  return PluginInfo(
+    id: d.id,
+    name: d.name,
+    description: d.description,
+    type: 'module',
+    version: d.version,
+    iconCode: d.icon,
+    dirPath: '',
+    isModule: true,
+    hasSidebar: d.hasSidebar,
+    pageCount: d.pages.length,
+    isBuiltin: true,
+    section: sidebar?.section ?? '未分组',
+    sectionOrder: sidebar?.sectionOrder ?? 50,
+    order: sidebar?.order ?? 50,
+  );
+}
