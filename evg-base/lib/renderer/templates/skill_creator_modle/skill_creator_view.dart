@@ -342,7 +342,7 @@ class _WorkflowPanel extends StatelessWidget {
         ],
         if (wf.materials.isNotEmpty) ...[
           const SizedBox(height: 12),
-          _MaterialsSection(materials: wf.materials),
+          _MaterialsSection(materials: wf.materials, orchestrator: orchestrator),
         ],
         const SizedBox(height: 12),
         _EventsSection(events: wf.events),
@@ -776,8 +776,9 @@ class _TaskCard extends StatelessWidget {
 
 class _MaterialsSection extends StatelessWidget {
   final List<MaterialItem> materials;
+  final SkillCreatorOrchestrator orchestrator;
 
-  const _MaterialsSection({required this.materials});
+  const _MaterialsSection({required this.materials, required this.orchestrator});
 
   @override
   Widget build(BuildContext context) {
@@ -825,6 +826,8 @@ class _MaterialsSection extends StatelessWidget {
                           ),
                           if (m.processingError != null)
                             Text(m.processingError!, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.error)),
+                          if (m.readability == 'unreadable')
+                            TextButton(onPressed: orchestrator.busy ? null : () => orchestrator.retryMaterialOcr(m.id), child: const Text('重试 OCR')),
                         ],
                       ),
                     ),

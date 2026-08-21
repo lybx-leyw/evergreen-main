@@ -235,6 +235,18 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
     await runPipeline();
   }
 
+  Future<void> retryMaterialOcr(String materialId) async {
+    final material = _workflow.material(materialId);
+    if (material == null || material.localPath == null || _busy) return;
+    material.processingError = null;
+    material.readability = 'pending';
+    material.ocrAttempts++;
+    _appendEvent('info', '手动重试 OCR：${material.title}');
+    await _processMaterial(material);
+    _saveSession();
+    notifyListeners();
+  }
+
   // ═══════ 阶段实现 ═══════
 
   /// ① 规划：按来源拆分任务。
