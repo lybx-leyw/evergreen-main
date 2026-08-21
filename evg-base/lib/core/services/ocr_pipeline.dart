@@ -202,6 +202,10 @@ class OcrPipeline {
       Log().warn('OcrPipeline: PDF produced no pages');
       return null;
     }
+    if (pages.length > 100) {
+      Log().warn('OcrPipeline: PDF 页数超过 100，截断 OCR 任务', data: {'pages': pages.length});
+      pages = pages.take(100).toList();
+    }
 
     try {
       // 2. OCR each page with DeepSeek（并行）
