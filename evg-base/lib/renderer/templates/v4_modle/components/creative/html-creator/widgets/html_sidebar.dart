@@ -35,7 +35,7 @@ class HtmlSidebar extends StatefulWidget {
   /// 重命名画板（画板 id + 新名）。
   final void Function(String canvasId, String newName) onRenameCanvas;
 
-  /// 重命名实例（实例 id + 新名；实例 id 固定不可变）。
+  /// 重命名实例（实例 id + 新名；实例 id == 插件 id，重命名不改 id）。
   final void Function(String instanceId, String newName) onRenameInstance;
 
   /// 「数据源」视图内容（视图层以保活 key 创建的 DataPanel）。

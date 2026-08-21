@@ -61,7 +61,7 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
   String? _currentCanvasId;
   List<CanvasMeta> _canvases = [];
 
-  /// 当前画板绑定的实例 ID（I1：画板 ↔ 实例 1:1，id 固定不可变）。
+  /// 当前画板绑定的实例 ID（I1：画板 ↔ 实例 1:1，实例 ID == 插件 ID）。
   String? _currentInstanceId;
 
   /// 各画板当前实例快照（key = 画板 id；左侧栏「画板树/实例」视图用，
@@ -168,6 +168,11 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
       final cid = _currentCanvasId;
       if (cid == null) return;
       _canvasMgr.bindPluginId(cid, pluginId);
+      // 插件 ID 即实例 ID：AI 首次导出确定插件 ID 后，同步当前实例身份。
+      _aiService.rebindInstanceId(pluginId);
+      _currentInstanceId = pluginId;
+      _refreshInstances();
+      if (mounted) setState(() {});
     };
     _aiService.resolveNavSection = () => _project.navSection;
     _aiService.awaitReview = _awaitHumanReview;
@@ -233,7 +238,7 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
             cssContent: template.css,
             jsContent: template.js,
           );
-          // I1：新画板创作之处即分配固定实例（id 不可变）
+          // I1：新画板创作之处即分配固定实例（实例 ID == 插件 ID）
           final instance = _canvasMgr.ensureInstance(data.meta.id);
           _aiService.switchCanvas(data.meta.id, instanceId: instance.id); // 新画板 = 新实例 = 新 AI 会话
           _applyCanvasData(data);
@@ -314,10 +319,14 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
         backgroundColor: result.success ? null : Colors.red,
       ));
       if (result.success) {
-        // 绑定画布 ↔ 插件 ID：后续手动/AI 导出均复用同一插件
+        // 绑定画布 ↔ 插件 ID：后续手动/AI 导出均复用同一插件。
+        // 插件 ID 即实例 ID，绑定后同步当前实例身份与会话路径。
         final cid = _currentCanvasId;
         if (cid != null) {
           _canvasMgr.bindPluginId(cid, _project.pluginId);
+          _aiService.rebindInstanceId(_project.pluginId);
+          _currentInstanceId = _project.pluginId;
+          _refreshInstances();
         }
         _registerToSidebar();
         setState(() {
@@ -431,7 +440,7 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
     setState(() {});
   }
 
-  /// 重命名实例（左栏回调：实例 id + 新名；实例 id 固定不可变，改名不丢会话）。
+  /// 重命名实例（左栏回调：实例 id + 新名；实例 ID == 插件 ID，改名不丢会话）。
   void _renameInstance(String instanceId, String newName) {
     String? boardId;
     for (final e in _instancesByBoard.entries) {
@@ -470,7 +479,7 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
 
   void _applyCanvasData(CanvasData data) {
     _currentCanvasId = data.meta.id;
-    // I1：画板 ↔ 实例 1:1——实例 id 从 meta 锚点读回（创作之处固定不可变）
+    // I1：画板 ↔ 实例 1:1——实例 id 从 meta 锚点读回（实例 ID == 插件 ID）
     _currentInstanceId = data.meta.instanceId;
     _nameController.text = data.meta.name;
     // T1：恢复画布绑定的数据源（切板后 AI 上下文/数据面板随板恢复）

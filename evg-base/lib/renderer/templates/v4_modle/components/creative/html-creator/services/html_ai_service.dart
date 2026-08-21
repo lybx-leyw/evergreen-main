@@ -471,7 +471,7 @@ class HtmlAiService extends ChangeNotifier {
   /// 切换到新画板：保存旧会话，重置 Agent，恢复新实例会话。
   ///
   /// I1：会话按实例隔离——[instanceId] 由视图层在 [CanvasManager.ensureInstance]
-  /// 后传入（画板 ↔ 实例 1:1，实例 id 固定不可变）。
+  /// 后传入（画板 ↔ 实例 1:1，实例 id == 插件 id）。
   Future<void> switchCanvas(String newCanvasId, {required String instanceId}) async {
     _saveCanvasSession(); // 保存当前
     _canvasId = newCanvasId;
@@ -487,6 +487,20 @@ class HtmlAiService extends ChangeNotifier {
     _assembly?.dispose(); _assembly = null;
 
     await _ensureAgent();
+  }
+
+  /// 插件 ID 与实例 ID 对齐时调用（I1 修订）。
+  ///
+  /// 不重建 Agent、不清空当前会话，只把当前实例 id 更新为新值，
+  /// 并立即把内存中的会话落盘到新实例路径（CanvasManager 已负责
+  /// 迁移旧目录/会话文件）。这样手动或 AI 导出后修改插件 ID，
+  /// 会话仍与插件保持同一 id，且不会丢失当前未保存的对话。
+  void rebindInstanceId(String newInstanceId) {
+    if (_canvasId == null || _instanceId == null) return;
+    if (newInstanceId.isEmpty || newInstanceId == _instanceId) return;
+    _instanceId = newInstanceId;
+    _saveCanvasSession();
+    debugPrint('[HtmlAiService] 🔀 实例 ID 对齐插件 ID: $_canvasId/$_instanceId');
   }
 
   /// 初始化工作区默认文件。
