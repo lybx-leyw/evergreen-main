@@ -569,6 +569,11 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
     try {
       final text =
           await PymupdfTool.extractText(localPath, pythonPath: pythonPath);
+      if (text.length > 20 * 1024 * 1024) {
+        m.processingError = '提取文本超过 20MiB 上限';
+        m.readability = 'unreadable';
+        return;
+      }
       File(textPath).writeAsStringSync(text);
       m.textPath = textPath;
       m.readability = 'ok';
