@@ -259,7 +259,7 @@ class OcrPipeline {
     // Download image to temp file → OCR
     final resp = await _dio.get<List<int>>(
       imageUrl,
-      options: Options(responseType: ResponseType.bytes),
+      options: Options(responseType: ResponseType.bytes, receiveTimeout: const Duration(seconds: 30), sendTimeout: const Duration(seconds: 10)),
     );
 
     if (resp.data == null || resp.data!.isEmpty) return null;
