@@ -62,6 +62,10 @@ class DownloadFileTool extends Tool {
     if (url.isEmpty || savePath.isEmpty) {
       return '[error: url 与 save_path 必填]';
     }
+    final parsedUrl = Uri.tryParse(url);
+    if (parsedUrl == null || !{'http', 'https'}.contains(parsedUrl.scheme.toLowerCase())) {
+      return '[error: 仅允许 http/https 下载地址]';
+    }
 
     // 路径沙箱：仅允许写入 workspace 内
     final target = p.normalize(p.join(workspaceDir, savePath));
