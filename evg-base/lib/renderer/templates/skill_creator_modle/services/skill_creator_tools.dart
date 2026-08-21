@@ -71,7 +71,9 @@ class DownloadFileTool extends Tool {
 
     try {
       final existing = File(target);
-      if (existing.existsSync() && await existing.length() > 0) {
+      final sourceFile = File('$target.source');
+      if (existing.existsSync() && await existing.length() > 0 &&
+          sourceFile.existsSync() && sourceFile.readAsStringSync() == url) {
         return '[ok] 已命中下载缓存（${await existing.length()} 字节）→ $target';
       }
       Response<List<int>>? resp;
@@ -109,6 +111,7 @@ class DownloadFileTool extends Tool {
       final tmp = File('$target.part');
       await tmp.writeAsBytes(bytes, flush: true);
       await tmp.rename(target);
+      sourceFile.writeAsStringSync(url, flush: true);
       return '[ok] 已下载 ${bytes.length} 字节 → $target';
     } catch (e) {
       return '[error: 下载失败 $url → $e]';
