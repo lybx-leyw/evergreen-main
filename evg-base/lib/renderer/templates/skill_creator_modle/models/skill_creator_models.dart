@@ -337,6 +337,9 @@ class SkillCreatorWorkflow {
       message: message,
       agentId: agentId,
     ));
+    if (events.length > 1000) {
+      events.removeRange(0, events.length - 1000);
+    }
     return this;
   }
 
