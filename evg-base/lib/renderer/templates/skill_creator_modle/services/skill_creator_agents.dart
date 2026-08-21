@@ -280,7 +280,7 @@ class DeepSearchRunner {
     final materials = <Map<String, dynamic>>[];
     final seen = <String>{};
     var index = 0;
-    for (final rm in rawMaterials) {
+    for (final rm in rawMaterials.take(100)) {
       if (rm is! Map) continue;
       final m = rm.map((k, v) => MapEntry(k.toString(), v));
       final localPath = m['localPath']?.toString() ?? '';
