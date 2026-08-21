@@ -65,7 +65,9 @@ class DownloadFileTool extends Tool {
 
     // 路径沙箱：仅允许写入 workspace 内
     final target = p.normalize(p.join(workspaceDir, savePath));
-    if (!target.startsWith(p.normalize(workspaceDir))) {
+    final root = p.normalize(workspaceDir);
+    final rootPrefix = root.endsWith(Platform.pathSeparator) ? root : '$root${Platform.pathSeparator}';
+    if (target != root && !target.startsWith(rootPrefix)) {
       return '[error: save_path 越界，必须位于工作区内]';
     }
 
