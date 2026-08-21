@@ -295,21 +295,21 @@ class SkillCreatorWorkflow {
             orElse: () => SkillCreatorPhase.idle),
         requirement: json['requirement'] as String? ?? '',
         round: json['round'] as int? ?? 0,
-        tasks: (json['tasks'] as List?)
-                ?.map((t) => SearchTask.fromJson(t as Map<String, dynamic>))
-                .toList() ??
-            [],
-        materials: (json['materials'] as List?)
-                ?.map((m) => MaterialItem.fromJson(m as Map<String, dynamic>))
-                .toList() ??
-            [],
+        tasks: (json['tasks'] as List? ?? const [])
+            .whereType<Map>()
+            .map((t) => SearchTask.fromJson(Map<String, dynamic>.from(t)))
+            .take(10).toList(),
+        materials: (json['materials'] as List? ?? const [])
+            .whereType<Map>()
+            .map((m) => MaterialItem.fromJson(Map<String, dynamic>.from(m)))
+            .take(1000).toList(),
         reportPath: json['reportPath'] as String?,
         draftSkillPath: json['draftSkillPath'] as String?,
         exportPath: json['exportPath'] as String?,
-        events: (json['events'] as List?)
-                ?.map((e) => WorkflowEvent.fromJson(e as Map<String, dynamic>))
-                .toList() ??
-            [],
+        events: (json['events'] as List? ?? const [])
+            .whereType<Map>()
+            .map((e) => WorkflowEvent.fromJson(Map<String, dynamic>.from(e)))
+            .take(1000).toList(),
       );
 
   Map<String, dynamic> toJson() => {
