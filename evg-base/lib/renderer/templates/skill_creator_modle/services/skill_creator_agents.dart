@@ -214,6 +214,10 @@ class DeepSearchRunner {
     late StreamSubscription<agent.AgentEvent> sub;
     sub = sink.stream.listen((e) {
       onEvent?.call(e);
+      if (e.kind == agent.EventKind.error && !done.isCompleted) {
+        done.completeError(StateError(e.error ?? e.text ?? '深寻 Agent 事件流错误'));
+        return;
+      }
       if (e.kind == agent.EventKind.turnDone) {
         String? last;
         for (final m in assembly.session.messages.reversed) {
