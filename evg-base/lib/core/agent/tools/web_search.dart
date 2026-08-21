@@ -157,6 +157,14 @@ class WebFetchTool extends Tool {
   Future<String> execute(Map<String, dynamic> args) async {
     final url = args['url']?.toString() ?? '';
     if (url.isEmpty) return '[error: URL 为空]';
+    final parsed = Uri.tryParse(url);
+    if (parsed == null || parsed.host.isEmpty || parsed.userInfo.isNotEmpty || !{'http', 'https'}.contains(parsed.scheme.toLowerCase())) {
+      return '[error: 仅允许有效的 http/https URL]';
+    }
+    final host = parsed.host.toLowerCase();
+    if (host == 'localhost' || host == '127.0.0.1' || host == '::1' || host == '0.0.0.0' || host == '169.254.169.254') {
+      return '[error: 禁止访问本机或云元数据地址]';
+    }
 
     try {
       final response = await _dio.get(
