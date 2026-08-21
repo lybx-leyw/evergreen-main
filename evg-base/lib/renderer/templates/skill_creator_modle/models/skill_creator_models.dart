@@ -150,6 +150,8 @@ class MaterialItem {
 
   /// 可读性状态：ok（文本可用）/ unreadable（扫描版且 OCR 失败）/ skipped。
   String readability;
+  String? processingError;
+  int ocrAttempts;
 
   MaterialItem({
     required this.id,
@@ -163,6 +165,8 @@ class MaterialItem {
     this.year,
     this.summary = '',
     this.readability = 'ok',
+    this.processingError,
+    this.ocrAttempts = 0,
   });
 
   factory MaterialItem.fromJson(Map<String, dynamic> json) => MaterialItem(
@@ -179,6 +183,8 @@ class MaterialItem {
         year: json['year'] as String?,
         summary: json['summary'] as String? ?? '',
         readability: json['readability'] as String? ?? 'ok',
+        processingError: json['processingError'] as String?,
+        ocrAttempts: json['ocrAttempts'] as int? ?? 0,
       );
 
   Map<String, dynamic> toJson() => {
@@ -193,6 +199,8 @@ class MaterialItem {
         if (year != null) 'year': year,
         'summary': summary,
         'readability': readability,
+        if (processingError != null) 'processingError': processingError,
+        'ocrAttempts': ocrAttempts,
       };
 }
 

@@ -817,12 +817,14 @@ class _MaterialsSection extends StatelessWidget {
                           Text('${m.title}（${searchSourceLabel(m.source)}）',
                               style: theme.textTheme.bodySmall),
                           Text(
-                            '${m.url}${m.readability == 'unreadable' ? ' · ⚠ 不可读' : ''}',
+                            '${m.url}${m.readability == 'unreadable' ? ' · ⚠ 不可读' : ''}${m.ocrAttempts > 0 ? ' · OCR ${m.ocrAttempts} 次' : ''}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.labelSmall
                                 ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                           ),
+                          if (m.processingError != null)
+                            Text(m.processingError!, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.error)),
                         ],
                       ),
                     ),

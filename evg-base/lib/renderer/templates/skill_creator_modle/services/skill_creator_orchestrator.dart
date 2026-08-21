@@ -546,6 +546,7 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
     final localPath = m.localPath;
     if (localPath == null || !File(localPath).existsSync()) {
       m.readability = 'skipped';
+      m.processingError = '本地文件不存在';
       return;
     }
     if (p.extension(localPath).toLowerCase() != '.pdf') {
@@ -560,9 +561,11 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
       File(textPath).writeAsStringSync(text);
       m.textPath = textPath;
       m.readability = 'ok';
-    } catch (_) {
+    } catch (e) {
       // 扫描版 → OCR 降级
       try {
+        m.ocrAttempts++;
+        _appendEvent('info', '材料进入 OCR：${m.title}');
         final ocrText = await _ocr.recognizeFile(localPath);
         if (ocrText != null && ocrText.isNotEmpty) {
           File(textPath).writeAsStringSync(ocrText);
@@ -570,9 +573,11 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
           m.readability = 'ocr';
         } else {
           m.readability = 'unreadable';
+          m.processingError = 'OCR 未识别到有效文本';
         }
-      } catch (_) {
+      } catch (ocrError) {
         m.readability = 'unreadable';
+        m.processingError = '文本提取失败：$e；OCR 失败：$ocrError';
       }
     }
   }
