@@ -296,24 +296,16 @@ class DeepSeekProvider implements Provider {
       int lineNum = 0;
       int toolCallCount = 0;
 
-      StringBuffer reasoningBuf = StringBuffer();
-      StringBuffer contentBuf = StringBuffer();
+      final reasoningBuf = StringBuffer();
+      final contentBuf = StringBuffer();
       List<ToolCall>? pendingCalls;
-      String _partialLine = '';
 
-      StringBuffer pendingBuffer = StringBuffer();
-
-      await for (final chunk in byteStream) {
-        pendingBuffer.write(utf8.decode(chunk));
-        // 按行分割，保留最后一个不完整的行
-        final fullText = pendingBuffer.toString();
-        final lastNewline = fullText.lastIndexOf('\n');
-        if (lastNewline < 0) continue; // 还未收到完整的行
-
-        final complete = fullText.substring(0, lastNewline);
-        pendingBuffer = StringBuffer(fullText.substring(lastNewline + 1));
-
-        for (final line in complete.split('\n')) {
+      // 用 UTF-8 流解码器 + 行切分器：
+      // 先按字节边界找到完整行，再对完整行 decode，避免 chunk 把多字节 UTF-8
+      // 字符切在中间导致 FormatException: Unfinished UTF-8 octet sequence。
+      await for (final line in utf8.decoder
+          .bind(byteStream)
+          .transform(const LineSplitter())) {
         lineNum++;
         if (!line.startsWith('data: ')) {
           if (lineNum <= 3) print('[Provider:D] skip non-data line: ${line.substring(0, (line.length).clamp(0, 80))}');
@@ -436,8 +428,7 @@ class DeepSeekProvider implements Provider {
           // 跳过解析失败的 chunk
           continue;
         }
-      } // end for (line)
-    } // end await for (chunk)
+      } // end await for (line)
     } catch (e) {
       yield ProviderEvent.error('API call failed: $e');
     }

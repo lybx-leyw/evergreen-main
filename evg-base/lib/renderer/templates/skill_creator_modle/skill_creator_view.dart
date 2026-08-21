@@ -224,24 +224,46 @@ class _SkillCreatorViewState extends ConsumerState<SkillCreatorView> {
       ),
       body: orch == null
           ? const Center(child: CircularProgressIndicator())
-          : Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(
-                  width: 200,
-                  child: _PanelList(
-                    panels: _panels,
-                    currentId: _currentPanelId,
-                    onSelect: _loadPanel,
-                    onNew: _newPanel,
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                // 窄屏（< 920）固定三栏总宽会超出可用空间 → 改为整体横向滚动，
+                // 避免右侧 AI 面板被推出屏幕造成 RenderFlex 横向溢出。
+                const kMinTotal = 200 + 400 + 320; // 左栏 + 中间最小宽 + 右栏
+                final main = _WorkflowPanel(
+                    orchestrator: orch, onStart: _startPipeline);
+                final panelList = _PanelList(
+                  panels: _panels,
+                  currentId: _currentPanelId,
+                  onSelect: _loadPanel,
+                  onNew: _newPanel,
+                );
+                final aiPanel = _AiPanel(orchestrator: orch);
+
+                if (constraints.maxWidth >= kMinTotal) {
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SizedBox(width: 200, child: panelList),
+                      Expanded(child: main),
+                      SizedBox(width: 320, child: aiPanel),
+                    ],
+                  );
+                }
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: kMinTotal.toDouble(),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        SizedBox(width: 200, child: panelList),
+                        SizedBox(width: 400, child: main),
+                        SizedBox(width: 320, child: aiPanel),
+                      ],
+                    ),
                   ),
-                ),
-                Expanded(child: _WorkflowPanel(orchestrator: orch, onStart: _startPipeline)),
-                SizedBox(
-                  width: 320,
-                  child: _AiPanel(orchestrator: orch),
-                ),
-              ],
+                );
+              },
             ),
     );
   }
@@ -1012,12 +1034,17 @@ class _AiPanel extends StatelessWidget {
                               : theme.colorScheme.surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Text(text,
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: isError
-                              ? theme.colorScheme.onErrorContainer
-                              : null,
-                        )),
+                    child: Text(
+                      text,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: isError
+                            ? theme.colorScheme.onErrorContainer
+                            : null,
+                      ),
+                      softWrap: true,
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 30,
+                    ),
                   ),
                 );
               },
