@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evergreen 下载中心</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --card: #1a2027;
+      --card-hover: #222b34;
+      --accent: #4ade80;
+      --accent-2: #38bdf8;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --border: #2d333b;
+      --zju: #f59e0b;
+      --std: #38bdf8;
+      --debug: #a78bfa;
+      --release: #4ade80;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+        "Microsoft YaHei", sans-serif;
+      background: radial-gradient(circle at top, #16202b 0%, var(--bg) 60%);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+      padding: 0 16px 64px;
+    }
+    header {
+      text-align: center;
+      padding: 56px 16px 32px;
+    }
+    header h1 {
+      font-size: 2.2rem;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
+    }
+    header p { color: var(--muted); font-size: 1rem; }
+    .container { max-width: 880px; margin: 0 auto; }
+    .status {
+      text-align: center;
+      color: var(--muted);
+      padding: 24px;
+      font-size: 0.95rem;
+    }
+    .status.error { color: #f87171; }
+    .version {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 20px;
+      transition: border-color 0.2s;
+    }
+    .version:hover { border-color: #3d4753; }
+    .version-head {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 4px;
+    }
+    .version-name { font-size: 1.3rem; font-weight: 700; }
+    .badge {
+      font-size: 0.72rem;
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+    .badge.pre { background: rgba(167,139,250,0.15); color: var(--debug); }
+    .badge.stable { background: rgba(74,222,128,0.15); color: var(--release); }
+    .badge.draft { background: rgba(139,148,158,0.15); color: var(--muted); }
+    .version-date { color: var(--muted); font-size: 0.85rem; margin-left: auto; }
+    .version-note {
+      color: var(--muted);
+      font-size: 0.9rem;
+      white-space: pre-wrap;
+      margin: 8px 0 18px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+    }
+    .group {
+      background: var(--card-hover);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+    }
+    .group-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .dot.zju { background: var(--zju); }
+    .dot.std { background: var(--std); }
+    .btns { display: flex; flex-direction: column; gap: 8px; }
+    a.btn {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      text-decoration: none;
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 9px;
+      font-size: 0.88rem;
+      transition: all 0.15s;
+    }
+    a.btn:hover { background: #2c3742; border-color: var(--accent); transform: translateY(-1px); }
+    a.btn .tag {
+      font-size: 0.7rem;
+      padding: 1px 8px;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+    a.btn .tag.release { background: rgba(74,222,128,0.15); color: var(--release); }
+    a.btn .tag.debug { background: rgba(167,139,250,0.15); color: var(--debug); }
+    a.btn .arrow { color: var(--muted); }
+    .empty {
+      grid-column: 1 / -1;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.85rem;
+      padding: 12px;
+    }
+    footer {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.8rem;
+      margin-top: 40px;
+      line-height: 1.8;
+    }
+    footer a { color: var(--accent-2); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🌿 Evergreen 下载中心</h1>
+    <p>所有版本（含预发布）一键下载安装 · 数据本地优先 · 无账号</p>
+  </header>
+
+  <div class="container">
+    <div id="status" class="status">正在从 GitHub 拉取版本列表…</div>
+    <div id="versions"></div>
+  </div>
+
+  <footer>
+    版本数据来自 GitHub Releases，自动同步。<br />
+    遇到问题？前往
+    <a href="https://github.com/lybx-leyw/evergreen-main/issues" target="_blank" rel="noopener">Issue 反馈</a>
+    ·
+    <a href="https://github.com/lybx-leyw/evergreen-main" target="_blank" rel="noopener">项目主页</a>
+  </footer>
+
+  <script>
+    const REPO = "lybx-leyw/evergreen-main";
+    const API = `https://api.github.com/repos/${REPO}/releases?per_page=100`;
+
+    // 把一个 release 的 assets 按 版本/平台/模式 归类
+    function classify(assets) {
+      const out = { zju: {}, std: {} };
+      for (const a of assets) {
+        const name = a.name || "";
+        const url = a.browser_download_url;
+        const isApk = name.endsWith(".apk");
+        const isExe = name.toLowerCase().endsWith(".exe");
+        if (!isApk && !isExe) continue;
+
+        let edition = null;
+        if (name.includes("zju") || name.includes("Zju")) edition = "zju";
+        else if (name.includes("std") || name.includes("Std")) edition = "std";
+        if (!edition) continue;
+
+        const mode = /debug/i.test(name) ? "debug" : /release/i.test(name) ? "release" : null;
+        if (!mode) continue;
+
+        const platform = isApk ? "android" : "windows";
+        out[edition][`${platform}-${mode}`] = url;
+      }
+      return out;
+    }
+
+    function btn(label, url, mode) {
+      if (!url) return "";
+      const tagCls = mode === "release" ? "release" : "debug";
+      const tagTxt = mode === "release" ? "正式" : "调试";
+      return `<a class="btn" href="${url}" download>
+        <span>${label}</span>
+        <span class="tag ${tagCls}">${tagTxt}</span>
+        <span class="arrow">↓</span>
+      </a>`;
+    }
+
+    function renderVersion(rel) {
+      const assets = rel.assets || [];
+      const cls = classify(assets);
+      const hasAny = Object.values(cls).some((e) => Object.keys(e).length > 0);
+      if (!hasAny) return "";
+
+      const name = rel.name || rel.tag_name;
+      let badge = "";
+      if (rel.draft) badge = `<span class="badge draft">草稿</span>`;
+      else if (rel.prerelease) badge = `<span class="badge pre">预发布</span>`;
+      else badge = `<span class="badge stable">正式版</span>`;
+
+      const date = rel.published_at
+        ? new Date(rel.published_at).toLocaleDateString("zh-CN")
+        : "";
+
+      const group = (edition, label, dotCls) => {
+        const e = cls[edition];
+        const cells = [
+          btn("🤖 安卓 APK", e["android-release"], "release"),
+          btn("🤖 安卓 APK（调试）", e["android-debug"], "debug"),
+          btn("🪟 Windows 安装包", e["windows-release"], "release"),
+          btn("🪟 Windows 安装包（调试）", e["windows-debug"], "debug"),
+        ].join("");
+        return `<div class="group">
+          <div class="group-title"><span class="dot ${dotCls}"></span>${label}</div>
+          <div class="btns">${cells}</div>
+        </div>`;
+      };
+
+      return `<div class="version">
+        <div class="version-head">
+          <span class="version-name">${name}</span>
+          ${badge}
+          <span class="version-date">${date}</span>
+        </div>
+        ${rel.body ? `<div class="version-note">${escapeHtml(rel.body)}</div>` : ""}
+        <div class="grid">
+          ${group("zju", "浙大专用版", "zju")}
+          ${group("std", "通用版", "std")}
+        </div>
+      </div>`;
+    }
+
+    function escapeHtml(s) {
+      return s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+    }
+
+    async function load() {
+      const statusEl = document.getElementById("status");
+      const wrap = document.getElementById("versions");
+      try {
+        const resp = await fetch(API, {
+          headers: { Accept: "application/vnd.github+json" },
+        });
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        const releases = await resp.json();
+        const html = releases
+          .map(renderVersion)
+          .filter((h) => h)
+          .join("");
+        if (!html) {
+          statusEl.textContent = "暂无可下载的版本。";
+          return;
+        }
+        statusEl.style.display = "none";
+        wrap.innerHTML = html;
+      } catch (e) {
+        statusEl.className = "status error";
+        statusEl.innerHTML =
+          "加载失败：" + e.message +
+          '<br/>可前往 <a href="https://github.com/lybx-leyw/evergreen-main/releases" target="_blank" rel="noopener" style="color:var(--accent-2)">GitHub Releases</a> 手动下载。';
+      }
+    }
+
+    load();
+  </script>
+</body>
+</html>
