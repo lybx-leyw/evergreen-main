@@ -389,7 +389,7 @@ class OcrPipeline {
   }) async {
     final results = List<String?>.filled(items.length, null);
     var next = 0;
-    final n = concurrency.clamp(1, items.length);
+    final n = concurrency.clamp(1, items.length.clamp(1, 8)).toInt();
 
     Future<void> worker() async {
       while (true) {
