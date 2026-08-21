@@ -111,7 +111,11 @@ class DownloadFileTool extends Tool {
       final tmp = File('$target.part');
       await tmp.writeAsBytes(bytes, flush: true);
       await tmp.rename(target);
-      sourceFile.writeAsStringSync(url, flush: true);
+      try {
+        sourceFile.writeAsStringSync(url, flush: true);
+      } catch (_) {
+        // 文件已原子落盘；缓存元数据写失败不应把成功下载报告成失败。
+      }
       return '[ok] 已下载 ${bytes.length} 字节 → $target';
     } catch (e) {
       return '[error: 下载失败 $url → $e]';
