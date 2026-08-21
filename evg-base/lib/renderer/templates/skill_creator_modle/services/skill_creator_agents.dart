@@ -271,14 +271,15 @@ class DeepSearchRunner {
       final fingerprint = _evidenceFingerprint(url, title);
       if (!seen.add(fingerprint)) continue;
       final hasSource = url.startsWith('http://') || url.startsWith('https://');
+      final candidatePath = localPath.isNotEmpty ? p.normalize(p.join(agentWs, localPath)) : null;
+      final rootPrefix = agentWs.endsWith(Platform.pathSeparator) ? agentWs : '$agentWs${Platform.pathSeparator}';
+      final safeLocalPath = candidatePath != null && (candidatePath == agentWs || candidatePath.startsWith(rootPrefix)) ? candidatePath : null;
       materials.add({
         'citationId': 'ev_${++index}',
         'title': m['title']?.toString() ?? '未命名',
         'url': url,
         'type': m['type']?.toString() ?? 'article',
-        'localPath': localPath.isNotEmpty
-            ? p.join(agentWs, localPath)
-            : null,
+        'localPath': safeLocalPath,
         'authors': m['authors']?.toString(),
         'year': m['year']?.toString(),
         'summary': m['summary']?.toString() ?? '',
