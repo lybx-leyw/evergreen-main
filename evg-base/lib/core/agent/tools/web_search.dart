@@ -2,6 +2,7 @@
 library;
 
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
 
@@ -58,6 +59,7 @@ class WebSearchTool extends Tool {
             '$host/search',
             queryParameters: {'q': query, 'cc': 'cn'},
             options: Options(
+              connectTimeout: const Duration(seconds: 10),
               receiveTimeout: const Duration(seconds: 10),
               headers: {
                 'User-Agent':
@@ -66,6 +68,9 @@ class WebSearchTool extends Tool {
               },
             ),
           );
+          if (response.statusCode == null || response.statusCode! < 200 || response.statusCode! >= 300) {
+            continue;
+          }
           html = response.data?.toString() ?? '';
           if (html.isNotEmpty) break;
         } catch (_) {
@@ -74,6 +79,9 @@ class WebSearchTool extends Tool {
       }
 
       if (html == null || html.isEmpty) return '[搜索失败: 无法连接搜索服务]';
+      if (html.length > 8 * 1024 * 1024) {
+        html = html.substring(0, 8 * 1024 * 1024);
+      }
 
       // 提取搜索结果——适应多种 HTML 结构
       final results = <String>[];
@@ -153,11 +161,29 @@ class WebFetchTool extends Tool {
   Future<String> execute(Map<String, dynamic> args) async {
     final url = args['url']?.toString() ?? '';
     if (url.isEmpty) return '[error: URL 为空]';
+    if (url.length > 8192) return '[error: URL 超过 8192 字符上限]';
+    final parsed = Uri.tryParse(url);
+    if (parsed == null || parsed.host.isEmpty || parsed.userInfo.isNotEmpty || !{'http', 'https'}.contains(parsed.scheme.toLowerCase())) {
+      return '[error: 仅允许有效的 http/https URL]';
+    }
+    final host = parsed.host.toLowerCase();
+    final privateIpv4 = RegExp(r'^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)').hasMatch(host);
+    final privateIpv6 = host.startsWith('fc') || host.startsWith('fd') || host.startsWith('fe80:');
+    if (host == 'localhost' || host == '127.0.0.1' || host == '::1' || host == '0.0.0.0' || host == '169.254.169.254' || privateIpv4 || privateIpv6) {
+      return '[error: 禁止访问本机或云元数据地址]';
+    }
+    try {
+      final resolved = await InternetAddress.lookup(host);
+      if (resolved.any((a) => a.isLoopback || a.isLinkLocal || RegExp(r'^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)').hasMatch(a.address) || a.address.startsWith('fc') || a.address.startsWith('fd'))) {
+        return '[error: DNS 解析到受限内网地址]';
+      }
+    } catch (_) { return '[error: 无法解析目标主机]'; }
 
     try {
       final response = await _dio.get(
         url,
         options: Options(
+          connectTimeout: const Duration(seconds: 15),
           receiveTimeout: const Duration(seconds: 30),
           followRedirects: true,
           headers: {
@@ -167,9 +193,15 @@ class WebFetchTool extends Tool {
           },
         ),
       );
+      if (response.statusCode == null || response.statusCode! < 200 || response.statusCode! >= 300) {
+        return '[获取页面失败: HTTP ${response.statusCode}]';
+      }
 
       final html = response.data?.toString() ?? '';
       if (html.isEmpty) return '页面内容为空';
+      if (html.length > 12 * 1024 * 1024) {
+        return '[获取页面失败: 页面超过 12MiB 处理上限]';
+      }
 
       // 提取正文（去除 HTML 标签、压缩空白）
       final bodyMatch = RegExp(r'<body[^>]*>(.*?)</body>', dotAll: true)

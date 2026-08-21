@@ -60,6 +60,7 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
   List<Map<String, dynamic>> get uiMessages => _uiMessages;
 
   bool _busy = false;
+  bool _cancelRequested = false;
   bool get busy => _busy;
 
   /// 当前正在执行的子 agent（任务 id → 状态文本），UI 展示。
@@ -135,13 +136,26 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
   /// 从当前阶段开始跑完剩余流程。
   Future<void> runPipeline() async {
     if (_busy) return;
+    final endpoint = Uri.tryParse(baseUrl);
+    if (apiKey.trim().isEmpty || baseUrl.trim().isEmpty || endpoint == null || endpoint.host.isEmpty || endpoint.userInfo.isNotEmpty || !{'http', 'https'}.contains(endpoint.scheme.toLowerCase())) {
+      _workflow.phase = SkillCreatorPhase.error;
+      _appendEvent('error', '需要接入 DeepSeek/OpenAI-compatible 接口后才能运行深度搜索（请检查 API Key 和 Base URL）。');
+      _saveSession();
+      notifyListeners();
+      return;
+    }
     _busy = true;
+    _cancelRequested = false;
     notifyListeners();
     try {
       var guard = 0;
       while (_workflow.phase != SkillCreatorPhase.done &&
           _workflow.phase != SkillCreatorPhase.error &&
-          guard < 10) {
+             guard < 10) {
+        if (_cancelRequested) {
+          _appendEvent('warn', '流水线已由用户停止，可从当前阶段续做。');
+          break;
+        }
         guard++;
         switch (_workflow.phase) {
           case SkillCreatorPhase.planning:
@@ -184,6 +198,55 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
     }
   }
 
+  /// 请求在当前 Tool/任务完成后停止后续阶段。
+  void cancelPipeline() {
+    if (!_busy) return;
+    _cancelRequested = true;
+    _appendEvent('warn', '已请求停止流水线，正在等待当前任务收尾...');
+    notifyListeners();
+  }
+
+  /// 只重试单个失败的深寻任务，保留其他任务和已入库材料。
+  Future<void> retryTask(String taskId) async {
+    if (_busy) return;
+    final task = _workflow.task(taskId);
+    if (task == null || task.status != TaskStatus.failed) return;
+    task.status = TaskStatus.pending;
+    task.verdict = TaskVerdict.none;
+    task.feedback = '';
+    _workflow.phase = SkillCreatorPhase.collecting;
+    _appendEvent('info', '手动重试深寻任务：${task.query}', agentId: task.id);
+    _saveSession();
+    await runPipeline();
+  }
+
+  /// 批量重试所有失败任务，已完成任务和材料保持不变。
+  Future<void> retryFailedTasks() async {
+    if (_busy) return;
+    final failed = _workflow.tasks.where((t) => t.status == TaskStatus.failed).toList();
+    if (failed.isEmpty) return;
+    for (final task in failed) {
+      task.status = TaskStatus.pending;
+      task.verdict = TaskVerdict.none;
+      task.feedback = '';
+    }
+    _workflow.phase = SkillCreatorPhase.collecting;
+    _appendEvent('info', '批量重试 ${failed.length} 个失败深寻任务');
+    _saveSession();
+    await runPipeline();
+  }
+
+  Future<void> retryMaterialOcr(String materialId) async {
+    final material = _workflow.material(materialId);
+    if (material == null || material.localPath == null || _busy) return;
+    material.processingError = null;
+    material.readability = 'pending';
+    _appendEvent('info', '手动重试 OCR：${material.title}');
+    await _processMaterial(material);
+    _saveSession();
+    notifyListeners();
+  }
+
   // ═══════ 阶段实现 ═══════
 
   /// ① 规划：按来源拆分任务。
@@ -193,14 +256,16 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
       provider: _provider,
       requirement: _workflow.requirement,
     );
-    _workflow.tasks = plans.map((m) {
+    _workflow.tasks = plans.take(10).map((m) {
       final source = SearchSource.values.firstWhere(
           (s) => s.name == m['source'],
           orElse: () => SearchSource.web);
       return SearchTask(
         id: 'task_${DateTime.now().millisecondsSinceEpoch}_${_workflow.tasks.length + plans.indexOf(m)}',
         source: source,
-        query: m['query'] as String? ?? '',
+        query: (((m['query'] as String?) ?? '').trim().length > 4096)
+            ? ((m['query'] as String?) ?? '').trim().substring(0, 4096)
+            : ((m['query'] as String?) ?? '').trim(),
       );
     }).toList();
 
@@ -236,12 +301,20 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
       pythonPath: pythonPath,
       ocrApiKey: ocrApiKey,
     );
+    // C 阶段：采集前记录 OCR 能力，扫描版材料失败时用户能看到真实原因。
+    try {
+      final readiness = await OcrPipeline(Dio(), null, ocrApiKey).checkReadiness();
+      _appendEvent('info', 'OCR 就绪：${readiness.summarize()}');
+    } catch (e) {
+      _appendEvent('warn', 'OCR 就绪检查失败：$e');
+    }
 
     // 并行执行（共享 Provider，各任务独立 AgentAssembly）
     await Future.wait(pending.map((task) async {
       _agentStatus[task.id] = 'running';
       notifyListeners();
       task.status = TaskStatus.running;
+      task.attempts++;
       _saveSession();
 
       final result = await runner.run(
@@ -270,6 +343,10 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
 
         // 材料入库 + 全文提取（PDF → 文本，扫描版降级 OCR）
         for (final rm in result.materials) {
+          if (_workflow.materials.length >= 1000) {
+            _appendEvent('warn', '材料总量已达 1000 条上限，跳过后续材料', agentId: task.id);
+            break;
+          }
           final m = MaterialItem(
             id: 'mat_${DateTime.now().millisecondsSinceEpoch}_${_workflow.materials.length}',
             source: task.source,
@@ -485,9 +562,16 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
 
   /// 材料全文提取（PDF → 文本；扫描版降级 OCR）。
   Future<void> _processMaterial(MaterialItem m) async {
+    // 重试前清除旧文本引用，避免失败后继续消费上一次的过期结果。
+    if (m.textPath != null) {
+      try { File(m.textPath!).deleteSync(); } catch (_) {}
+      m.textPath = null;
+    }
+    m.processingError = null;
     final localPath = m.localPath;
     if (localPath == null || !File(localPath).existsSync()) {
       m.readability = 'skipped';
+      m.processingError = '本地文件不存在';
       return;
     }
     if (p.extension(localPath).toLowerCase() != '.pdf') {
@@ -499,22 +583,37 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
     try {
       final text =
           await PymupdfTool.extractText(localPath, pythonPath: pythonPath);
+      if (text.trim().isEmpty) throw StateError('PDF 没有文本层');
+      if (text.length > 20 * 1024 * 1024) {
+        m.processingError = '提取文本超过 20MiB 上限';
+        m.readability = 'unreadable';
+        return;
+      }
       File(textPath).writeAsStringSync(text);
       m.textPath = textPath;
       m.readability = 'ok';
-    } catch (_) {
+    } catch (e) {
       // 扫描版 → OCR 降级
       try {
+        m.ocrAttempts++;
+        _appendEvent('info', '材料进入 OCR：${m.title}');
         final ocrText = await _ocr.recognizeFile(localPath);
         if (ocrText != null && ocrText.isNotEmpty) {
+          if (ocrText.length > 20 * 1024 * 1024) {
+            m.readability = 'unreadable';
+            m.processingError = 'OCR 文本超过 20MiB 上限';
+            return;
+          }
           File(textPath).writeAsStringSync(ocrText);
           m.textPath = textPath;
           m.readability = 'ocr';
         } else {
           m.readability = 'unreadable';
+          m.processingError = 'OCR 未识别到有效文本';
         }
-      } catch (_) {
+      } catch (ocrError) {
         m.readability = 'unreadable';
+        m.processingError = '文本提取失败：$e；OCR 失败：$ocrError';
       }
     }
   }

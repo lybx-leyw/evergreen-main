@@ -203,6 +203,18 @@ class _SkillCreatorViewState extends ConsumerState<SkillCreatorView> {
               tooltip: '续做',
               onPressed: orch!.busy ? null : () => orch!.resume(),
             ),
+          if (orch?.busy == true)
+            IconButton(
+              icon: const Icon(Icons.stop_circle_outlined),
+              tooltip: '停止流水线',
+              onPressed: () => orch!.cancelPipeline(),
+            ),
+          if (orch != null && orch.workflow.tasks.any((t) => t.status == TaskStatus.failed))
+            IconButton(
+              icon: const Icon(Icons.replay_circle_filled_outlined),
+              tooltip: '重试全部失败任务',
+              onPressed: orch.busy ? null : () => orch.retryFailedTasks(),
+            ),
           IconButton(
             icon: const Icon(Icons.add),
             tooltip: '新建面板',
@@ -318,6 +330,8 @@ class _WorkflowPanel extends StatelessWidget {
       children: [
         _PhaseHeader(phase: wf.phase, busy: orchestrator.busy),
         const SizedBox(height: 12),
+        _WorkflowTree(workflow: wf, agentStatus: orchestrator.agentStatus),
+        const SizedBox(height: 12),
         _RequirementCard(
           orchestrator: orchestrator,
           onStart: onStart,
@@ -328,7 +342,7 @@ class _WorkflowPanel extends StatelessWidget {
         ],
         if (wf.materials.isNotEmpty) ...[
           const SizedBox(height: 12),
-          _MaterialsSection(materials: wf.materials),
+          _MaterialsSection(materials: wf.materials, orchestrator: orchestrator),
         ],
         const SizedBox(height: 12),
         _EventsSection(events: wf.events),
@@ -337,6 +351,89 @@ class _WorkflowPanel extends StatelessWidget {
           _ExportCard(path: wf.exportPath!),
         ],
       ],
+    );
+  }
+}
+
+/// 动态工作流树：把阶段、深寻任务和最近事件放在同一条可读路径上。
+class _WorkflowTree extends StatelessWidget {
+  final SkillCreatorWorkflow workflow;
+  final Map<String, String> agentStatus;
+  const _WorkflowTree({required this.workflow, required this.agentStatus});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final failedCount = workflow.tasks.where((t) => t.status == TaskStatus.failed).length;
+    final runningCount = workflow.tasks.where((t) => t.status == TaskStatus.running).length;
+    final doneCount = workflow.tasks.where((t) => t.status == TaskStatus.done).length;
+    final progress = workflow.tasks.isEmpty ? 0.0 : doneCount / workflow.tasks.length;
+    final nodes = <Widget>[
+      _treeNode(scheme, Icons.account_tree, 'Skill 创作流水线', '${workflow.phase.name} · 完成 $doneCount/${workflow.tasks.length} · 运行 $runningCount${failedCount > 0 ? ' · 失败 $failedCount' : ''}', false),
+      _treeNode(scheme, Icons.route, '规划', workflow.tasks.isEmpty ? '等待任务' : '${workflow.tasks.length} 个任务', workflow.phase.index > SkillCreatorPhase.planning.index),
+      for (final task in workflow.tasks)
+        _treeNode(
+          scheme,
+          Icons.search,
+          task.query,
+          _taskStatus(task.id, task),
+          task.status == TaskStatus.done,
+        ),
+      for (final agentId in _agentIds())
+        _treeNode(scheme, Icons.smart_toy, 'Agent ${agentId.length > 16 ? agentId.substring(0, 16) : agentId}', _latestAgentEvent(agentId) ?? '已记录', false),
+      _treeNode(scheme, Icons.fact_check, '证据整合', '${workflow.materials.length} 份材料', workflow.phase.index > SkillCreatorPhase.integrating.index),
+      _treeNode(scheme, Icons.auto_awesome, 'Skill 导出', workflow.exportPath == null ? '等待' : '已完成', workflow.exportPath != null),
+    ];
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('动态工作流', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 6),
+          LinearProgressIndicator(value: progress, minHeight: 5, borderRadius: BorderRadius.circular(3)),
+          const SizedBox(height: 6),
+          ...nodes,
+        ]),
+      ),
+    );
+  }
+
+  String? _latestAgentEvent(String agentId) {
+    for (final event in workflow.events.reversed) {
+      if (event.agentId == agentId) return event.message;
+    }
+    return null;
+  }
+
+  String _taskStatus(String taskId, SearchTask task) {
+    final live = agentStatus[taskId];
+    if (live != null && live.isNotEmpty) return live;
+    final event = workflow.events.reversed.firstWhere(
+      (e) => e.agentId == taskId,
+      orElse: () => WorkflowEvent(at: DateTime.fromMillisecondsSinceEpoch(0), level: '', phase: '', message: ''),
+    );
+    if (event.message.isNotEmpty) return '${event.message} · ${task.materialIds.length} 份材料';
+    return '${task.status.name} · ${task.materialIds.length} 份材料';
+  }
+
+  List<String> _agentIds() {
+    final ids = <String>{};
+    for (final event in workflow.events) {
+      if (event.agentId != null && event.agentId!.isNotEmpty) ids.add(event.agentId!);
+    }
+    return ids.toList();
+  }
+
+  Widget _treeNode(ColorScheme scheme, IconData icon, String title, String status, bool done) {
+    final failed = status == 'failed' || status.contains('失败');
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(children: [
+        Icon(done ? Icons.check_circle : failed ? Icons.error : icon, size: 16, color: done ? scheme.primary : failed ? scheme.error : scheme.outline),
+        const SizedBox(width: 8),
+        Expanded(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis)),
+        Text(status, style: TextStyle(fontSize: 11, color: failed ? scheme.error : scheme.outline)),
+      ]),
     );
   }
 }
@@ -660,6 +757,15 @@ class _TaskCard extends StatelessWidget {
                   style: theme.textTheme.labelSmall
                       ?.copyWith(color: theme.colorScheme.tertiary)),
             ),
+          if (task.status == TaskStatus.failed)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: orch.busy ? null : () => orch.retryTask(task.id),
+                icon: const Icon(Icons.refresh, size: 15),
+                label: const Text('重试此任务'),
+              ),
+            ),
         ],
       ),
     );
@@ -670,8 +776,9 @@ class _TaskCard extends StatelessWidget {
 
 class _MaterialsSection extends StatelessWidget {
   final List<MaterialItem> materials;
+  final SkillCreatorOrchestrator orchestrator;
 
-  const _MaterialsSection({required this.materials});
+  const _MaterialsSection({required this.materials, required this.orchestrator});
 
   @override
   Widget build(BuildContext context) {
@@ -711,12 +818,16 @@ class _MaterialsSection extends StatelessWidget {
                           Text('${m.title}（${searchSourceLabel(m.source)}）',
                               style: theme.textTheme.bodySmall),
                           Text(
-                            '${m.url}${m.readability == 'unreadable' ? ' · ⚠ 不可读' : ''}',
+                            '${m.url}${m.readability == 'unreadable' ? ' · ⚠ 不可读' : ''}${m.ocrAttempts > 0 ? ' · OCR ${m.ocrAttempts} 次' : ''}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.labelSmall
                                 ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
                           ),
+                          if (m.processingError != null)
+                            Text(m.processingError!, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.error)),
+                          if (m.readability == 'unreadable')
+                            TextButton(onPressed: orchestrator.busy ? null : () => orchestrator.retryMaterialOcr(m.id), child: const Text('重试 OCR')),
                         ],
                       ),
                     ),
@@ -732,29 +843,51 @@ class _MaterialsSection extends StatelessWidget {
 
 // ═══════ 事件/交涉日志 ═══════
 
-class _EventsSection extends StatelessWidget {
+class _EventsSection extends StatefulWidget {
   final List<WorkflowEvent> events;
 
   const _EventsSection({required this.events});
 
   @override
+  State<_EventsSection> createState() => _EventsSectionState();
+}
+
+class _EventsSectionState extends State<_EventsSection> {
+  String _filter = 'all';
+  String _agentFilter = 'all';
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final visible = widget.events.where((e) => (_filter == 'all' || e.level == _filter) && (_agentFilter == 'all' || e.agentId == _agentFilter)).toList();
+    final agents = widget.events.map((e) => e.agentId).whereType<String>().where((e) => e.isNotEmpty).toSet().toList();
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('📋 流水线日志（${events.length}）',
+            Text('📋 流水线日志（${widget.events.length}）',
                 style: theme.textTheme.titleSmall
                     ?.copyWith(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            if (events.isEmpty)
+            Wrap(spacing: 4, children: [
+              for (final f in const [('all', '全部'), ('info', '信息'), ('warn', '警告'), ('error', '错误'), ('negotiation', '协商')])
+                ChoiceChip(label: Text(f.$2, style: const TextStyle(fontSize: 10)), selected: _filter == f.$1, onSelected: (_) => setState(() => _filter = f.$1)),
+            ]),
+            if (agents.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: [
+                ChoiceChip(label: const Text('全部 Agent', style: TextStyle(fontSize: 10)), selected: _agentFilter == 'all', onSelected: (_) => setState(() => _agentFilter = 'all')),
+                for (final id in agents) Padding(padding: const EdgeInsets.only(left: 4), child: ChoiceChip(label: Text(id.length > 12 ? id.substring(0, 12) : id, style: const TextStyle(fontSize: 10)), selected: _agentFilter == id, onSelected: (_) => setState(() => _agentFilter = id))),
+              ])),
+            ],
+            const SizedBox(height: 8),
+            if (visible.isEmpty)
               Text('暂无事件',
                   style: theme.textTheme.bodySmall
                       ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-            for (final e in events.reversed.take(30))
+            for (final e in visible.reversed.take(30))
               Padding(
                 padding: const EdgeInsets.only(bottom: 4),
                 child: Row(
@@ -778,10 +911,14 @@ class _EventsSection extends StatelessWidget {
                     ),
                     const SizedBox(width: 6),
                     Expanded(
-                      child: Text(
-                        e.message,
-                        style: theme.textTheme.labelSmall,
-                      ),
+                      child: Row(children: [
+                        if (e.agentId != null) ...[
+                          Chip(label: Text(e.agentId!.length > 10 ? e.agentId!.substring(0, 10) : e.agentId!, style: const TextStyle(fontSize: 9)), visualDensity: VisualDensity.compact, padding: EdgeInsets.zero),
+                          const SizedBox(width: 4),
+                        ],
+                        Expanded(child: Text(e.message, style: theme.textTheme.labelSmall)),
+                        Text('${e.at.hour.toString().padLeft(2, '0')}:${e.at.minute.toString().padLeft(2, '0')}', style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.outline)),
+                      ]),
                     ),
                   ],
                 ),

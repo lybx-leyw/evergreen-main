@@ -810,11 +810,22 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
           child: IndexedStack(
             index: _narrowTab,
             children: [
-              DataPanel(
-                key: _dataPanelGlobalKey,
-                dataService: _dataService,
-                onSelectSource: _loadDataIntoEditor,
-                selectedSource: _selectedDataSource,
+              HtmlSidebar(
+                canvases: _canvases,
+                currentCanvasId: _currentCanvasId,
+                currentInstanceId: _currentInstanceId,
+                instancesByBoard: _instancesByBoard,
+                onSelectCanvas: _loadCanvas,
+                onNewCanvas: _newCanvas,
+                onDeleteCanvas: _deleteCanvas,
+                onRenameCanvas: _renameCanvasById,
+                onRenameInstance: _renameInstance,
+                dataPanel: DataPanel(
+                  key: _dataPanelGlobalKey,
+                  dataService: _dataService,
+                  onSelectSource: _loadDataIntoEditor,
+                  selectedSource: _selectedDataSource,
+                ),
               ),
               EditorPanel(
                 key: _editorGlobalKey,
@@ -848,9 +859,9 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
 
   // ── 竖版窄屏 Tab 导航 ──
 
-  /// 竖版 Tab 顺序：数据 / 编辑 / 预览 / AI。
+  /// 竖版 Tab 顺序：画板 / 编辑 / 预览 / AI。
   static const _narrowTabs = <(IconData, String)>[
-    (Icons.storage, '数据'),
+    (Icons.dashboard_customize, '画板'),
     (Icons.code, '编辑'),
     (Icons.visibility, '预览'),
     (Icons.auto_awesome, 'AI'),

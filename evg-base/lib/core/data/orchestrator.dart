@@ -221,6 +221,21 @@ class DataOrchestrator {
     }
   }
 
+  /// 启动时按注册顺序强制串行拉取全部数据源。
+  /// 单个数据源失败只记录状态，不阻塞后续数据源。
+  Future<void> refreshAllSerial({List<DataType>? types}) async {
+    final queue = types ?? _types.values.toList(growable: false);
+    for (final type in queue) {
+      if (!_fetchers.containsKey(type.name)) continue;
+      try {
+        await refresh<dynamic>(type);
+      } catch (e) {
+        Log().warn('DataOrchestrator: 启动串行拉取失败',
+            data: {'name': type.name, 'error': e.toString()});
+      }
+    }
+  }
+
   /// 按名称查找已注册的 [DataType]（无类型参数版本）。供 Agent Tool 等通过字符串名称查询。
   DataType? typeByName(String name) => _types[name];
 

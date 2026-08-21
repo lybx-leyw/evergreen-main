@@ -92,21 +92,21 @@ class SearchTask {
   }) : materialIds = materialIds ?? [];
 
   factory SearchTask.fromJson(Map<String, dynamic> json) => SearchTask(
-        id: json['id'] as String? ?? '',
+        id: json['id']?.toString() ?? '',
         source: SearchSource.values.firstWhere(
             (s) => s.name == json['source'],
             orElse: () => SearchSource.web),
-        query: json['query'] as String? ?? '',
+        query: json['query']?.toString() ?? '',
         status: TaskStatus.values.firstWhere(
             (s) => s.name == json['status'],
             orElse: () => TaskStatus.pending),
         verdict: TaskVerdict.values.firstWhere(
             (v) => v.name == json['verdict'],
             orElse: () => TaskVerdict.none),
-        feedback: json['feedback'] as String? ?? '',
-        resultSummary: json['resultSummary'] as String? ?? '',
-        materialIds: (json['materialIds'] as List?)?.cast<String>() ?? [],
-        attempts: json['attempts'] as int? ?? 0,
+        feedback: json['feedback']?.toString() ?? '',
+        resultSummary: json['resultSummary']?.toString() ?? '',
+        materialIds: (json['materialIds'] as List?)?.whereType<String>().toList() ?? [],
+        attempts: (json['attempts'] as num?)?.toInt() ?? 0,
       );
 
   Map<String, dynamic> toJson() => {
@@ -150,6 +150,8 @@ class MaterialItem {
 
   /// 可读性状态：ok（文本可用）/ unreadable（扫描版且 OCR 失败）/ skipped。
   String readability;
+  String? processingError;
+  int ocrAttempts;
 
   MaterialItem({
     required this.id,
@@ -163,6 +165,8 @@ class MaterialItem {
     this.year,
     this.summary = '',
     this.readability = 'ok',
+    this.processingError,
+    this.ocrAttempts = 0,
   });
 
   factory MaterialItem.fromJson(Map<String, dynamic> json) => MaterialItem(
@@ -170,15 +174,17 @@ class MaterialItem {
         source: SearchSource.values.firstWhere(
             (s) => s.name == json['source'],
             orElse: () => SearchSource.web),
-        title: json['title'] as String? ?? '',
-        url: json['url'] as String? ?? '',
-        type: json['type'] as String? ?? 'article',
-        localPath: json['localPath'] as String?,
-        textPath: json['textPath'] as String?,
-        authors: json['authors'] as String?,
-        year: json['year'] as String?,
-        summary: json['summary'] as String? ?? '',
-        readability: json['readability'] as String? ?? 'ok',
+        title: json['title']?.toString() ?? '',
+        url: json['url']?.toString() ?? '',
+        type: json['type']?.toString() ?? 'article',
+        localPath: json['localPath']?.toString(),
+        textPath: json['textPath']?.toString(),
+        authors: json['authors']?.toString(),
+        year: json['year']?.toString(),
+        summary: json['summary']?.toString() ?? '',
+        readability: json['readability']?.toString() ?? 'ok',
+        processingError: json['processingError']?.toString(),
+        ocrAttempts: (json['ocrAttempts'] as num?)?.toInt() ?? 0,
       );
 
   Map<String, dynamic> toJson() => {
@@ -193,6 +199,8 @@ class MaterialItem {
         if (year != null) 'year': year,
         'summary': summary,
         'readability': readability,
+        if (processingError != null) 'processingError': processingError,
+        'ocrAttempts': ocrAttempts,
       };
 }
 
@@ -222,10 +230,10 @@ class WorkflowEvent {
         at: json['at'] != null
             ? (DateTime.tryParse(json['at'] as String) ?? DateTime.now())
             : DateTime.now(),
-        level: json['level'] as String? ?? 'info',
-        phase: json['phase'] as String? ?? '',
-        message: json['message'] as String? ?? '',
-        agentId: json['agentId'] as String?,
+        level: json['level']?.toString() ?? 'info',
+        phase: json['phase']?.toString() ?? '',
+        message: json['message']?.toString() ?? '',
+        agentId: json['agentId']?.toString(),
       );
 
   Map<String, dynamic> toJson() => {
@@ -286,22 +294,22 @@ class SkillCreatorWorkflow {
             (p) => p.name == json['phase'],
             orElse: () => SkillCreatorPhase.idle),
         requirement: json['requirement'] as String? ?? '',
-        round: json['round'] as int? ?? 0,
-        tasks: (json['tasks'] as List?)
-                ?.map((t) => SearchTask.fromJson(t as Map<String, dynamic>))
-                .toList() ??
-            [],
-        materials: (json['materials'] as List?)
-                ?.map((m) => MaterialItem.fromJson(m as Map<String, dynamic>))
-                .toList() ??
-            [],
+        round: (json['round'] as num?)?.toInt() ?? 0,
+        tasks: (json['tasks'] as List? ?? const [])
+            .whereType<Map>()
+            .map((t) => SearchTask.fromJson(Map<String, dynamic>.from(t)))
+            .take(10).toList(),
+        materials: (json['materials'] as List? ?? const [])
+            .whereType<Map>()
+            .map((m) => MaterialItem.fromJson(Map<String, dynamic>.from(m)))
+            .take(1000).toList(),
         reportPath: json['reportPath'] as String?,
         draftSkillPath: json['draftSkillPath'] as String?,
         exportPath: json['exportPath'] as String?,
-        events: (json['events'] as List?)
-                ?.map((e) => WorkflowEvent.fromJson(e as Map<String, dynamic>))
-                .toList() ??
-            [],
+        events: (json['events'] as List? ?? const [])
+            .whereType<Map>()
+            .map((e) => WorkflowEvent.fromJson(Map<String, dynamic>.from(e)))
+            .take(1000).toList(),
       );
 
   Map<String, dynamic> toJson() => {
@@ -329,6 +337,9 @@ class SkillCreatorWorkflow {
       message: message,
       agentId: agentId,
     ));
+    if (events.length > 1000) {
+      events.removeRange(0, events.length - 1000);
+    }
     return this;
   }
 

@@ -53,7 +53,7 @@ class OcrPipeline {
     if (_apiKey.isNotEmpty) {
       try {
         final result = await _deepseekOcr(filePath, _apiKey);
-        if (result != null && result.isNotEmpty) {
+        if (_isUsableText(result)) {
           Log().info('OcrPipeline: Level 1 (DeepSeek) succeeded',
               data: {'path': filePath, 'length': result.length});
           return result;
@@ -85,11 +85,15 @@ class OcrPipeline {
   /// 下载图片后优先用 DeepSeek-OCR，失败降级到 Tesseract。
   /// 返回识别文本，失败返回空字符串（与 _ocrOneSlide 接口兼容）。
   Future<String> recognizeUrl(String imageUrl) async {
+    final parsed = Uri.tryParse(imageUrl);
+    if (parsed == null || parsed.host.isEmpty || !{'http', 'https'}.contains(parsed.scheme.toLowerCase())) {
+      return '';
+    }
     // Level 1: download → DeepSeek-OCR
     if (_apiKey.isNotEmpty) {
       try {
         final result = await _deepseekOcrUrl(imageUrl, _apiKey);
-        if (result != null && result.isNotEmpty) {
+        if (_isUsableText(result)) {
           Log().info('OcrPipeline: Level 1 (DeepSeek) URL succeeded',
               data: {'length': result.length});
           return result;
@@ -179,9 +183,16 @@ class OcrPipeline {
       return null;
     }
 
-    final imgProc = await runOcrProcess(await resolvePythonExe() ?? 'python', [
-      pdfScript, '--path', pdfPath, '--output_dir', outDir, '--dpi', '150',
-    ]).timeout(const Duration(seconds: 120));
+    late ProcessResult imgProc;
+    try {
+      imgProc = await runOcrProcess(await resolvePythonExe() ?? 'python', [
+        pdfScript, '--path', pdfPath, '--output_dir', outDir, '--dpi', '150',
+      ]).timeout(const Duration(seconds: 120));
+    } catch (e) {
+      try { await Directory(outDir).delete(recursive: true); } catch (_) {}
+      Log().warn('OcrPipeline: PDF 转图片异常', error: e);
+      return null;
+    }
 
     if (imgProc.exitCode != 0) {
       Log().warn('OcrPipeline: pdf_to_images failed',
@@ -192,64 +203,71 @@ class OcrPipeline {
     List<Map<String, dynamic>> pages;
     try {
       final parsed = jsonDecode(imgProc.stdout as String) as Map<String, dynamic>;
-      pages = (parsed['pages'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      final rawPages = parsed['pages'] as List? ?? const [];
+      pages = rawPages.whereType<Map>().map((p) => Map<String, dynamic>.from(p)).toList();
     } catch (e) {
       Log().warn('OcrPipeline: failed to parse pdf_to_images output', error: e);
+      try { await Directory(outDir).delete(recursive: true); } catch (_) {}
       return null;
     }
 
     if (pages.isEmpty) {
       Log().warn('OcrPipeline: PDF produced no pages');
+      try { await Directory(outDir).delete(recursive: true); } catch (_) {}
       return null;
     }
+    if (pages.length > 100) {
+      Log().warn('OcrPipeline: PDF 页数超过 100，截断 OCR 任务', data: {'pages': pages.length});
+      pages = pages.take(100).toList();
+    }
 
-    // 2. OCR each page with DeepSeek（并行）
-    final ocrService = DeepSeekOcrService(_dio, apiKey);
-    final texts = await _runParallel(
-      pages,
-      (page) async {
+    try {
+      // 2. OCR each page with DeepSeek（并行）
+      final ocrService = DeepSeekOcrService(_dio, apiKey);
+      final texts = await _runParallel(pages, (page) async {
         final imgPath = page['path'] as String?;
         if (imgPath == null) return null;
-        return ocrService.recognize(File(imgPath));
-      },
-      concurrency: pageConcurrency,
-    );
+        for (var attempt = 0; attempt < 2; attempt++) {
+          try {
+            final value = await ocrService.recognize(File(imgPath));
+            if (value != null && value.isNotEmpty) return value;
+          } catch (_) { if (attempt == 1) rethrow; }
+        }
+        return null;
+      }, concurrency: pageConcurrency);
 
-    // 3. Merge in original page order（单页失败容忍，跳过）
-    final buf = StringBuffer();
-    var succeeded = 0;
-    for (var i = 0; i < pages.length; i++) {
-      final text = texts[i];
-      if (text == null || text.isEmpty) continue;
-      succeeded++;
-      if (pages.length > 1) {
-        buf.writeln('--- 第 ${pages[i]['page']} 页 ---');
+      // 3. Merge in original page order（单页失败容忍，跳过）
+      final buf = StringBuffer();
+      var succeeded = 0;
+      for (var i = 0; i < pages.length; i++) {
+        final text = texts[i];
+        if (text == null || text.isEmpty) continue;
+        succeeded++;
+        if (pages.length > 1) buf.writeln('--- 第 ${pages[i]['page']} 页 ---');
+        buf.writeln(text);
+        buf.writeln();
       }
-      buf.writeln(text);
-      buf.writeln();
+      if (succeeded == 0 || buf.isEmpty) return null;
+      Log().info('OcrPipeline: Level 1 PDF OCR 完成', data: {'pages': pages.length, 'succeeded': succeeded});
+      return buf.toString().trim();
+    } finally {
+      try { await Directory(outDir).delete(recursive: true); }
+      catch (e) { Log().warn('OcrPipeline: 临时图片目录清理失败: $e', error: e); }
     }
-
-    // 4. Clean up temp images
-    try {
-      await Directory(outDir).delete(recursive: true);
-    } catch (e) {
-      Log().warn('OcrPipeline: 临时图片目录清理失败: $e', error: e);
-    }
-
-    if (succeeded == 0 || buf.isEmpty) return null;
-    Log().info('OcrPipeline: Level 1 PDF OCR 完成',
-        data: {'pages': pages.length, 'succeeded': succeeded});
-    return buf.toString().trim();
   }
 
   Future<String?> _deepseekOcrUrl(String imageUrl, String apiKey) async {
     // Download image to temp file → OCR
     final resp = await _dio.get<List<int>>(
       imageUrl,
-      options: Options(responseType: ResponseType.bytes),
+      options: Options(responseType: ResponseType.bytes, receiveTimeout: const Duration(seconds: 30), sendTimeout: const Duration(seconds: 10)),
     );
 
     if (resp.data == null || resp.data!.isEmpty) return null;
+    if (resp.data!.length > 20 * 1024 * 1024) {
+      Log().warn('OcrPipeline: 远程图片超过 20MiB 上限');
+      return null;
+    }
 
     final suffix = p.extension(imageUrl).isNotEmpty
         ? p.extension(imageUrl)
@@ -307,6 +325,15 @@ class OcrPipeline {
     }
   }
 
+  /// 过滤 OCR 服务返回的空壳/错误页，避免把低质量结果当成成功缓存。
+  bool _isUsableText(String? text) {
+    if (text == null) return false;
+    final normalized = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (normalized.length < 8) return false;
+    if (normalized.startsWith('{"error"') || normalized.startsWith('[error')) return false;
+    return normalized.runes.length >= 8;
+  }
+
   Future<String> _tesseractOcrUrl(String imageUrl) async {
     // Python subprocess (Tesseract / ocr_slides)
     try {
@@ -362,7 +389,7 @@ class OcrPipeline {
   }) async {
     final results = List<String?>.filled(items.length, null);
     var next = 0;
-    final n = concurrency.clamp(1, items.length);
+    final n = concurrency.clamp(1, items.length.clamp(1, 8)).toInt();
 
     Future<void> worker() async {
       while (true) {
