@@ -145,7 +145,10 @@ class Registry {
 
     try {
       final args = jsonDecode(argsJson) as Map<String, dynamic>;
-      return await tool.execute(args);
+      final result = await tool.execute(args);
+      // 工具协议要求始终返回可被模型消费的结果；空返回不能被误判为
+      // “工具链已结束”。保留成功语义并给模型一个明确确认。
+      return result.trim().isEmpty ? '[ok: tool "$name" completed with no output]' : result;
     } catch (e) {
       return '[error: tool "$name" failed: $e]';
     }
@@ -158,7 +161,8 @@ class Registry {
     if (_disabled.contains(name)) return '[error: tool "$name" is disabled]';
 
     try {
-      return await tool.execute(args);
+      final result = await tool.execute(args);
+      return result.trim().isEmpty ? '[ok: tool "$name" completed with no output]' : result;
     } catch (e) {
       return '[error: tool "$name" failed: $e]';
     }

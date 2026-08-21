@@ -60,6 +60,7 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
   List<Map<String, dynamic>> get uiMessages => _uiMessages;
 
   bool _busy = false;
+  bool _cancelRequested = false;
   bool get busy => _busy;
 
   /// 当前正在执行的子 agent（任务 id → 状态文本），UI 展示。
@@ -135,13 +136,25 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
   /// 从当前阶段开始跑完剩余流程。
   Future<void> runPipeline() async {
     if (_busy) return;
+    if (apiKey.trim().isEmpty || baseUrl.trim().isEmpty) {
+      _workflow.phase = SkillCreatorPhase.error;
+      _appendEvent('error', '需要接入 DeepSeek/OpenAI-compatible 接口后才能运行深度搜索（请检查 API Key 和 Base URL）。');
+      _saveSession();
+      notifyListeners();
+      return;
+    }
     _busy = true;
+    _cancelRequested = false;
     notifyListeners();
     try {
       var guard = 0;
       while (_workflow.phase != SkillCreatorPhase.done &&
           _workflow.phase != SkillCreatorPhase.error &&
-          guard < 10) {
+             guard < 10) {
+        if (_cancelRequested) {
+          _appendEvent('warn', '流水线已由用户停止，可从当前阶段续做。');
+          break;
+        }
         guard++;
         switch (_workflow.phase) {
           case SkillCreatorPhase.planning:
@@ -182,6 +195,44 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
       _agentStatus.clear();
       notifyListeners();
     }
+  }
+
+  /// 请求在当前 Tool/任务完成后停止后续阶段。
+  void cancelPipeline() {
+    if (!_busy) return;
+    _cancelRequested = true;
+    _appendEvent('warn', '已请求停止流水线，正在等待当前任务收尾...');
+    notifyListeners();
+  }
+
+  /// 只重试单个失败的深寻任务，保留其他任务和已入库材料。
+  Future<void> retryTask(String taskId) async {
+    if (_busy) return;
+    final task = _workflow.task(taskId);
+    if (task == null || task.status != TaskStatus.failed) return;
+    task.status = TaskStatus.pending;
+    task.verdict = TaskVerdict.none;
+    task.feedback = '';
+    _workflow.phase = SkillCreatorPhase.collecting;
+    _appendEvent('info', '手动重试深寻任务：${task.query}', agentId: task.id);
+    _saveSession();
+    await runPipeline();
+  }
+
+  /// 批量重试所有失败任务，已完成任务和材料保持不变。
+  Future<void> retryFailedTasks() async {
+    if (_busy) return;
+    final failed = _workflow.tasks.where((t) => t.status == TaskStatus.failed).toList();
+    if (failed.isEmpty) return;
+    for (final task in failed) {
+      task.status = TaskStatus.pending;
+      task.verdict = TaskVerdict.none;
+      task.feedback = '';
+    }
+    _workflow.phase = SkillCreatorPhase.collecting;
+    _appendEvent('info', '批量重试 ${failed.length} 个失败深寻任务');
+    _saveSession();
+    await runPipeline();
   }
 
   // ═══════ 阶段实现 ═══════

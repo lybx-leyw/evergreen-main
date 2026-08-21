@@ -53,7 +53,7 @@ class OcrPipeline {
     if (_apiKey.isNotEmpty) {
       try {
         final result = await _deepseekOcr(filePath, _apiKey);
-        if (result != null && result.isNotEmpty) {
+        if (_isUsableText(result)) {
           Log().info('OcrPipeline: Level 1 (DeepSeek) succeeded',
               data: {'path': filePath, 'length': result.length});
           return result;
@@ -89,7 +89,7 @@ class OcrPipeline {
     if (_apiKey.isNotEmpty) {
       try {
         final result = await _deepseekOcrUrl(imageUrl, _apiKey);
-        if (result != null && result.isNotEmpty) {
+        if (_isUsableText(result)) {
           Log().info('OcrPipeline: Level 1 (DeepSeek) URL succeeded',
               data: {'length': result.length});
           return result;
@@ -203,43 +203,39 @@ class OcrPipeline {
       return null;
     }
 
-    // 2. OCR each page with DeepSeek（并行）
-    final ocrService = DeepSeekOcrService(_dio, apiKey);
-    final texts = await _runParallel(
-      pages,
-      (page) async {
+    try {
+      // 2. OCR each page with DeepSeek（并行）
+      final ocrService = DeepSeekOcrService(_dio, apiKey);
+      final texts = await _runParallel(pages, (page) async {
         final imgPath = page['path'] as String?;
         if (imgPath == null) return null;
-        return ocrService.recognize(File(imgPath));
-      },
-      concurrency: pageConcurrency,
-    );
+        for (var attempt = 0; attempt < 2; attempt++) {
+          try {
+            final value = await ocrService.recognize(File(imgPath));
+            if (value != null && value.isNotEmpty) return value;
+          } catch (_) { if (attempt == 1) rethrow; }
+        }
+        return null;
+      }, concurrency: pageConcurrency);
 
-    // 3. Merge in original page order（单页失败容忍，跳过）
-    final buf = StringBuffer();
-    var succeeded = 0;
-    for (var i = 0; i < pages.length; i++) {
-      final text = texts[i];
-      if (text == null || text.isEmpty) continue;
-      succeeded++;
-      if (pages.length > 1) {
-        buf.writeln('--- 第 ${pages[i]['page']} 页 ---');
+      // 3. Merge in original page order（单页失败容忍，跳过）
+      final buf = StringBuffer();
+      var succeeded = 0;
+      for (var i = 0; i < pages.length; i++) {
+        final text = texts[i];
+        if (text == null || text.isEmpty) continue;
+        succeeded++;
+        if (pages.length > 1) buf.writeln('--- 第 ${pages[i]['page']} 页 ---');
+        buf.writeln(text);
+        buf.writeln();
       }
-      buf.writeln(text);
-      buf.writeln();
+      if (succeeded == 0 || buf.isEmpty) return null;
+      Log().info('OcrPipeline: Level 1 PDF OCR 完成', data: {'pages': pages.length, 'succeeded': succeeded});
+      return buf.toString().trim();
+    } finally {
+      try { await Directory(outDir).delete(recursive: true); }
+      catch (e) { Log().warn('OcrPipeline: 临时图片目录清理失败: $e', error: e); }
     }
-
-    // 4. Clean up temp images
-    try {
-      await Directory(outDir).delete(recursive: true);
-    } catch (e) {
-      Log().warn('OcrPipeline: 临时图片目录清理失败: $e', error: e);
-    }
-
-    if (succeeded == 0 || buf.isEmpty) return null;
-    Log().info('OcrPipeline: Level 1 PDF OCR 完成',
-        data: {'pages': pages.length, 'succeeded': succeeded});
-    return buf.toString().trim();
   }
 
   Future<String?> _deepseekOcrUrl(String imageUrl, String apiKey) async {
@@ -305,6 +301,15 @@ class OcrPipeline {
       Log().warn('OcrPipeline: Tesseract exception', error: e);
       return null;
     }
+  }
+
+  /// 过滤 OCR 服务返回的空壳/错误页，避免把低质量结果当成成功缓存。
+  bool _isUsableText(String? text) {
+    if (text == null) return false;
+    final normalized = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (normalized.length < 8) return false;
+    if (normalized.startsWith('{"error"') || normalized.startsWith('[error')) return false;
+    return normalized.runes.length >= 8;
   }
 
   Future<String> _tesseractOcrUrl(String imageUrl) async {

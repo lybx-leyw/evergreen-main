@@ -70,25 +70,46 @@ class DownloadFileTool extends Tool {
     }
 
     try {
-      final resp = await _dio.get<List<int>>(
-        url,
-        options: Options(
-          responseType: ResponseType.bytes,
-          followRedirects: true,
-          receiveTimeout: const Duration(seconds: 60),
-          headers: {
-            'User-Agent':
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-          },
-        ),
-      );
+      final existing = File(target);
+      if (existing.existsSync() && await existing.length() > 0) {
+        return '[ok] 已命中下载缓存（${await existing.length()} 字节）→ $target';
+      }
+      Response<List<int>>? resp;
+      Object? lastError;
+      for (var attempt = 0; attempt < 3; attempt++) {
+        try {
+          resp = await _dio.get<List<int>>(url, options: Options(
+            responseType: ResponseType.bytes,
+            followRedirects: true,
+            receiveTimeout: const Duration(seconds: 60),
+            headers: {'User-Agent': 'Evergreen-Research-Agent/1.0'},
+          ));
+          break;
+        } catch (e) {
+          lastError = e;
+          if (attempt < 2) await Future<void>.delayed(Duration(milliseconds: 400 * (attempt + 1)));
+        }
+      }
+      if (resp == null) return '[error: 下载失败 $url → $lastError]';
       if (resp.data == null || resp.data!.isEmpty) {
         return '[error: 下载内容为空: $url]';
       }
+      // 研究资料单文件上限 100 MiB，避免误下载 HTML/压缩包耗尽工作区。
+      if (resp.data!.length > 100 * 1024 * 1024) {
+        return '[error: 文件超过 100MiB 上限]';
+      }
+      final bytes = resp.data!;
+      final lower = url.toLowerCase();
+      final looksPdf = lower.contains('.pdf') ||
+          (bytes.length >= 4 && bytes[0] == 0x25 && bytes[1] == 0x50 && bytes[2] == 0x44 && bytes[3] == 0x46);
+      final ext = p.extension(target).toLowerCase();
+      if (ext == '.pdf' && !looksPdf) return '[error: 下载内容不是有效 PDF]';
       final file = File(target);
       if (!file.parent.existsSync()) file.parent.createSync(recursive: true);
-      await file.writeAsBytes(resp.data!);
-      return '[ok] 已下载 ${resp.data!.length} 字节 → $target';
+      final tmp = File('$target.part');
+      await tmp.writeAsBytes(bytes, flush: true);
+      await tmp.rename(target);
+      return '[ok] 已下载 ${bytes.length} 字节 → $target';
     } catch (e) {
       return '[error: 下载失败 $url → $e]';
     }

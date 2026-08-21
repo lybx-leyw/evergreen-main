@@ -2,7 +2,7 @@
 ///
 /// - [DeepSearchRunner]：按来源（arXiv/通用/书籍）为每个采集任务创建一个
 ///   隔离 AgentAssembly（独立工具白名单 + 独立会话/工作区），驱动其
-///   工具循环（web_search / fetch_url / download_file / pdf_extract_text /
+///   工具循环（web_search / web_fetch / download_file / pdf_extract_text /
 ///   ocr_file），回收结构化结果；
 /// - 规划/验收/整合等单轮 LLM 调用：直连 DeepSeek（与主题创作 AI 同款），
 ///   无会话、无断点，失败可重试。
@@ -24,6 +24,7 @@ import 'package:evergreen_base/core/agent/tools/head_tail.dart';
 import 'package:evergreen_base/core/agent/tools/python_runner_tool.dart';
 import 'package:evergreen_base/core/agent/tools/read_file.dart';
 import 'package:evergreen_base/core/agent/tools/web_search.dart';
+import 'package:evergreen_base/core/agent/tools/research_search.dart';
 import 'package:evergreen_base/core/agent/tools/write_file.dart';
 import 'package:evergreen_base/core/services/ocr_pipeline.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
@@ -158,6 +159,9 @@ class DeepSearchRunner {
     final seedTools = <agent.Tool>[
       WebSearchTool(dio),
       WebFetchTool(dio),
+      ArxivSearchTool(dio),
+      GithubSearchTool(dio),
+      CrossrefSearchTool(dio),
       ReadFileTool(workspaceDir: agentWs),
       WriteFileTool(workspaceDir: agentWs),
       FileInfoTool(workspaceDir: agentWs),
@@ -256,13 +260,21 @@ class DeepSearchRunner {
     final summary = (json['summary'] as String? ?? '').trim();
     final rawMaterials = (json['materials'] as List?) ?? [];
     final materials = <Map<String, dynamic>>[];
+    final seen = <String>{};
+    var index = 0;
     for (final rm in rawMaterials) {
       if (rm is! Map) continue;
       final m = rm.map((k, v) => MapEntry(k.toString(), v));
       final localPath = m['localPath']?.toString() ?? '';
+      final url = m['url']?.toString() ?? '';
+      final title = m['title']?.toString() ?? '未命名';
+      final fingerprint = _evidenceFingerprint(url, title);
+      if (!seen.add(fingerprint)) continue;
+      final hasSource = url.startsWith('http://') || url.startsWith('https://');
       materials.add({
+        'citationId': 'ev_${++index}',
         'title': m['title']?.toString() ?? '未命名',
-        'url': m['url']?.toString() ?? '',
+        'url': url,
         'type': m['type']?.toString() ?? 'article',
         'localPath': localPath.isNotEmpty
             ? p.join(agentWs, localPath)
@@ -270,6 +282,12 @@ class DeepSearchRunner {
         'authors': m['authors']?.toString(),
         'year': m['year']?.toString(),
         'summary': m['summary']?.toString() ?? '',
+        'pageRefs': (m['pageRefs'] is List) ? m['pageRefs'] : const [],
+        'sourceExcerpt': m['sourceExcerpt']?.toString() ?? '',
+        'capturedAt': DateTime.now().toUtc().toIso8601String(),
+        'confidence': hasSource ? _confidenceFor(m) : 0.15,
+        'sourceStatus': hasSource ? 'verified_url' : 'missing_url',
+        'fingerprint': fingerprint,
       });
     }
 
@@ -284,6 +302,26 @@ class DeepSearchRunner {
     );
   }
 
+  String _evidenceFingerprint(String url, String title) {
+    final source = '${url.trim().toLowerCase()}|${title.trim().toLowerCase()}';
+    var hash = 0x811c9dc5;
+    for (final c in source.codeUnits) {
+      hash ^= c;
+      hash = (hash * 0x01000193) & 0xffffffff;
+    }
+    return hash.toRadixString(16).padLeft(8, '0');
+  }
+
+  double _confidenceFor(Map<String, dynamic> material) {
+    final url = material['url']?.toString() ?? '';
+    final type = material['type']?.toString() ?? '';
+    var score = 0.5;
+    if (url.startsWith('https://')) score += 0.1;
+    if (url.contains('arxiv.org') || url.contains('.gov') || url.contains('.edu')) score += 0.25;
+    if (type == 'paper' || type == 'article') score += 0.05;
+    return score.clamp(0.0, 1.0).toDouble();
+  }
+
   // ── 提示词 ──
 
   String _systemPrompt(SearchSource source) {
@@ -291,8 +329,8 @@ class DeepSearchRunner {
       SearchSource.arxiv => '''
 你是 arXiv 论文深寻 Agent。任务：围绕用户需求检索 arXiv 及相关学术源的高质量论文。
 策略：
-1. 用 web_search 检索（如 site:arxiv.org <主题>、<主题> arxiv paper）；
-2. 用 fetch_url 打开 arxiv 搜索页/论文页，解析标题/作者/年份/PDF 直链（arxiv.org/pdf/xxxx）；
+1. 优先用 arxiv_search 和 crossref_search 检索论文/正式出版物元数据，再用 web_search 补充引用与相关页面；
+2. 用 web_fetch 打开 arxiv 搜索页/论文页，解析标题/作者/年份/PDF 直链（arxiv.org/pdf/xxxx）；
 3. 用 download_file 把 PDF 下载到工作区 materials/ 下（save_path 如 materials/paper1.pdf）；
 4. 用 pdf_extract_text 提取 PDF 文本预览，判断相关性；扫描版失败可用 ocr_file；
 5. 优先收录：近年、高被引、与主题直接相关；重复命中说明该经验值得参考。
@@ -300,8 +338,8 @@ class DeepSearchRunner {
       SearchSource.web => '''
 你是通用网络深寻 Agent。任务：围绕用户需求在互联网上检索权威信息（技术文章、官方文档、最佳实践、开源项目）。
 策略：
-1. 用 web_search（Bing）多关键词检索（中英文都试）；
-2. 用 fetch_url 打开高价值页面（官方文档/知名博客/GitHub），提炼要点；
+1. 技术方案优先用 github_search 找真实仓库和实现，再用 web_search 补充官方文档；
+2. 用 web_fetch 打开高价值页面（官方文档/知名博客/GitHub），提炼要点；
 3. 发现 PDF/长文时用 download_file 下载到 materials/，再用 pdf_extract_text 读；
 4. 优先收录：官方来源、知名机构、可验证的原文，避免营销软文与不可信转载。
 ''',
@@ -309,7 +347,7 @@ class DeepSearchRunner {
 你是书籍/长文深寻 Agent。任务：围绕用户需求检索相关书籍、电子书、长篇教程（如 O'Reilly、GitBook、出版社官网、开放书库）。
 策略：
 1. 用 web_search 检索书名/主题 + pdf/epub/在线版；
-2. 用 fetch_url 打开书页/目录页，找到可读章节或 PDF 直链；
+2. 用 web_fetch 打开书页/目录页，找到可读章节或 PDF 直链；
 3. 用 download_file 下载可获取的 PDF 到 materials/，pdf_extract_text 读内容；
 4. 无法下载时记录书的元数据（书名/作者/出版社/简介）并给出访问链接；
 5. 优先收录：权威出版、覆盖面广、与主题直接相关。
@@ -320,9 +358,10 @@ class DeepSearchRunner {
 
 硬性要求：
 - 只采集与主题相关的资料，宁缺毋滥；
+- 专业来源必须优先使用对应专用 Tool，web_search 只用于补充发现；
 - 每个下载的文件都必须记录到结果 JSON 的 materials 中（localPath 为工作区相对路径）；
 - 结束时**只输出**一个 JSON 对象（不要解释、不要 markdown 包裹），格式：
-{"summary": "<本轮采集成果综述（200 字内）>", "materials": [{"title": "...", "url": "...", "type": "paper|book|article", "localPath": "materials/xxx.pdf", "authors": "...", "year": "...", "summary": "<该材料要点>"}]}
+{"summary": "<本轮采集成果综述（200 字内）>", "materials": [{"title": "...", "url": "...", "type": "paper|book|article", "localPath": "materials/xxx.pdf", "authors": "...", "year": "...", "summary": "<该材料要点>", "pageRefs": [1,2], "sourceExcerpt": "<原文短摘录>"}]}
 ''';
   }
 

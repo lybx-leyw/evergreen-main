@@ -716,6 +716,8 @@ class AppBootstrap {
     if (kZjuEnabled) {
       registerZjuDataSources(orchestrator!, prefs!);
     }
+    // 启动阶段使用串行队列，避免多个数据源同时访问共享凭证/网络会话。
+    await orchestrator!.refreshAllSerial();
     Log().info('[BOOT] 数据插件扫描完成');
     return _ok();
   }
