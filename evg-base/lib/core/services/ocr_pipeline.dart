@@ -179,9 +179,16 @@ class OcrPipeline {
       return null;
     }
 
-    final imgProc = await runOcrProcess(await resolvePythonExe() ?? 'python', [
-      pdfScript, '--path', pdfPath, '--output_dir', outDir, '--dpi', '150',
-    ]).timeout(const Duration(seconds: 120));
+    late ProcessResult imgProc;
+    try {
+      imgProc = await runOcrProcess(await resolvePythonExe() ?? 'python', [
+        pdfScript, '--path', pdfPath, '--output_dir', outDir, '--dpi', '150',
+      ]).timeout(const Duration(seconds: 120));
+    } catch (e) {
+      try { await Directory(outDir).delete(recursive: true); } catch (_) {}
+      Log().warn('OcrPipeline: PDF 转图片异常', error: e);
+      return null;
+    }
 
     if (imgProc.exitCode != 0) {
       Log().warn('OcrPipeline: pdf_to_images failed',
