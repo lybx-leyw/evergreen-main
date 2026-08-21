@@ -27,7 +27,7 @@ class AiPanel extends StatefulWidget {
   /// 当前实例名（绑定态 UI：AI 会话归属哪个实例，I1）。
   final String? instanceName;
 
-  /// 当前实例 ID（只读展示；id 固定不可变，I1）。
+  /// 当前实例 ID（只读展示；实例 ID == 插件 ID，I1）。
   final String? instanceId;
 
   const AiPanel({
@@ -53,6 +53,7 @@ class _AiPanelState extends State<AiPanel> {
   final _messages = <_ChatMessage>[];
   StreamSubscription<HtmlAiEvent>? _sub;
   String? _lastCanvasId;
+  String? _lastInstanceId;
 
   @override
   void initState() {
@@ -64,17 +65,26 @@ class _AiPanelState extends State<AiPanel> {
   @override
   void didUpdateWidget(covariant AiPanel oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // 画布切换后恢复 UI 消息
-    if (widget.aiService.canvasId != _lastCanvasId) {
-      _lastCanvasId = widget.aiService.canvasId;
+    // 画布/实例切换后必须清空旧会话 UI 消息，再按需恢复新实例历史。
+    // 只比较 canvasId 不够：若实例 id 与画布 id 分离的旧数据被修正，
+    // 同一画布也可能发生实例切换；这里用画布 + 实例双键更稳妥。
+    final canvasChanged = widget.aiService.canvasId != _lastCanvasId;
+    final instanceChanged = widget.instanceId != _lastInstanceId;
+    if (canvasChanged || instanceChanged) {
       _restoreUiMessages();
     }
   }
 
   void _restoreUiMessages() {
-    final msgs = widget.aiService.uiMessages;
-    if (msgs == null || msgs.isEmpty) return;
+    // 无论新实例有没有历史，先清空旧实例残留消息，避免历史混杂。
     _messages.clear();
+    final msgs = widget.aiService.uiMessages;
+    _lastCanvasId = widget.aiService.canvasId;
+    _lastInstanceId = widget.instanceId;
+    if (msgs == null || msgs.isEmpty) {
+      debugPrint('[AiPanel] 🔄 切换实例，无历史可恢复，已清空旧消息');
+      return;
+    }
     for (final m in msgs) {
       _messages.add(_ChatMessage(
         role: m['role'] as String? ?? 'ai',
@@ -82,7 +92,6 @@ class _AiPanelState extends State<AiPanel> {
         reasoning: m['reasoning'] as String?,
       ));
     }
-    _lastCanvasId = widget.aiService.canvasId;
     debugPrint('[AiPanel] 📂 恢复 UI 消息: ${_messages.length} 条');
   }
 
@@ -253,7 +262,7 @@ class _AiPanelState extends State<AiPanel> {
     }
     if (iid != null && iid.isNotEmpty) {
       final short = iid.length > 14 ? '…${iid.substring(iid.length - 10)}' : iid;
-      chips.add(_badgeChip(theme, Icons.tag, '#$short', tooltip: '实例 ID（固定不可变）: $iid'));
+      chips.add(_badgeChip(theme, Icons.tag, '#$short', tooltip: '实例 ID（=插件 ID）: $iid'));
     }
     if (resumed) {
       chips.add(_badgeChip(theme, Icons.history, '$count 条 · 续作', tooltip: '已恢复该实例历史会话，AI 将断点续作'));

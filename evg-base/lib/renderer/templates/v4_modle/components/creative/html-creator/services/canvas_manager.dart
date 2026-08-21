@@ -34,10 +34,11 @@ class CanvasMeta {
 
   /// 画板绑定的实例 ID（画板 ↔ 实例 1:1 锚点，I1）。
   ///
-  /// 实例在画板创作之处固定分配、id 不可变（名字可改）；会话文件
-  /// 按实例隔离并双向绑定（session.boardId == 画板 id &&
-  /// session.instanceId == 实例 id 才承认，孤儿会话不恢复）。
-  /// null = 老画板尚未分配实例（首次加载时自动创建，见 [CanvasManager.ensureInstance]）。
+  /// I1 修订：实例 id 与插件 id 是同一个。实例在画板创作之处固定分配、
+  /// 名字可改；会话文件按实例隔离并双向绑定
+  /// （session.boardId == 画板 id && session.instanceId == 实例 id 才承认，
+  /// 孤儿会话不恢复）。null = 老画板尚未分配实例（首次加载时自动创建，
+  /// 见 [CanvasManager.ensureInstance]）。
   String? instanceId;
 
   CanvasMeta({
@@ -77,12 +78,12 @@ class CanvasMeta {
 
 /// 实例元数据 —— 一会话一份历史记忆的载体（I1）。
 ///
-/// 与 scraper 的会话模型对齐：实例 id 在画板创作之处固定分配、**不可变**；
+/// 与 scraper 的会话模型对齐：实例 id 与插件 id 是同一个（I1 修订）；
 /// 实例名可自定义重命名（重命名不丢会话、不动 id）。每个实例独占一份
 /// 会话文件（消息 + UI 快照），会话文件内双向绑定 boardId + instanceId，
 /// 加载时校验一致，孤儿（不匹配）不承认、可清理。
 class InstanceMeta {
-  /// 实例 ID（固定不可变；重命名只改 [name]）。
+  /// 实例 ID（== 插件 ID；重命名只改 [name]）。
   final String id;
 
   /// 实例名（可自定义重命名；默认取画板名）。
@@ -182,8 +183,6 @@ String instanceSessionsPath(String boardId, String instanceId) =>
 /// 生成唯一画布 ID。
 String _newCanvasId() => 'canvas_${DateTime.now().millisecondsSinceEpoch}_${_random4()}';
 
-/// 生成唯一实例 ID（创作之处固定，永不改变）。
-String _newInstanceId() => 'instance_${DateTime.now().millisecondsSinceEpoch}_${_random4()}';
 String _random4() => (DateTime.now().microsecondsSinceEpoch % 10000).toString().padLeft(4, '0');
 
 /// 将名称转为安全的 plugin ID（小写+连字符）。
@@ -317,6 +316,9 @@ class CanvasManager {
   }
 
   /// 绑定画布到插件 ID（首次导出时调用，之后导出均复用该 ID）。
+  ///
+  /// 插件 ID 即实例 ID（I1 修订）：绑定/修改插件 ID 时同步对齐实例，
+  /// 确保二者永远是同一个 id，避免会话与插件身份分叉。
   void bindPluginId(String canvasId, String pluginId) {
     final dir = Directory(_canvasDir(canvasId));
     if (!dir.existsSync()) return;
@@ -326,7 +328,9 @@ class CanvasManager {
       final json = jsonDecode(metaFile.readAsStringSync()) as Map<String, dynamic>;
       json['pluginId'] = pluginId;
       metaFile.writeAsStringSync(const JsonEncoder.withIndent('  ').convert(json));
-      debugPrint('[CanvasManager] 🔗 绑定画布 → 插件: $canvasId → $pluginId');
+      // 实例 id 必须与插件 id 相同；若旧数据分叉则迁移实例目录与会话。
+      _alignInstanceToPluginId(canvasId, pluginId);
+      debugPrint('[CanvasManager] 🔗 绑定画布 → 插件/实例: $canvasId → $pluginId');
     } catch (e) {
       debugPrint('[CanvasManager] ⚠ 绑定插件 ID 失败: $canvasId $e');
     }
@@ -397,6 +401,9 @@ class CanvasManager {
   /// 名默认取画板名）、回写画布 meta.instanceId 锚点、并把旧布局会话
   /// （T1 的 `canvases/{id}/session.json`）一次性迁入实例目录
   /// （补写 boardId/instanceId 双向字段后删除旧文件）。
+  ///
+  /// I1 修订：实例 id 与插件 id 是同一个。实例 id 不再单独生成
+  /// `instance_xxx`，而是使用画布绑定的插件 id（未导出时由画布名派生）。
   InstanceMeta ensureInstance(String boardId) {
     var meta = _readMetaFile(boardId);
     if (meta == null) {
@@ -409,25 +416,108 @@ class CanvasManager {
       debugPrint('[CanvasManager] ⚠ 画板 meta 缺失，自愈重建: $boardId');
     }
 
-    var instance = meta.instanceId != null ? loadInstance(boardId, meta.instanceId!) : null;
+    // 未导出过插件时，先用画布名派生稳定的插件 id，并同步作为实例 id。
+    final pluginId = meta.pluginId ?? _sanitizeId(meta.name);
+    return _alignInstanceToPluginId(boardId, pluginId);
+  }
+
+  /// 将画板的实例 id 对齐到指定插件 id（两者必须相同）。
+  ///
+  /// 兼容旧数据：早期版本可能生成了独立的 `instance_xxx` 实例 id。
+  /// 本方法会把旧实例目录/会话迁移到插件 id 目录，并更新 meta 中的
+  /// instanceId/pluginId，保证后续加载按同一 id 找到历史和插件。
+  InstanceMeta _alignInstanceToPluginId(String boardId, String pluginId) {
+    final meta = _readMetaFile(boardId) ?? CanvasMeta(id: boardId, name: '未命名画布');
+    if (pluginId.isEmpty) return _alignInstanceToPluginId(boardId, _sanitizeId(meta.name));
+
+    final oldIid = meta.instanceId;
+    if (oldIid != null && oldIid.isNotEmpty && oldIid != pluginId) {
+      final oldDir = Directory(instanceDir(boardId, oldIid));
+      final newDir = Directory(instanceDir(boardId, pluginId));
+      if (oldDir.existsSync()) {
+        if (!newDir.existsSync()) {
+          oldDir.renameSync(newDir.path);
+          debugPrint('[CanvasManager] 🔀 实例目录对齐插件 ID: $oldIid → $pluginId');
+        } else {
+          // 目标目录已存在（例如已经按插件 id 建过实例）：保留目标，
+          // 把旧目录中独有的会话/meta 合并过去后清理旧目录。
+          _mergeInstanceDir(boardId, oldDir, newDir, oldIid, pluginId);
+        }
+      }
+      // 修正实例 meta 中的 id 字段（目录迁移后文件内可能仍是旧 id）。
+      _patchInstanceMetaId(boardId, pluginId, pluginId);
+      // 修正会话文件中的 instanceId 双向绑定。
+      _patchSessionInstanceId(boardId, pluginId, pluginId);
+    }
+
+    // 回写 meta：插件 id 与实例 id 始终一致。
+    _writeMetaField(boardId, 'pluginId', pluginId);
+    _writeMetaField(boardId, 'instanceId', pluginId);
+
+    var instance = loadInstance(boardId, pluginId);
     if (instance == null) {
-      final instanceId = _newInstanceId();
+      final dir = Directory(instanceDir(boardId, pluginId));
+      dir.createSync(recursive: true);
       instance = InstanceMeta(
-        id: instanceId,
+        id: pluginId,
         name: meta.name,
         boardId: boardId,
       );
-      final dir = Directory(instanceDir(boardId, instanceId));
-      dir.createSync(recursive: true);
-      File(instanceMetaPath(boardId, instanceId))
+      File(instanceMetaPath(boardId, pluginId))
           .writeAsStringSync(const JsonEncoder.withIndent('  ').convert(instance.toJson()));
-      // 回写画板 meta.instanceId（画板 ↔ 实例 1:1 锚点，独立写回不动编辑器内容）
-      _writeMetaField(boardId, 'instanceId', instanceId);
-      // 迁移旧布局会话（T1：canvases/{id}/session.json）→ 实例目录
-      _migrateCanvasSessionToInstance(boardId, instanceId);
-      debugPrint('[CanvasManager] 🆕 创建实例: $instanceId (board=$boardId, name=${instance.name})');
+      debugPrint('[CanvasManager] 🆕 创建实例: $pluginId (board=$boardId, name=${instance.name})');
     }
+    // 无论新建还是复用，都确保旧布局会话（T1 canvases/{id}/session.json）
+    // 已迁入实例目录；若实例会话已存在则旧文件会被清理。
+    _migrateCanvasSessionToInstance(boardId, pluginId);
     return instance;
+  }
+
+  /// 合并旧实例目录到新实例目录：只搬移新目录缺失的文件。
+  void _mergeInstanceDir(String boardId, Directory oldDir, Directory newDir, String oldIid, String newIid) {
+    try {
+      newDir.createSync(recursive: true);
+      final oldSessionFile = File(instanceSessionsPath(boardId, oldIid));
+      final newSessionFile = File(instanceSessionsPath(boardId, newIid));
+      if (oldSessionFile.existsSync() && !newSessionFile.existsSync()) {
+        oldSessionFile.renameSync(newSessionFile.path);
+      }
+      final oldMetaFile = File(instanceMetaPath(boardId, oldIid));
+      final newMetaFile = File(instanceMetaPath(boardId, newIid));
+      if (oldMetaFile.existsSync() && !newMetaFile.existsSync()) {
+        oldMetaFile.renameSync(newMetaFile.path);
+      }
+      oldDir.deleteSync(recursive: true);
+      debugPrint('[CanvasManager] 🔀 合并旧实例目录: $oldIid → $newIid');
+    } catch (e) {
+      debugPrint('[CanvasManager] ⚠ 合并实例目录失败: $oldIid → $newIid $e');
+    }
+  }
+
+  /// 修正实例 meta.json 内的 id 字段。
+  void _patchInstanceMetaId(String boardId, String instanceId, String newId) {
+    try {
+      final file = File(instanceMetaPath(boardId, instanceId));
+      if (!file.existsSync()) return;
+      final json = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+      json['id'] = newId;
+      file.writeAsStringSync(const JsonEncoder.withIndent('  ').convert(json));
+    } catch (e) {
+      debugPrint('[CanvasManager] ⚠ 修正实例 meta id 失败: $boardId/$instanceId $e');
+    }
+  }
+
+  /// 修正实例会话文件内的 instanceId 双向绑定字段。
+  void _patchSessionInstanceId(String boardId, String instanceId, String newId) {
+    try {
+      final file = File(instanceSessionsPath(boardId, instanceId));
+      if (!file.existsSync()) return;
+      final json = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+      json['instanceId'] = newId;
+      file.writeAsStringSync(jsonEncode(json));
+    } catch (e) {
+      debugPrint('[CanvasManager] ⚠ 修正会话 instanceId 失败: $boardId/$instanceId $e');
+    }
   }
 
   /// 重命名实例（id 永不改；重命名不丢会话）。

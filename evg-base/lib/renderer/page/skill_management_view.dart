@@ -5,10 +5,13 @@ library;
 
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:evergreen_base/providers.dart';
+import 'package:evergreen_base/core/agent/agent.dart' as agent;
 import 'package:evergreen_base/core/agent/skill/skill.dart';
+import 'package:evergreen_base/core/config/settings.dart' show getSetting, setSetting;
 import 'package:evergreen_base/core/utils/greenix_path.dart';
 
 
@@ -337,14 +340,14 @@ class _SkillCard extends StatelessWidget {
 
 // ═══════ _NewSkillDialog ═══════
 
-class _NewSkillDialog extends StatefulWidget {
+class _NewSkillDialog extends ConsumerStatefulWidget {
   const _NewSkillDialog();
 
   @override
-  State<_NewSkillDialog> createState() => _NewSkillDialogState();
+  ConsumerState<_NewSkillDialog> createState() => _NewSkillDialogState();
 }
 
-class _NewSkillDialogState extends State<_NewSkillDialog> {
+class _NewSkillDialogState extends ConsumerState<_NewSkillDialog> {
   final _nameCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
   final _bodyCtrl = TextEditingController();
@@ -352,12 +355,160 @@ class _NewSkillDialogState extends State<_NewSkillDialog> {
   String _runAs = 'inline';
   bool _saving = false;
 
+  /// AI 改稿中（生成期间禁用取消/创建/再次改稿）。
+  bool _aiBusy = false;
+
   @override
   void dispose() {
     _nameCtrl.dispose();
     _descCtrl.dispose();
     _bodyCtrl.dispose();
     super.dispose();
+  }
+
+  /// 读取配置值（读取失败兜底空串）。
+  String _readSetting(String key) {
+    try {
+      return getSetting(ref.read(sharedPreferencesProvider), key);
+    } catch (_) {
+      return '';
+    }
+  }
+
+  /// 未配置 DEEPSEEK_API_KEY 时弹窗引导填写并保存（对齐主题创作 AI 引导）。
+  ///
+  /// 返回保存后的 API Key；用户取消或未填写时返回 null。
+  Future<String?> _promptApiKey() async {
+    final ctrl = TextEditingController();
+    final input = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('✨ AI 改稿需要 API Key'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('未配置 DEEPSEEK_API_KEY，可直接在此填写：',
+                style: TextStyle(fontSize: 12)),
+            const SizedBox(height: 10),
+            TextField(
+              controller: ctrl,
+              autofocus: true,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'DEEPSEEK_API_KEY',
+                isDense: true,
+                border: OutlineInputBorder(),
+              ),
+              style: const TextStyle(fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
+          FilledButton(
+            onPressed: () {
+              final v = ctrl.text.trim();
+              if (v.isNotEmpty) Navigator.pop(ctx, v);
+            },
+            child: const Text('保存并使用'),
+          ),
+        ],
+      ),
+    );
+    if (input == null || input.isEmpty) return null;
+    await setSetting(
+        ref.read(sharedPreferencesProvider), 'DEEPSEEK_API_KEY', input);
+    if (!mounted) return null;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('✅ API Key 已保存，开始改稿...')),
+    );
+    return input;
+  }
+
+  /// 直连 DeepSeek 单轮生成：AI 润色描述 + 补全/优化技能内容，结果回填表单。
+  ///
+  /// - 场景 1（只填名称+描述）：AI 补全完整技能细节；
+  /// - 场景 2（已写正文）：不改变原意地优化；
+  /// - 失败（网络/解析）提示可重试，不回填脏数据、不污染表单；
+  /// - 独立于主题会话逻辑，不写任何会话文件。
+  Future<void> _aiRewrite() async {
+    final name = _nameCtrl.text.trim();
+    final desc = _descCtrl.text.trim();
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('请先输入技能名称')),
+      );
+      return;
+    }
+    if (desc.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('请先输入技能描述')),
+      );
+      return;
+    }
+
+    // 未配置 API Key：沿用现有引导（弹窗填写并保存），不白屏不静默。
+    var apiKey = _readSetting('DEEPSEEK_API_KEY');
+    if (apiKey.isEmpty) {
+      apiKey = await _promptApiKey();
+      if (apiKey == null || apiKey.isEmpty) return;
+    }
+    final modelSetting = _readSetting('DEEPSEEK_MODEL');
+    final model = modelSetting.isNotEmpty ? modelSetting : 'deepseek-v4-flash';
+    final baseUrl = _readSetting('DEEPSEEK_BASE_URL').isNotEmpty
+        ? _readSetting('DEEPSEEK_BASE_URL')
+        : 'https://api.deepseek.com/v1';
+
+    setState(() => _aiBusy = true);
+    try {
+      final provider = agent.DeepSeekProvider(
+        dio: Dio(BaseOptions(
+          baseUrl: baseUrl,
+          connectTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 120),
+        )),
+        apiKey: apiKey,
+        model: model,
+      );
+
+      final result = await agent.SkillRewriter.rewrite(
+        provider: provider,
+        name: name,
+        description: desc,
+        body: _bodyCtrl.text,
+        runAs: _runAs,
+      );
+
+      if (!mounted) return;
+      if (result.error != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('改稿失败：${result.error}（可重试）')),
+        );
+        return;
+      }
+
+      // 成功 → 回填到当前表单，用户审阅后可再改、再点、或直接提交。
+      final data = result.data!;
+      setState(() {
+        _nameCtrl.text = data.name;
+        _descCtrl.text = data.description;
+        _bodyCtrl.text = data.body;
+        // 运行方式保持用户下拉选择（AI 无权更改）。
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('✨ 改稿完成，已回填表单，请审阅后提交')),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('改稿失败：$e（可重试）')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _aiBusy = false);
+    }
   }
 
   Future<void> _save() async {
@@ -507,11 +658,23 @@ class _NewSkillDialogState extends State<_NewSkillDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: _saving ? null : () => Navigator.of(context).pop(),
+          onPressed: (_saving || _aiBusy) ? null : () => Navigator.of(context).pop(),
           child: const Text('取消'),
         ),
+        // 「✨ AI 改稿」：润色描述 + 补全/优化技能内容，结果回填当前表单。
+        OutlinedButton.icon(
+          onPressed: (_saving || _aiBusy) ? null : _aiRewrite,
+          icon: _aiBusy
+              ? const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.auto_fix_high, size: 18),
+          label: Text(_aiBusy ? '改稿中...' : '✨ AI 改稿'),
+        ),
         ElevatedButton.icon(
-          onPressed: _saving ? null : _save,
+          onPressed: (_saving || _aiBusy) ? null : _save,
           icon: _saving
               ? const SizedBox(
                   width: 14,

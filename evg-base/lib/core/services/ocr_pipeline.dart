@@ -1,4 +1,4 @@
-/// OCR 管线——三级回退（ML Kit / DeepSeek / 本地）。
+/// OCR 管线——两级降级（DeepSeek-OCR 云端 → Tesseract 本地）+ 并行提速 + 就绪诊断。
 import 'dart:convert';
 import 'dart:io';
 
@@ -17,19 +17,25 @@ import 'deepseek_ocr_service.dart';
 ///
 /// 用法:
 /// ```dart
-/// final pipeline = OcrPipeline(dio);
+/// final pipeline = OcrPipeline(dio, apiKey: 'sk-...');
 /// final text = await pipeline.recognizeFile('/path/to/file.pdf');
 /// ```
-/// OCR API Key（优先环境变量，否则空字符串——触发 Level 2 降级）。
-String get _ocrApiKey =>
-    Platform.environment['DEEPSEEK_OCR_API_KEY'] ?? '';
-
+///
+/// [apiKey] 缺省时回退环境变量 `DEEPSEEK_OCR_API_KEY`；两者都为空则直接走
+/// Level 2 本地降级。桌面端建议由调用方从设置中枢（getSetting）读取后注入。
 class OcrPipeline {
   final Dio _dio;
   final PythonEnv _pythonEnv;
+  final String _apiKey;
 
-  OcrPipeline(this._dio, [PythonEnv? pythonEnv])
-      : _pythonEnv = pythonEnv ?? PythonEnv();
+  /// 并行 OCR 的默认并发度（桌面端算力充足，可调大）。
+  int pageConcurrency = 4;
+
+  OcrPipeline(this._dio, [PythonEnv? pythonEnv, String? apiKey])
+      : _pythonEnv = pythonEnv ?? PythonEnv(),
+        _apiKey = apiKey != null && apiKey.isNotEmpty
+            ? apiKey
+            : (Platform.environment['DEEPSEEK_OCR_API_KEY'] ?? '');
 
   // ── 公开 API ────────────────────────────────────────────────
 
@@ -44,10 +50,9 @@ class OcrPipeline {
     }
 
     // Level 1: DeepSeek-OCR
-    final apiKey = _ocrApiKey;
-    if (apiKey.isNotEmpty) {
+    if (_apiKey.isNotEmpty) {
       try {
-        final result = await _deepseekOcr(filePath, apiKey);
+        final result = await _deepseekOcr(filePath, _apiKey);
         if (result != null && result.isNotEmpty) {
           Log().info('OcrPipeline: Level 1 (DeepSeek) succeeded',
               data: {'path': filePath, 'length': result.length});
@@ -64,16 +69,26 @@ class OcrPipeline {
     return await _tesseractOcr(filePath);
   }
 
+  /// 对多个本地文件（图片或 PDF）并行 OCR。
+  ///
+  /// 桌面端算力充足，多 PDF 并行可显著提速。结果与 [paths] 一一对应，
+  /// 单文件失败不影响其他文件（对应位置为 null）。
+  Future<List<String?>> recognizeFiles(
+    List<String> paths, {
+    int concurrency = 2,
+  }) {
+    return _runParallel(paths, recognizeFile, concurrency: concurrency);
+  }
+
   /// 对远程图片 URL 运行 OCR。
   ///
   /// 下载图片后优先用 DeepSeek-OCR，失败降级到 Tesseract。
   /// 返回识别文本，失败返回空字符串（与 _ocrOneSlide 接口兼容）。
   Future<String> recognizeUrl(String imageUrl) async {
     // Level 1: download → DeepSeek-OCR
-    final apiKey = _ocrApiKey;
-    if (apiKey.isNotEmpty) {
+    if (_apiKey.isNotEmpty) {
       try {
-        final result = await _deepseekOcrUrl(imageUrl, apiKey);
+        final result = await _deepseekOcrUrl(imageUrl, _apiKey);
         if (result != null && result.isNotEmpty) {
           Log().info('OcrPipeline: Level 1 (DeepSeek) URL succeeded',
               data: {'length': result.length});
@@ -86,6 +101,47 @@ class OcrPipeline {
 
     // Level 2: Tesseract via ocr_slides.py
     return await _tesseractOcrUrl(imageUrl);
+  }
+
+  /// OCR 环境就绪诊断（电脑端优先）。
+  ///
+  /// 返回结构化报告：Python 可用性、脚本资源、OCR Key、Tesseract 可用性。
+  /// 供 UI 展示与深寻 agents 的 `check_ocr_ready` 工具使用。
+  Future<OcrReadinessReport> checkReadiness() async {
+    final issues = <String>[];
+
+    final pythonOk = (await resolvePythonExe()) != null;
+    if (!pythonOk) issues.add('未找到 Python 解释器（配置 PYTHON_EXE 或安装 Python）');
+
+    final pdfScriptOk =
+        File(p.join(greenixScriptsDir, 'pdf_to_images.py')).existsSync();
+    if (!pdfScriptOk) issues.add('缺少 pdf_to_images.py（脚本资源未释放）');
+
+    final ocrFileOk =
+        File(p.join(greenixScriptsDir, 'ocr_file.py')).existsSync();
+    if (!ocrFileOk) issues.add('缺少 ocr_file.py（脚本资源未释放）');
+
+    final keyConfigured = _apiKey.isNotEmpty;
+    if (!keyConfigured) {
+      issues.add('未配置 DEEPSEEK_OCR_API_KEY（将降级到本地 Tesseract）');
+    }
+
+    var tesseractOk = false;
+    if (pythonOk) {
+      tesseractOk = await _probeTesseract();
+      if (!tesseractOk && !keyConfigured) {
+        issues.add('Tesseract 未就绪且未配置 OCR Key——扫描版 PDF 将无法识别');
+      }
+    }
+
+    return OcrReadinessReport(
+      pythonAvailable: pythonOk,
+      pdfScriptAvailable: pdfScriptOk,
+      ocrFileScriptAvailable: ocrFileOk,
+      deepSeekKeyConfigured: keyConfigured,
+      tesseractAvailable: tesseractOk,
+      issues: issues,
+    );
   }
 
   // ── Level 1: DeepSeek-OCR ───────────────────────────────────
@@ -108,7 +164,10 @@ class OcrPipeline {
     return null;
   }
 
-  /// DeepSeek-OCR for PDF: split → OCR each page → merge.
+  /// DeepSeek-OCR for PDF: split → OCR each page **in parallel** → merge。
+  ///
+  /// 桌面端算力充足，逐页并行识别显著提速；单页失败容忍跳过，
+  /// 只要有任何一页识别成功即返回合并文本。
   Future<String?> _deepseekOcrPdf(String pdfPath, String apiKey) async {
     // 1. PDF → images
     final tmpDir = Directory.systemTemp;
@@ -144,42 +203,42 @@ class OcrPipeline {
       return null;
     }
 
-    // 2. OCR each page with DeepSeek
+    // 2. OCR each page with DeepSeek（并行）
     final ocrService = DeepSeekOcrService(_dio, apiKey);
+    final texts = await _runParallel(
+      pages,
+      (page) async {
+        final imgPath = page['path'] as String?;
+        if (imgPath == null) return null;
+        return ocrService.recognize(File(imgPath));
+      },
+      concurrency: pageConcurrency,
+    );
+
+    // 3. Merge in original page order（单页失败容忍，跳过）
     final buf = StringBuffer();
-    var allSucceeded = true;
-
-    for (final page in pages) {
-      final imgPath = page['path'] as String?;
-      if (imgPath == null) continue;
-
-      try {
-        final text = await ocrService.recognize(File(imgPath));
-        if (text != null && text.isNotEmpty) {
-          if (pages.length > 1) {
-            buf.writeln('--- 第 ${page['page']} 页 ---');
-          }
-          buf.writeln(text);
-          buf.writeln();
-        } else {
-          allSucceeded = false;
-          break;
-        }
-      } catch (e) {
-        Log().warn('OcrPipeline: Level 1 页识别异常，跳过该页', error: e);
-        allSucceeded = false;
-        break;
+    var succeeded = 0;
+    for (var i = 0; i < pages.length; i++) {
+      final text = texts[i];
+      if (text == null || text.isEmpty) continue;
+      succeeded++;
+      if (pages.length > 1) {
+        buf.writeln('--- 第 ${pages[i]['page']} 页 ---');
       }
+      buf.writeln(text);
+      buf.writeln();
     }
 
-    // 3. Clean up temp images
+    // 4. Clean up temp images
     try {
       await Directory(outDir).delete(recursive: true);
     } catch (e) {
       Log().warn('OcrPipeline: 临时图片目录清理失败: $e', error: e);
     }
 
-    if (!allSucceeded || buf.isEmpty) return null;
+    if (succeeded == 0 || buf.isEmpty) return null;
+    Log().info('OcrPipeline: Level 1 PDF OCR 完成',
+        data: {'pages': pages.length, 'succeeded': succeeded});
     return buf.toString().trim();
   }
 
@@ -295,6 +354,48 @@ class OcrPipeline {
 
   // ── 工具方法 ────────────────────────────────────────────────
 
+  /// 有限并发并行执行：每个 item 跑 [task]，单任务异常 → null（不中断整体）。
+  Future<List<String?>> _runParallel<T>(
+    List<T> items,
+    Future<String?> Function(T item) task, {
+    int concurrency = 4,
+  }) async {
+    final results = List<String?>.filled(items.length, null);
+    var next = 0;
+    final n = concurrency.clamp(1, items.length);
+
+    Future<void> worker() async {
+      while (true) {
+        final i = next++;
+        if (i >= items.length) return;
+        try {
+          results[i] = await task(items[i]);
+        } catch (e) {
+          Log().warn('OcrPipeline: 并行任务单条异常', error: e);
+          results[i] = null;
+        }
+      }
+    }
+
+    await Future.wait(List.generate(n, (_) => worker()));
+    return results;
+  }
+
+  /// 探测本地 Tesseract（pytesseract 绑定可用性）。
+  Future<bool> _probeTesseract() async {
+    try {
+      final py = await resolvePythonExe();
+      if (py == null) return false;
+      final r = await runOcrProcess(py, [
+        '-c',
+        'import pytesseract; print(pytesseract.get_tesseract_version())',
+      ]).timeout(const Duration(seconds: 15));
+      return r.exitCode == 0;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// 解析 ocr_file.py 的 JSON 输出，合并为纯文本（公开以便测试）。
   static String? parsePageOutput(String stdout) {
     try {
@@ -319,5 +420,36 @@ class OcrPipeline {
       Log().warn('OcrPipeline: JSON parse failed', error: e);
       return null;
     }
+  }
+}
+
+// ═══════ OcrReadinessReport ═══════
+
+/// OCR 环境就绪诊断结果。
+class OcrReadinessReport {
+  final bool pythonAvailable;
+  final bool pdfScriptAvailable;
+  final bool ocrFileScriptAvailable;
+  final bool deepSeekKeyConfigured;
+  final bool tesseractAvailable;
+
+  /// 人类可读的问题列表（空 = 就绪）。
+  final List<String> issues;
+
+  const OcrReadinessReport({
+    required this.pythonAvailable,
+    required this.pdfScriptAvailable,
+    required this.ocrFileScriptAvailable,
+    required this.deepSeekKeyConfigured,
+    required this.tesseractAvailable,
+    required this.issues,
+  });
+
+  bool get ready => issues.isEmpty;
+
+  /// 单行摘要（供 Agent 工具返回）。
+  String summarize() {
+    if (ready) return 'OCR 就绪（DeepSeek-OCR ${deepSeekKeyConfigured ? "已配置" : "未配置"}，Tesseract ${tesseractAvailable ? "可用" : "不可用"}）';
+    return 'OCR 未就绪：${issues.join('；')}';
   }
 }

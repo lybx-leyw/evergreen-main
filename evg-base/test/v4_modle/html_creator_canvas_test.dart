@@ -132,8 +132,51 @@ void main() {
         expect(first.boardId, cid);
         // 实例 id 锚点已回写画布 meta
         expect(mgr.loadCanvas(cid)?.meta.instanceId, first.id);
+        // I1 修订：实例 id 必须等于插件 id
+        expect(mgr.loadCanvas(cid)?.meta.pluginId, first.id,
+            reason: '实例 id 与插件 id 应该是同一个');
+        expect(mgr.loadCanvas(cid)?.meta.instanceId, mgr.loadCanvas(cid)?.meta.pluginId,
+            reason: 'meta.instanceId 与 meta.pluginId 不得分叉');
         // tryLoadInstanceOf 读回同一实例
         expect(mgr.tryLoadInstanceOf(cid)?.id, first.id);
+      } finally {
+        mgr.deleteCanvas(cid);
+      }
+    });
+
+    test('旧数据分叉（instance_xxx ≠ pluginId）时自动对齐为插件 id', () {
+      final mgr = CanvasManager();
+      final data = mgr.createCanvas(name: '分叉画板');
+      final cid = data.meta.id;
+      try {
+        // 模拟旧 bug：meta 中 pluginId 与 instanceId 是不同值，且实例目录/
+        // 会话按旧的 instance_xxx 存放。
+        mgr.bindPluginId(cid, 'fixed-plugin');
+        final oldIid = 'instance_old';
+        final oldDir = Directory(instanceDir(cid, oldIid));
+        oldDir.createSync(recursive: true);
+        File(instanceMetaPath(cid, oldIid)).writeAsStringSync(
+            '{"id":"$oldIid","name":"分叉画板","boardId":"$cid"}');
+        File(instanceSessionsPath(cid, oldIid)).writeAsStringSync(
+            '{"boardId":"$cid","instanceId":"$oldIid","agentSession":{}}');
+
+        // 手动把 meta 改成分叉状态（模拟旧版本落盘结果）
+        final metaFile = File('${Directory(instanceDir(cid, oldIid)).parent.parent.path}/meta.json');
+        final metaJson = jsonDecode(metaFile.readAsStringSync()) as Map<String, dynamic>;
+        metaJson['instanceId'] = oldIid;
+        metaFile.writeAsStringSync(const JsonEncoder.withIndent('  ').convert(metaJson));
+
+        final inst = mgr.ensureInstance(cid);
+        expect(inst.id, 'fixed-plugin', reason: '实例 id 应对齐到插件 id');
+        expect(mgr.loadCanvas(cid)?.meta.instanceId, 'fixed-plugin');
+        expect(mgr.loadCanvas(cid)?.meta.pluginId, 'fixed-plugin');
+        // 旧实例目录被迁移/清理，新实例会话存在且双向绑定已修正
+        expect(Directory(instanceDir(cid, oldIid)).existsSync(), isFalse,
+            reason: '旧的独立实例目录不应残留');
+        final migrated = File(instanceSessionsPath(cid, 'fixed-plugin'));
+        expect(migrated.existsSync(), isTrue, reason: '历史会话应随实例 id 迁移');
+        final session = jsonDecode(migrated.readAsStringSync()) as Map<String, dynamic>;
+        expect(session['instanceId'], 'fixed-plugin', reason: '会话文件双向绑定应同步修正');
       } finally {
         mgr.deleteCanvas(cid);
       }

@@ -14,6 +14,7 @@ export 'controller/controller.dart';
 export 'memory/memory.dart';
 export 'skill/skill.dart';
 export 'skill/skill_generator.dart';
+export 'skill/skill_rewriter.dart';
 export 'output_style/style.dart';
 export 'evidence/evidence.dart';
 export 'compact/compact.dart';

@@ -103,6 +103,14 @@ class ThemeDraft {
         colors: (json['colors'] as Map?)?.cast<String, String>() ?? {},
       );
 
+  /// 复制并局部修改（新建面板以当前草稿为底 / 草稿快照恢复用）。
+  ThemeDraft copyWith({String? id, String? name, Map<String, String>? colors}) =>
+      ThemeDraft(
+        id: id ?? this.id,
+        name: name ?? this.name,
+        colors: colors ?? Map.of(this.colors),
+      );
+
   @override
   String toString() => 'ThemeDraft($id, $name)';
 }
