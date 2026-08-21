@@ -151,7 +151,8 @@ class DeepSearchRunner {
     final rawTaskId = task.id;
     var taskHash = 0x811c9dc5;
     for (final c in rawTaskId.codeUnits) { taskHash = ((taskHash ^ c) * 0x01000193) & 0xffffffff; }
-    final taskId = '${rawTaskId.replaceAll(RegExp(r'[^A-Za-z0-9_.-]'), '_')}_${taskHash.toRadixString(16)}';
+    final safePrefix = rawTaskId.replaceAll(RegExp(r'[^A-Za-z0-9_.-]'), '_');
+    final taskId = '${safePrefix.length > 96 ? safePrefix.substring(0, 96) : safePrefix}_${taskHash.toRadixString(16)}';
     final agentWs = p.join(workspaceRoot, 'agents', taskId);
     Directory(agentWs).createSync(recursive: true);
 
