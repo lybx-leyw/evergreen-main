@@ -367,6 +367,7 @@ class _WorkflowTree extends StatelessWidget {
     final failedCount = workflow.tasks.where((t) => t.status == TaskStatus.failed).length;
     final runningCount = workflow.tasks.where((t) => t.status == TaskStatus.running).length;
     final doneCount = workflow.tasks.where((t) => t.status == TaskStatus.done).length;
+    final progress = workflow.tasks.isEmpty ? 0.0 : doneCount / workflow.tasks.length;
     final nodes = <Widget>[
       _treeNode(scheme, Icons.account_tree, 'Skill 创作流水线', '${workflow.phase.name} · 完成 $doneCount/${workflow.tasks.length} · 运行 $runningCount${failedCount > 0 ? ' · 失败 $failedCount' : ''}', false),
       _treeNode(scheme, Icons.route, '规划', workflow.tasks.isEmpty ? '等待任务' : '${workflow.tasks.length} 个任务', workflow.phase.index > SkillCreatorPhase.planning.index),
@@ -388,6 +389,8 @@ class _WorkflowTree extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('动态工作流', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 6),
+          LinearProgressIndicator(value: progress, minHeight: 5, borderRadius: BorderRadius.circular(3)),
           const SizedBox(height: 6),
           ...nodes,
         ]),
