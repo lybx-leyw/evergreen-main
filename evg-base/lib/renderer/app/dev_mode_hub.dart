@@ -27,6 +27,7 @@ const Map<String, int> _pluginIndex = {
   'html-creator': 1,
   'scraper': 2,
   'dsh': 3,
+  'skill-creator': 4,
 };
 
 int? _indexFromQuery(String? plugin) =>
@@ -81,6 +82,7 @@ class DevModeHub extends ConsumerWidget {
 String _labelFor(String id) => switch (id) {
       'scraper' => '数据爬取',
       'dsh' => 'DSH',
+      'skill-creator' => 'Skill 创作',
       _ => id,
     };
 

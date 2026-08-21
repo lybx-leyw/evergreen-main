@@ -12,11 +12,12 @@ import 'package:evergreen_base/renderer/templates/dsh_modle/dsh_modle_template.d
 import 'package:evergreen_base/renderer/templates/html_modle/html_modle_template.dart';
 import 'package:evergreen_base/renderer/templates/paper_reading_modle/paper_reading_modle_template.dart';
 import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_template.dart';
+import 'package:evergreen_base/renderer/templates/skill_creator_modle/skill_creator_modle_template.dart';
 import 'package:evergreen_base/renderer/templates/theme_creator_modle/theme_creator_modle_template.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/v4_modle_template.dart';
 import 'package:evergreen_base/renderer/templates/zju_modle/zju_modle_template.dart';
 
-/// 模板注册表（生成物）：共 9 条路由，7 个入口文件。
+/// 模板注册表（生成物）：共 10 条路由，8 个入口文件。
 Map<String, ModleRenderer> buildTemplateRegistry() {
   return <String, ModleRenderer>{
     'v4': const V4ModleTemplate(),
@@ -27,6 +28,7 @@ Map<String, ModleRenderer> buildTemplateRegistry() {
     'html': const HtmlModleTemplate(),
     'scraper': const ScraperTemplate(),
     'theme-creator': const ThemeCreatorModleTemplate(),
+    'skill-creator': const SkillCreatorModleTemplate(),
     'dsh': const DshModleTemplate(),
   };
 }

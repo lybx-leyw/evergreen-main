@@ -70,13 +70,14 @@ const List<_SystemButton> _systemButtons = [
       label: '远程同步', icon: Icons.sync, placeholder: true),
 ];
 
-/// 开发者四插件入口（顺序与 [kDevPluginIds] 对齐）。
-const List<String> _devPluginNames = ['主题创作', '插件制作', '数据爬取', 'DSH'];
+/// 开发者五插件入口（顺序与 [kDevPluginIds] 对齐）。
+const List<String> _devPluginNames = ['主题创作', '插件制作', '数据爬取', 'DSH', 'Skill 创作'];
 const List<IconData> _devPluginIcons = [
   Icons.palette_outlined,
   Icons.code,
   Icons.public,
   Icons.hub_outlined,
+  Icons.auto_fix_high_outlined,
 ];
 
 // ═══════ ModeRail ═══════

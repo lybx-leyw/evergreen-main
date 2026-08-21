@@ -9,6 +9,7 @@
     { "name": "html",          "entry": "html_modle/html_modle_template.dart",                     "renderer": "HtmlModleTemplate" },
     { "name": "scraper",       "entry": "scraper_modle/scraper_template.dart",                     "renderer": "ScraperTemplate" },
     { "name": "theme-creator", "entry": "theme_creator_modle/theme_creator_modle_template.dart",   "renderer": "ThemeCreatorModleTemplate" },
+    { "name": "skill-creator", "entry": "skill_creator_modle/skill_creator_modle_template.dart",   "renderer": "SkillCreatorModleTemplate" },
     { "name": "dsh",           "entry": "dsh_modle/dsh_modle_template.dart",                        "renderer": "DshModleTemplate" }
   ]
 }

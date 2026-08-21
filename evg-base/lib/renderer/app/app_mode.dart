@@ -34,7 +34,7 @@ String appModeLabel(AppMode mode) => switch (mode) {
 /// 模式描述（扇形菜单副标题 / 无障碍）。
 String appModeDescription(AppMode mode) => switch (mode) {
       AppMode.ai => 'AI 助手为主视图',
-      AppMode.developer => '主题创作 · 插件制作 · 数据爬取',
+      AppMode.developer => '主题创作 · 插件制作 · 数据爬取 · Skill 创作',
       AppMode.plugins => '全部插件',
     };
 
@@ -57,21 +57,23 @@ final appModeProvider = StateProvider<AppMode>((ref) => AppMode.ai);
 /// （0=主题创作 / 1=插件制作 / 2=数据爬取；会话内记忆，切走再回保持）。
 final devHubIndexProvider = StateProvider<int>((ref) => 0);
 
-/// 5 个特殊插件 id——只出现在 AI 视图 / 开发者模式，不进入插件视图侧栏。
+/// 6 个特殊插件 id——只出现在 AI 视图 / 开发者模式，不进入插件视图侧栏。
 const Set<String> kSpecialPluginIds = {
   'ai-assistant',
   'theme-creator',
   'html-creator',
   'scraper',
   'dsh',
+  'skill-creator',
 };
 
-/// 开发者模式四插件 id（顺序即索引：0=主题创作 / 1=插件制作 / 2=数据爬取 / 3=DSH）。
+/// 开发者模式五插件 id（顺序即索引：0=主题创作 / 1=插件制作 / 2=数据爬取 / 3=DSH / 4=Skill 创作）。
 const List<String> kDevPluginIds = [
   'theme-creator',
   'html-creator',
   'scraper',
   'dsh',
+  'skill-creator',
 ];
 
 /// 切换模式并持久化。持久化失败静默降级（不影响本次切换）。
