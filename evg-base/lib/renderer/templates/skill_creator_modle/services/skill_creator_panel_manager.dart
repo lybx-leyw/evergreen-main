@@ -207,10 +207,14 @@ class SkillCreatorPanelManager {
     try {
       final file = File(_sessionPath(panelId, instanceId));
       if (!file.existsSync()) return null;
+      if (file.lengthSync() > 10 * 1024 * 1024) {
+        debugPrint('[SkillCreator] ⚠ 会话文件超过 10MiB，忽略恢复');
+        return null;
+      }
 
       final data = decodeJsonMap(file.readAsStringSync());
-      final fPanel = data['panelId'] as String?;
-      final fInstance = data['instanceId'] as String?;
+      final fPanel = data['panelId']?.toString();
+      final fInstance = data['instanceId']?.toString();
       if (fPanel != panelId || fInstance != instanceId) {
         debugPrint('[SkillCreator] ⚠ 孤儿会话（panelId=$fPanel instanceId=$fInstance '
             '≠ $panelId/$instanceId），不恢复并清理');
