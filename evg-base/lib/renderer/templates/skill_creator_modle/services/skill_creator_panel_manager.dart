@@ -246,6 +246,7 @@ class SkillCreatorPanelManager {
     try {
       final file = File(_metaPath(panelId));
       if (!file.existsSync()) return null;
+      if (file.lengthSync() > 1024 * 1024) return null;
       return SkillCreatorPanelMeta.fromJson(decodeJsonMap(file.readAsStringSync()));
     } catch (e) {
       debugPrint('[SkillCreator] ⚠ 解析面板 meta 失败: $panelId $e');
