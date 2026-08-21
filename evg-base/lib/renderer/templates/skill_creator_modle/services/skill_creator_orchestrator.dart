@@ -137,7 +137,7 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
   Future<void> runPipeline() async {
     if (_busy) return;
     final endpoint = Uri.tryParse(baseUrl);
-    if (apiKey.trim().isEmpty || baseUrl.trim().isEmpty || endpoint == null || endpoint.host.isEmpty || !{'http', 'https'}.contains(endpoint.scheme.toLowerCase())) {
+    if (apiKey.trim().isEmpty || baseUrl.trim().isEmpty || endpoint == null || endpoint.host.isEmpty || endpoint.userInfo.isNotEmpty || !{'http', 'https'}.contains(endpoint.scheme.toLowerCase())) {
       _workflow.phase = SkillCreatorPhase.error;
       _appendEvent('error', '需要接入 DeepSeek/OpenAI-compatible 接口后才能运行深度搜索（请检查 API Key 和 Base URL）。');
       _saveSession();
