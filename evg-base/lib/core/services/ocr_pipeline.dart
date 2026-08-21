@@ -202,11 +202,13 @@ class OcrPipeline {
       pages = (parsed['pages'] as List?)?.cast<Map<String, dynamic>>() ?? [];
     } catch (e) {
       Log().warn('OcrPipeline: failed to parse pdf_to_images output', error: e);
+      try { await Directory(outDir).delete(recursive: true); } catch (_) {}
       return null;
     }
 
     if (pages.isEmpty) {
       Log().warn('OcrPipeline: PDF produced no pages');
+      try { await Directory(outDir).delete(recursive: true); } catch (_) {}
       return null;
     }
     if (pages.length > 100) {
