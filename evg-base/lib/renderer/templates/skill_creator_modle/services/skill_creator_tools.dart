@@ -66,6 +66,10 @@ class DownloadFileTool extends Tool {
     if (parsedUrl == null || parsedUrl.host.isEmpty || parsedUrl.userInfo.isNotEmpty || !{'http', 'https'}.contains(parsedUrl.scheme.toLowerCase())) {
       return '[error: 仅允许 http/https 下载地址]';
     }
+    final host = parsedUrl.host.toLowerCase();
+    if (host == 'localhost' || host == '127.0.0.1' || host == '::1' || host == '0.0.0.0' || host == '169.254.169.254') {
+      return '[error: 禁止访问本机或云元数据地址]';
+    }
 
     // 路径沙箱：仅允许写入 workspace 内
     final target = p.normalize(p.join(workspaceDir, savePath));
