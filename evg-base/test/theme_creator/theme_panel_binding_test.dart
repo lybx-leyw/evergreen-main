@@ -73,14 +73,17 @@ void main() {
 
   group('会话文件路径约定', () {
     test('面板 meta/草稿/实例会话路径按约定分层', () {
+      // 路径分隔符跨平台（Windows 为 \，POSIX 为 /），用 p.join 构造期望，
+      // 与实现同源（theme_panel_manager.dart 也走 p.join），避免硬编码 / 在 Windows 失败。
       expect(panelDir('theme_panel_abc'),
-          contains('panels/theme_panel_abc'));
+          contains(p.join('panels', 'theme_panel_abc')));
       expect(panelMetaPath('theme_panel_abc'),
-          contains('panels/theme_panel_abc/meta.json'));
+          contains(p.join('panels', 'theme_panel_abc', 'meta.json')));
       expect(panelDraftPath('theme_panel_abc'),
-          contains('panels/theme_panel_abc/draft.json'));
+          contains(p.join('panels', 'theme_panel_abc', 'draft.json')));
       expect(instanceSessionsPath('theme_panel_abc', 'my-theme'),
-          contains('panels/theme_panel_abc/instances/my-theme/session.json'));
+          contains(p.join(
+              'panels', 'theme_panel_abc', 'instances', 'my-theme', 'session.json')));
     });
   });
 

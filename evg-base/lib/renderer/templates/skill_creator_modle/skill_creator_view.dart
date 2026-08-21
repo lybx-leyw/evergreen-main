@@ -179,8 +179,9 @@ class _SkillCreatorViewState extends ConsumerState<SkillCreatorView> {
   Future<void> _startPipeline(String requirement) async {
     var key = _apiKey;
     if (key.isEmpty) {
-      key = await _promptApiKey();
-      if (key == null || key.isEmpty) return;
+      final prompted = await _promptApiKey();
+      if (prompted == null || prompted.isEmpty) return;
+      key = prompted;
       _apiKey = key;
     }
     _orchestrator?.start(requirement);
@@ -200,7 +201,7 @@ class _SkillCreatorViewState extends ConsumerState<SkillCreatorView> {
             IconButton(
               icon: const Icon(Icons.refresh),
               tooltip: '续做',
-              onPressed: orch.busy ? null : () => orch.resume(),
+              onPressed: orch!.busy ? null : () => orch!.resume(),
             ),
           IconButton(
             icon: const Icon(Icons.add),

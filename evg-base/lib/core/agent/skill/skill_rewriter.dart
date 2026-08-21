@@ -34,7 +34,12 @@
 /// | [SkillRewriter] | 静态 `rewrite()` + 纯函数 `parseOutput()` / `normalizeName()` |
 library;
 
-import '../agent.dart' as agent;
+// 精确 import 纯 Dart 抽象（Provider/Message/ProviderEventKind），
+// 避免 import ../agent.dart 整个 barrel —— 后者会 export agent_runtime.dart /
+// session_manager.dart 两个依赖 Flutter/Riverpod/主包 providers 的重文件，
+// 导致本子包（lib/core/agent/）独立 dart test 时 package:evergreen_base 解析失败。
+import '../provider.dart' as agent;
+import '../message.dart' as agent_message;
 
 // ═══════ SkillRewriteData ═══════
 
@@ -178,8 +183,8 @@ run_as: inline
 
     try {
       final messages = [
-        agent.Message.system(_systemPrompt),
-        agent.Message.user(_userPrompt(
+        agent_message.Message.system(_systemPrompt),
+        agent_message.Message.user(_userPrompt(
           name: name.trim(),
           description: description.trim(),
           body: body,
@@ -295,12 +300,18 @@ run_as: inline
     );
   }
 
-  /// 名称规范化（纯函数，可单测）：小写 + 非字母数字转连字符 + 合并/去首尾。
+  /// 名称规范化（纯函数，可单测）：小写 + 驼峰拆分 + 非字母数字转连字符 + 合并/去首尾。
   ///
   /// 只做形式规范化，不改变语义。中文等无法 kebab 化的输入原样保留
   /// （小写化），避免把用户名称改得面目全非。
   static String normalizeName(String name) {
-    var s = name.trim().toLowerCase();
+    var s = name.trim();
+    // 驼峰拆分：小写字母/数字 后紧跟大写字母 → 插入连字符（须在小写化之前）。
+    s = s.replaceAllMapped(
+      RegExp(r'([a-z0-9])([A-Z])'),
+      (m) => '${m.group(1)}-${m.group(2)}',
+    );
+    s = s.toLowerCase();
     final normalized = s
         .replaceAll(RegExp(r'[^a-z0-9]+'), '-')
         .replaceAll(RegExp(r'-{2,}'), '-')

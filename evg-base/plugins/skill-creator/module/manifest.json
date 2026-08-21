@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "skill-creator",
+  "name": "Skill 创作",
+  "description": "Skill 创作中心：多 agent 流水线（规划 → 采集 → 验收 → 整合 → 创造 → 终验 → 导出到 .greenix/skills/）",
+  "icon": "auto_awesome",
+  "template": "skill-creator",
+  "version": "1.0.0",
+  "route": "/skill-creator",
+  "nav": {
+    "sidebar": { "section": "base主功能", "order": 50 }
+  }
+}

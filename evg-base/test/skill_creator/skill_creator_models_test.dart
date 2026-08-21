@@ -18,7 +18,7 @@ void main() {
       final t = SearchTask(
         id: 'task_1',
         source: SearchSource.arxiv,
-        query: 'retrieval augmented generation survey',
+        query: 'rag retrieval augmented generation survey',
         status: TaskStatus.done,
         verdict: TaskVerdict.pass,
         feedback: '材料相关，通过',
