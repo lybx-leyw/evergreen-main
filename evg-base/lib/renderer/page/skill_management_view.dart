@@ -452,8 +452,9 @@ class _NewSkillDialogState extends ConsumerState<_NewSkillDialog> {
     // 未配置 API Key：沿用现有引导（弹窗填写并保存），不白屏不静默。
     var apiKey = _readSetting('DEEPSEEK_API_KEY');
     if (apiKey.isEmpty) {
-      apiKey = await _promptApiKey();
-      if (apiKey == null || apiKey.isEmpty) return;
+      final prompted = await _promptApiKey();
+      if (prompted == null || prompted.isEmpty) return;
+      apiKey = prompted;
     }
     final modelSetting = _readSetting('DEEPSEEK_MODEL');
     final model = modelSetting.isNotEmpty ? modelSetting : 'deepseek-v4-flash';

@@ -67,23 +67,23 @@ void main() {
     }
   });
 
-  testWidgets('默认：四插件全部挂载（IndexedStack），选中索引 0=主题创作', (tester) async {
+  testWidgets('默认：五插件全部挂载（IndexedStack），选中索引 0=主题创作', (tester) async {
     // flutter_test 默认 defaultTargetPlatform==android，会让 scraper/dsh 槽位落到
     // 安卓占位页；显式设为 windows 才能验证已注册页挂载 EvergreenModulePage。
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;
-    // 仅注册 3 个：dsh 缺失 → 第 4 槽位落到「插件未安装」占位页。
+    // 仅注册 3 个：dsh / skill-creator 缺失 → 第 4/5 槽位落到「插件未安装」占位页。
     final registry = _registry(['theme-creator', 'html-creator', 'scraper']);
     await tester.pumpWidget(_wrap(registry, pluginsDir));
     await tester.pump();
 
     final stack = tester.widget<IndexedStack>(find.byType(IndexedStack));
     expect(stack.index, 0);
-    expect(stack.children.length, 4);
+    expect(stack.children.length, 5);
     expect(
       find.byType(EvergreenModulePage, skipOffstage: false),
       findsNWidgets(3),
-      reason: 'IndexedStack 四槽位同时挂载；已注册 3 页挂 EvergreenModulePage，'
-          'dsh 缺失落占位页',
+      reason: 'IndexedStack 五槽位同时挂载；已注册 3 页挂 EvergreenModulePage，'
+          'dsh / skill-creator 缺失落占位页',
     );
     // 必须在 body 末尾还原：_verifyInvariants 早于 tearDown 执行，
     // 否则触发 debugAssertAllFoundationVarsUnset。
@@ -111,7 +111,7 @@ void main() {
 
     expect(find.text('数据爬取仅支持 Windows 版'), findsOneWidget);
     final stack = tester.widget<IndexedStack>(find.byType(IndexedStack));
-    expect(stack.children.length, 4, reason: '槽位数量不变，仅内容替换');
+    expect(stack.children.length, 5, reason: '槽位数量不变，仅内容替换');
     // body 末尾还原，避免 _verifyInvariants 检出 debug 变量泄漏。
     debugDefaultTargetPlatformOverride = null;
   });
@@ -125,10 +125,11 @@ void main() {
     await tester.pump();
 
     // skipOffstage: false —— IndexedStack 中非活动页 offstage，find 默认裁剪。
-    // 缺失的插件是 scraper + dsh 两个 → 两个「插件未安装」占位页。
-    expect(find.text('插件未安装', skipOffstage: false), findsNWidgets(2));
+    // 缺失的插件是 scraper + dsh + skill-creator 三个 → 三个「插件未安装」占位页。
+    expect(find.text('插件未安装', skipOffstage: false), findsNWidgets(3));
     expect(find.text('scraper', skipOffstage: false), findsOneWidget);
     expect(find.text('dsh', skipOffstage: false), findsOneWidget);
+    expect(find.text('skill-creator', skipOffstage: false), findsOneWidget);
     debugDefaultTargetPlatformOverride = null;
   });
 }
