@@ -63,13 +63,15 @@ Future<String> singleRound({
     agent.Message.system(systemPrompt),
     agent.Message.user(userPrompt),
   ]);
-  await for (final event in stream) {
-    if (event.kind == agent.ProviderEventKind.content && event.text != null) {
-      buf.write(event.text!);
-    } else if (event.kind == agent.ProviderEventKind.error) {
-      throw StateError('LLM 调用失败: ${event.error ?? "未知错误"}');
+  await (() async {
+    await for (final event in stream) {
+      if (event.kind == agent.ProviderEventKind.content && event.text != null) {
+        buf.write(event.text!);
+      } else if (event.kind == agent.ProviderEventKind.error) {
+        throw StateError('LLM 调用失败: ${event.error ?? "未知错误"}');
+      }
     }
-  }
+  })().timeout(timeout);
   final text = buf.toString().trim();
   if (text.isEmpty) throw StateError('LLM 未返回内容，请重试');
   return text;
