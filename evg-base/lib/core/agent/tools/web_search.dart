@@ -67,6 +67,9 @@ class WebSearchTool extends Tool {
               },
             ),
           );
+          if (response.statusCode == null || response.statusCode! < 200 || response.statusCode! >= 300) {
+            continue;
+          }
           html = response.data?.toString() ?? '';
           if (html.isNotEmpty) break;
         } catch (_) {
