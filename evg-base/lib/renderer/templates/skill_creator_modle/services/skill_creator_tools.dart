@@ -1,6 +1,6 @@
 /// Skill 创作「深寻 agents」采集工具集。
 ///
-/// 在标准工具（web_search / fetch_url / workspace 读写）之上追加：
+/// 在标准工具（web_search / web_fetch / workspace 读写）之上追加：
 /// - `download_file` — 下载 URL 到工作区（PDF 等，写工具）；
 /// - `pdf_extract_text` — pymupdf 提取 PDF 文本预览（扫描版失败 → 用 ocr_file）；
 /// - `ocr_file` — 扫描版 PDF/图片 OCR（DeepSeek-OCR 云端 → Tesseract 本地降级）；

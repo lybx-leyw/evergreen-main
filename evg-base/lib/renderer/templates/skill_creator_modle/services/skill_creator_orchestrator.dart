@@ -240,7 +240,6 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
     if (material == null || material.localPath == null || _busy) return;
     material.processingError = null;
     material.readability = 'pending';
-    material.ocrAttempts++;
     _appendEvent('info', '手动重试 OCR：${material.title}');
     await _processMaterial(material);
     _saveSession();
