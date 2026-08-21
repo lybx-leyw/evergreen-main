@@ -72,6 +72,12 @@ class DownloadFileTool extends Tool {
     if (host == 'localhost' || host == '127.0.0.1' || host == '::1' || host == '0.0.0.0' || host == '169.254.169.254' || privateIpv4 || privateIpv6) {
       return '[error: 禁止访问本机或云元数据地址]';
     }
+    try {
+      final resolved = await InternetAddress.lookup(host);
+      if (resolved.any((a) => a.isLoopback || a.isLinkLocal || a.address.startsWith('10.') || a.address.startsWith('192.168.'))) {
+        return '[error: DNS 解析到受限内网地址]';
+      }
+    } catch (_) { return '[error: 无法解析目标主机]'; }
 
     // 路径沙箱：仅允许写入 workspace 内
     final target = p.normalize(p.join(workspaceDir, savePath));
