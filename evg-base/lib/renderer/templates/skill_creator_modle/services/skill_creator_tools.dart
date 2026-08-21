@@ -63,7 +63,7 @@ class DownloadFileTool extends Tool {
       return '[error: url 与 save_path 必填]';
     }
     final parsedUrl = Uri.tryParse(url);
-    if (parsedUrl == null || !{'http', 'https'}.contains(parsedUrl.scheme.toLowerCase())) {
+    if (parsedUrl == null || parsedUrl.host.isEmpty || !{'http', 'https'}.contains(parsedUrl.scheme.toLowerCase())) {
       return '[error: 仅允许 http/https 下载地址]';
     }
 
