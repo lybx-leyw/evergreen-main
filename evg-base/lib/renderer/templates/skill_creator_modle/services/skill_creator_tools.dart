@@ -92,8 +92,9 @@ class DownloadFileTool extends Tool {
     try {
       final existing = File(target);
       final sourceFile = File('$target.source');
-      if (existing.existsSync() && await existing.length() > 0 &&
-          sourceFile.existsSync() && sourceFile.readAsStringSync() == url) {
+      String? cachedSource;
+      try { if (sourceFile.existsSync()) cachedSource = sourceFile.readAsStringSync(); } catch (_) {}
+      if (existing.existsSync() && await existing.length() > 0 && cachedSource == url) {
         return '[ok] 已命中下载缓存（${await existing.length()} 字节）→ $target';
       }
       Response<List<int>>? resp;
