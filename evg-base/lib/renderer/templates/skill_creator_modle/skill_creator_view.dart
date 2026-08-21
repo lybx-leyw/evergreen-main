@@ -365,8 +365,10 @@ class _WorkflowTree extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final failedCount = workflow.tasks.where((t) => t.status == TaskStatus.failed).length;
+    final runningCount = workflow.tasks.where((t) => t.status == TaskStatus.running).length;
+    final doneCount = workflow.tasks.where((t) => t.status == TaskStatus.done).length;
     final nodes = <Widget>[
-      _treeNode(scheme, Icons.account_tree, 'Skill 创作流水线', '${workflow.phase.name} · ${workflow.events.length} 个事件${failedCount > 0 ? ' · 失败 $failedCount' : ''}', false),
+      _treeNode(scheme, Icons.account_tree, 'Skill 创作流水线', '${workflow.phase.name} · 完成 $doneCount/${workflow.tasks.length} · 运行 $runningCount${failedCount > 0 ? ' · 失败 $failedCount' : ''}', false),
       _treeNode(scheme, Icons.route, '规划', workflow.tasks.isEmpty ? '等待任务' : '${workflow.tasks.length} 个任务', workflow.phase.index > SkillCreatorPhase.planning.index),
       for (final task in workflow.tasks)
         _treeNode(
