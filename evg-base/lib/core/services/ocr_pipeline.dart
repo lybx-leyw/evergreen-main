@@ -55,8 +55,8 @@ class OcrPipeline {
         final result = await _deepseekOcr(filePath, _apiKey);
         if (_isUsableText(result)) {
           Log().info('OcrPipeline: Level 1 (DeepSeek) succeeded',
-              data: {'path': filePath, 'length': result.length});
-          return result;
+              data: {'path': filePath, 'length': result!.length});
+          return result!;
         }
       } catch (e) {
         Log().warn('OcrPipeline: Level 1 exception, falling back', error: e);
@@ -95,8 +95,8 @@ class OcrPipeline {
         final result = await _deepseekOcrUrl(imageUrl, _apiKey);
         if (_isUsableText(result)) {
           Log().info('OcrPipeline: Level 1 (DeepSeek) URL succeeded',
-              data: {'length': result.length});
-          return result;
+              data: {'length': result!.length});
+          return result!;
         }
       } catch (e) {
         Log().warn('OcrPipeline: Level 1 URL exception, falling back', error: e);
