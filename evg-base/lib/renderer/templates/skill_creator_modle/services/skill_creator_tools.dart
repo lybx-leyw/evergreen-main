@@ -68,7 +68,8 @@ class DownloadFileTool extends Tool {
     }
     final host = parsedUrl.host.toLowerCase();
     final privateIpv4 = RegExp(r'^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)').hasMatch(host);
-    if (host == 'localhost' || host == '127.0.0.1' || host == '::1' || host == '0.0.0.0' || host == '169.254.169.254' || privateIpv4) {
+    final privateIpv6 = host.startsWith('fc') || host.startsWith('fd') || host.startsWith('fe80:');
+    if (host == 'localhost' || host == '127.0.0.1' || host == '::1' || host == '0.0.0.0' || host == '169.254.169.254' || privateIpv4 || privateIpv6) {
       return '[error: 禁止访问本机或云元数据地址]';
     }
 
