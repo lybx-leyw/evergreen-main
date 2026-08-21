@@ -184,7 +184,7 @@ class MaterialItem {
         summary: json['summary']?.toString() ?? '',
         readability: json['readability']?.toString() ?? 'ok',
         processingError: json['processingError']?.toString(),
-        ocrAttempts: json['ocrAttempts'] as int? ?? 0,
+        ocrAttempts: (json['ocrAttempts'] as num?)?.toInt() ?? 0,
       );
 
   Map<String, dynamic> toJson() => {
