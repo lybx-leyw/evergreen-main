@@ -11,6 +11,7 @@ import '../orchestrator.dart';
 import '../type.dart';
 import '../exceptions.dart';
 import '../cache.dart';
+import '../data_diff.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 测试辅助
@@ -212,6 +213,141 @@ void main() {
       final data = await orch.get(testType);
       expect(_fetchCount, 1); // 缓存被清，重新拉取
       expect(data!['value'], 1);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 空数据门控：拉取结果为空 → 不覆写缓存（磁盘 + 内存），旧数据保留
+  // ═══════════════════════════════════════════════════════════════════════
+
+  group('空数据门控', () {
+    test('拉取返回空 Map 不覆写缓存，旧缓存仍可读', () async {
+      orch.register(testType, _fetcher);
+      await orch.refresh(testType); // 写入非空缓存
+
+      // 覆盖为返回空 Map 的 fetcher（同名同 persistentKey）
+      const emptyType = DataType<Map<String, dynamic>>(
+        name: '${_pfx}test',
+        category: '测试',
+        persistentKey: '${_pfx}test_cache',
+      );
+      orch.register(emptyType, () async => <String, dynamic>{});
+      final data = await orch.refresh(emptyType);
+      expect(data, isNull); // 空数据被拒
+
+      // 旧缓存仍在：get 返回旧数据且不重新调 fetcher
+      _fetchCount = 0;
+      final cached = await orch.get(testType);
+      expect(cached, isNotNull);
+      expect(cached!['value'], 1);
+      expect(_fetchCount, 0);
+    });
+
+    test('拉取返回空 List 不覆写缓存', () async {
+      // 注：用 DataType<dynamic> 规避 _decode 对 List<dynamic>→List<T> 的
+      // 既有转换限制（orchestrator.dart _decode 注释），门控本身与 T 无关。
+      const listType = DataType<dynamic>(
+        name: '${_pfx}list',
+        category: '测试',
+        persistentKey: '${_pfx}list_cache',
+      );
+      orch.register(listType, () async => ['a']);
+      await orch.refresh(listType);
+
+      orch.register(listType, () async => <String>[]);
+      final data = await orch.refresh(listType);
+      expect(data, isNull);
+
+      final cached = await orch.get(listType);
+      expect(cached, ['a']);
+    });
+
+    test('拉取返回空白字符串不覆写缓存', () async {
+      const strType = DataType<String>(
+        name: '${_pfx}str',
+        category: '测试',
+        persistentKey: '${_pfx}str_cache',
+      );
+      orch.register(strType, () async => 'hello');
+      await orch.refresh(strType);
+
+      orch.register(strType, () async => '   ');
+      final data = await orch.refresh(strType);
+      expect(data, isNull);
+
+      final cached = await orch.get(strType);
+      expect(cached, 'hello');
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 变更通知：后台刷新（notifyOnChange: true）覆写缓存且内容变化时发事件
+  // ═══════════════════════════════════════════════════════════════════════
+
+  group('变更通知', () {
+    late List<DataChangeEvent> events;
+
+    setUp(() {
+      events = [];
+      orch.addDataChangeListener(events.add);
+    });
+
+    test('首次拉取无基线不发事件；内容变化发事件', () async {
+      orch.register(testType, _fetcher);
+      await orch.refresh(testType, notifyOnChange: true); // 首次：无旧缓存
+      expect(events, isEmpty);
+
+      orch.register(testType, () async => {'value': 99});
+      await orch.refresh(testType, notifyOnChange: true); // value 1→99
+      expect(events, hasLength(1));
+      final e = events.single;
+      expect(e.sourceName, testType.name);
+      expect(e.displayName, '测试数据');
+      expect(e.diff.hasChanges, isTrue);
+    });
+
+    test('内容未变不发出事件（含仅易变字段变化）', () async {
+      orch.register(testType, () async => {'value': 1});
+      await orch.refresh(testType, notifyOnChange: true);
+      await orch.refresh(testType, notifyOnChange: true); // 数据相同
+      expect(events, isEmpty);
+
+      // 仅 ts 变化 → 不算变更
+      orch.register(testType, () async => {'value': 1, 'ts': 'x2'});
+      await orch.refresh(testType, notifyOnChange: true);
+      expect(events, isEmpty);
+    });
+
+    test('默认 notifyOnChange: false 不发事件（用户主动刷新不打扰）', () async {
+      orch.register(testType, _fetcher);
+      await orch.refresh(testType); // 写入 value=1
+      orch.register(testType, () async => {'value': 99});
+      await orch.refresh(testType); // 有变化但不通知
+      expect(events, isEmpty);
+    });
+
+    test('空数据不覆写缓存也不发事件', () async {
+      orch.register(testType, _fetcher);
+      await orch.refresh(testType, notifyOnChange: true);
+      orch.register(testType, () async => <String, dynamic>{});
+      await orch.refresh(testType, notifyOnChange: true);
+      expect(events, isEmpty);
+      // 旧缓存仍在
+      final cached = await orch.get(testType);
+      expect(cached!['value'], 1);
+    });
+
+    test('refreshAllStale 默认发事件（后台循环路径）', () async {
+      orch.register(testType, _fetcher);
+      await orch.refresh(testType, notifyOnChange: false); // 写入缓存 value=1
+      // 标记过期（TTL 2s，直接改时间戳到 10 分钟前）
+      orch.status(testType.name)!.debugLastFetchedAt =
+          DateTime.now().subtract(const Duration(minutes: 10));
+
+      orch.register(testType, () async => {'value': 100});
+      await orch.refreshAllStale(types: [testType]); // 默认 notifyOnChange
+      expect(events, hasLength(1));
+      expect(events.single.diff.hasChanges, isTrue);
     });
   });
 

@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- P1b：进程内起 localhost HTTP server（数据源 §5 方案 A）与基础联网需要 INTERNET 权限。 -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Android 13+ 通知权限（数据变更 diff 通知，运行时请求） -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <application
         android:label="evergreen_base"
         android:name="${applicationName}"
