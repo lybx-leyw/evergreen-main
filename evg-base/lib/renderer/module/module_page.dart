@@ -40,7 +40,15 @@ class _EvergreenModulePageState extends ConsumerState<EvergreenModulePage> {
     // 记录插件打开时间（lastUsedAt）——驱动插件中心「按最近使用」排序。
     // 页面每次被打开（路由推入）都会新建 State，initState 恰好对应一次「使用」。
     // 内置模块（无状态记录）也会由 touch() 补建默认记录。
-    ref.read(pluginStateProvider.notifier).touch(widget.descriptor.id);
+    // 注意：touch() 会 setState 修改 riverpod provider，不能在 build 生命周期内
+    // （initState/didUpdateWidget/build 等）同步调用，否则触发
+    // "Tried to modify a provider while the widget tree was building"。
+    // 延迟到当前帧绘制完成后再执行，避开 widget 构建期。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(pluginStateProvider.notifier).touch(widget.descriptor.id);
+      }
+    });
   }
 
   @override
