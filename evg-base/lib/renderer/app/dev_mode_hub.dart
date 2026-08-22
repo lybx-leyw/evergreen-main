@@ -55,10 +55,12 @@ class _DevModeHubState extends ConsumerState<DevModeHub> {
     final isAndroid = defaultTargetPlatform == TargetPlatform.android;
 
     final queryPlugin = GoRouterState.of(context).uri.queryParameters['plugin'];
-    final selected =
-        (_indexFromQuery(queryPlugin) ?? ref.watch(devHubIndexProvider))
-            .clamp(0, kDevPluginIds.length - 1)
-            .toInt();
+    // `??` 上 lub 推断会把 `int? ?? int` 保留为 `int?`，显式 `as int` 消除可空，
+    // 使 `.clamp` 可在非空 int 上调用（queryIndex 为空时回退值恒为非空 int）。
+    final selected = ((_indexFromQuery(queryPlugin) ??
+                ref.watch(devHubIndexProvider)) as int)
+        .clamp(0, kDevPluginIds.length - 1)
+        .toInt();
     _visited.add(selected);
 
     final children = <Widget>[];
