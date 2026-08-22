@@ -1,11 +1,12 @@
-/// 开发者模式主区——IndexedStack 保持 主题创作 / 插件制作 / 数据爬取 三插件状态。
+/// 开发者模式主区——懒挂载 + Offstage 保持已访问插件状态。
 ///
 /// 设计依据：《三模式视图重构_实施计划.md》（根目录）。
 ///
 /// - 路由：/dev-hub（app.dart 注册）；可选深链 ?plugin=theme-creator|html-creator|scraper；
 /// - 选中态：优先 query 参数（深链），否则 [devHubIndexProvider]
 ///   （左栏点击设置，会话内记忆上次选择）；
-/// - IndexedStack：三页同时挂载，切换不丢各插件状态；
+/// - 懒挂载：只构建当前选中的插件页；切换后已访问页面用 Offstage 保活，
+///   避免进入开发者模式时一次性初始化全部 5 个插件（WebView/Agent/磁盘扫描等）；
 /// - 安卓：scraper 槽位渲染占位页（数据爬取仅支持 Windows 版）；
 /// - 插件未安装：槽位渲染「插件未安装」占位，不崩溃。
 library;
@@ -20,6 +21,7 @@ import 'package:evergreen_base/providers.dart';
 import 'package:evergreen_base/renderer/app/app_mode.dart';
 import 'package:evergreen_base/renderer/app/service/providers/renderer_providers.dart';
 import 'package:evergreen_base/renderer/module/module_page.dart';
+import 'package:evergreen_base/core/module/module_registry.dart';
 
 /// query 参数 → 插件索引。
 const Map<String, int> _pluginIndex = {
@@ -34,44 +36,73 @@ int? _indexFromQuery(String? plugin) =>
     (plugin == null || plugin.isEmpty) ? null : _pluginIndex[plugin];
 
 /// 开发者模式主区。
-class DevModeHub extends ConsumerWidget {
+class DevModeHub extends ConsumerStatefulWidget {
   const DevModeHub({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DevModeHub> createState() => _DevModeHubState();
+}
+
+class _DevModeHubState extends ConsumerState<DevModeHub> {
+  /// 已访问过的插件索引。只有这些槽位才会被构建，Offstage 保活其 State。
+  final Set<int> _visited = {};
+
+  @override
+  Widget build(BuildContext context) {
     final registry = ref.watch(moduleRegistryProvider);
     final pluginsDir = ref.watch(pluginsDirProvider);
     final v2 = ref.watch(v2ManifestProvider);
     final isAndroid = defaultTargetPlatform == TargetPlatform.android;
 
-    final queryPlugin =
-        GoRouterState.of(context).uri.queryParameters['plugin'];
+    final queryPlugin = GoRouterState.of(context).uri.queryParameters['plugin'];
     final selected =
-        _indexFromQuery(queryPlugin) ?? ref.watch(devHubIndexProvider);
+        (_indexFromQuery(queryPlugin) ?? ref.watch(devHubIndexProvider))
+            .clamp(0, kDevPluginIds.length - 1)
+            .toInt();
+    _visited.add(selected);
 
-    final pages = <Widget>[];
+    final children = <Widget>[];
     for (int i = 0; i < kDevPluginIds.length; i++) {
-      final id = kDevPluginIds[i];
-      // 仅 Windows 插件（scraper / dsh / skill-creator 依赖 WebView2 或桌面能力）在安卓端渲染占位页。
-      if (kWindowsOnlyPluginIds.contains(id) && isAndroid) {
-        pages.add(_AndroidPlaceholder(label: _labelFor(id)));
-        continue;
-      }
-      final descriptor = registry.findById(id);
-      if (descriptor == null) {
-        pages.add(_MissingPluginPage(pluginId: id));
-        continue;
-      }
-      pages.add(EvergreenModulePage(
-        descriptor: descriptor,
-        workingDirectory: p.join(pluginsDir, id) + p.separator,
-        renderMode: v2[id]?['renderMode'] as String? ?? 'dart',
-      ));
+      if (!_visited.contains(i)) continue;
+      children.add(
+        Positioned.fill(
+          child: Offstage(
+            offstage: i != selected,
+            child: _buildPage(
+              i,
+              registry: registry,
+              pluginsDir: pluginsDir,
+              v2: v2,
+              isAndroid: isAndroid,
+            ),
+          ),
+        ),
+      );
     }
 
-    return IndexedStack(
-      index: (selected ?? 0).clamp(0, pages.length - 1).toInt(),
-      children: pages,
+    return Stack(children: children);
+  }
+
+  Widget _buildPage(
+    int i, {
+    required ModuleRegistry registry,
+    required String pluginsDir,
+    required Map<String, Map<String, dynamic>> v2,
+    required bool isAndroid,
+  }) {
+    final id = kDevPluginIds[i];
+    // 仅 Windows 插件（scraper / dsh / skill-creator 依赖 WebView2 或桌面能力）在安卓端渲染占位页。
+    if (kWindowsOnlyPluginIds.contains(id) && isAndroid) {
+      return _AndroidPlaceholder(label: _labelFor(id));
+    }
+    final descriptor = registry.findById(id);
+    if (descriptor == null) {
+      return _MissingPluginPage(pluginId: id);
+    }
+    return EvergreenModulePage(
+      descriptor: descriptor,
+      workingDirectory: p.join(pluginsDir, id) + p.separator,
+      renderMode: v2[id]?['renderMode'] as String? ?? 'dart',
     );
   }
 }
@@ -80,11 +111,11 @@ class DevModeHub extends ConsumerWidget {
 
 /// 插件 id → 显示标签（安卓占位页 / 弹窗共用）。
 String _labelFor(String id) => switch (id) {
-      'scraper' => '数据爬取',
-      'dsh' => 'DSH',
-      'skill-creator' => 'Skill 创作',
-      _ => id,
-    };
+  'scraper' => '数据爬取',
+  'dsh' => 'DSH',
+  'skill-creator' => 'Skill 创作',
+  _ => id,
+};
 
 /// 安卓端「仅 Windows 插件」占位页——提示使用 Windows 版。
 class _AndroidPlaceholder extends StatelessWidget {
@@ -102,19 +133,17 @@ class _AndroidPlaceholder extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             '$label仅支持 Windows 版',
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(fontWeight: FontWeight.bold),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           Text(
             '安卓版暂未提供 $label，请使用 Windows 版 Evergreen。',
             textAlign: TextAlign.center,
-            style: Theme.of(context)
-                .textTheme
-                .bodyMedium
-                ?.copyWith(color: scheme.onSurfaceVariant),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
           ),
         ],
       ),
@@ -134,17 +163,19 @@ class _MissingPluginPage extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.extension_off_outlined,
-              size: 48, color: scheme.onSurfaceVariant),
+          Icon(
+            Icons.extension_off_outlined,
+            size: 48,
+            color: scheme.onSurfaceVariant,
+          ),
           const SizedBox(height: 12),
           Text('插件未安装', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 4),
           Text(
             pluginId,
-            style: Theme.of(context)
-                .textTheme
-                .bodySmall
-                ?.copyWith(color: scheme.onSurfaceVariant),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
           ),
         ],
       ),
