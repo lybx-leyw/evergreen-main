@@ -18,7 +18,6 @@ class PluginInfo {
     this.version,
     this.iconCode,
     required this.dirPath,
-    this.deletePath = '',
     required this.isModule,
     required this.hasSidebar,
     required this.pageCount,
@@ -81,8 +80,6 @@ class PluginInfo {
         return Icons.palette;
       case 'skill':
         return Icons.auto_fix_high;
-      case 'plugin':
-        return Icons.inventory_2_outlined;
       default:
         return Icons.extension;
     }
@@ -104,8 +101,6 @@ class PluginInfo {
         return '主题';
       case 'skill':
         return '技能';
-      case 'plugin':
-        return '插件';
       default:
         return type.isEmpty ? '未知' : type;
     }
