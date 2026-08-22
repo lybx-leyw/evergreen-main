@@ -16,28 +16,39 @@ class _FeedbackFabState extends State<FeedbackFab> {
   double _x = 16;
   double _y = 120;
   bool _open = false;
+  /// 截屏模式：仅把遮罩设为透明且不可点击，dialog 仍保持 mounted，
+  /// 以便发 Issue 工作流能正常渲染、同时截到真实 bug 现场。
+  bool _captureMode = false;
 
   @override
   Widget build(BuildContext context) {
     if (_open) {
       return Positioned.fill(
-        child: MaterialApp(
-          debugShowCheckedModeBanner: false,
-          home: Stack(
-            children: [
-              GestureDetector(
-                onTap: () => setState(() => _open = false),
-                child: Container(color: Colors.black38),
-              ),
-              Center(
-                child: SizedBox(
-                  width: 420,
-                  child: FeedbackDialog(
-                    onClose: () => setState(() => _open = false),
+        child: Opacity(
+          opacity: _captureMode ? 0 : 1,
+          child: IgnorePointer(
+            ignoring: _captureMode,
+            child: MaterialApp(
+              debugShowCheckedModeBanner: false,
+              home: Stack(
+                children: [
+                  GestureDetector(
+                    onTap: () => setState(() => _open = false),
+                    child: Container(color: Colors.black38),
                   ),
-                ),
+                  Center(
+                    child: SizedBox(
+                      width: 420,
+                      child: FeedbackDialog(
+                        onClose: () => setState(() => _open = false),
+                        onCaptureMode: (hide) =>
+                            setState(() => _captureMode = hide),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       );
