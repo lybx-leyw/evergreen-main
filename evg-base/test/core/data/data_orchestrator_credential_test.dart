@@ -197,7 +197,7 @@ void main() {
       final s = orch.status('courses')!;
       expect(s.connected, isFalse,
           reason: '_fetchAndCache: data==null → 无效数据 → connected=false');
-      expect(s.lastError, '拉取返回无效数据');
+      expect(s.lastError, '拉取返回无效或空数据');
     });
 
     test('refresh 前未拉取过 → freshnessLabel 为 "从未"', () {
