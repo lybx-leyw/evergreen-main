@@ -196,20 +196,48 @@ String get zjuCookiesPath => p.join(_greenixBaseDir, 'zju_cookies.json');
 /// 记忆存储目录。
 String get greenixMemoriesDir => p.join(_greenixBaseDir, 'memories');
 
-/// Skill 文件目录。
+/// Skill 文件目录（旧版平铺路径，仅保留兼容读取）。
 String get greenixSkillsDir => p.join(_greenixBaseDir, 'skills');
 
-/// 构造 Skill 文件落盘路径，统一 AI 助手/技能管理与 Skill 创作中心的导出规则。
+/// 归一化 Skill 名 → 插件 id / 文件名（空白转 `-`、转小写）。
 ///
-/// 与旧实现保持一致：`Directory(greenixSkillsDir)` + 平台分隔符，
-/// 文件名规则为“空白转 `-` + 小写”。
+/// 与旧 [greenixSkillPath] 的命名规则一致，保证「Skill 即插件」迁移后
+/// 市场卡片 id（插件目录名）与 Skill 名可互相匹配（禁用过滤依赖此规则）。
+String normalizeSkillName(String name) =>
+    name.replaceAll(RegExp(r'\s+'), '-').toLowerCase();
+
+/// 构造 Skill 文件落盘路径（旧版：`.greenix/skills/<name>.md`）。
+///
+/// 仅保留用于兼容旧数据；**新写入请使用 [greenixSkillPluginPath]**，
+/// 让 Skill 以插件形态（`plugins/<id>/skill/`）统一存放。
 String greenixSkillPath(String name) {
   final skillsDir = Directory(greenixSkillsDir);
   if (!skillsDir.existsSync()) {
     skillsDir.createSync(recursive: true);
   }
-  final filename = '${name.replaceAll(RegExp(r'\s+'), '-').toLowerCase()}.md';
+  final filename = '${normalizeSkillName(name)}.md';
   return '${skillsDir.path}${Platform.pathSeparator}$filename';
+}
+
+/// Skill 作为插件的统一存放目录：`plugins/<id>/skill/`（规范路径）。
+///
+/// `<id>` 取归一化 Skill 名（[normalizeSkillName]）；[pluginsRoot] 缺省时
+/// 使用 [resolvePluginsRoot]（与市场扫描/Agent 加载的插件根一致）。
+String greenixSkillPluginDir(String name, {String? pluginsRoot}) {
+  final root = pluginsRoot ?? resolvePluginsRoot();
+  final id = normalizeSkillName(name);
+  return p.join(root, id, 'skill');
+}
+
+/// Skill 作为插件的统一落盘文件路径：`plugins/<id>/skill/<id>.md`。
+///
+/// 这是 Skill 创作/技能管理的**唯一写入路径**——与加载侧
+/// `SkillLoader([... , pluginsDir])`（插件布局 B：`plugins/<id>/skill/*.md`）
+/// 和市场扫描（`skill/` 能力目录）对齐，实现「Skill 即插件」路径统一。
+String greenixSkillPluginPath(String name, {String? pluginsRoot}) {
+  final id = normalizeSkillName(name);
+  return p.join(
+      greenixSkillPluginDir(name, pluginsRoot: pluginsRoot), '$id.md');
 }
 
 /// 会话持久化目录。

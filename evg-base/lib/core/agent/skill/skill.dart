@@ -4,6 +4,8 @@ library;
 import 'dart:io';
 import 'dart:convert';
 
+import 'package:path/path.dart' as p;
+
 enum SkillScope {
   builtin,
   global,
@@ -99,15 +101,79 @@ class SkillIndex {
 class SkillLoader {
   final List<String> searchPaths;
 
-  SkillLoader(this.searchPaths);
+  /// 已禁用的 Skill 插件 id 集合（市场「停用」写入 `.plugin_states.json`，
+  /// 装配层读取后传入）——命中的 Skill 不加载、不出现在索引中。
+  ///
+  /// 匹配规则（与 normalizeSkillName 一致：空白转 `-` + 小写）：
+  /// 1. Skill frontmatter `name` 归一化后命中；
+  /// 2. 插件形态路径 `plugins/<id>/skill/` 的目录段 `<id>` 命中。
+  final Set<String> disabledSkillIds;
 
-  /// 从所有搜索路径加载技能。
+  /// 可选：插件根目录。设置后每次 [loadAll] 都会重新读取
+  /// `.plugin_states.json`——市场中心「停用」技能无需重启即可生效
+  /// （RunSkillTool / ListSkillsTool 每次调用都会重新 loadAll）。
+  final String? pluginsRootForDisabled;
+
+  SkillLoader(this.searchPaths,
+      {this.disabledSkillIds = const {}, this.pluginsRootForDisabled});
+
+  /// 从 `plugins/.plugin_states.json` 读取「已停用」插件 id 集合。
+  ///
+  /// 状态文件由市场中心 PluginStateService 维护（key=插件 id →
+  /// `{"enabled": bool, ...}`）；本方法仅读取 `enabled == false` 的 id，
+  /// 供装配层在构建 SkillLoader 时传入 [disabledSkillIds]。
+  /// 文件缺失/损坏时返回空集合（不抛异常）。
+  static Set<String> disabledIdsFromPluginStates(String pluginsRoot) {
+    try {
+      final file = File(p.join(pluginsRoot, '.plugin_states.json'));
+      if (!file.existsSync()) return const {};
+      final json = jsonDecode(file.readAsStringSync());
+      if (json is! Map<String, dynamic>) return const {};
+      final result = <String>{};
+      for (final entry in json.entries) {
+        if (entry.key == '_config') continue;
+        final v = entry.value;
+        if (v is Map && v['enabled'] == false) {
+          result.add(entry.key);
+        }
+      }
+      return result;
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  /// 生效的禁用集合：构造注入的 [disabledSkillIds] + （若配置了
+  /// [pluginsRootForDisabled]）实时读取的 `.plugin_states.json` 停用集合。
+  Set<String> _resolveDisabled() {
+    if (pluginsRootForDisabled == null) return disabledSkillIds;
+    return {...disabledSkillIds, ...disabledIdsFromPluginStates(pluginsRootForDisabled!)};
+  }
+
+  /// 从所有搜索路径加载技能（已按禁用集合过滤）。
   List<Skill> loadAll() {
     final skills = <Skill>[];
+    final disabled = _resolveDisabled();
     for (final path in searchPaths) {
-      skills.addAll(_loadFromDir(path));
+      for (final s in _loadFromDir(path)) {
+        if (!_isDisabled(s, disabled)) skills.add(s);
+      }
     }
     return skills;
+  }
+
+  /// 归一化比较用（与 greenix_path.normalizeSkillName 保持同规则）。
+  static String _norm(String s) =>
+      s.replaceAll(RegExp(r'\s+'), '-').toLowerCase();
+
+  /// Skill 是否被禁用（按 [disabled] 集合匹配）。
+  bool _isDisabled(Skill skill, Set<String> disabled) {
+    if (disabled.isEmpty) return false;
+    if (disabled.contains(_norm(skill.name))) return true;
+    // 插件形态：plugins/<id>/skill/... —— 目录段命中即禁用。
+    final norm = skill.path.replaceAll('\\', '/');
+    final m = RegExp(r'/plugins/([^/]+)/skill/').firstMatch(norm);
+    return m != null && disabled.contains(_norm(m.group(1)!));
   }
 
   List<Skill> _loadFromDir(String dirPath) {

@@ -22,6 +22,7 @@ class PluginInfo {
     required this.hasSidebar,
     required this.pageCount,
     this.isBuiltin = false,
+    this.isSkill = false,
     this.section = '未分组',
     this.sectionOrder = 50,
     this.order = 50,
@@ -47,6 +48,9 @@ class PluginInfo {
   /// 内置模块由启动期注册进 ModuleRegistry（如 zju 9 个校园模块），
   /// 市场合并展示时置 true，卡片隐藏「卸载」按钮。
   final bool isBuiltin;
+  /// 是否为 Skill 能力插件（目录含 `skill/`）——卡片显示启用/停用开关，
+  /// 卸载仅删除 `skill/` 子目录（不误删同目录其他能力）。
+  final bool isSkill;
   /// 所属侧边栏分组名（manifest `nav.sidebar.section`；无侧栏时回退「未分组」）。
   /// 插件中心「分组排序」与侧边栏组名开关共用此分组。
   final String section;
@@ -71,6 +75,8 @@ class PluginInfo {
         return Icons.settings;
       case 'theme':
         return Icons.palette;
+      case 'skill':
+        return Icons.auto_fix_high;
       default:
         return Icons.extension;
     }
@@ -90,6 +96,8 @@ class PluginInfo {
         return '配置';
       case 'theme':
         return '主题';
+      case 'skill':
+        return '技能';
       default:
         return type.isEmpty ? '未知' : type;
     }

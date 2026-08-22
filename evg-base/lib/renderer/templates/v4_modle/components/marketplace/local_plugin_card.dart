@@ -102,8 +102,9 @@ class LocalPluginCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                // 仅 module 类型有启用/停用开关（影响侧边栏导航）。
-                if (plugin.isModule)
+                // module / skill 类型有启用/停用开关
+                // （module 影响侧边栏导航；skill 影响 Agent 是否加载该技能）。
+                if (plugin.isModule || plugin.isSkill)
                   Switch(
                     value: _enabled,
                     onChanged: (_) => onToggleEnabled(),

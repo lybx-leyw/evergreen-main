@@ -147,7 +147,7 @@ class ListSkillsTool extends Tool {
   String get description =>
       '列出当前所有可用的 Skill。inline 模式返回指引供阅读，'
       'subagent 模式启动隔离子 Agent 独立运行。'
-      '手动放入 .greenix/skills/ 目录的 .md 文件会自动被识别。';
+      '手动放入 .greenix/skills/（旧路径）或 plugins/<id>/skill/（插件形态）目录的 .md 文件会自动被识别。';
 
   @override
   Map<String, dynamic> get schema => {
@@ -164,7 +164,7 @@ class ListSkillsTool extends Tool {
 
     final skills = idx.all();
     if (skills.isEmpty) {
-      return '当前没有可用的 Skill。将 .md 文件放入 .greenix/skills/ 目录即可添加。';
+      return '当前没有可用的 Skill。将 .md 文件放入 plugins/<id>/skill/ 目录（或旧路径 .greenix/skills/）即可添加。';
     }
     final buf = StringBuffer();
     buf.writeln('## 可用 Skill 列表 (热加载)\n');

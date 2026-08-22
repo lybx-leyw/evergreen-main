@@ -6,6 +6,7 @@ import 'dart:io';
 
 import 'package:path/path.dart' as p;
 import 'package:evergreen_base/core/module/module_descriptor.dart';
+import 'package:evergreen_base/core/agent/skill/skill.dart';
 import 'marketplace_plugin_info.dart';
 
 /// 扫描 [pluginsDir] 下的所有插件目录与所有类型 manifest。
@@ -62,6 +63,27 @@ import 'marketplace_plugin_info.dart';
         }
       } catch (_) {
         // 解析失败的 manifest 跳过
+      }
+    }
+
+    // Skill 能力目录（Skill 即插件）：plugins/<id>/skill/*.md ——
+    // 无需 manifest，存在 .md 即生成一张 type='skill' 卡片。
+    // 与 SkillLoader 的插件布局 B 一致；id 回退文件夹名（collision 时加 -skill 后缀）。
+    final skillDirPath = '${entity.path}${Platform.pathSeparator}skill';
+    final skillDir = Directory(skillDirPath);
+    if (skillDir.existsSync()) {
+      try {
+        final skills = SkillLoader([skillDirPath]).loadAll();
+        if (skills.isNotEmpty) {
+          final info = _toSkillPluginInfo(entity.path, skills.first, usedIds);
+          if (info != null) {
+            infos.add(info);
+            dirs[info.id] = entity.path;
+            usedIds.add(info.id);
+          }
+        }
+      } catch (_) {
+        // skill 目录解析失败跳过（不影响其他卡片）
       }
     }
   }
@@ -136,6 +158,33 @@ PluginInfo? _toPluginInfo(
     section: section,
     sectionOrder: sectionOrder,
     order: order,
+  );
+}
+
+/// 从插件目录的 `skill/` 能力生成市场卡片（type='skill'）。
+///
+/// 名称/描述取首个 Skill 的 frontmatter；id 回退文件夹名
+/// （已占用时追加 `-skill` 后缀，保证状态/卸载有唯一 key）。
+PluginInfo? _toSkillPluginInfo(
+  String folderPath,
+  Skill skill,
+  Set<String> usedIds,
+) {
+  final folderName = p.basename(folderPath);
+  var id = folderName;
+  if (usedIds.contains(id)) {
+    id = '$folderName-skill';
+  }
+  return PluginInfo(
+    id: id,
+    name: skill.name,
+    description: skill.description,
+    type: 'skill',
+    dirPath: folderPath,
+    isModule: false,
+    isSkill: true,
+    hasSidebar: false,
+    pageCount: 0,
   );
 }
 

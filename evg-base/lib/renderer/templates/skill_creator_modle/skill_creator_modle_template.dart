@@ -2,7 +2,7 @@
 ///
 /// Skill 创作中心：多 agent 流水线（规划 agent 询问需求 → 按来源派深寻
 /// agents 采集（web/PDF/OCR）→ 验收交涉 → 整合报告 → skill 创造 →
-/// 终验 → 导出到 `.greenix/skills/`），按「几个一」规格实现
+/// 终验 → 导出到 `plugins/<id>/skill/`），按「几个一」规格实现
 /// 一面板一实例一固定 ID、一会话一固定历史、断点续做。
 library;
 
