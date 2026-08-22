@@ -29,6 +29,7 @@
     {"key":"PYTHON_EXE",           "label":"Python 解释器路径",   "type":"path",   "hint":"默认使用内置 .greenix/python/python.exe"},
     {"key":"MATERIAL_DOWNLOAD_PATH","label":"下载目录",           "type":"path",   "hint":"素材/文件下载保存目录"},
     {"key":"ZJU_USERNAME",         "label":"浙大统一认证账号",     "type":"string", "hint":"学号（如 3230XXXXXXXX），教务/智云课堂/图书馆/一卡通共用"},
-    {"key":"ZJU_PASSWORD",         "label":"浙大统一认证密码",     "type":"string", "isSecure":true, "hint":"统一认证密码，教务/智云课堂/图书馆/一卡通共用"}
+    {"key":"ZJU_PASSWORD",         "label":"浙大统一认证密码",     "type":"string", "isSecure":true, "hint":"统一认证密码，教务/智云课堂/图书馆/一卡通共用"},
+    {"key":"GITHUB_FEEDBACK_TOKEN", "label":"GitHub 反馈令牌 (PAT)", "type":"string", "isSecure":true, "hint":"需 repo 权限，用于反馈面板一键提交 Issue 到 evergreen-main"}
   ]
 }

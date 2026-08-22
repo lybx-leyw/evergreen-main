@@ -7,6 +7,8 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'package:evergreen_base/core/agent/skill/skill.dart';
+import 'package:evergreen_base/core/data/data.dart';
+import 'package:evergreen_base/core/utils/greenix_path.dart';
 import 'marketplace_plugin_info.dart';
 
 /// 扫描 [pluginsDir] 下的所有插件目录与所有类型 manifest。
@@ -258,5 +260,79 @@ PluginInfo pluginInfoFromBuiltinModule(ModuleDescriptor d) {
     section: sidebar?.section ?? '未分组',
     sectionOrder: sidebar?.sectionOrder ?? 50,
     order: sidebar?.order ?? 50,
+  );
+}
+
+/// 运行时已注册的数据源（DataOrchestrator 真相源）→ 插件市场卡片。
+///
+/// 与磁盘扫描（[scanPluginManifests] 的 data 分支）互补：
+/// marketplace 主扫 `plugins/<name>/data/manifest.json` 磁盘文件，但**运行时热注册**
+/// （如 zju 校园 12 数据源、设计器「自动爬取生成数据源」后调用
+/// [registerDataSourcesFromManifest]、assets 内置数据源等）并不总以磁盘 manifest 形式
+/// 出现在 pluginsDir 扫描结果里——它们只活在 [DataOrchestrator.registeredTypes]。
+/// 这里把 [DataOrchestrator.allStatuses] 也并入市场，保证「已注册即显示」。
+///
+/// - `isBuiltin` 由调用方按「磁盘是否已有同名 data-source 卡」决定：
+///   已存在磁盘卡 → 不复刻（去重）；不存在 → 视为内置注册（无磁盘目录，隐藏卸载）。
+/// - `id` 用数据源 `name`（orch://<name>），与磁盘 data-source 卡的 id 同源去重。
+PluginInfo pluginInfoFromDataSource(DataSourceStatus status,
+    {required bool isBuiltin}) {
+  return PluginInfo(
+    id: status.name,
+    name: status.displayName.isNotEmpty ? status.displayName : status.name,
+    description: status.category.isNotEmpty
+        ? '数据源分类：${status.category}（orch://${status.name}）'
+        : '数据源（orch://${status.name}）',
+    type: 'data-source',
+    dirPath: isBuiltin ? '' : status.name,
+    isModule: false,
+    hasSidebar: false,
+    pageCount: 0,
+    isBuiltin: isBuiltin,
+    section: isBuiltin ? '内置数据源' : '数据源',
+    sectionOrder: isBuiltin ? 10 : 50,
+    order: 50,
+  );
+}
+
+/// 运行时已加载的 Skill（skillIndexProvider 真相源）→ 插件市场卡片。
+///
+/// 与 [scanPluginManifests] 的 skill 分支互补：marketplace 旧扫描只查
+/// `plugins/<name>/skill/*.md` 单目录，**漏掉了 app_bootstrap 实际扫描的
+/// `.greenix/skills/`（旧路径 + 真实 skill 所在地）以及 `plugins/<name>/SKILL.md`
+/// 布局 A**。统一改为从 [SkillIndex.all] 读取（与 Skill 管理页、RunSkillTool 同源），
+/// 保证技能管理页能看到的 skill，市场也都能看到。
+///
+/// - `dirPath` 推断：路径含 `.../plugins/<id>/skill/...` → 定位到插件根目录
+///   `plugins/<id>`（非内置，可卸载 skill/ 子目录，与卸载回退 `pluginsDir/id` 一致）；
+///   否则（`.greenix/skills/` 等）→ 内置，dirPath 置空、隐藏卸载。
+/// - `id` 用归一化 Skill 名（`normalizeSkillName`），与磁盘 skill 卡的 id 同源去重，
+///   也与「停用」过滤（.plugin_states.json 按此 id 匹配）一致。
+PluginInfo pluginInfoFromSkill(Skill skill, {required bool isBuiltin}) {
+  final pluginDir = isBuiltin
+      ? ''
+      : () {
+          // skill.path 形如 .../plugins/<id>/skill/<name>.md → 取 plugins/<id>
+          final segments = skill.path.replaceAll('\\', '/').split('/');
+          final skillIdx = segments.lastIndexOf('skill');
+          if (skillIdx > 0) {
+            return segments.sublist(0, skillIdx).join('/');
+          }
+          return skill.path;
+        }();
+  return PluginInfo(
+    id: normalizeSkillName(skill.name),
+    name: skill.name,
+    description: skill.description,
+    type: 'skill',
+    dirPath: pluginDir,
+    isModule: false,
+    isSkill: true,
+    hasSidebar: false,
+    pageCount: 0,
+    isBuiltin: isBuiltin,
+    section: isBuiltin ? '内置技能' : '技能',
+    sectionOrder: isBuiltin ? 10 : 50,
+    order: 50,
   );
 }

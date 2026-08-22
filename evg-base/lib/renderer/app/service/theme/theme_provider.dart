@@ -42,6 +42,7 @@ ThemeData buildAppThemeFromDescriptor(
     outline: c.borderDefault,
     outlineVariant: c.borderDefault,
     surfaceContainerHighest: c.bgSecondary,
+    surfaceContainer: c.bgTertiary,
     surfaceContainerLow: c.bgPrimary,
     shadow: Colors.black,
   );

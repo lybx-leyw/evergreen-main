@@ -3967,13 +3967,12 @@ class _ToolTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
     final iconData = _toolIcon(name);
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 3),
       decoration: BoxDecoration(
-        color: isDark ? Colors.grey.shade900 : Colors.grey.shade50,
+        color: theme.colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: enabled
@@ -3990,7 +3989,7 @@ class _ToolTile extends StatelessWidget {
               ? (isEssential
                   ? Colors.amber.withValues(alpha: 0.2)
                   : theme.colorScheme.primary.withValues(alpha: 0.15))
-              : Colors.grey.shade400,
+              : theme.colorScheme.surfaceContainerLow,
           child: Icon(
             iconData,
             size: 18,
@@ -3998,7 +3997,7 @@ class _ToolTile extends StatelessWidget {
                 ? (isEssential
                     ? Colors.amber.shade700
                     : theme.colorScheme.primary)
-                : Colors.grey.shade600,
+                : theme.colorScheme.onSurfaceVariant,
           ),
         ),
         title: Row(

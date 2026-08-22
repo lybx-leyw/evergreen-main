@@ -15,6 +15,9 @@ library;
 import 'dart:io';
 
 import 'package:evergreen_base/providers.dart';
+import 'package:evergreen_base/core/data/data.dart';
+import 'package:evergreen_base/core/agent/skill/skill.dart';
+import 'package:evergreen_base/core/utils/greenix_path.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/plugin_state_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -120,6 +123,7 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
         for (final m in registry.modules) {
           if (scannedIds.contains(m.id)) continue;
           descriptors.add(pluginInfoFromBuiltinModule(m));
+          scannedIds.add(m.id);
           builtinCount++;
         }
       } catch (e) {
@@ -128,6 +132,54 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
       }
       if (builtinCount > 0) {
         debugPrint('[Marketplace] 合并内置模块: $builtinCount 个（zju 等）');
+      }
+
+      // 合并运行时已注册数据源（DataOrchestrator 真相源）。
+      // marketplace 主扫 plugins/<name>/data/manifest.json，但运行时热注册（zju 校园
+      // 数据源、设计器自动爬取生成、assets 内置等）只活在 orchestrator.registeredTypes，
+      // 磁盘未必有 manifest——这里并入保证「已注册即显示」。磁盘已扫到的同名 data-source
+      // 卡按 id 去重（不重复），其余标 isBuiltin（无磁盘目录，隐藏卸载）。
+      var dsCount = 0;
+      try {
+        final orch = ref.read(dataOrchestratorProvider);
+        for (final status in orch.allStatuses) {
+          if (scannedIds.contains(status.name)) continue;
+          descriptors.add(pluginInfoFromDataSource(status, isBuiltin: true));
+          scannedIds.add(status.name);
+          dsCount++;
+        }
+      } catch (e) {
+        debugPrint('[Marketplace] 读取已注册数据源失败（降级为仅磁盘数据源）: $e');
+      }
+      if (dsCount > 0) {
+        debugPrint('[Marketplace] 合并已注册数据源: $dsCount 个');
+      }
+
+      // 合并运行时已加载 Skill（skillIndexProvider 真相源）。
+      // 旧扫描只查 plugins/<name>/skill/*.md，漏掉 app_bootstrap 实际扫描的
+      // .greenix/skills/（真实 skill 所在地）与 plugins/<name>/SKILL.md 布局 A。
+      // 统一从 SkillIndex.all 读取（与技能管理页/RunSkillTool 同源）。
+      // 磁盘 skill 卡按 id（归一化 Skill 名）去重；其余按路径判定是否内置：
+      // 含 .../plugins/<id>/skill/... 的自定义 skill 定位到插件目录（可卸载），
+      // 否则（.greenix/skills/ 等）视为内置（隐藏卸载）。
+      var skillCount = 0;
+      try {
+        final skillIndex = ref.read(skillIndexProvider);
+        for (final skill in skillIndex.all()) {
+          final id = normalizeSkillName(skill.name);
+          if (scannedIds.contains(id)) continue;
+          final isBuiltin = !skill.path
+              .replaceAll('\\', '/')
+              .contains(RegExp(r'/plugins/[^/]+/skill/'));
+          descriptors.add(pluginInfoFromSkill(skill, isBuiltin: isBuiltin));
+          scannedIds.add(id);
+          skillCount++;
+        }
+      } catch (e) {
+        debugPrint('[Marketplace] 读取已加载 Skill 失败（降级为仅磁盘 skill）: $e');
+      }
+      if (skillCount > 0) {
+        debugPrint('[Marketplace] 合并已加载 Skill: $skillCount 个');
       }
 
       // 基准排序：磁盘插件在前，内置模块在后；同组按名称。
@@ -293,21 +345,6 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
   /// 组内排序（用户拖拽 sortOrder 优先，回退 manifest order）。
   int _pluginSortKey(PluginInfo p, Map<String, PluginStateRecord> states) {
     return states[p.id]?.sortOrder ?? p.order + 1000;
-  }
-
-  void _onGroupReorder(List<String> keys, int oldIndex, int newIndex) {
-    final ids = List<String>.from(keys);
-    final moved = ids.removeAt(oldIndex);
-    ids.insert(newIndex, moved);
-    ref.read(pluginStateProvider.notifier).setGroupOrderAll(ids);
-  }
-
-  void _onPluginReorder(String groupKey, List<PluginInfo> ordered,
-      int oldIndex, int newIndex) {
-    final ids = ordered.map((p) => p.id).toList();
-    final moved = ids.removeAt(oldIndex);
-    ids.insert(newIndex, moved);
-    ref.read(pluginStateProvider.notifier).setPluginSortOrderAll(groupKey, ids);
   }
 
   void _toggleGroupNameInSidebar(String label, bool show) {
@@ -601,6 +638,21 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
       });
     }
 
+    // 4. 扁平化：单个 ReorderableListView 承载「组头 + 组内插件」。
+    //    关键修复：此前外层 RLV 嵌套内层 RLV，折叠时条件增删内层可滚动列表，
+    //    触发 Sliver 布局反馈死循环（child._parent == this 断言、界面无响应）。
+    //    扁平化后只有一个 Sliver 列表，折叠仅「不生成组内插件 item」，无嵌套滚动容器。
+    final flat = <FlatItem>[];
+    for (var gi = 0; gi < keys.length; gi++) {
+      final label = keys[gi];
+      flat.add(FlatItem.header(label, gi));
+      if (!(config.groups[label]?.collapsed ?? false)) {
+        for (final p in grouped[label]!) {
+          flat.add(FlatItem.plugin(label, gi, p));
+        }
+      }
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -619,32 +671,60 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
               padding: const EdgeInsets.symmetric(vertical: 8),
               buildDefaultDragHandles: false,
               onReorder: (oldIndex, newIndex) =>
-                  _onGroupReorder(keys, oldIndex, newIndex),
+                  _handleFlatReorder(flat, keys, grouped, oldIndex, newIndex),
               children: [
-                for (var gi = 0; gi < keys.length; gi++)
-                  ReorderableDragStartListener(
-                    key: ValueKey('group:${keys[gi]}'),
-                    index: gi,
-                    child: _MarketplaceGroupBlock(
-                      label: keys[gi],
-                      groupIndex: gi,
-                      plugins: grouped[keys[gi]]!,
-                      groupConfig: config.groups[keys[gi]],
-                      states: states,
-                      onToggleSidebarName: () => _toggleGroupNameInSidebar(
-                          keys[gi],
-                          !(config.groups[keys[gi]]?.showNameInSidebar ?? true)),
-                      onToggleCollapse: () => _toggleGroupCollapsed(
-                          keys[gi],
-                          !(config.groups[keys[gi]]?.collapsed ?? false)),
-                      onPluginReorder: (oldIndex, newIndex) =>
-                          _onPluginReorder(
-                              keys[gi], grouped[keys[gi]]!, oldIndex, newIndex),
-                      onToggleEnabled: (plugin) => _toggleEnabled(plugin),
-                      onToggleSidebar: (plugin) => _toggleSidebar(plugin),
-                      onUninstall: (plugin) => _uninstall(plugin),
-                    ),
-                  ),
+                for (var i = 0; i < flat.length; i++)
+                  flat[i].isHeader
+                      ? _GroupHeader(
+                          key: ValueKey('h:${flat[i].label}'),
+                          label: flat[i].label,
+                          flatIndex: i,
+                          count: grouped[flat[i].label]!.length,
+                          groupConfig: config.groups[flat[i].label],
+                          onToggleSidebarName: () => _toggleGroupNameInSidebar(
+                              flat[i].label,
+                              !(config.groups[flat[i].label]
+                                      ?.showNameInSidebar ??
+                                  true)),
+                          onToggleCollapse: () => _toggleGroupCollapsed(
+                              flat[i].label,
+                              !(config.groups[flat[i].label]?.collapsed ??
+                                  false)),
+                        )
+                      : ReorderableDragStartListener(
+                          key: ValueKey(
+                              'p:${flat[i].label}:${flat[i].plugin!.id}'),
+                          index: i,
+                          child: Padding(
+                            padding: const EdgeInsets.only(left: 8),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Tooltip(
+                                  message: '拖动调整插件顺序',
+                                  child: Icon(
+                                    Icons.drag_indicator,
+                                    size: 20,
+                                    color: theme.colorScheme.onSurfaceVariant
+                                        .withValues(alpha: 0.4),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: LocalPluginCard(
+                                    plugin: flat[i].plugin!,
+                                    state: states[flat[i].plugin!.id],
+                                    onToggleEnabled: () =>
+                                        _toggleEnabled(flat[i].plugin!),
+                                    onToggleSidebar: () =>
+                                        _toggleSidebar(flat[i].plugin!),
+                                    onUninstall: () =>
+                                        _uninstall(flat[i].plugin!),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
               ],
             ),
           ),
@@ -652,35 +732,111 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
       ],
     );
   }
+
+  /// 扁平列表拖拽重排：把单个 RLV 的 (oldIndex,newIndex) 映射回
+  /// 「组间重排」或「组内重排」，保持与原嵌套实现一致的持久化语义。
+  ///
+  /// - 拖的是组头 → 在 [keys] 中把该组移到新位置（newIndex 之前最后一个组头之后）。
+  /// - 拖的是插件 → 仅支持「同组」重排（跨组移动不在当前数据模型内，忽略以复原）；
+  ///   按 flat 中该组插件子序列做 removeAt/insert，写入该组 sortOrder。
+  void _handleFlatReorder(
+    List<FlatItem> flat,
+    List<String> keys,
+    Map<String, List<PluginInfo>> grouped,
+    int oldIndex,
+    int newIndex,
+  ) {
+    final old = flat[oldIndex];
+    if (old.isHeader) {
+      final newKeys = computeGroupReorder(flat, keys, oldIndex, newIndex);
+      ref.read(pluginStateProvider.notifier).setGroupOrderAll(newKeys);
+      return;
+    }
+    final newIds = computePluginReorder(flat, grouped, oldIndex, newIndex);
+    if (newIds != null) {
+      ref
+          .read(pluginStateProvider.notifier)
+          .setPluginSortOrderAll(old.groupLabel, newIds);
+    }
+  }
 }
 
-/// 分组块：组头（拖拽手柄 + 名称 + 折叠 + 侧边栏组名开关）+ 组内插件列表。
-class _MarketplaceGroupBlock extends StatelessWidget {
-  const _MarketplaceGroupBlock({
+/// 组头拖拽 → 新 keys 顺序（纯函数，便于单测）。
+List<String> computeGroupReorder(
+    List<FlatItem> flat, List<String> keys, int oldIndex, int newIndex) {
+  final label = flat[oldIndex].label;
+  final newKeys = List<String>.from(keys)..remove(label);
+  var insertAt = 0;
+  for (var i = 0; i < newIndex; i++) {
+    if (i == oldIndex) continue;
+    if (flat[i].isHeader) insertAt++;
+  }
+  newKeys.insert(insertAt, label);
+  return newKeys;
+}
+
+/// 插件拖拽 → 新插件 id 顺序；跨组移动返回 null（调用方忽略以复原）。
+List<String>? computePluginReorder(
+  List<FlatItem> flat,
+  Map<String, List<PluginInfo>> grouped,
+  int oldIndex,
+  int newIndex,
+) {
+  final gi = flat[oldIndex].groupLabel;
+  String? targetLabel;
+  for (var i = 0; i < newIndex; i++) {
+    if (i == oldIndex) continue;
+    if (flat[i].isHeader) targetLabel = flat[i].label;
+  }
+  if (targetLabel != gi) return null; // 跨组：忽略
+  final ids = grouped[gi]!.map((p) => p.id).toList();
+  final po = ids.indexOf(flat[oldIndex].plugin!.id);
+  if (po < 0) return null;
+  var pn = 0;
+  for (var i = 0; i < newIndex; i++) {
+    if (i == oldIndex) continue;
+    if (!flat[i].isHeader && flat[i].groupLabel == gi) pn++;
+  }
+  final moved = ids.removeAt(po);
+  ids.insert(pn, moved);
+  return ids;
+}
+
+/// 扁平列表项：组头或组内插件。用于单个 ReorderableListView 的统一承载。
+class FlatItem {
+  FlatItem.header(this.label, this.groupIndex)
+      : isHeader = true,
+        plugin = null;
+  FlatItem.plugin(this.label, this.groupIndex, this.plugin)
+      : isHeader = false;
+
+  final bool isHeader;
+  final String label; // 组名（组头与组内插件共享）
+  final int groupIndex;
+  final PluginInfo? plugin;
+
+  String get groupLabel => label;
+}
+
+/// 分组头：组间拖拽手柄 + 名称 + 折叠 + 侧边栏组名开关。
+/// 仅作为扁平 RLV 的一个普通 item，不再内嵌可滚动列表。
+class _GroupHeader extends StatelessWidget {
+  const _GroupHeader({
+    super.key,
     required this.label,
-    required this.groupIndex,
-    required this.plugins,
+    required this.flatIndex,
+    required this.count,
     required this.groupConfig,
-    required this.states,
     required this.onToggleSidebarName,
     required this.onToggleCollapse,
-    required this.onPluginReorder,
-    required this.onToggleEnabled,
-    required this.onToggleSidebar,
-    required this.onUninstall,
   });
 
   final String label;
-  final int groupIndex;
-  final List<PluginInfo> plugins;
+  final int flatIndex; // 在扁平 RLV 中的真实 index（拖拽手柄用）
+  final int count;
   final PluginGroupConfig? groupConfig;
-  final Map<String, PluginStateRecord> states;
   final VoidCallback onToggleSidebarName;
   final VoidCallback onToggleCollapse;
-  final void Function(int oldIndex, int newIndex) onPluginReorder;
-  final void Function(PluginInfo plugin) onToggleEnabled;
-  final void Function(PluginInfo plugin) onToggleSidebar;
-  final void Function(PluginInfo plugin) onUninstall;
 
   bool get _showNameInSidebar => groupConfig?.showNameInSidebar ?? true;
   bool get _collapsed => groupConfig?.collapsed ?? false;
@@ -690,105 +846,61 @@ class _MarketplaceGroupBlock extends StatelessWidget {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // 组头
-        Padding(
-          padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
-          child: Row(
-            children: [
-              // 组间拖拽手柄（触发外层 ReorderableListView 的拖拽）。
-              ReorderableDragStartListener(
-                index: groupIndex,
-                child: Tooltip(
-                  message: '拖动调整分组顺序',
-                  child: Icon(Icons.drag_indicator,
-                      size: 20, color: scheme.onSurfaceVariant.withValues(alpha: 0.6)),
-                ),
-              ),
-              const SizedBox(width: 4),
-              Icon(Icons.folder_outlined, size: 16, color: scheme.primary),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  '$label (${plugins.length})',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: scheme.onSurfaceVariant,
-                    letterSpacing: 0.5,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              // 折叠/展开
-              IconButton(
-                icon: Icon(
-                    _collapsed ? Icons.expand_more : Icons.expand_less,
-                    size: 18),
-                visualDensity: VisualDensity.compact,
-                tooltip: _collapsed ? '展开分组' : '折叠分组',
-                onPressed: onToggleCollapse,
-              ),
-              // 侧边栏组名开关
-              Tooltip(
-                message: _showNameInSidebar ? '侧边栏显示组名' : '侧边栏隐藏组名',
-                child: IconButton(
-                  icon: Icon(
-                    _showNameInSidebar ? Icons.visibility : Icons.visibility_off,
-                    size: 18,
-                    color: _showNameInSidebar
-                        ? scheme.onSurfaceVariant
-                        : scheme.outline,
-                  ),
-                  visualDensity: VisualDensity.compact,
-                  onPressed: onToggleSidebarName,
-                ),
-              ),
-            ],
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
+      child: Row(
+        children: [
+          // 组间拖拽手柄（触发扁平 RLV 的拖拽，index 为扁平位置）。
+          ReorderableDragStartListener(
+            index: flatIndex,
+            child: Tooltip(
+              message: '拖动调整分组顺序',
+              child: Icon(Icons.drag_indicator,
+                  size: 20,
+                  color: scheme.onSurfaceVariant.withValues(alpha: 0.6)),
+            ),
           ),
-        ),
-        if (!_collapsed)
-          ReorderableListView(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            buildDefaultDragHandles: false,
-            onReorder: onPluginReorder,
-            children: [
-              for (var i = 0; i < plugins.length; i++)
-                ReorderableDragStartListener(
-                  key: ValueKey('$label:${plugins[i].id}'),
-                  index: i,
-                  child: Padding(
-                    padding: const EdgeInsets.only(left: 8),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        // 组内拖拽手柄
-                        Tooltip(
-                          message: '拖动调整插件顺序',
-                          child: Icon(Icons.drag_indicator,
-                              size: 20,
-                              color: scheme.onSurfaceVariant.withValues(alpha: 0.4)),
-                        ),
-                        Expanded(
-                          child: LocalPluginCard(
-                            plugin: plugins[i],
-                            state: states[plugins[i].id],
-                            onToggleEnabled: () => onToggleEnabled(plugins[i]),
-                            onToggleSidebar: () => onToggleSidebar(plugins[i]),
-                            onUninstall: () => onUninstall(plugins[i]),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
+          const SizedBox(width: 4),
+          Icon(Icons.folder_outlined, size: 16, color: scheme.primary),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              '$label ($count)',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: scheme.onSurfaceVariant,
+                letterSpacing: 0.5,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
-      ],
+          // 折叠/展开
+          IconButton(
+            icon: Icon(_collapsed ? Icons.expand_more : Icons.expand_less,
+                size: 18),
+            visualDensity: VisualDensity.compact,
+            tooltip: _collapsed ? '展开分组' : '折叠分组',
+            onPressed: onToggleCollapse,
+          ),
+          // 侧边栏组名开关
+          Tooltip(
+            message: _showNameInSidebar ? '侧边栏显示组名' : '侧边栏隐藏组名',
+            child: IconButton(
+              icon: Icon(
+                _showNameInSidebar ? Icons.visibility : Icons.visibility_off,
+                size: 18,
+                color: _showNameInSidebar
+                    ? scheme.onSurfaceVariant
+                    : scheme.outline,
+              ),
+              visualDensity: VisualDensity.compact,
+              onPressed: onToggleSidebarName,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
