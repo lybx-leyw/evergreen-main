@@ -18,6 +18,7 @@ class PluginInfo {
     this.version,
     this.iconCode,
     required this.dirPath,
+    this.deletePath = '',
     required this.isModule,
     required this.hasSidebar,
     required this.pageCount,

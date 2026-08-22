@@ -240,7 +240,7 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
       final fallback = (captured != null && captured.isNotEmpty)
           ? captured
           : '$_pluginsDir${Platform.pathSeparator}${plugin.id}';
-      final pluginDir = Directory(p.normalize(dirPath));
+      final pluginDir = Directory(p.normalize(fallback));
       if (pluginDir.existsSync()) {
         if (plugin.isSkill) {
           // Skill 能力卸载：只删 skill/ 子目录，避免误删同目录其他能力（module/agent/...）。
@@ -379,8 +379,7 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
                   onChanged: (v) => setState(() => _searchQuery = v),
                 ),
               ),
-              onChanged: (v) => setState(() => _searchQuery = v),
-            ),
+            ],
           ),
           const SizedBox(width: 4),
           // 排序策略下拉（持久化到 _config.sortMode）
@@ -619,7 +618,7 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
             child: ReorderableListView(
               padding: const EdgeInsets.symmetric(vertical: 8),
               buildDefaultDragHandles: false,
-              onReorderItem: (oldIndex, newIndex) =>
+              onReorder: (oldIndex, newIndex) =>
                   _onGroupReorder(keys, oldIndex, newIndex),
               children: [
                 for (var gi = 0; gi < keys.length; gi++)
@@ -756,7 +755,7 @@ class _MarketplaceGroupBlock extends StatelessWidget {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             buildDefaultDragHandles: false,
-            onReorderItem: onPluginReorder,
+            onReorder: onPluginReorder,
             children: [
               for (var i = 0; i < plugins.length; i++)
                 ReorderableDragStartListener(
