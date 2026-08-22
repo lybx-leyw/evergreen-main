@@ -3,7 +3,7 @@ library;
 
 import 'package:flutter/material.dart';
 
-/// 本地插件（manifest）的轻量展示/管理模型。
+/// 本地插件（manifest/config.json/theme.json）的轻量展示/管理模型。
 ///
 /// 与领域层 [ModuleDescriptor] 解耦：marketplace 需要展示所有类型的插件
 /// （module / agent / data-source / config / theme ...），而 [ModuleDescriptor]
@@ -18,6 +18,7 @@ class PluginInfo {
     this.version,
     this.iconCode,
     required this.dirPath,
+    this.deletePath = '',
     required this.isModule,
     required this.hasSidebar,
     required this.pageCount,
@@ -36,8 +37,11 @@ class PluginInfo {
   final String type;
   final String? version;
   final int? iconCode;
-  /// 插件在磁盘上的真实文件夹路径（卸载时精确删除用）。
+  /// 插件在磁盘上的真实文件夹路径（卸载时定位插件根目录用）。
   final String dirPath;
+  /// 卸载时精确删除的路径：子类型插件是其能力分支目录（module/agent/data/config/theme/skill），
+  /// 根 manifest 插件是其整个插件目录。内置模块为空（不可卸载）。
+  final String deletePath;
   /// 是否为 module 类型（决定是否能启用/隐藏侧栏）。
   final bool isModule;
   /// module 是否在侧边栏有入口（nav.sidebar != null）。
@@ -77,6 +81,8 @@ class PluginInfo {
         return Icons.palette;
       case 'skill':
         return Icons.auto_fix_high;
+      case 'plugin':
+        return Icons.inventory_2_outlined;
       default:
         return Icons.extension;
     }
@@ -98,6 +104,8 @@ class PluginInfo {
         return '主题';
       case 'skill':
         return '技能';
+      case 'plugin':
+        return '插件';
       default:
         return type.isEmpty ? '未知' : type;
     }

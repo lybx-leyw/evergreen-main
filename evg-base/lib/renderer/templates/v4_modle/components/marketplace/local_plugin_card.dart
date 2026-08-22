@@ -183,9 +183,10 @@ class LocalPluginCard extends StatelessWidget {
                     ),
                   const SizedBox(width: 4),
                   // 卸载按钮仅对磁盘插件显示；内置模块（isBuiltin）不可卸载。
+                  // 停用/禁用不应阻止卸载：用户可能想直接移除一个不再使用的插件。
                   if (!plugin.isBuiltin)
                     TextButton.icon(
-                      onPressed: _enabled ? onUninstall : null,
+                      onPressed: onUninstall,
                       icon: const Icon(Icons.delete_outline, size: 16),
                       label: const Text('卸载', style: TextStyle(fontSize: 11)),
                       style: TextButton.styleFrom(

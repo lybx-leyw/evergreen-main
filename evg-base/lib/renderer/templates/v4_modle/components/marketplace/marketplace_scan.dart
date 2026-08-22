@@ -15,14 +15,15 @@ import 'marketplace_plugin_info.dart';
 /// 1. **不再只认 module**：曾经用 [ModuleDescriptor.fromJson]（强要求 `type==module`）
 ///    导致 `agent`/`data-source`/`config`/`theme` 等类型的插件被静默跳过，市场里
 ///    只显示 module。现在对每种 manifest 类型都构造 [PluginInfo]。
-/// 2. **一个文件夹可贡献多个卡片**：依次检查 module/agent/data/根 manifest，
+/// 2. **一个文件夹可贡献多个卡片**：依次检查 module/agent/data/config/theme/根 manifest，
 ///    每个存在的都作为独立卡片（例如某文件夹同时有 module 与 data-source）。
 /// 3. **稳定 id**：manifest 无 `id` 时回退文件夹名；同文件夹多 manifest 回退碰撞时
 ///    追加子类型后缀，保证 state/uninstall 有唯一 key。
 ///
 /// 返回：
 /// - [List<PluginInfo>]：所有被发现并成功解析的插件信息。
-/// - [Map<String, String>]：每个插件 `id` → 它所在文件夹的 [Directory.path]（卸载用）。
+/// - [Map<String, String>]：每个插件 `id` → 它所在文件夹的 [Directory.path]（插件根目录定位用）。
+///   精确卸载路径请使用 [PluginInfo.deletePath]。
 (List<PluginInfo>, Map<String, String>) scanPluginManifests(String pluginsDir) {
   final dir = Directory(pluginsDir);
   final infos = <PluginInfo>[];
@@ -38,6 +39,7 @@ import 'marketplace_plugin_info.dart';
     if (p.basename(entity.path).startsWith('.')) continue;
 
     // 一个文件夹可能含多个子类型 manifest，全部收集为独立卡片。
+    // 子类型 key 同时用于推导卸载时的精确分支目录。
     final candidates = <String, String>{
       'module':
           '${entity.path}${Platform.pathSeparator}module${Platform.pathSeparator}manifest.json',
@@ -45,6 +47,10 @@ import 'marketplace_plugin_info.dart';
           '${entity.path}${Platform.pathSeparator}agent${Platform.pathSeparator}manifest.json',
       'data-source':
           '${entity.path}${Platform.pathSeparator}data${Platform.pathSeparator}manifest.json',
+      'config':
+          '${entity.path}${Platform.pathSeparator}config${Platform.pathSeparator}config.json',
+      'theme':
+          '${entity.path}${Platform.pathSeparator}theme${Platform.pathSeparator}theme.json',
       'root': '${entity.path}${Platform.pathSeparator}manifest.json',
     };
 
@@ -90,6 +96,26 @@ import 'marketplace_plugin_info.dart';
   return (infos, dirs);
 }
 
+/// 返回子类型对应的卸载目标目录名；根 manifest 使用空串表示整个插件目录。
+String _deleteBranchForSubType(String subType) {
+  switch (subType) {
+    case 'module':
+      return 'module';
+    case 'agent':
+      return 'agent';
+    case 'data-source':
+      return 'data';
+    case 'config':
+      return 'config';
+    case 'theme':
+      return 'theme';
+    case 'skill':
+      return 'skill';
+    default:
+      return '';
+  }
+}
+
 PluginInfo? _toPluginInfo(
   Map<String, dynamic> json,
   String folderPath,
@@ -108,7 +134,7 @@ PluginInfo? _toPluginInfo(
     id = '$id-$subType';
   }
 
-  // type：优先 manifest.type，否则按子目录推断（agent/data/module）。
+  // type：优先 manifest.type，否则按子目录推断（agent/data/module/config/theme）。
   final type = (json['type'] as String?)?.isNotEmpty == true
       ? json['type'] as String
       : _defaultTypeForSub(subType);
@@ -144,6 +170,7 @@ PluginInfo? _toPluginInfo(
     }
   }
 
+  final branch = _deleteBranchForSubType(subType);
   return PluginInfo(
     id: id,
     name: name,
@@ -152,6 +179,9 @@ PluginInfo? _toPluginInfo(
     version: version,
     iconCode: iconCode,
     dirPath: folderPath,
+    deletePath: branch.isEmpty
+        ? folderPath
+        : p.join(folderPath, branch),
     isModule: isModule,
     hasSidebar: hasSidebar,
     pageCount: pageCount,
@@ -181,6 +211,7 @@ PluginInfo? _toSkillPluginInfo(
     description: skill.description,
     type: 'skill',
     dirPath: folderPath,
+    deletePath: p.join(folderPath, 'skill'),
     isModule: false,
     isSkill: true,
     hasSidebar: false,
@@ -196,6 +227,10 @@ String _defaultTypeForSub(String subType) {
       return 'agent';
     case 'data-source':
       return 'data-source';
+    case 'config':
+      return 'config';
+    case 'theme':
+      return 'theme';
     default:
       return 'unknown';
   }
@@ -217,6 +252,7 @@ PluginInfo pluginInfoFromBuiltinModule(ModuleDescriptor d) {
     version: d.version,
     iconCode: d.icon,
     dirPath: '',
+    deletePath: '',
     isModule: true,
     hasSidebar: d.hasSidebar,
     pageCount: d.pages.length,

@@ -1,15 +1,17 @@
 /// 插件市场主槽位 —— 本地插件管理视图。
 ///
 /// 功能：
-/// - 扫描 `plugins/` 目录下所有 manifest.json
+/// - 扫描 `plugins/` 目录下所有插件清单（module/agent/data 的 manifest.json、config.json、theme.json 等）
 /// - 展示为 LocalPluginCard 列表
 /// - 支持搜索/过滤
 /// - 启用/停用、侧边栏可见性、卸载操作
-/// - 多种排序策略（持久化到 `_config.sortMode`）：
+/// - 多种展示/排序策略（持久化到 `_config.sortMode`）：
 ///   1. 分组排序（默认）：按侧边栏分组（manifest `nav.sidebar.section`）分组展示，
 ///      组间/组内可拖拽调整顺序（像文件夹），组头可折叠、可控制「侧边栏是否显示组名」；
-///   2. 按名称排序；
-///   3. 按最近使用排序（真实打开记录 `lastUsedAt`，由模块打开时 `touch()` 写入）。
+///   2. 按插件包展示：以 `plugins/001/` 目录为包，展开查看 module/data/config 等分支；
+///   3. 按名称排序；
+///   4. 按最近使用排序（真实打开记录 `lastUsedAt`，由模块打开时 `touch()` 写入）。
+/// - 支持按类型标签（模块/Agent/数据源/配置/主题/技能）筛选。
 library;
 
 import 'dart:io';
@@ -27,6 +29,7 @@ import 'plugin_state_provider.dart';
 /// 排序策略常量（与 [PluginCenterConfig.sortMode] 对应）。
 abstract final class PluginSortMode {
   static const String group = 'group';
+  static const String package = 'package';
   static const String name = 'name';
   static const String recent = 'recent';
 }
@@ -56,6 +59,8 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
   bool _loading = true;
   String? _error;
   String _searchQuery = '';
+  /// 当前类型筛选，'all' 表示全部。
+  String _typeFilter = 'all';
 
   String get _pluginsDir {
     // 优先级：config.pluginsDir > Riverpod pluginsDirProvider > 硬编码回退 'plugins'
@@ -150,14 +155,20 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
   }
 
   List<PluginInfo> get _filteredPlugins {
-    if (_searchQuery.isEmpty) return _allPlugins;
-    final q = _searchQuery.toLowerCase();
-    return _allPlugins.where((p) {
-      return p.name.toLowerCase().contains(q) ||
-          p.id.toLowerCase().contains(q) ||
-          p.description.toLowerCase().contains(q) ||
-          p.type.toLowerCase().contains(q);
-    }).toList();
+    Iterable<PluginInfo> result = _allPlugins;
+    if (_typeFilter != 'all') {
+      result = result.where((p) => p.type == _typeFilter);
+    }
+    if (_searchQuery.isNotEmpty) {
+      final q = _searchQuery.toLowerCase();
+      result = result.where((p) {
+        return p.name.toLowerCase().contains(q) ||
+            p.id.toLowerCase().contains(q) ||
+            p.description.toLowerCase().contains(q) ||
+            p.type.toLowerCase().contains(q);
+      });
+    }
+    return result.toList();
   }
 
   void _toggleEnabled(PluginInfo plugin) {
@@ -183,15 +194,22 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
       );
       return;
     }
+    final isWholeDir = plugin.deletePath.isEmpty ||
+        p.normalize(plugin.deletePath) == p.normalize(plugin.dirPath);
+    final scopeText = isWholeDir
+        ? '此操作将删除整个插件目录中的所有文件，不可恢复。'
+        : '此操作将删除其对应的插件子目录，不可恢复。';
+    final message = plugin.isSkill
+        ? '确定要删除技能「${plugin.name}」吗？\n\n此操作将删除其 skill/ 目录中的技能文件，不可恢复。'
+        : plugin.isModule
+            ? '确定要卸载插件「${plugin.name}」吗？\n\n$scopeText'
+            : '确定要卸载「${plugin.name}」（${plugin.typeLabel}）吗？\n\n$scopeText';
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('确认卸载'),
-        content: Text(plugin.isSkill
-            ? '确定要删除技能「${plugin.name}」吗？\n\n此操作将删除其 skill/ 目录中的技能文件，不可恢复。'
-            : plugin.isModule
-                ? '确定要卸载插件「${plugin.name}」吗？\n\n此操作将删除插件目录中的所有文件，不可恢复。'
-                : '确定要卸载「${plugin.name}」（${plugin.typeLabel}）吗？\n\n此操作将删除其所在插件目录中的所有文件，不可恢复。'),
+        content: Text(message),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -213,27 +231,32 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
 
   void _doUninstall(PluginInfo plugin) {
     try {
-      // 优先使用扫描阶段捕获的真实磁盘目录；否则回退到 pluginsDir/id
+      // 优先使用扫描阶段捕获的精确删除路径（能力分支目录或整个插件目录）；
+      // 否则回退到扫描阶段捕获的真实磁盘目录，再回退到 pluginsDir/id
       // （当 id 恰好等于文件夹名时仍可用）。绝不能只靠 id 反推路径——
       // manifest 的 id 与文件夹名可能不同，反推会指向不存在的路径导致卸载静默失败。
       final captured = _pluginDirs[plugin.id];
-      final dirPath = (captured != null && captured.isNotEmpty)
+      final fallback = (captured != null && captured.isNotEmpty)
           ? captured
           : '$_pluginsDir${Platform.pathSeparator}${plugin.id}';
-      final pluginDir = Directory(p.normalize(dirPath));
-      if (pluginDir.existsSync()) {
-        if (plugin.isSkill) {
-          // Skill 能力卸载：只删 skill/ 子目录，避免误删同目录其他能力（module/agent/...）。
-          final skillDir = Directory(p.join(pluginDir.path, 'skill'));
-          if (skillDir.existsSync()) {
-            skillDir.deleteSync(recursive: true);
-          }
-          // 目录被删空（纯 skill 插件）→ 连外层目录一起清掉。
-          if (pluginDir.listSync().isEmpty) {
-            pluginDir.deleteSync();
-          }
-        } else {
-          pluginDir.deleteSync(recursive: true);
+      final deletePath = (plugin.deletePath.isNotEmpty)
+          ? plugin.deletePath
+          : fallback;
+      final target = Directory(p.normalize(deletePath));
+      if (target.existsSync()) {
+        // 子类型插件（module/agent/data/config/theme/skill）只删自己的分支目录，
+        // 避免误删同目录下其他能力；根 manifest 插件（.plugin 包）删除整个目录。
+        target.deleteSync(recursive: true);
+
+        // 如果删除的是能力分支，且外层插件目录已被删空，则连空目录一起清掉，
+        // 避免残留 plugins/001/ 空壳；但不要向上删到 plugins/ 根目录。
+        final parent = target.parent;
+        final pluginsRoot = p.normalize(_pluginsDir);
+        if (p.normalize(target.path) != pluginsRoot &&
+            p.normalize(parent.path) != pluginsRoot &&
+            parent.existsSync() &&
+            parent.listSync().isEmpty) {
+          parent.deleteSync();
         }
       }
       ref.read(pluginStateProvider.notifier).remove(plugin.id);
@@ -327,65 +350,107 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
           bottom: BorderSide(color: theme.dividerColor),
         ),
       ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.store, size: 20, color: theme.colorScheme.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextField(
+                  decoration: InputDecoration(
+                    hintText: '搜索插件...',
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide.none,
+                    ),
+                    filled: true,
+                    fillColor: theme.colorScheme.surface,
+                    prefixIcon: const Icon(Icons.search, size: 18),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, size: 16),
+                            onPressed: () => setState(() => _searchQuery = ''),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          )
+                        : null,
+                  ),
+                  onChanged: (v) => setState(() => _searchQuery = v),
+                ),
+              ),
+              const SizedBox(width: 4),
+              // 排序/展示方式下拉（持久化到 _config.sortMode）
+              Tooltip(
+                message: '展示方式',
+                child: PopupMenuButton<String>(
+                  initialValue: config.sortMode,
+                  onSelected: (v) =>
+                      ref.read(pluginStateProvider.notifier).setSortMode(v),
+                  itemBuilder: (ctx) => const [
+                    PopupMenuItem(
+                      value: PluginSortMode.group,
+                      child: Text('分组排序'),
+                    ),
+                    PopupMenuItem(
+                      value: PluginSortMode.package,
+                      child: Text('按插件包'),
+                    ),
+                    PopupMenuItem(
+                      value: PluginSortMode.name,
+                      child: Text('按名称排序'),
+                    ),
+                    PopupMenuItem(
+                      value: PluginSortMode.recent,
+                      child: Text('按最近使用'),
+                    ),
+                  ],
+                  icon: const Icon(Icons.sort, size: 18),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '${_allPlugins.length} 个插件',
+                style: TextStyle(fontSize: 12, color: theme.disabledColor),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _buildTypeFilterChips(),
+        ],
+      ),
+    );
+  }
+
+  /// 类型标签筛选条：全部 / 模块 / Agent / 数据源 / 配置 / 主题 / 技能。
+  Widget _buildTypeFilterChips() {
+    const filters = <(String, String)>[
+      ('all', '全部'),
+      ('module', '模块'),
+      ('agent', 'Agent'),
+      ('data-source', '数据源'),
+      ('config', '配置'),
+      ('theme', '主题'),
+      ('skill', '技能'),
+    ];
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          Icon(Icons.store, size: 20, color: theme.colorScheme.primary),
-          const SizedBox(width: 8),
-          Expanded(
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: '搜索插件...',
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide.none,
-                ),
-                filled: true,
-                fillColor: theme.colorScheme.surface,
-                prefixIcon: const Icon(Icons.search, size: 18),
-                suffixIcon: _searchQuery.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear, size: 16),
-                        onPressed: () => setState(() => _searchQuery = ''),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      )
-                    : null,
+          for (final (value, label) in filters)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                label: Text(label),
+                selected: _typeFilter == value,
+                onSelected: (_) => setState(() => _typeFilter = value),
+                visualDensity: VisualDensity.compact,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-              onChanged: (v) => setState(() => _searchQuery = v),
             ),
-          ),
-          const SizedBox(width: 4),
-          // 排序策略下拉（持久化到 _config.sortMode）
-          Tooltip(
-            message: '排序方式',
-            child: PopupMenuButton<String>(
-              initialValue: config.sortMode,
-              onSelected: (v) =>
-                  ref.read(pluginStateProvider.notifier).setSortMode(v),
-              itemBuilder: (ctx) => const [
-                PopupMenuItem(
-                  value: PluginSortMode.group,
-                  child: Text('分组排序'),
-                ),
-                PopupMenuItem(
-                  value: PluginSortMode.name,
-                  child: Text('按名称排序'),
-                ),
-                PopupMenuItem(
-                  value: PluginSortMode.recent,
-                  child: Text('按最近使用'),
-                ),
-              ],
-              icon: const Icon(Icons.sort, size: 18),
-            ),
-          ),
-          const SizedBox(width: 4),
-          Text(
-            '${_allPlugins.length} 个插件',
-            style: TextStyle(fontSize: 12, color: theme.disabledColor),
-          ),
         ],
       ),
     );
@@ -430,7 +495,9 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
             Icon(Icons.inventory_2_outlined, size: 48, color: theme.disabledColor),
             const SizedBox(height: 12),
             Text(
-              _searchQuery.isEmpty ? '暂无本地插件' : '未找到匹配的插件',
+              _searchQuery.isEmpty && _typeFilter == 'all'
+                  ? '暂无本地插件'
+                  : '未找到匹配的插件',
               style: TextStyle(color: theme.disabledColor),
             ),
           ],
@@ -440,6 +507,8 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
 
     // 按当前排序策略渲染。
     switch (pstate.config.sortMode) {
+      case PluginSortMode.package:
+        return _buildPackageList(filtered, pstate);
       case PluginSortMode.recent:
         return _buildRecentList(filtered, pstate, theme);
       case PluginSortMode.name:
@@ -447,6 +516,106 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
       default:
         return _buildGroupedList(filtered, pstate, theme);
     }
+  }
+
+  /// 按插件包展示：以插件目录为包，展开查看各能力分支。
+  Widget _buildPackageList(
+      List<PluginInfo> items, PluginCenterState pstate) {
+    final states = pstate.records;
+
+    // 可见分支先按插件目录分组。
+    final visibleByDir = <String, List<PluginInfo>>{};
+    final builtinBranches = <PluginInfo>[];
+    for (final plugin in items) {
+      if (plugin.isBuiltin || plugin.dirPath.isEmpty) {
+        builtinBranches.add(plugin);
+        continue;
+      }
+      visibleByDir.putIfAbsent(plugin.dirPath, () => []).add(plugin);
+    }
+
+    // 用全量插件数据补充包级元数据，保证筛选后包描述仍来自完整分支。
+    final allByDir = <String, List<PluginInfo>>{};
+    for (final plugin in _allPlugins) {
+      if (plugin.isBuiltin || plugin.dirPath.isEmpty) continue;
+      allByDir.putIfAbsent(plugin.dirPath, () => []).add(plugin);
+    }
+
+    final packages = <_PluginPackage>[];
+    for (final entry in visibleByDir.entries) {
+      final dir = entry.key;
+      final visible = entry.value;
+      final allInDir = allByDir[dir] ?? visible;
+      final root = _packageRootOf(allInDir);
+      final allBranches =
+          allInDir.where((p) => !_isPackageRoot(p)).toList();
+      final visibleBranches =
+          visible.where((p) => !_isPackageRoot(p)).toList();
+      if (visible.isEmpty) continue;
+
+      final name = (root?.name.isNotEmpty ?? false) ? root!.name : p.basename(dir);
+      final description = (root?.description.isNotEmpty ?? false)
+          ? root!.description
+          : _describePackageBranches(allBranches);
+      packages.add(_PluginPackage(
+        key: dir,
+        name: name,
+        description: description,
+        dirPath: dir,
+        isBuiltin: false,
+        branches: visibleBranches,
+        totalBranchCount: allBranches.length,
+      ));
+    }
+
+    if (builtinBranches.isNotEmpty) {
+      packages.add(_PluginPackage(
+        key: '__builtin__',
+        name: '内置模块',
+        description: '随应用分发的内置模块（不可卸载）',
+        dirPath: null,
+        isBuiltin: true,
+        branches: builtinBranches,
+        totalBranchCount: builtinBranches.length,
+      ));
+    }
+
+    packages.sort((a, b) => a.name.compareTo(b.name));
+
+    return RefreshIndicator(
+      onRefresh: _loadPlugins,
+      child: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        children: [
+          for (final pkg in packages)
+            _PluginPackageTile(
+              package: pkg,
+              states: states,
+              onToggleEnabled: _toggleEnabled,
+              onToggleSidebar: _toggleSidebar,
+              onUninstall: _uninstall,
+            ),
+        ],
+      ),
+    );
+  }
+
+  bool _isPackageRoot(PluginInfo plugin) {
+    return plugin.deletePath.isNotEmpty &&
+        p.normalize(plugin.deletePath) == p.normalize(plugin.dirPath);
+  }
+
+  PluginInfo? _packageRootOf(List<PluginInfo> plugins) {
+    for (final plugin in plugins) {
+      if (_isPackageRoot(plugin)) return plugin;
+    }
+    return null;
+  }
+
+  String _describePackageBranches(List<PluginInfo> branches) {
+    if (branches.isEmpty) return '插件包';
+    final labels = branches.map((e) => e.typeLabel).toSet().toList()..sort();
+    return '包含 ${labels.join('、')} 等 ${branches.length} 个能力';
   }
 
   /// 按名称排序（普通扁平列表）。
@@ -729,6 +898,99 @@ class _MarketplaceGroupBlock extends StatelessWidget {
             ],
           ),
       ],
+    );
+  }
+}
+
+/// 插件包聚合信息：一个 `plugins/xxx/` 目录对应一个包。
+class _PluginPackage {
+  const _PluginPackage({
+    required this.key,
+    required this.name,
+    required this.description,
+    required this.dirPath,
+    required this.isBuiltin,
+    required this.branches,
+    required this.totalBranchCount,
+  });
+
+  final String key;
+  final String name;
+  final String description;
+  final String? dirPath;
+  final bool isBuiltin;
+  final List<PluginInfo> branches;
+  final int totalBranchCount;
+}
+
+/// 插件包头部 + 可展开分支列表。
+class _PluginPackageTile extends StatelessWidget {
+  const _PluginPackageTile({
+    required this.package,
+    required this.states,
+    required this.onToggleEnabled,
+    required this.onToggleSidebar,
+    required this.onUninstall,
+  });
+
+  final _PluginPackage package;
+  final Map<String, PluginStateRecord> states;
+  final void Function(PluginInfo plugin) onToggleEnabled;
+  final void Function(PluginInfo plugin) onToggleSidebar;
+  final void Function(PluginInfo plugin) onUninstall;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final countText = package.totalBranchCount > package.branches.length
+        ? '${package.branches.length}/${package.totalBranchCount} 个能力'
+        : '${package.branches.length} 个能力';
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: theme.dividerColor),
+      ),
+      child: ExpansionTile(
+        key: PageStorageKey('package:${package.key}'),
+        leading: Icon(
+          package.isBuiltin ? Icons.memory : Icons.folder_outlined,
+          color: scheme.primary,
+        ),
+        title: Text(
+          package.name,
+          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Text(
+          '$countText · ${package.description}',
+          style: TextStyle(
+            fontSize: 11,
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        childrenPadding: const EdgeInsets.only(bottom: 8),
+        tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        children: [
+          for (final plugin in package.branches)
+            Padding(
+              padding: const EdgeInsets.only(left: 16, right: 4),
+              child: LocalPluginCard(
+                plugin: plugin,
+                state: states[plugin.id],
+                onToggleEnabled: () => onToggleEnabled(plugin),
+                onToggleSidebar: () => onToggleSidebar(plugin),
+                onUninstall: () => onUninstall(plugin),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
