@@ -196,7 +196,7 @@ String get zjuCookiesPath => p.join(_greenixBaseDir, 'zju_cookies.json');
 /// 记忆存储目录。
 String get greenixMemoriesDir => p.join(_greenixBaseDir, 'memories');
 
-/// Skill 文件目录。
+/// Skill 文件目录（旧版平铺路径，仅保留兼容读取）。
 String get greenixSkillsDir => p.join(_greenixBaseDir, 'skills');
 
 /// 构造 Skill 文件落盘路径，统一 AI 助手/技能管理与 Skill 创作中心的导出规则。

@@ -218,9 +218,12 @@ class _CollapsedSidebar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final registry = ref.watch(moduleRegistryProvider);
-    final states = ref.watch(pluginStateProvider);
-    final navFlat = filterNavFlatByPluginState(
-        filterNavFlatByAppMode(registry.navFlat), states);
+    final pstate = ref.watch(pluginStateProvider);
+    final navFlat = applyUserNavLayoutFlat(
+      filterNavByPluginState(filterNavByAppMode(registry.navGroups), pstate.records),
+      pstate.config,
+      pstate.records,
+    );
     final location = GoRouterState.of(context).uri.path;
 
     return Material(
@@ -361,9 +364,14 @@ class _MobileDrawer extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final registry = ref.watch(moduleRegistryProvider);
-    final states = ref.watch(pluginStateProvider);
-    final groups = filterNavByPluginState(
-        filterNavByAppMode(registry.navGroups), states);
+    final pstate = ref.watch(pluginStateProvider);
+    final config = pstate.config;
+    final groups = applyUserNavLayout(
+      filterNavByPluginState(
+          filterNavByAppMode(registry.navGroups), pstate.records),
+      config,
+      pstate.records,
+    );
 
     return Drawer(
       child: SafeArea(
@@ -372,9 +380,11 @@ class _MobileDrawer extends ConsumerWidget {
           children: [
             _DrawerHeader(),
             const Divider(),
-            // 按 section 生成（已按插件状态过滤）
+            // 按 section 生成（已按插件状态过滤 + 用户布局重排）
             for (final (section, entries) in groups) ...[
-              _SectionHeader(title: section.label),
+              // 组名可按用户配置隐藏（插件中心的分组「侧边栏显示组名」开关）。
+              if (config.groups[section.label]?.showNameInSidebar ?? true)
+                _SectionHeader(title: section.label),
               for (final entry in entries)
                 _DrawerItem(
                   icon: _icon(entry.icon),
@@ -470,11 +480,17 @@ class _ExpandedSidebar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final registry = ref.watch(moduleRegistryProvider);
-    final states = ref.watch(pluginStateProvider);
+    final pstate = ref.watch(pluginStateProvider);
+    final config = pstate.config;
     final location = GoRouterState.of(context).uri.path;
-    // 按插件状态（启用/侧栏可见）+ 模式（排除 4 个特殊插件）过滤导航
-    final groups = filterNavByPluginState(
-        filterNavByAppMode(registry.navGroups), states);
+    // 按插件状态（启用/侧栏可见）+ 模式（排除 4 个特殊插件）过滤导航，
+    // 再按用户拖拽布局（分组顺序 + 组内顺序）重排。
+    final groups = applyUserNavLayout(
+      filterNavByPluginState(
+          filterNavByAppMode(registry.navGroups), pstate.records),
+      config,
+      pstate.records,
+    );
 
     return Material(
       color: Theme.of(context).colorScheme.surfaceContainerLow,
@@ -522,9 +538,11 @@ class _ExpandedSidebar extends ConsumerWidget {
                   ),
                 ),
                 const Divider(),
-                // 按 section 生成导航项（已按插件状态过滤）
+                // 按 section 生成导航项（已按插件状态过滤 + 用户布局重排）
                 for (final (section, entries) in groups) ...[
-                  _SectionHeader(title: section.label),
+                  // 组名可按用户配置隐藏（插件中心的分组「侧边栏显示组名」开关）。
+                  if (config.groups[section.label]?.showNameInSidebar ?? true)
+                    _SectionHeader(title: section.label),
                   for (final entry in entries)
                     _buildNavItem(context, ref, entry, location),
                   const Divider(),
@@ -568,11 +586,14 @@ class _MobileNavBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final registry = ref.watch(moduleRegistryProvider);
-    final states = ref.watch(pluginStateProvider);
+    final pstate = ref.watch(pluginStateProvider);
     final location = GoRouterState.of(context).uri.path;
-    // 取前 5 个导航项作为底部导航（已按插件状态 + 模式过滤）
-    final topItems = filterNavFlatByPluginState(
-            filterNavFlatByAppMode(registry.navFlat), states)
+    // 取前 5 个导航项作为底部导航（已按插件状态 + 模式过滤 + 用户布局重排）
+    final topItems = applyUserNavLayoutFlat(
+            filterNavByPluginState(
+                filterNavByAppMode(registry.navGroups), pstate.records),
+            pstate.config,
+            pstate.records)
         .take(5)
         .toList();
 

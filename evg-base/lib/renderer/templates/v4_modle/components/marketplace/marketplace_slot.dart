@@ -5,20 +5,33 @@
 /// - 展示为 LocalPluginCard 列表
 /// - 支持搜索/过滤
 /// - 启用/停用、侧边栏可见性、卸载操作
+/// - 多种排序策略（持久化到 `_config.sortMode`）：
+///   1. 分组排序（默认）：按侧边栏分组（manifest `nav.sidebar.section`）分组展示，
+///      组间/组内可拖拽调整顺序（像文件夹），组头可折叠、可控制「侧边栏是否显示组名」；
+///   2. 按名称排序；
+///   3. 按最近使用排序（真实打开记录 `lastUsedAt`，由模块打开时 `touch()` 写入）。
 library;
 
-import 'dart:convert';
 import 'dart:io';
 
+import 'package:evergreen_base/providers.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/plugin_state_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
-import 'package:evergreen_base/providers.dart';
-import 'nav_filter.dart';
-import 'plugin_state_provider.dart';
 import 'local_plugin_card.dart';
-import 'marketplace_scan.dart';
 import 'marketplace_plugin_info.dart';
+import 'marketplace_scan.dart';
+import 'plugin_state_provider.dart';
+
+/// 排序策略常量（与 [PluginCenterConfig.sortMode] 对应）。
+abstract final class PluginSortMode {
+  static const String group = 'group';
+  static const String name = 'name';
+  static const String recent = 'recent';
+}
+
+/// 无侧边栏插件的兜底分组名（与 [PluginInfo.section] 默认值一致）。
 
 /// 市场超市 —— 本地插件管理槽位。
 ///
@@ -115,7 +128,8 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
         debugPrint('[Marketplace] 合并内置模块: $builtinCount 个（zju 等）');
       }
 
-      // 排序：磁盘插件在前，内置模块在后；同组按名称。
+      // 基准排序：磁盘插件在前，内置模块在后；同组按名称。
+      // 仅作为未自定义顺序时的稳定回退（用户拖拽布局优先）。
       descriptors.sort((a, b) {
         if (a.isBuiltin != b.isBuiltin) return a.isBuiltin ? 1 : -1;
         return a.name.compareTo(b.name);
@@ -147,14 +161,14 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
   }
 
   void _toggleEnabled(PluginInfo plugin) {
-    final current = ref.read(pluginStateProvider)[plugin.id];
+    final current = ref.read(pluginStateProvider).records[plugin.id];
     final newEnabled = !(current?.enabled ?? true);
     // 经共享 Provider 写入，侧边栏（同 watch 本 Provider）会即时反映。
     ref.read(pluginStateProvider.notifier).setEnabled(plugin.id, newEnabled);
   }
 
   void _toggleSidebar(PluginInfo plugin) {
-    final current = ref.read(pluginStateProvider)[plugin.id];
+    final current = ref.read(pluginStateProvider).records[plugin.id];
     final newVisible = !(current?.sidebarVisible ?? true);
     ref
         .read(pluginStateProvider.notifier)
@@ -173,9 +187,11 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('确认卸载'),
-        content: Text(plugin.isModule
-            ? '确定要卸载插件「${plugin.name}」吗？\n\n此操作将删除插件目录中的所有文件，不可恢复。'
-            : '确定要卸载「${plugin.name}」（${plugin.typeLabel}）吗？\n\n此操作将删除其所在插件目录中的所有文件，不可恢复。'),
+        content: Text(plugin.isSkill
+            ? '确定要删除技能「${plugin.name}」吗？\n\n此操作将删除其 skill/ 目录中的技能文件，不可恢复。'
+            : plugin.isModule
+                ? '确定要卸载插件「${plugin.name}」吗？\n\n此操作将删除插件目录中的所有文件，不可恢复。'
+                : '确定要卸载「${plugin.name}」（${plugin.typeLabel}）吗？\n\n此操作将删除其所在插件目录中的所有文件，不可恢复。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -206,7 +222,19 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
           : '$_pluginsDir${Platform.pathSeparator}${plugin.id}';
       final pluginDir = Directory(p.normalize(dirPath));
       if (pluginDir.existsSync()) {
-        pluginDir.deleteSync(recursive: true);
+        if (plugin.isSkill) {
+          // Skill 能力卸载：只删 skill/ 子目录，避免误删同目录其他能力（module/agent/...）。
+          final skillDir = Directory(p.join(pluginDir.path, 'skill'));
+          if (skillDir.existsSync()) {
+            skillDir.deleteSync(recursive: true);
+          }
+          // 目录被删空（纯 skill 插件）→ 连外层目录一起清掉。
+          if (pluginDir.listSync().isEmpty) {
+            pluginDir.deleteSync();
+          }
+        } else {
+          pluginDir.deleteSync(recursive: true);
+        }
       }
       ref.read(pluginStateProvider.notifier).remove(plugin.id);
       _loadPlugins();
@@ -228,6 +256,52 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
     }
   }
 
+  // ═══════ 排序策略 ═══════
+
+  /// 分组视图：组间排序（用户配置 order 优先，回退组内最小 manifest sectionOrder）。
+  int _groupSortKey(
+      String label, List<PluginInfo> group, PluginCenterConfig config) {
+    final configured = config.groups[label]?.order;
+    if (configured != null) return configured;
+    var minOrder = 1 << 30;
+    for (final p in group) {
+      if (p.sectionOrder < minOrder) minOrder = p.sectionOrder;
+    }
+    return minOrder + 1000;
+  }
+
+  /// 组内排序（用户拖拽 sortOrder 优先，回退 manifest order）。
+  int _pluginSortKey(PluginInfo p, Map<String, PluginStateRecord> states) {
+    return states[p.id]?.sortOrder ?? p.order + 1000;
+  }
+
+  void _onGroupReorder(List<String> keys, int oldIndex, int newIndex) {
+    final ids = List<String>.from(keys);
+    final moved = ids.removeAt(oldIndex);
+    ids.insert(newIndex, moved);
+    ref.read(pluginStateProvider.notifier).setGroupOrderAll(ids);
+  }
+
+  void _onPluginReorder(String groupKey, List<PluginInfo> ordered,
+      int oldIndex, int newIndex) {
+    final ids = ordered.map((p) => p.id).toList();
+    final moved = ids.removeAt(oldIndex);
+    ids.insert(newIndex, moved);
+    ref.read(pluginStateProvider.notifier).setPluginSortOrderAll(groupKey, ids);
+  }
+
+  void _toggleGroupNameInSidebar(String label, bool show) {
+    ref
+        .read(pluginStateProvider.notifier)
+        .setGroupShowNameInSidebar(label, show);
+  }
+
+  void _toggleGroupCollapsed(String label, bool collapsed) {
+    ref.read(pluginStateProvider.notifier).setGroupCollapsed(label, collapsed);
+  }
+
+  // ═══════ UI ═══════
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -235,7 +309,7 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // 顶部搜索栏 + 计数
+        // 顶部搜索栏 + 排序策略 + 计数
         _buildHeader(theme),
         // 内容区
         Expanded(child: _buildContent(theme)),
@@ -244,6 +318,7 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
   }
 
   Widget _buildHeader(ThemeData theme) {
+    final config = ref.watch(pluginStateProvider).config;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
@@ -281,7 +356,32 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
               onChanged: (v) => setState(() => _searchQuery = v),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 4),
+          // 排序策略下拉（持久化到 _config.sortMode）
+          Tooltip(
+            message: '排序方式',
+            child: PopupMenuButton<String>(
+              initialValue: config.sortMode,
+              onSelected: (v) =>
+                  ref.read(pluginStateProvider.notifier).setSortMode(v),
+              itemBuilder: (ctx) => const [
+                PopupMenuItem(
+                  value: PluginSortMode.group,
+                  child: Text('分组排序'),
+                ),
+                PopupMenuItem(
+                  value: PluginSortMode.name,
+                  child: Text('按名称排序'),
+                ),
+                PopupMenuItem(
+                  value: PluginSortMode.recent,
+                  child: Text('按最近使用'),
+                ),
+              ],
+              icon: const Icon(Icons.sort, size: 18),
+            ),
+          ),
+          const SizedBox(width: 4),
           Text(
             '${_allPlugins.length} 个插件',
             style: TextStyle(fontSize: 12, color: theme.disabledColor),
@@ -299,7 +399,7 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
     }
 
     // 读取共享插件状态（与侧边栏同一 Provider，开关即时同步）。
-    final states = ref.watch(pluginStateProvider);
+    final pstate = ref.watch(pluginStateProvider);
 
     if (_error != null) {
       return Center(
@@ -338,14 +438,66 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
       );
     }
 
+    // 按当前排序策略渲染。
+    switch (pstate.config.sortMode) {
+      case PluginSortMode.recent:
+        return _buildRecentList(filtered, pstate, theme);
+      case PluginSortMode.name:
+        return _buildNameList(filtered, pstate, theme);
+      default:
+        return _buildGroupedList(filtered, pstate, theme);
+    }
+  }
+
+  /// 按名称排序（普通扁平列表）。
+  Widget _buildNameList(
+      List<PluginInfo> items, PluginCenterState pstate, ThemeData theme) {
+    final sorted = List<PluginInfo>.from(items)
+      ..sort((a, b) => a.name.compareTo(b.name));
+    return _buildFlatList(sorted, pstate, theme);
+  }
+
+  /// 按最近使用排序：真实 `lastUsedAt` 倒序；无记录/从未打开的排最后。
+  Widget _buildRecentList(
+      List<PluginInfo> items, PluginCenterState pstate, ThemeData theme) {
+    final states = pstate.records;
+    final sorted = List<PluginInfo>.from(items)
+      ..sort((a, b) {
+        final ta = states[a.id]?.lastUsedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final tb = states[b.id]?.lastUsedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final c = tb.compareTo(ta);
+        return c != 0 ? c : a.name.compareTo(b.name);
+      });
+    final hasAnyUsage =
+        items.any((p) => states[p.id]?.lastUsedAt != null);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: Text(
+            hasAnyUsage
+                ? '按打开时间倒序（打开插件时自动记录）'
+                : '暂无使用记录：打开任意插件后会自动记录，并出现在这里',
+            style: TextStyle(
+                fontSize: 11, color: theme.colorScheme.onSurfaceVariant),
+          ),
+        ),
+        Expanded(child: _buildFlatList(sorted, pstate, theme)),
+      ],
+    );
+  }
+
+  Widget _buildFlatList(
+      List<PluginInfo> items, PluginCenterState pstate, ThemeData theme) {
     return RefreshIndicator(
       onRefresh: _loadPlugins,
       child: ListView.builder(
         padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: filtered.length,
+        itemCount: items.length,
         itemBuilder: (context, index) {
-          final plugin = filtered[index];
-          final state = states[plugin.id];
+          final plugin = items[index];
+          final state = pstate.records[plugin.id];
           return LocalPluginCard(
             plugin: plugin,
             state: state,
@@ -355,6 +507,228 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
           );
         },
       ),
+    );
+  }
+
+  /// 分组排序视图：分组标题（拖拽手柄 + 折叠 + 侧边栏组名开关）+ 组内可拖拽列表。
+  Widget _buildGroupedList(
+      List<PluginInfo> items, PluginCenterState pstate, ThemeData theme) {
+    final states = pstate.records;
+    final config = pstate.config;
+
+    // 1. 按分组名归组。
+    final grouped = <String, List<PluginInfo>>{};
+    for (final p in items) {
+      grouped.putIfAbsent(p.section, () => []).add(p);
+    }
+
+    // 2. 组间排序：用户拖拽 order 优先，回退 manifest sectionOrder。
+    final keys = grouped.keys.toList()
+      ..sort((a, b) {
+        final oa = _groupSortKey(a, grouped[a]!, config);
+        final ob = _groupSortKey(b, grouped[b]!, config);
+        final c = oa.compareTo(ob);
+        return c != 0 ? c : a.compareTo(b);
+      });
+
+    // 3. 组内排序：用户拖拽 sortOrder 优先，回退 manifest order。
+    for (final key in keys) {
+      grouped[key]!.sort((a, b) {
+        final oa = _pluginSortKey(a, states);
+        final ob = _pluginSortKey(b, states);
+        final c = oa.compareTo(ob);
+        return c != 0 ? c : a.order.compareTo(b.order);
+      });
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: Text(
+            '拖动手柄调整分组/插件顺序，组名开关控制侧边栏显示',
+            style: TextStyle(
+                fontSize: 11, color: theme.colorScheme.onSurfaceVariant),
+          ),
+        ),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _loadPlugins,
+            child: ReorderableListView(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              buildDefaultDragHandles: false,
+              onReorderItem: (oldIndex, newIndex) =>
+                  _onGroupReorder(keys, oldIndex, newIndex),
+              children: [
+                for (var gi = 0; gi < keys.length; gi++)
+                  ReorderableDragStartListener(
+                    key: ValueKey('group:${keys[gi]}'),
+                    index: gi,
+                    child: _MarketplaceGroupBlock(
+                      label: keys[gi],
+                      groupIndex: gi,
+                      plugins: grouped[keys[gi]]!,
+                      groupConfig: config.groups[keys[gi]],
+                      states: states,
+                      onToggleSidebarName: () => _toggleGroupNameInSidebar(
+                          keys[gi],
+                          !(config.groups[keys[gi]]?.showNameInSidebar ?? true)),
+                      onToggleCollapse: () => _toggleGroupCollapsed(
+                          keys[gi],
+                          !(config.groups[keys[gi]]?.collapsed ?? false)),
+                      onPluginReorder: (oldIndex, newIndex) =>
+                          _onPluginReorder(
+                              keys[gi], grouped[keys[gi]]!, oldIndex, newIndex),
+                      onToggleEnabled: (plugin) => _toggleEnabled(plugin),
+                      onToggleSidebar: (plugin) => _toggleSidebar(plugin),
+                      onUninstall: (plugin) => _uninstall(plugin),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 分组块：组头（拖拽手柄 + 名称 + 折叠 + 侧边栏组名开关）+ 组内插件列表。
+class _MarketplaceGroupBlock extends StatelessWidget {
+  const _MarketplaceGroupBlock({
+    required this.label,
+    required this.groupIndex,
+    required this.plugins,
+    required this.groupConfig,
+    required this.states,
+    required this.onToggleSidebarName,
+    required this.onToggleCollapse,
+    required this.onPluginReorder,
+    required this.onToggleEnabled,
+    required this.onToggleSidebar,
+    required this.onUninstall,
+  });
+
+  final String label;
+  final int groupIndex;
+  final List<PluginInfo> plugins;
+  final PluginGroupConfig? groupConfig;
+  final Map<String, PluginStateRecord> states;
+  final VoidCallback onToggleSidebarName;
+  final VoidCallback onToggleCollapse;
+  final void Function(int oldIndex, int newIndex) onPluginReorder;
+  final void Function(PluginInfo plugin) onToggleEnabled;
+  final void Function(PluginInfo plugin) onToggleSidebar;
+  final void Function(PluginInfo plugin) onUninstall;
+
+  bool get _showNameInSidebar => groupConfig?.showNameInSidebar ?? true;
+  bool get _collapsed => groupConfig?.collapsed ?? false;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // 组头
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
+          child: Row(
+            children: [
+              // 组间拖拽手柄（触发外层 ReorderableListView 的拖拽）。
+              ReorderableDragStartListener(
+                index: groupIndex,
+                child: Tooltip(
+                  message: '拖动调整分组顺序',
+                  child: Icon(Icons.drag_indicator,
+                      size: 20, color: scheme.onSurfaceVariant.withValues(alpha: 0.6)),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(Icons.folder_outlined, size: 16, color: scheme.primary),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  '$label (${plugins.length})',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: scheme.onSurfaceVariant,
+                    letterSpacing: 0.5,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              // 折叠/展开
+              IconButton(
+                icon: Icon(
+                    _collapsed ? Icons.expand_more : Icons.expand_less,
+                    size: 18),
+                visualDensity: VisualDensity.compact,
+                tooltip: _collapsed ? '展开分组' : '折叠分组',
+                onPressed: onToggleCollapse,
+              ),
+              // 侧边栏组名开关
+              Tooltip(
+                message: _showNameInSidebar ? '侧边栏显示组名' : '侧边栏隐藏组名',
+                child: IconButton(
+                  icon: Icon(
+                    _showNameInSidebar ? Icons.visibility : Icons.visibility_off,
+                    size: 18,
+                    color: _showNameInSidebar
+                        ? scheme.onSurfaceVariant
+                        : scheme.outline,
+                  ),
+                  visualDensity: VisualDensity.compact,
+                  onPressed: onToggleSidebarName,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (!_collapsed)
+          ReorderableListView(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            buildDefaultDragHandles: false,
+            onReorderItem: onPluginReorder,
+            children: [
+              for (var i = 0; i < plugins.length; i++)
+                ReorderableDragStartListener(
+                  key: ValueKey('$label:${plugins[i].id}'),
+                  index: i,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        // 组内拖拽手柄
+                        Tooltip(
+                          message: '拖动调整插件顺序',
+                          child: Icon(Icons.drag_indicator,
+                              size: 20,
+                              color: scheme.onSurfaceVariant.withValues(alpha: 0.4)),
+                        ),
+                        Expanded(
+                          child: LocalPluginCard(
+                            plugin: plugins[i],
+                            state: states[plugins[i].id],
+                            onToggleEnabled: () => onToggleEnabled(plugins[i]),
+                            onToggleSidebar: () => onToggleSidebar(plugins[i]),
+                            onUninstall: () => onUninstall(plugins[i]),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+      ],
     );
   }
 }

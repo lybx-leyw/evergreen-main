@@ -3,7 +3,7 @@
 /// 流程（规划 agent 主导）：
 ///   asking(需求澄清) → planning(按来源拆任务) → collecting(深寻 agents 并行)
 ///   → accepting(验收/交涉 pass|revise|redo) → integrating(整合报告)
-///   → creating(skill 创造) → finalizing(终验) → exporting(落 .greenix/skills/)
+///   → creating(skill 创造) → finalizing(终验) → exporting(落 plugins/<id>/skill/)
 ///
 /// 交涉协议：验收不通过时，规划 agent 对子 agent 打 revise/redo + 指令，
 /// 重新派发；同一任务最多 [maxAttempts] 次，之后按「将就」通过并记录警告。
@@ -547,10 +547,10 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
     _workflow.phase = SkillCreatorPhase.creating;
   }
 
-  /// ⑦ 导出：落盘 `.greenix/skills/<name>.md`。
+  /// ⑦ 导出：落盘 `plugins/<id>/skill/<id>.md`（Skill 即插件，统一路径）。
   Future<void> _export() async {
     _workflow.phase = SkillCreatorPhase.exporting;
-    _appendEvent('info', '导出 skill 到 .greenix/skills/ ...');
+    _appendEvent('info', '导出 skill 到 plugins/<id>/skill/ ...');
 
     final draft = _workflow.draftSkillPath != null &&
             File(_workflow.draftSkillPath!).existsSync()

@@ -305,7 +305,7 @@ class _ModeSwitchButtonState extends ConsumerState<ModeSwitchButton> {
           final target = defaultRouteForMode(
             mode: m,
             registry: registry,
-            pluginStates: ref.read(pluginStateProvider),
+            pluginStates: ref.read(pluginStateProvider).records,
           );
           if (target != null) context.go(target);
         },
