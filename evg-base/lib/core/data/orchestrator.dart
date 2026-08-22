@@ -43,6 +43,7 @@ import 'package:evergreen_base/core/log.dart';
 import 'type.dart';
 import 'exceptions.dart';
 import 'cache.dart';
+import 'data_diff.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DataSourceStatus
@@ -185,17 +186,24 @@ class DataOrchestrator {
   }
 
   /// 强制重新拉取。合法则覆写缓存，非法返回 null 不覆写。
-  Future<T?> refresh<T>(DataType<T> type) async {
+  ///
+  /// [notifyOnChange] 为 true 时，覆写缓存且内容变化（忽略易变字段）会发出
+  /// [DataChangeEvent]；默认 false（用户主动刷新/按需拉取不打扰）。
+  Future<T?> refresh<T>(DataType<T> type, {bool notifyOnChange = false}) async {
     _requireRegistered(type);
-    return _fetchAndCache(type);
+    return _fetchAndCache(type, notifyOnChange: notifyOnChange);
   }
 
   /// 启动定时自动刷新（默认每 5 分钟检查一次过期数据）。
+  ///
+  /// 后台循环刷新视为「变更通知源」：覆写缓存且内容变化时发出
+  /// [DataChangeEvent]（见 [addDataChangeListener]）。
   Timer? _refreshTimer;
 
   void startAutoRefresh({Duration interval = const Duration(minutes: 5)}) {
     _refreshTimer?.cancel();
-    _refreshTimer = Timer.periodic(interval, (_) => refreshAllStale());
+    _refreshTimer =
+        Timer.periodic(interval, (_) => refreshAllStale(notifyOnChange: true));
   }
 
   /// 停止自动刷新。
@@ -205,7 +213,11 @@ class DataOrchestrator {
   }
 
   /// 批量刷新过期数据。可指定 [types] 过滤。
-  Future<void> refreshAllStale({List<DataType>? types}) async {
+  ///
+  /// [notifyOnChange] 为 true 时，成功覆写缓存且内容有变化（忽略易变字段）
+  /// 会发出 [DataChangeEvent]——后台自动刷新（startAutoRefresh）即走此路径。
+  Future<void> refreshAllStale(
+      {List<DataType>? types, bool notifyOnChange = true}) async {
     final names = types != null ? types.map((t) => t.name).toSet() : null;
     for (final entry in _statuses.entries) {
       if (entry.value.isFresh) continue;
@@ -213,7 +225,7 @@ class DataOrchestrator {
       final type = _types[entry.key];
       if (type == null) continue;
       try {
-        await refresh<dynamic>(type);
+        await refresh<dynamic>(type, notifyOnChange: notifyOnChange);
       } catch (e) {
         Log().warn('DataOrchestrator: 自动刷新失败',
             data: {'name': entry.key, 'error': e.toString()});
@@ -221,14 +233,15 @@ class DataOrchestrator {
     }
   }
 
-  /// 启动时按注册顺序强制串行拉取全部数据源。
+  /// 按注册顺序强制串行拉取全部数据源（启动期已不再调用，保留给显式全量刷新）。
   /// 单个数据源失败只记录状态，不阻塞后续数据源。
-  Future<void> refreshAllSerial({List<DataType>? types}) async {
+  Future<void> refreshAllSerial(
+      {List<DataType>? types, bool notifyOnChange = false}) async {
     final queue = types ?? _types.values.toList(growable: false);
     for (final type in queue) {
       if (!_fetchers.containsKey(type.name)) continue;
       try {
-        await refresh<dynamic>(type);
+        await refresh<dynamic>(type, notifyOnChange: notifyOnChange);
       } catch (e) {
         Log().warn('DataOrchestrator: 启动串行拉取失败',
             data: {'name': type.name, 'error': e.toString()});
@@ -526,7 +539,8 @@ class DataOrchestrator {
     s.lastError = error;
   }
 
-  Future<T?> _fetchAndCache<T>(DataType<T> type) async {
+  Future<T?> _fetchAndCache<T>(DataType<T> type,
+      {bool notifyOnChange = false}) async {
     final fetcher = _fetchers[type.name]!;
     debugPrint('[Orch] _fetchAndCache: 即将拉取 ${type.name}');
     Log().info('DataOrchestrator: 拉取 $type');
@@ -534,12 +548,17 @@ class DataOrchestrator {
       final data = await fetcher();
       debugPrint('[Orch] _fetchAndCache: ${type.name} fetcher 返回: ${data != null ? "有数据" : "NULL"}');
 
-      if (data == null || data is! T) {
-        _updateStatus(type.name, connected: false, error: '拉取返回无效数据');
-        Log().warn('DataOrchestrator: 拉取返回无效数据 $type');
-        debugPrint('[Orch] _fetchAndCache: ${type.name} 返回无效数据(NULL或类型不匹配)');
+      if (data == null || data is! T || _isEmptyData(data)) {
+        _updateStatus(type.name, connected: false, error: '拉取返回无效或空数据');
+        Log().warn(
+            'DataOrchestrator: 拉取返回无效/空数据 $type（不覆写缓存，保留旧缓存）');
+        debugPrint(
+            '[Orch] _fetchAndCache: ${type.name} 返回无效/空数据(NULL/类型不匹配/空容器)');
         return null;
       }
+
+      // diff 基线：覆写前的旧缓存（磁盘优先，其次内存）——首次拉取为 null
+      final baseline = _readBaseline(type);
 
       final now = DateTime.now();
       final encoded = _encode(data);
@@ -550,6 +569,10 @@ class DataOrchestrator {
       }
       _memCache[type.name] = _MemCacheEntry(data, now);
       _updateStatus(type.name, connected: true, fetchedAt: now);
+
+      if (notifyOnChange) {
+        _maybeEmitChange(type, baseline, data, now);
+      }
       return data;
     } catch (e, st) {
       _updateStatus(type.name, connected: false, error: e.toString());
@@ -560,7 +583,75 @@ class DataOrchestrator {
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // 变更通知（后台刷新 diff）
+  // ═══════════════════════════════════════════════════════════════════════
+
+  final List<void Function(DataChangeEvent)> _changeListeners = [];
+
+  /// 注册数据变更监听（后台循环刷新覆写缓存且内容变化时回调）。
+  void addDataChangeListener(void Function(DataChangeEvent) listener) {
+    _changeListeners.add(listener);
+  }
+
+  /// 移除数据变更监听。
+  void removeDataChangeListener(void Function(DataChangeEvent) listener) {
+    _changeListeners.remove(listener);
+  }
+
+  /// 读取覆写前的缓存基线（磁盘优先，其次内存）；无缓存返回 null。
+  dynamic _readBaseline(DataType type) {
+    final entry = _cache?.read(type.name);
+    if (entry != null) {
+      try {
+        return jsonDecode(entry.$1);
+      } catch (_) {
+        // 非 JSON 字符串缓存（如 String 型数据源），按原文比较
+        return entry.$1;
+      }
+    }
+    return _memCache[type.name]?.data;
+  }
+
+  /// 对比新旧数据，有实质变化则发出 [DataChangeEvent]。
+  void _maybeEmitChange(
+      DataType type, dynamic baseline, dynamic newData, DateTime now) {
+    if (baseline == null) return; // 首次拉取（无旧缓存）不算变更
+    final diff = computeDataDiff(baseline, newData);
+    if (!diff.hasChanges) return; // 内容未变（含仅易变字段变化）不打扰
+    final event = DataChangeEvent(
+      sourceName: type.name,
+      displayName: type.label,
+      diff: diff,
+      at: now,
+    );
+    Log().info('DataOrchestrator: 数据变更 ${type.name} → '
+        '${diff.summarize()}');
+    for (final listener in List.of(_changeListeners)) {
+      try {
+        listener(event);
+      } catch (e) {
+        Log().warn('DataOrchestrator: 变更监听器异常',
+            data: {'name': type.name, 'error': e.toString()});
+      }
+    }
+  }
+
   String _encode(dynamic data) => data is String ? data : jsonEncode(data);
+
+  /// 空数据门控：拉取结果为空（null / 空白字符串 / 空集合 / 空 Map）时
+  /// 视为拉取失败，不覆写磁盘 + 内存缓存，保留旧数据可用（缓存优先策略）。
+  ///
+  /// 语义：仅判断顶层容器是否为空——`{'courses': []}` 这类「包装了空列表的
+  /// 非空 Map」不算空（结构合法，说明该源可达且有返回），由消费方自行处理。
+  bool _isEmptyData(dynamic data) {
+    if (data == null) return true;
+    if (data is String) return data.trim().isEmpty;
+    if (data is List) return data.isEmpty;
+    if (data is Map) return data.isEmpty;
+    if (data is Set) return data.isEmpty;
+    return false;
+  }
 
   T _decode<T>(String raw) {
     if (T == String) return raw as T;

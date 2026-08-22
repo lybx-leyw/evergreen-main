@@ -8,6 +8,7 @@ export 'exceptions.dart';
 export 'orchestrator.dart';
 // export 'provider.dart' show dataOrchestratorProvider; // 需要 flutter_riverpod，示例中不用
 export 'cache.dart';
+export 'data_diff.dart';
 export 'data_http_server.dart';
 export 'plugin/data_source_manifest.dart';
 export 'plugin/data_source_loader.dart';

@@ -718,6 +718,13 @@ class AppBootstrap {
   }
 
   /// 扫描数据插件 → 注册 DataType（CLI fetcher，模块加载前完成）。
+  ///
+  /// ⚠️ 只注册、不拉取（冷启动零网络等待）：
+  /// - 缓存优先：有缓存（含过期）绝不主动联网，数据由 `get()/fastRead()`
+  ///   在进入模板时按需提供；
+  /// - 无缓存时：进入所需模板自动触发真实拉取（get 的 fallback 路径）；
+  /// - 后台维护：UI 启动后 `startAutoRefresh()` 每 5 分钟串行刷过期源
+  ///   （app.dart 已挂载），循环终态写入磁盘缓存，重启直接命中，不再从头拉。
   Future<Result<void>> _stepDataSources() async {
     Log().info('[BOOT] 开始扫描数据插件: pluginsDir=$pluginsDir');
     _scanAndRegisterDataSources(pluginsDir, orchestrator!);
@@ -727,9 +734,7 @@ class AppBootstrap {
     if (kZjuEnabled) {
       registerZjuDataSources(orchestrator!, prefs!);
     }
-    // 启动阶段使用串行队列，避免多个数据源同时访问共享凭证/网络会话。
-    await orchestrator!.refreshAllSerial();
-    Log().info('[BOOT] 数据插件扫描完成');
+    Log().info('[BOOT] 数据插件扫描完成（仅注册，不联网拉取）');
     return _ok();
   }
 

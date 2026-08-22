@@ -10,6 +10,8 @@
 /// | `EvergreenApp()` | 根 Widget，根据编译常量选择模式 |
 library;
 
+import 'dart:async' show unawaited;
+
 import 'package:evergreen_base/core/feedback/screenshot.dart';
 import 'package:evergreen_base/core/module/module_registry.dart';
 import 'package:evergreen_base/providers.dart';
@@ -18,6 +20,7 @@ import 'package:evergreen_base/renderer/app/app_shell.dart';
 import 'package:evergreen_base/renderer/app/command_palette.dart';
 import 'package:evergreen_base/renderer/app/dev_mode_hub.dart';
 import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_bridge_registry.dart';
+import 'package:evergreen_base/renderer/app/service/data_change_notification_service.dart';
 import 'package:evergreen_base/renderer/app/service/providers/renderer_providers.dart';
 import 'package:evergreen_base/renderer/app/service/theme/theme_provider.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/marketplace/plugin_state_provider.dart';
@@ -207,11 +210,14 @@ class _EvergreenAppState extends ConsumerState<EvergreenApp> {
   @override
   void initState() {
     super.initState();
-    // 启动数据自动刷新
+    // 启动数据自动刷新 + 数据变更通知（后台循环刷新发现变化 → 系统通知）
     Future.microtask(() {
       try {
         final orchestrator = ref.read(dataOrchestratorProvider);
         orchestrator.startAutoRefresh();
+        DataChangeNotificationService.instance.listenTo(orchestrator);
+        // 异步初始化通知渠道/权限，不阻塞 UI
+        unawaited(DataChangeNotificationService.instance.ensureInitialized());
       } catch (_) {
         // dataOrchestratorProvider 未注入时静默忽略
       }
