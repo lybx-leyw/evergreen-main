@@ -43,7 +43,9 @@ dependencies:
   crypto: ^3.0.3
 
   # 系统通知——数据变更 diff 通知（Android 状态栏 + Windows Toast）
-  flutter_local_notifications: ^22.3.0
+  # 注意：^22.x 要求 Dart >=3.10（Flutter >=3.38）；为兼容 Flutter 3.35/Dart 3.9
+  # 及更早工具链，锁定 19.x（要求仅 Flutter >=3.22），API 与实现完全一致。
+  flutter_local_notifications: ^19.5.0
 
   # 视频播放（跨平台 media_kit，基于 libmpv）
   media_kit: ^1.1.11
