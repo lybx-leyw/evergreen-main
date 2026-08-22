@@ -542,12 +542,7 @@ class _NewSkillDialogState extends ConsumerState<_NewSkillDialog> {
       frontmatter.writeln();
       frontmatter.writeln(body);
 
-      // Skill 即插件：统一写入 plugins/<id>/skill/<id>.md（市场中心可见/可管理）。
-      final pluginsRoot = ref.read(pluginsDirProvider);
-      final file = File(greenixSkillPluginPath(name, pluginsRoot: pluginsRoot));
-      if (!file.parent.existsSync()) {
-        file.parent.createSync(recursive: true);
-      }
+      final file = File(greenixSkillPath(name));
       await file.writeAsString(frontmatter.toString());
 
       if (mounted) {
