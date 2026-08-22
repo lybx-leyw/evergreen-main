@@ -62,7 +62,7 @@ void main() {
       expect(dirs['different-id'], isNot(p.join(tmp.path, 'different-id')));
     });
 
-    test('卸载删除 dirs[id] 能真实移除磁盘目录（模拟 _doUninstall 的核心逻辑）', () {
+    test('卸载删除 deletePath 能真实移除磁盘目录（模拟 _doUninstall 的核心逻辑）', () {
       final pluginDir = Directory(p.join(tmp.path, 'weird-folder'))..createSync();
       Directory(p.join(pluginDir.path, 'module')).createSync();
       File(p.join(pluginDir.path, 'module', 'manifest.json'))
@@ -75,16 +75,21 @@ void main() {
 ''');
 
       final (descriptors, dirs) = scanPluginManifests(tmp.path);
-      final id = descriptors.first.id;
+      final info = descriptors.first;
+      final id = info.id;
 
-      // 复刻 _doUninstall 的删除决策：优先用捕获目录，回退 pluginsDir/id
-      final captured = dirs[id];
-      final dirPath = (captured != null && captured.isNotEmpty)
-          ? captured
-          : p.join(tmp.path, id);
-      final toDelete = Directory(dirPath);
+      // 复刻 _doUninstall 的删除决策：优先用精确删除路径，回退到捕获目录/pluginsDir/id
+      final deletePath = (info.deletePath.isNotEmpty)
+          ? info.deletePath
+          : (dirs[id] ?? p.join(tmp.path, id));
+      final toDelete = Directory(deletePath);
       expect(toDelete.existsSync(), isTrue);
       toDelete.deleteSync(recursive: true);
+      // 纯 module 子目录删掉后外层为空 → 连外层一起清掉
+      final parent = toDelete.parent;
+      if (parent.existsSync() && parent.listSync().isEmpty) {
+        parent.deleteSync();
+      }
 
       // 真实文件夹已被删除
       expect(Directory(p.join(tmp.path, 'weird-folder')).existsSync(), isFalse);
@@ -190,9 +195,103 @@ void main() {
       final types = descriptors.map((d) => d.type).toList();
       expect(types, contains('module'));
       expect(types, contains('data-source'));
-      // 两个卡片都指向同一文件夹，卸载任一都会删除整个文件夹
+      // 两个卡片都指向同一文件夹，但精确删除路径不同：module 删 module/，data-source 删 data/
       expect(dirs['showcase'], p.join(tmp.path, 'showcase'));
       expect(dirs['showcase-data'], p.join(tmp.path, 'showcase'));
+      final showcase = descriptors.firstWhere((d) => d.id == 'showcase');
+      final showcaseData = descriptors.firstWhere((d) => d.id == 'showcase-data');
+      expect(showcase.deletePath, p.join(tmp.path, 'showcase', 'module'));
+      expect(showcaseData.deletePath, p.join(tmp.path, 'showcase', 'data'));
+    });
+
+    test('同目录多能力卸载只删对应分支，最后删空才移除外层目录', () {
+      final dir = Directory(p.join(tmp.path, '001'))..createSync();
+      Directory(p.join(dir.path, 'module')).createSync();
+      Directory(p.join(dir.path, 'data')).createSync();
+      Directory(p.join(dir.path, 'config')).createSync();
+      File(p.join(dir.path, 'module', 'manifest.json')).writeAsStringSync(
+          '{"type":"module","id":"001-module","name":"模块"}');
+      File(p.join(dir.path, 'data', 'manifest.json')).writeAsStringSync(
+          '{"type":"data-source","id":"001-data","name":"数据"}');
+      File(p.join(dir.path, 'config', 'config.json')).writeAsStringSync(
+          '{"type":"config","id":"001-config","name":"配置"}');
+
+      final (descriptors, _) = scanPluginManifests(tmp.path);
+      expect(descriptors.length, 3);
+      final dataInfo = descriptors.firstWhere((d) => d.id == '001-data');
+      final configInfo = descriptors.firstWhere((d) => d.id == '001-config');
+      final moduleInfo = descriptors.firstWhere((d) => d.id == '001-module');
+
+      // 卸载 data：只删 data/，module/ 与 config/ 保留
+      Directory(dataInfo.deletePath).deleteSync(recursive: true);
+      expect(Directory(p.join(tmp.path, '001', 'data')).existsSync(), isFalse);
+      expect(Directory(p.join(tmp.path, '001', 'module')).existsSync(), isTrue);
+      expect(Directory(p.join(tmp.path, '001', 'config')).existsSync(), isTrue);
+
+      // 卸载 module：module/ 删除，config/ 仍保留
+      Directory(moduleInfo.deletePath).deleteSync(recursive: true);
+      expect(Directory(p.join(tmp.path, '001', 'module')).existsSync(), isFalse);
+      expect(Directory(p.join(tmp.path, '001', 'config')).existsSync(), isTrue);
+
+      // 卸载 config：config/ 删除后外层为空，把 001 空壳也清掉
+      Directory(configInfo.deletePath).deleteSync(recursive: true);
+      if (Directory(p.join(tmp.path, '001')).existsSync() &&
+          Directory(p.join(tmp.path, '001')).listSync().isEmpty) {
+        Directory(p.join(tmp.path, '001')).deleteSync();
+      }
+      expect(Directory(p.join(tmp.path, '001')).existsSync(), isFalse);
+    });
+
+    test('根 manifest（.plugin 包）的删除路径是整个插件目录', () {
+      final dir = Directory(p.join(tmp.path, 'bundle'))..createSync();
+      Directory(p.join(dir.path, 'data')).createSync();
+      Directory(p.join(dir.path, 'config')).createSync();
+      File(p.join(dir.path, 'manifest.json')).writeAsStringSync('''
+{
+  "type": "plugin",
+  "id": "bundle",
+  "name": "Bundle",
+  "version": "1.0.0"
+}
+''');
+      File(p.join(dir.path, 'data', 'manifest.json')).writeAsStringSync(
+          '{"type":"data-source","id":"bundle-data","name":"Data"}');
+      File(p.join(dir.path, 'config', 'config.json')).writeAsStringSync(
+          '{"type":"config","id":"bundle-config","name":"Config"}');
+
+      final (descriptors, _) = scanPluginManifests(tmp.path);
+      final bundle = descriptors.firstWhere((d) => d.id == 'bundle');
+      expect(bundle.deletePath, p.join(tmp.path, 'bundle'));
+      // 卸载整个 bundle 时，连同 data/config 分支一起删除
+      Directory(bundle.deletePath).deleteSync(recursive: true);
+      expect(Directory(p.join(tmp.path, 'bundle')).existsSync(), isFalse);
+    });
+
+    test('config/theme 类型也能被发现，并给出精确分支删除路径', () {
+      final settingsDir = Directory(p.join(tmp.path, 'settings'))..createSync();
+      Directory(p.join(settingsDir.path, 'config')).createSync();
+      File(p.join(settingsDir.path, 'config', 'config.json')).writeAsStringSync('''
+{
+  "id": "evergreen-core",
+  "name": "默认设置",
+  "settings": []
+}
+''');
+
+      final themeDir = Directory(p.join(tmp.path, 'warm'))..createSync();
+      Directory(p.join(themeDir.path, 'theme')).createSync();
+      File(p.join(themeDir.path, 'theme', 'theme.json')).writeAsStringSync(
+          '{"type":"theme","id":"warm","name":"温暖","colors":{}}');
+
+      final (descriptors, _) = scanPluginManifests(tmp.path);
+
+      expect(descriptors.length, 2);
+      final configInfo = descriptors.firstWhere((d) => d.type == 'config');
+      final themeInfo = descriptors.firstWhere((d) => d.type == 'theme');
+      expect(configInfo.name, '默认设置');
+      expect(configInfo.deletePath, p.join(tmp.path, 'settings', 'config'));
+      expect(themeInfo.name, '温暖');
+      expect(themeInfo.deletePath, p.join(tmp.path, 'warm', 'theme'));
     });
   });
 }

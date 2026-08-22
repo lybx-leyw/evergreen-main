@@ -504,7 +504,7 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
     final draftPath = p.join(_workspaceDir, 'draft_skill.md');
     File(draftPath).writeAsStringSync(_skillMarkdown(data));
     _workflow.draftSkillPath = draftPath;
-    _workflow.exportPath = greenixSkillPath(data.name);
+    _workflow.exportPath = greenixSkillPluginPath(data.name);
     _appendEvent('info', 'skill 草稿完成：${data.name} → $draftPath');
 
     _workflow.phase = SkillCreatorPhase.finalizing;
@@ -561,7 +561,7 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
     final data = agent.SkillRewriter.parseOutput(draft, fallbackRunAs: 'inline');
     if (data == null) throw StateError('skill 草稿格式不正确，无法导出');
 
-    final exportPath = greenixSkillPath(data.name);
+    final exportPath = greenixSkillPluginPath(data.name);
     final file = File(exportPath);
     if (!file.parent.existsSync()) file.parent.createSync(recursive: true);
     file.writeAsStringSync(_skillMarkdown(data));

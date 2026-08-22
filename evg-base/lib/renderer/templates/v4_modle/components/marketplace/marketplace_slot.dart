@@ -1,7 +1,7 @@
 /// 插件市场主槽位 —— 本地插件管理视图。
 ///
 /// 功能：
-/// - 扫描 `plugins/` 目录下所有 manifest.json
+/// - 扫描 `plugins/` 目录下所有插件清单（module/agent/data 的 manifest.json、config.json、theme.json 等）
 /// - 展示为 LocalPluginCard 列表
 /// - 支持搜索/过滤
 /// - 启用/停用、侧边栏可见性、卸载操作
@@ -56,6 +56,8 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
   bool _loading = true;
   String? _error;
   String _searchQuery = '';
+  /// 当前类型筛选，'all' 表示全部。
+  String _typeFilter = 'all';
 
   String get _pluginsDir {
     // 优先级：config.pluginsDir > Riverpod pluginsDirProvider > 硬编码回退 'plugins'
@@ -150,14 +152,20 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
   }
 
   List<PluginInfo> get _filteredPlugins {
-    if (_searchQuery.isEmpty) return _allPlugins;
-    final q = _searchQuery.toLowerCase();
-    return _allPlugins.where((p) {
-      return p.name.toLowerCase().contains(q) ||
-          p.id.toLowerCase().contains(q) ||
-          p.description.toLowerCase().contains(q) ||
-          p.type.toLowerCase().contains(q);
-    }).toList();
+    Iterable<PluginInfo> result = _allPlugins;
+    if (_typeFilter != 'all') {
+      result = result.where((p) => p.type == _typeFilter);
+    }
+    if (_searchQuery.isNotEmpty) {
+      final q = _searchQuery.toLowerCase();
+      result = result.where((p) {
+        return p.name.toLowerCase().contains(q) ||
+            p.id.toLowerCase().contains(q) ||
+            p.description.toLowerCase().contains(q) ||
+            p.type.toLowerCase().contains(q);
+      });
+    }
+    return result.toList();
   }
 
   void _toggleEnabled(PluginInfo plugin) {
@@ -183,6 +191,17 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
       );
       return;
     }
+    final isWholeDir = plugin.deletePath.isEmpty ||
+        p.normalize(plugin.deletePath) == p.normalize(plugin.dirPath);
+    final scopeText = isWholeDir
+        ? '此操作将删除整个插件目录中的所有文件，不可恢复。'
+        : '此操作将删除其对应的插件子目录，不可恢复。';
+    final message = plugin.isSkill
+        ? '确定要删除技能「${plugin.name}」吗？\n\n此操作将删除其 skill/ 目录中的技能文件，不可恢复。'
+        : plugin.isModule
+            ? '确定要卸载插件「${plugin.name}」吗？\n\n$scopeText'
+            : '确定要卸载「${plugin.name}」（${plugin.typeLabel}）吗？\n\n$scopeText';
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -213,11 +232,12 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
 
   void _doUninstall(PluginInfo plugin) {
     try {
-      // 优先使用扫描阶段捕获的真实磁盘目录；否则回退到 pluginsDir/id
+      // 优先使用扫描阶段捕获的精确删除路径（能力分支目录或整个插件目录）；
+      // 否则回退到扫描阶段捕获的真实磁盘目录，再回退到 pluginsDir/id
       // （当 id 恰好等于文件夹名时仍可用）。绝不能只靠 id 反推路径——
       // manifest 的 id 与文件夹名可能不同，反推会指向不存在的路径导致卸载静默失败。
       final captured = _pluginDirs[plugin.id];
-      final dirPath = (captured != null && captured.isNotEmpty)
+      final fallback = (captured != null && captured.isNotEmpty)
           ? captured
           : '$_pluginsDir${Platform.pathSeparator}${plugin.id}';
       final pluginDir = Directory(p.normalize(dirPath));
@@ -327,31 +347,37 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
           bottom: BorderSide(color: theme.dividerColor),
         ),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Icon(Icons.store, size: 20, color: theme.colorScheme.primary),
-          const SizedBox(width: 8),
-          Expanded(
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: '搜索插件...',
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide.none,
+          Row(
+            children: [
+              Icon(Icons.store, size: 20, color: theme.colorScheme.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextField(
+                  decoration: InputDecoration(
+                    hintText: '搜索插件...',
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide.none,
+                    ),
+                    filled: true,
+                    fillColor: theme.colorScheme.surface,
+                    prefixIcon: const Icon(Icons.search, size: 18),
+                    suffixIcon: _searchQuery.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear, size: 16),
+                            onPressed: () => setState(() => _searchQuery = ''),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
+                          )
+                        : null,
+                  ),
+                  onChanged: (v) => setState(() => _searchQuery = v),
                 ),
-                filled: true,
-                fillColor: theme.colorScheme.surface,
-                prefixIcon: const Icon(Icons.search, size: 18),
-                suffixIcon: _searchQuery.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear, size: 16),
-                        onPressed: () => setState(() => _searchQuery = ''),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      )
-                    : null,
               ),
               onChanged: (v) => setState(() => _searchQuery = v),
             ),
@@ -386,6 +412,39 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
             '${_allPlugins.length} 个插件',
             style: TextStyle(fontSize: 12, color: theme.disabledColor),
           ),
+          const SizedBox(height: 8),
+          _buildTypeFilterChips(),
+        ],
+      ),
+    );
+  }
+
+  /// 类型标签筛选条：全部 / 模块 / Agent / 数据源 / 配置 / 主题 / 技能。
+  Widget _buildTypeFilterChips() {
+    const filters = <(String, String)>[
+      ('all', '全部'),
+      ('module', '模块'),
+      ('agent', 'Agent'),
+      ('data-source', '数据源'),
+      ('config', '配置'),
+      ('theme', '主题'),
+      ('skill', '技能'),
+    ];
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (final (value, label) in filters)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                label: Text(label),
+                selected: _typeFilter == value,
+                onSelected: (_) => setState(() => _typeFilter = value),
+                visualDensity: VisualDensity.compact,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
         ],
       ),
     );
@@ -430,7 +489,9 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
             Icon(Icons.inventory_2_outlined, size: 48, color: theme.disabledColor),
             const SizedBox(height: 12),
             Text(
-              _searchQuery.isEmpty ? '暂无本地插件' : '未找到匹配的插件',
+              _searchQuery.isEmpty && _typeFilter == 'all'
+                  ? '暂无本地插件'
+                  : '未找到匹配的插件',
               style: TextStyle(color: theme.disabledColor),
             ),
           ],
