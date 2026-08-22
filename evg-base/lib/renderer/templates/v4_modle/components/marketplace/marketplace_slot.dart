@@ -187,9 +187,11 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('确认卸载'),
-        content: Text(plugin.isModule
-            ? '确定要卸载插件「${plugin.name}」吗？\n\n此操作将删除插件目录中的所有文件，不可恢复。'
-            : '确定要卸载「${plugin.name}」（${plugin.typeLabel}）吗？\n\n此操作将删除其所在插件目录中的所有文件，不可恢复。'),
+        content: Text(plugin.isSkill
+            ? '确定要删除技能「${plugin.name}」吗？\n\n此操作将删除其 skill/ 目录中的技能文件，不可恢复。'
+            : plugin.isModule
+                ? '确定要卸载插件「${plugin.name}」吗？\n\n此操作将删除插件目录中的所有文件，不可恢复。'
+                : '确定要卸载「${plugin.name}」（${plugin.typeLabel}）吗？\n\n此操作将删除其所在插件目录中的所有文件，不可恢复。'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -220,7 +222,19 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
           : '$_pluginsDir${Platform.pathSeparator}${plugin.id}';
       final pluginDir = Directory(p.normalize(dirPath));
       if (pluginDir.existsSync()) {
-        pluginDir.deleteSync(recursive: true);
+        if (plugin.isSkill) {
+          // Skill 能力卸载：只删 skill/ 子目录，避免误删同目录其他能力（module/agent/...）。
+          final skillDir = Directory(p.join(pluginDir.path, 'skill'));
+          if (skillDir.existsSync()) {
+            skillDir.deleteSync(recursive: true);
+          }
+          // 目录被删空（纯 skill 插件）→ 连外层目录一起清掉。
+          if (pluginDir.listSync().isEmpty) {
+            pluginDir.deleteSync();
+          }
+        } else {
+          pluginDir.deleteSync(recursive: true);
+        }
       }
       ref.read(pluginStateProvider.notifier).remove(plugin.id);
       _loadPlugins();

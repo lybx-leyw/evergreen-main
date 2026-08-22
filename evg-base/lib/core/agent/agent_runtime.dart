@@ -76,9 +76,10 @@ final agentRuntimeProvider = Provider<AgentRuntime>((ref) {
   final skillIndex = SkillIndex();
   final pluginsDir = resolvePluginsRoot();
   final loader = SkillLoader([
-    skillDir,          // .greenix/skills/ — 全局 skill
+    skillDir,          // .greenix/skills/ — 全局 skill（旧路径兼容）
     pluginsDir,        // plugins/<name>/skill/*.md — 插件专用 skill（统一路径）
-  ]);
+  ], disabledSkillIds: SkillLoader.disabledIdsFromPluginStates(pluginsDir),
+      pluginsRootForDisabled: pluginsDir);
   skillIndex.addAll(loader.loadAll());
   BuiltinSkills.loadInto(skillIndex);
 

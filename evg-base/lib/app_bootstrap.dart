@@ -534,8 +534,15 @@ class AppBootstrap {
     memoryStore = FileMemoryStore(greenixMemoriesDir);
     sessionStore = FileSessionStore(greenixSessionsDir);
     skillIndex = SkillIndex();
-    // 扫描内置 Skill
-    final skillLoader = SkillLoader([greenixSkillsDir]);
+    // 扫描 Skill：.greenix/skills/（旧路径兼容）+ plugins/<id>/skill/（Skill 即插件，统一路径）
+    // 与 skillToolLoader / agentRuntimeProvider 保持一致，避免「存放/加载路径不一致」
+    // 导致插件技能在技能管理页缺失。
+    final skillLoader = SkillLoader(
+      [greenixSkillsDir, pluginsDir],
+      // 启动时快照 + 每次 loadAll 实时重读状态文件（市场「停用」即时生效）。
+      disabledSkillIds: SkillLoader.disabledIdsFromPluginStates(pluginsDir),
+      pluginsRootForDisabled: pluginsDir,
+    );
     skillIndex!.addAll(skillLoader.loadAll());
     toolRegistry = registry;
     // provider 暂存供 controller 步骤使用
@@ -561,7 +568,11 @@ class AppBootstrap {
     registry.register(FileInfoTool(workspaceDir: aiWorkspace));
     registry.register(DataQueryTool(orchestrator: orchestrator));
     // Skill 工具 —— 与全局 agentRuntimeProvider / AgentAssembly.buildStandardTools 对齐
-    final skillToolLoader = SkillLoader([greenixSkillsDir, pluginsDir]);
+    final skillToolLoader = SkillLoader(
+      [greenixSkillsDir, pluginsDir],
+      disabledSkillIds: SkillLoader.disabledIdsFromPluginStates(pluginsDir),
+      pluginsRootForDisabled: pluginsDir,
+    );
     registry.register(RunSkillTool(
         skillToolLoader, skillIndex!, _agentProvider!, registry));
     registry.register(ListSkillsTool(skillToolLoader, skillIndex!));

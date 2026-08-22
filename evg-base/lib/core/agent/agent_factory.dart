@@ -194,7 +194,12 @@ class AgentAssembly {
     required SkillIndex skillIndex,
     DataOrchestrator? orchestrator,
   }) {
-    final loader = SkillLoader([greenixSkillsDir, resolvePluginsRoot()]);
+    final loader = SkillLoader(
+      [greenixSkillsDir, resolvePluginsRoot()],
+      disabledSkillIds:
+          SkillLoader.disabledIdsFromPluginStates(resolvePluginsRoot()),
+      pluginsRootForDisabled: resolvePluginsRoot(),
+    );
     final registry = Registry();
     for (final t in [
       GetUserInfoTool(),

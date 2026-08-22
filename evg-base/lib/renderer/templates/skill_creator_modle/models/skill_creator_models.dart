@@ -273,7 +273,7 @@ class SkillCreatorWorkflow {
   /// 最终 skill 草稿落盘路径（skill 创造 agent 产出）。
   String? draftSkillPath;
 
-  /// 导出路径（`.greenix/skills/<name>.md`）。
+  /// 导出路径（`plugins/<id>/skill/<id>.md`，Skill 即插件统一路径）。
   String? exportPath;
 
   /// 流程事件（日志 + 交涉记录）。
