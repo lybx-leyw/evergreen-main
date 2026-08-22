@@ -68,6 +68,7 @@ class HtmlModleView extends ConsumerStatefulWidget {
 
 class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
   final WebviewController _controller = WebviewController();
+
   /// Android：webview_flutter（webview_windows 仅支持 Windows）。
   /// ⚠️ 必须 late：WebViewController() 构造在 Windows 上无平台实现即断言，
   /// 字段级初始化会在桌面创建本组件时崩溃；惰性初始化保证仅安卓分支访问。
@@ -77,16 +78,24 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
   bool _initialized = false;
 
   /// 页级事件总线：插件 `emit`/`on` 的桥接通道（Dart 侧广播 ↔ JS 侧回调）。
-  late final PageEventBus _eventBus = PageEventBus(pageId: widget.descriptor.id);
+  late final PageEventBus _eventBus = PageEventBus(
+    pageId: widget.descriptor.id,
+  );
   StreamSubscription<SlotEvent>? _eventBusSub;
 
   /// 数据订阅轮询：dataName → 5s 拉取，值变化推送 data:changed（共享实现）。
   late final DataSubscriptionPoller _poller;
 
+  /// html-creator 已走 Dart 原生 [HtmlCreatorView]，不需要启动本地 HTTP
+  /// 服务或 WebView；这里提前短路，避免进入开发者模式时白白初始化 WebView2。
+  bool get _isNativeCreator => widget.descriptor.id == 'html-creator';
+
   @override
   void initState() {
     super.initState();
-    _startServer();
+    if (!_isNativeCreator) {
+      _startServer();
+    }
     _poller = DataSubscriptionPoller(
       fetch: (name) async {
         final orch = ref.read(dataOrchestratorProvider);
@@ -122,7 +131,9 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
     _poller.dispose();
     _eventBusSub?.cancel();
     _eventBus.dispose();
-    if (!Platform.isAndroid) {
+    // 原生创作工具没有初始化 WebView2，不能调用 _controller.dispose()
+    //（其内部会等待尚未创建的 _creatingCompleter，导致 LateInitializationError）。
+    if (!_isNativeCreator && !Platform.isAndroid) {
       _controller.dispose();
     }
     super.dispose();
@@ -173,13 +184,13 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
 
   String _mimeType(String ext) => switch (ext) {
     'html' => 'text/html; charset=utf-8',
-    'css'  => 'text/css',
-    'js'   => 'application/javascript',
+    'css' => 'text/css',
+    'js' => 'application/javascript',
     'json' => 'application/json',
-    'png'  => 'image/png',
-    'jpg'  => 'image/jpeg',
-    'svg'  => 'image/svg+xml',
-    _      => 'text/plain',
+    'png' => 'image/png',
+    'jpg' => 'image/jpeg',
+    'svg' => 'image/svg+xml',
+    _ => 'text/plain',
   };
 
   String? _pluginDir() {
@@ -227,15 +238,17 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
       'evgBridge',
       onMessageReceived: (msg) => _onBridgeMessage(msg.message),
     );
-    await _androidController.setNavigationDelegate(NavigationDelegate(
-      onPageStarted: (_) {
-        // 页面脚本执行前注入 bridge（幂等）。
-        _androidController.runJavaScript(_bridgeScript()).catchError((_) {});
-      },
-      onPageFinished: (_) {
-        if (mounted) setState(() => _initialized = true);
-      },
-    ));
+    await _androidController.setNavigationDelegate(
+      NavigationDelegate(
+        onPageStarted: (_) {
+          // 页面脚本执行前注入 bridge（幂等）。
+          _androidController.runJavaScript(_bridgeScript()).catchError((_) {});
+        },
+        onPageFinished: (_) {
+          if (mounted) setState(() => _initialized = true);
+        },
+      ),
+    );
     await _androidController.loadRequest(
       Uri.parse('http://127.0.0.1:$_httpPort/index.html'),
     );
@@ -271,12 +284,10 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
       final args = (data['args'] as List?)?.cast<dynamic>() ?? [];
 
       _executePlatformApi(method, args).then(
-        (result) => _executeJs(
-          'window.__evgResolve($id, ${jsonEncode(result)})',
-        ),
-        onError: (e) => _executeJs(
-          'window.__evgReject($id, ${jsonEncode(e.toString())})',
-        ),
+        (result) =>
+            _executeJs('window.__evgResolve($id, ${jsonEncode(result)})'),
+        onError: (e) =>
+            _executeJs('window.__evgReject($id, ${jsonEncode(e.toString())})'),
       );
     } catch (e) {
       // ignore malformed messages
@@ -301,11 +312,18 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
       case 'data.refresh':
         // POST /data/types/:name/refresh —— 强制重抓并写回中枢缓存。
         return await _httpForward(
-          CoreService.data, 'POST', '/data/types/${args[0] as String}/refresh');
+          CoreService.data,
+          'POST',
+          '/data/types/${args[0] as String}/refresh',
+        );
 
       case 'data.testConnectivity':
         // POST /data/connectivity/test —— 测试全部数据源连通性。
-        return await _httpForward(CoreService.data, 'POST', '/data/connectivity/test');
+        return await _httpForward(
+          CoreService.data,
+          'POST',
+          '/data/connectivity/test',
+        );
 
       case 'ai.chat':
         // POST /agent/chat —— 非流式对话，返回事件数组 + 拼接文本。
@@ -323,7 +341,8 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
           },
         );
         final map = (result as Map<String, dynamic>?) ?? const {};
-        final events = (map['events'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        final events =
+            (map['events'] as List?)?.cast<Map<String, dynamic>>() ?? [];
         final text = events
             .map((e) => e['text'])
             .whereType<String>()
@@ -355,8 +374,9 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
         return ref.read(sharedPreferencesProvider).getString(args[0] as String);
 
       case 'settings.set':
-        await ref.read(sharedPreferencesProvider).setString(
-          args[0] as String, (args[1] ?? '').toString());
+        await ref
+            .read(sharedPreferencesProvider)
+            .setString(args[0] as String, (args[1] ?? '').toString());
         return 'ok';
 
       case 'theme.getColors':
@@ -384,8 +404,7 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
     String method,
     String path, [
     Map<String, dynamic>? body,
-  ]) =>
-      forwardCoreHttp(service, method, path, body);
+  ]) => forwardCoreHttp(service, method, path, body);
 
   // ═══════ UI ═══════
 
@@ -437,10 +456,6 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return Scaffold(
-      body: SafeArea(
-        child: Webview(_controller),
-      ),
-    );
+    return Scaffold(body: SafeArea(child: Webview(_controller)));
   }
 }
