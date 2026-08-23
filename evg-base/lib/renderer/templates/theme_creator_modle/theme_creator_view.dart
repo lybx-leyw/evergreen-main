@@ -563,10 +563,22 @@ class _ThemeCreatorViewState extends ConsumerState<ThemeCreatorView> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 4),
-            child: Text('面板 (${_panels.length})',
-                style: theme.textTheme.labelSmall
-                    ?.copyWith(fontWeight: FontWeight.w600)),
+            padding: const EdgeInsets.fromLTRB(10, 4, 4, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text('面板 (${_panels.length})',
+                      style: theme.textTheme.labelSmall
+                          ?.copyWith(fontWeight: FontWeight.w600)),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add, size: 16),
+                  tooltip: '新建面板',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: _newPanel,
+                ),
+              ],
+            ),
           ),
           Expanded(
             child: _PanelList(

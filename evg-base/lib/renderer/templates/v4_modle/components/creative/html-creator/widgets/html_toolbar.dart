@@ -48,12 +48,12 @@ class HtmlToolbar extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      // 内容总宽固定（标题 + 画布选择器 + 输入框 + 按钮），窗口变窄时
-      // 直接滚动而非 RenderFlex 溢出报错。
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
+      // 内容较多时自动换行，避免安卓窄屏下导出等按钮被横向滚动藏到屏幕外。
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 6,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
           const Icon(Icons.code, size: 18, color: Colors.deepPurple),
           const SizedBox(width: 6),
           const Text('HTML 创作中心', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
@@ -142,8 +142,7 @@ class HtmlToolbar extends StatelessWidget {
           const PlatformStatusIndicator(),
         ],
       ),
-    ),
-  );
+    );
 }
 }
 
