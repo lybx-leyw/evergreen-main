@@ -85,6 +85,13 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^5.0.0
 
+# 临时规避：上游 flutter_local_notifications_windows 的 FFI 插件在 Windows
+# Release/AOT 下触发 gen_snapshot 崩溃（NativeLaunchDetails illegal cid）。
+# 这里用本地 no-op stub 替换，保留 Android 通知能力，Windows Toast 暂禁用。
+dependency_overrides:
+  flutter_local_notifications_windows:
+    path: windows_notifications_stub
+
 flutter:
   uses-material-design: true
   assets:
