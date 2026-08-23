@@ -1,4 +1,4 @@
-/// 顶部工具栏——新建面板 / 从内置复制 / 保存 / 导出发布 / AI 助手。
+/// 顶部工具栏——新建面板 / 从内置复制 / 保存 / 导出插件 / AI 助手。
 library;
 
 import 'package:flutter/material.dart';
@@ -37,11 +37,11 @@ class ThemeToolbar extends StatelessWidget {
           bottom: BorderSide(color: theme.dividerColor, width: 0.5),
         ),
       ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+      child: Wrap(
+        spacing: 4,
+        runSpacing: 4,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
             Text('主题创作中心',
                 style: theme.textTheme.titleSmall
                     ?.copyWith(fontWeight: FontWeight.bold)),
@@ -61,13 +61,12 @@ class ThemeToolbar extends StatelessWidget {
             _tb(
               theme,
               Icons.publish_outlined,
-              '导出发布',
+              '导出插件',
               onExport,
               enabled: exportEnabled,
               emphasized: true,
             ),
-          ],
-        ),
+        ],
       ),
     );
   }

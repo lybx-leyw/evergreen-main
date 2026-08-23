@@ -55,7 +55,7 @@ class DataChangeNotificationService {
           guid: '{3E5F7A21-8B4D-4C6E-9A1F-2D8C7B6A5E4F}',
         ),
       );
-      await _plugin.initialize(settings);
+      await _plugin.initialize(settings: settings);
 
       // Android 8.0+ 通知渠道
       const channel = AndroidNotificationChannel(
@@ -110,10 +110,10 @@ class DataChangeNotificationService {
         windows: const WindowsNotificationDetails(),
       );
       await _plugin.show(
-        event.sourceName.hashCode, // 稳定 id：同一数据源的变更覆盖旧通知
-        title,
-        body,
-        details,
+        id: event.sourceName.hashCode, // 稳定 id：同一数据源的变更覆盖旧通知
+        title: title,
+        body: body,
+        notificationDetails: details,
       );
       Log().info('[notify] 已发送: $title | $body');
     } catch (e) {
