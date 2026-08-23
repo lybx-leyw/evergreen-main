@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang='zh-CN'>
+<head>
+<meta charset='UTF-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0'>
+<title>Evergreen 上中下插件架构图（Dart 冷/热插件）</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI','Microsoft YaHei',sans-serif;background:#f7f9fc;color:#263238;padding:28px 16px 48px}
+h1{text-align:center;font-size:26px;margin-bottom:6px}
+.sub{text-align:center;color:#607d8b;margin-bottom:20px;font-size:14px}
+.legend{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:24px}
+.legend span{padding:6px 12px;border-radius:8px;font-size:12.5px;font-weight:600;border:2px solid}
+.leg-core{background:#f3e5f5;border-color:#9c27b0;color:#6a1b9a}
+.leg-plug{background:#e3f2fd;border-color:#1565c0;color:#0d47a1}
+.leg-render{background:#e8f5e9;border-color:#2e7d32;color:#1b5e20}
+.leg-cold{background:#e1f5fe;border-color:#0277bd;color:#01579b}
+.leg-hot{background:#fff8e1;border-color:#ef6c00;color:#e65100}
+.flow{text-align:center;padding:8px 0;color:#37474f;font-size:13.5px}
+.flow b{background:#eceff1;padding:3px 10px;border-radius:12px;font-weight:600}
+.flow .arrow{font-size:20px;display:block;color:#90a4ae}
+.layer{max-width:1180px;margin:0 auto;border-radius:14px;padding:16px 16px 18px;border:2px solid}
+.core{background:#faf5ff;border-color:#9c27b0}
+.plugins{background:#f1f8ff;border-color:#1565c0}
+.renderer{background:#f2fbf3;border-color:#2e7d32}
+.layer-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.layer-tag{padding:5px 12px;border-radius:20px;color:#fff;font-size:13px;font-weight:700}
+.tag-core{background:#9c27b0}
+.tag-plug{background:#1565c0}
+.tag-render{background:#2e7d32}
+.layer-title{font-size:17px;font-weight:700}
+.layer-sub{font-size:12.5px;color:#607d8b;margin-left:auto}
+.boxes{display:grid;gap:10px}
+.cols3{grid-template-columns:repeat(3,1fr)}
+.cols4{grid-template-columns:repeat(4,1fr)}
+.cols2{grid-template-columns:repeat(2,1fr)}
+.card{background:#fff;border:1px solid #d7e0e8;border-radius:9px;padding:9px 11px;font-size:12.5px;line-height:1.55}
+.card b{color:#37474f;font-size:13px;display:block;margin-bottom:3px}
+.card code{font-family:Consolas,Menlo,monospace;background:#eef2f6;padding:0 4px;border-radius:4px;color:#c62828;font-size:11.5px}
+.card .p{color:#546e7a}
+.mini{font-size:11px;color:#78909c;margin-top:4px}
+.cold,.hot{border-width:2px}
+.cold{background:#e1f5fe;border-color:#0277bd}
+.hot{background:#fff8e1;border-color:#ef6c00}
+.pill{display:inline-block;padding:1px 8px;border-radius:10px;color:#fff;font-size:11px;font-weight:700;margin-right:4px}
+.pill-cold{background:#0277bd}
+.pill-hot{background:#ef6c00}
+.chain{margin:6px 0;display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px}
+.chain .step{background:#fff;border:1px solid #cfd8dc;border-radius:6px;padding:3px 8px}
+.arrow-mini{color:#78909c;font-weight:700}
+@media(max-width:860px){.cols3,.cols4,.cols2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<h1>Evergreen 上 · 中 · 下 插件架构图</h1>
+<div class='sub'>上游 <code>core/</code>（声明与运行内核） → 中游 <code>plugins/</code>（manifest 声明 + 冷/热加载） → 下游 <code>renderer/</code>（渲染 / HTML 输出） · 本图基于 evg-base 代码实况绘制</div>
+
+<div class='legend'>
+<span class='leg-core'>上 · Core 核心</span>
+<span class='leg-plug'>中 · Plugins 声明</span>
+<span class='leg-render'>下 · Renderer / HTML</span>
+<span class='leg-cold'>冷插件：编译期静态绑定</span>
+<span class='leg-hot'>热插件：运行时下载/重载</span>
+</div>
+
+<div class='layer core'>
+  <div class='layer-head'>
+    <span class='layer-tag tag-core'>上</span>
+    <span class='layer-title'>Core —— 核心引擎 / 运行内核（lib/core/）</span>
+    <span class='layer-sub'>统一出口：lib/evergreen_base.dart（barrel）</span>
+  </div>
+  <div class='boxes cols3'>
+    <div class='card'><b>core/module/ 模块声明系统</b><code>ModuleDescriptor</code>（V2 树：模块→页面→布局→插槽→组件）<br><code>ModuleRegistry</code> 注册/seal/搜索/导航<br><code>ModuleLoader</code> 扫描 manifest 并启动后端进程<br><code>ModuleLifecycle</code> 安装/卸载/禁用/启用/升级<br><code>ProcessManager</code> 进程生命周期</div>
+    <div class='card'><b>core/plugin/ 插件执行抽象</b><code>PluginRunner</code> 接口：<code>runOnce</code>/<code>startLong</code><br><code>SubprocessRunner</code>（桌面 .exe / .py）<br><code>ChaquopyRunner</code>（安卓进程内 Python）</div>
+    <div class='card'><b>core/services/ 服务层</b><code>PluginInstaller</code> .plugin 下载/签名/解压<br><code>UpdateService</code> 版本检查<br>OCR 管线 / <code>CoreHttpServer</code> / 翻译队列</div>
+    <div class='card'><b>core/data/ 数据编排</b><code>DataOrchestrator</code>、<code>Provider</code><br>缓存 / Diff / 数据源 HTTP Server</div>
+    <div class='card'><b>core/agent/ Agent 运行时</b>Agent、Tools、Memory、Skills、Sessions</div>
+    <div class='card'><b>core/config/ 配置与权限</b><code>Config</code>、<code>Settings</code>、<code>Permissions</code>、<code>Sources</code></div>
+    <div class='card'><b>core/theme/ 主题声明</b><code>ThemeDescriptor</code>、<code>ThemeLoader</code>、<code>ThemeStore</code>、渲染规则</div>
+    <div class='card'><b>core/utils/ 基础设施</b><code>path_sandbox</code>、<code>greenix_path</code>、<code>python_env</code>、<code>file_utils</code></div>
+    <div class='card'><b>应用装配</b><code>app_bootstrap.dart</code> 组装注册中心<br><code>providers.dart</code> Riverpod 全局提供者<br><code>generated/plugin_imports.g.dart</code> 编译期导入</div>
+  </div>
+</div>
+
+<div class='flow'><span class='arrow'>▼</span><b>① 上 → 中：Core 扫描/安装插件声明，把 manifest 解析进 ModuleRegistry</b></div>
+
+<div class='layer plugins'>
+  <div class='layer-head'>
+    <span class='layer-tag tag-plug'>中</span>
+    <span class='layer-title'>Plugins —— 声明与注册（manifest.json 驱动）</span>
+    <span class='layer-sub'>plugins/ 目录 + lib/core/module/builtins/ 内置模块，同一份声明格式</span>
+  </div>
+
+  <div class='boxes cols4' style='margin-bottom:10px'>
+    <div class='card'><b>ModuleDescriptor</b>V2 树形声明：模块→页面→布局→插槽→组件<br><span class='p'>样式/事件/数据绑定/数据源/进程等子描述符</span></div>
+    <div class='card'><b>PluginManifest</b>轻量搜索模型（I10）<br><span class='p'>id/name/icon/维度/分类/版本</span></div>
+    <div class='card'><b>ProcessDescriptor</b>后端进程声明：id/scope/autoStart/autoRestart/exe/runtime</div>
+    <div class='card'><b>DataSource / Event / Binding</b>数据源、事件与绑定声明</div>
+  </div>
+
+  <div class='boxes cols2'>
+    <div class='card cold'>
+      <span class='pill pill-cold'>冷插件 COLD</span><b>编译期静态绑定 / 启动时批量注册</b>
+      <div class='chain'><span class='step'>lib/generated/plugin_imports.g.dart 静态导入</span><span class='arrow-mini'>→</span><span class='step'>内置模块 builtins/</span><span class='arrow-mini'>→</span><span class='step'>scanAndLoadModules(plugins/)</span><span class='arrow-mini'>→</span><span class='step'>registry.register + seal</span></div>
+      <div class='mini'>表现：随宿主一起构建发布，稳定核心能力（Markdown、主题、设置等）；启动后即出现在侧边栏/命令面板。</div>
+    </div>
+    <div class='card hot'>
+      <span class='pill pill-hot'>热插件 HOT</span><b>运行时下载 / 安装 / 重载（无需重启宿主）</b>
+      <div class='chain'><span class='step'>下载 .plugin(ZIP)</span><span class='arrow-mini'>→</span><span class='step'>SHA-256 签名校验</span><span class='arrow-mini'>→</span><span class='step'>解压到 plugins/&lt;id&gt;/</span><span class='arrow-mini'>→</span><span class='step'>ModuleRegistry.reloadModule()</span><span class='arrow-mini'>→</span><span class='step'>渲染层重读声明</span></div>
+      <div class='mini'>表现：插件设计器“安装/热重载”（A-P3）、PluginInstaller、ModuleLifecycle 的 enable/disable/upgrade。</div>
+    </div>
+  </div>
+
+  <div class='boxes cols2' style='margin-top:10px'>
+    <div class='card'><b>注册与加载管道</b><code>ModuleRegistry</code>：register → seal → 依赖校验 → 路由/导航/命令面板<br><code>ModuleLoader</code>：扫描 manifest → 启动后端进程（.exe/.py）→ 端口检测 + <code>/health</code><br><code>PluginRunner</code>：runOnce 短任务 / startLong 长驻进程</div>
+    <div class='card'><b>plugins/ 实际插件（13 个）</b><span class='p'>ai-assistant · data-dashboard · dsh · html-creator · marketplace · pdf_translate · python-runner · scraper · settings · skill-creator · theme-creator · view · warm_study</span></div>
+  </div>
+</div>
+
+<div class='flow'><span class='arrow'>▼</span><b>② 中 → 下：ModuleRegistry 生成路由/导航 → 渲染层消费 ModuleDescriptor 树并输出 HTML</b></div>
+
+<div class='layer renderer'>
+  <div class='layer-head'>
+    <span class='layer-tag tag-render'>下</span>
+    <span class='layer-title'>Renderer —— 渲染 / HTML 输出（lib/renderer/）</span>
+    <span class='layer-sub'>五层渲染架构 · Dart 渲染为可交互页面/HTML</span>
+  </div>
+  <div class='boxes cols3'>
+    <div class='card'><b>app/ App 层</b>顶层壳、全局主题服务</div>
+    <div class='card'><b>module/ 模块层</b><code>ModuleDispatch</code>、<code>ModulePage</code></div>
+    <div class='card'><b>page/ 页面层</b><code>CompositeView</code>、布局引擎、独立页面</div>
+    <div class='card'><b>slot/ Slot 层</b><code>SlotDispatch</code>、<code>SlotScale</code></div>
+    <div class='card'><b>components/ 组件层</b>43 具名组件 + 20 占位<br><span class='p'>7 功能域：shared / document / data / interaction / creative / learning / controls</span></div>
+    <div class='card'><b>HTML / Dart 产物</b><code>docs/index.html</code>、<code>plugin_guide.html</code>、<code>架构示意图.html</code>、插件 <code>render_log.html</code>、<code>r12_dart_render.png</code></div>
+  </div>
+  <div class='card' style='margin-top:10px'><b>数据回补（热反馈回路）</b><span class='p'>渲染层用户交互 / 插件设计器修改声明 → 触发 <code>reloadModule</code> 或数据源请求 → 后端进程（<code>PORT</code> + <code>/health</code>，HTTP 数据源）→ 组件重新渲染。冷/热插件共用的同一批 manifest 字段在此最终落地为 HTML 页面。</span></div>
+</div>
+
+<div style='max-width:1180px;margin:18px auto 0;background:#eceff1;border-radius:10px;padding:12px 14px;font-size:12px;color:#455a64'>
+<b>本图所依据的代码实况（evg-base）：</b>
+<code>lib/evergreen_base.dart</code>（barrel 双轨）、<code>lib/core/module/</code>（ModuleDescriptor 2860 行 V2 树 / ModuleRegistry / ModuleLoader / ModuleLifecycle / ProcessManager）、<code>lib/core/plugin/plugin_runner.dart</code>（SubprocessRunner / ChaquopyRunner）、<code>lib/core/services/plugin_installer.dart</code>、<code>lib/core/docs/plugin-format.md</code>（.plugin ZIP + SHA-256）、<code>lib/generated/plugin_imports.g.dart</code>（冷插件静态导入）、<code>lib/renderer/renderer.dart</code>（五层）、<code>plugins/</code>（13 个实际插件）。
+</div>
+
+</body>
+</html>
