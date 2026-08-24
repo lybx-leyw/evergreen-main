@@ -38,11 +38,6 @@
       "license": "MIT",
       "lattice": "module",
       "dimensions": ["ui"],
-      "install": {
-        "type": "github",
-        "url": "https://github.com/lybx-leyw/evergreen-main",
-        "strategy": "source"
-      },
       "manifest": {
         "source": "local",
         "path": "assets/view"
@@ -61,11 +56,6 @@
       "license": "MIT",
       "lattice": "theme",
       "dimensions": ["ui"],
-      "install": {
-        "type": "github",
-        "url": "https://github.com/lybx-leyw/evergreen-main",
-        "strategy": "source"
-      },
       "manifest": {
         "source": "local",
         "path": "assets/warm_study"

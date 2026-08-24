@@ -71,6 +71,16 @@ Evergreen 插件市场采用 dsh-market 的「飞轮」模式：
 | `assetPattern` | `string` | — | `release` 策略下筛选 asset 的子串（支持平台占位符） |
 | `platforms` | `string[]` | — | `release` 策略下支持的平台白名单（`windows`/`macos`/`linux`） |
 
+> **`install` 可省略**：当插件文件随 Evergreen 安装包分发（无需任何网络下载）时，
+> 条目**不写 `install`**（或写空对象 `{}`）。此时安装器跳过所有下载，仅按 `manifest`
+> 声明把本地资源落盘（通常配合 `manifest.source: "local"`）。
+>
+> **`install` 与 `manifest` 正交**：`install` 决定「插件文件从哪下载」，
+> `manifest.source` 只决定「manifest 从哪来、怎么落盘」——二者互不影响。
+> 特别地，`manifest.source: "local"` **不意味着**插件文件已在本地：manifest 是随包
+> 分发的本地声明，但插件实际文件仍可能要经 `install` 去网络拉取。是否下载**只看
+> `install` 是否为空**，绝不看 `manifest.source`。
+
 ### 3.1 `strategy: "source"`（clone 源码）
 
 适合**无 release 二进制的库**（如 Python 包）。安装时 `git clone` 到 `plugins/<id>/`。
@@ -170,7 +180,8 @@ docs/plugin-registry/assets/zjucrawler/
 
 平台内置插件同样可以登记进 registry，让「发现插件」页能发现并（重新）安装它们。
 条目形态与第三方条目一致，区别仅在于：`manifest.source` 用 `local` 指向
-`docs/plugin-registry/assets/<id>/`，`install` 指向本仓库（内置插件随仓库分发）。
+`docs/plugin-registry/assets/<id>/`，且因文件随安装包分发、无需网络下载，条目**不写 `install`**
+（见 §三「`install` 可省略」）。是否下载只看 `install` 是否为空，与 `manifest.source` 无关。
 
 `view`（module · HTML 插件）条目：
 
@@ -180,11 +191,6 @@ docs/plugin-registry/assets/zjucrawler/
   "name": "我的成绩单",
   "lattice": "module",
   "dimensions": ["ui"],
-  "install": {
-    "type": "github",
-    "url": "https://github.com/lybx-leyw/evergreen-main",
-    "strategy": "source"
-  },
   "manifest": { "source": "local", "path": "assets/view" }
 }
 ```
@@ -206,11 +212,6 @@ docs/plugin-registry/assets/view/
   "name": "温暖学习",
   "lattice": "theme",
   "dimensions": ["ui"],
-  "install": {
-    "type": "github",
-    "url": "https://github.com/lybx-leyw/evergreen-main",
-    "strategy": "source"
-  },
   "manifest": { "source": "local", "path": "assets/warm_study" }
 }
 ```
@@ -226,8 +227,9 @@ docs/plugin-registry/assets/warm_study/
 > **theme 型说明**：`local` 复制的是整个资源目录（含 `theme/theme.json`），主题插件按
 > `plugins/<id>/theme/theme.json` 契约正确落盘，无需 `manifest.json`（registry 的
 > `manifestRelativePath` 仅服务于 module/data-source 的 `manifest.json` 落盘与依赖补齐）。
-> `install.strategy` 保持 `source`（先 clone 仓库、再覆盖式落盘 local 资源）；`install`
-> 指向本仓库时克隆体量较大，属既有机制行为。
+> 内置随包分发的主题/模块条目**不应写 `install`**——安装器识别到无 `install` 即跳过下载，
+> 直走本地资源复制，不再克隆整个仓库（旧写法 `install.type: github` 指向本仓库会误触发
+> 整仓 clone，属历史错误行为，已废弃）。
 
 ### 4.3 `source: "github"`（指向 GitHub 仓库路径）
 
