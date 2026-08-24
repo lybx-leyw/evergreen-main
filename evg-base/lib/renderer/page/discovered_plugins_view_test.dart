@@ -26,6 +26,17 @@ Future<CloneResult> _fakeClone(GithubSource src, String targetDir) async {
   return CloneResult.ok();
 }
 
+/// 计数 fake cloner：记录被调用次数，仍创建目录视为成功。
+/// 用于断言「install 为空时不应触发任何下载」。
+class _CountingCloner {
+  int calls = 0;
+  Future<CloneResult> call(GithubSource src, String targetDir) async {
+    calls++;
+    Directory(targetDir).createSync(recursive: true);
+    return CloneResult.ok();
+  }
+}
+
 /// 内存 registry 源：返回一个通用 data-source 条目（inline manifest，自包含，
 /// 不依赖被清理的探针插件本地 asset）。安装时直接落盘内嵌 manifest。
 Future<List<RegistryPlugin>> Function() _memoryRegistry = () async => [
@@ -255,6 +266,105 @@ void main() {
         isTrue);
     expect(File('$pluginsDir/zju_autosign/config/config.json').existsSync(),
         isTrue);
+    expect(find.text('已安装'), findsWidgets);
+  });
+
+  testWidgets('install 为空 + manifest.source=local：跳过下载，直走本地复制',
+      (tester) async {
+    final pluginsDir = Directory.systemTemp.createTempSync('disc_local_').path;
+    final counting = _CountingCloner();
+
+    // 内置随包分发条目：无 install，manifest.source=local 指向本地资源目录。
+    // 资源目录通过 AssetManifest 枚举（测试运行于已打包 asset 的环境）。
+    Future<List<RegistryPlugin>> Function() localRegistry = () async => [
+          RegistryPlugin(
+            id: 'view',
+            name: '我的成绩单',
+            description: 'test',
+            version: '1.0.0',
+            dimensions: const ['ui'],
+            // 注意：install 故意省略（null）。
+            manifest: const PluginManifest.local('assets/view'),
+            stars: 0,
+          ),
+        ];
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [pluginsDirProvider.overrideWithValue(pluginsDir)],
+        child: MaterialApp(
+          home: DiscoveredPluginsView(
+            cloner: counting.call,
+            registryLoader: localRegistry,
+            starFetcher: _emptyStars,
+          ),
+        ),
+      ),
+    );
+    await _pump(tester);
+
+    // 关键断言：install 为空时绝不应触发任何网络下载（clone）。
+    expect(counting.calls, 0,
+        reason: 'install 为空的本地插件不应触发 clone 下载');
+
+    await tester.tap(find.widgetWithText(FilledButton, '安装').first);
+    await _pump(tester);
+    await tester.tap(find.widgetWithText(FilledButton, '确认安装'));
+    await _pump(tester, 40);
+
+    // 安装后仍然没有触发过 clone（下载被跳过）。
+    expect(counting.calls, 0,
+        reason: '安装过程中不应触发 clone 下载');
+    // 本地资源应被复制到 plugins/view/module/（AssetManifest 枚举 docs/plugin-registry/assets/view/）。
+    expect(File('$pluginsDir/view/module/manifest.json').existsSync(), isTrue);
+    expect(File('$pluginsDir/view/module/index.html').existsSync(), isTrue);
+    expect(find.text('已安装'), findsWidgets);
+  });
+
+  testWidgets('manifest.source=local 但 install 非空：仍走下载', (tester) async {
+    // 防回归：manifest 来源与是否下载无关。即使 manifest 是 local，
+    // 只要 install 非空，就必须下载文件。
+    final pluginsDir = Directory.systemTemp.createTempSync('disc_locdl_').path;
+    final counting = _CountingCloner();
+
+    Future<List<RegistryPlugin>> Function() mixedRegistry = () async => [
+          RegistryPlugin(
+            id: 'demo-mixed',
+            name: 'Demo Mixed',
+            description: 'test',
+            version: '1.0.0',
+            dimensions: const ['ui'],
+            install: const {
+              'type': 'github',
+              'url': 'https://github.com/example/demo-mixed',
+            },
+            manifest: const PluginManifest.local('assets/view'),
+            stars: 0,
+          ),
+        ];
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [pluginsDirProvider.overrideWithValue(pluginsDir)],
+        child: MaterialApp(
+          home: DiscoveredPluginsView(
+            cloner: counting.call,
+            registryLoader: mixedRegistry,
+            starFetcher: _emptyStars,
+          ),
+        ),
+      ),
+    );
+    await _pump(tester);
+
+    await tester.tap(find.widgetWithText(FilledButton, '安装').first);
+    await _pump(tester);
+    await tester.tap(find.widgetWithText(FilledButton, '确认安装'));
+    await _pump(tester, 40);
+
+    // install 非空 → 必须触发 clone 下载（即便 manifest 是 local）。
+    expect(counting.calls, 1,
+        reason: 'install 非空时即便 manifest.source=local 也应下载');
     expect(find.text('已安装'), findsWidgets);
   });
 

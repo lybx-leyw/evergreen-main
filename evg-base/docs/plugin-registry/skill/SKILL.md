@@ -480,7 +480,7 @@ HTML 模块（`template:"html"`）是「全面替代 Dart 路线」的载体，b
 
 - [ ] 在 `plugins.json` 的 `plugins` 数组里新增一个条目
 - [ ] 填 `id` / `name` / `author` / `repo` / `description`
-- [ ] 声明 `install`（下载办法）
+- [ ] 声明 `install`（下载办法）——**可省略**：插件文件随安装包分发（无需网络下载）时不写 `install`，安装器跳过下载直走 `manifest` 落盘
 - [ ] 声明 `manifest`（inline / local / github）
 - [ ] 若仓库是「库」形态，额外提供适配壳（符合 data-source CLI 契约）
 - [ ] theme：`theme/theme.json` 含 `type` + 8 个语义色
@@ -501,7 +501,8 @@ HTML 模块（`template:"html"`）是「全面替代 Dart 路线」的载体，b
 - ❌ 适配壳 stdout **混入非 JSON**（日志走 stderr）。
 - ❌ module manifest 缺 `type`/`id`/`name`（会抛 `FormatException`）。
 - ❌ 重复 `id`（`ModuleRegistry.register` 抛 `ArgumentError`）。
-- ❌ 忘记 `install` 或 `manifest` 声明——市场无法自动下载/加载。
+- ❌ 需要网络下载的插件却漏写 `install` 声明——安装器按「`install` 为空=随包分发」跳过下载，将导致文件缺失无法加载。
+- ❌ 随包分发的内置插件仍写 `install.type:github` 指向本仓库——会误触发整仓 clone（历史错误行为，已废弃），应省略 `install`。
 - ❌ 新增 key 但**不在 config.json 声明**——`_get_config` 三级降级全失败，读不到值。
 - ❌ 适配壳依赖第三方包但**不声明 `requirements`**——运行时 `ModuleNotFoundError`。
 - ❌ `default` 值用 JSON bool（`true`）而非字符串（`"true"`）——bool 写入校验会拒绝。

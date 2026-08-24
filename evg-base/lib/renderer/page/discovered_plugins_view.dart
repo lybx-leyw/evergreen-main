@@ -4,9 +4,14 @@
 /// 对应 dsh-market 的 awesome-dsh-plugin registry），实时解析并展示可被发现的插件；
 /// 第三方作者向 registry 仓库提 PR → 市场自动拾取（飞轮）。
 ///
-/// 下载安装：点「安装」→ 解析插件 install URL 为 [GithubSource] → 调 [cloneGithub]
-/// 把仓库克隆到副本 plugins/<id> 目录；成功后标记「已安装」。底层 git clone 来自
-/// `core/services/github_clone.dart`，与现有 [scanSources] 设计一致。
+/// 下载安装：点「安装」→ 按 [RegistryPlugin.install] 是否为空决定行为：
+/// - `install` 非空 → 解析 install URL 为 [GithubSource]，按 `install.strategy`
+///   分派 [cloneGithub]（git 克隆）或 [downloadRelease]（release 资产下载）到
+///   副本 plugins/<id> 目录；底层 git clone 来自 `core/services/github_clone.dart`，
+///   与现有 [scanSources] 设计一致。
+/// - `install` 为空 → 文件随包分发，跳过一切网络下载，仅建目录后直落盘 manifest。
+/// 下载完成后统一标记「已安装」。**下载与否的唯一判据是 install 是否为空，
+/// 与 [PluginManifest.source] 无关**（manifest 来源只决定 manifest 怎么落盘）。
 ///
 /// 后续可把 registry 源换成网络 URL（REGISTRY_URL 环境变量 / 设置项覆盖），
 /// 本页加载器抽成 [buildRegistryLoader]，切换源只改这一处。
@@ -208,56 +213,78 @@ class _DiscoveredPluginsViewState extends ConsumerState<DiscoveredPluginsView> {
   }
 
   /// 下载安装一个 registry 插件（M6）。
+  ///
+  /// **下载与否的唯一判据是 [RegistryPlugin.install] 是否为空**（与
+  /// [PluginManifest.source] 无关——manifest 来源只决定 manifest 怎么落盘，
+  /// 不决定插件文件是否需下载网络资源）：
+  /// - `install` 为空 → 文件随包分发，跳过下载，仅建目录后直走 [_writeManifest]。
+  /// - `install` 非空 → 按 `install.strategy` 分派 clone / release 下载，再落盘 manifest。
   Future<void> _install(RegistryPlugin p) async {
-    final url = p.installUrl;
-    if (url == null || url.isEmpty) {
-      setState(() => _errors[p.id] = '该插件缺少安装来源（install.url）');
-      return;
-    }
     final pluginsDir = ref.read(pluginsDirProvider);
     final targetDir = '$pluginsDir/${p.id}';
+
+    // 下载开关：install 缺失或为空 map 时，文件随包分发，无需网络下载。
+    final needDownload = p.install != null && p.install!.isNotEmpty;
+
+    // install 为空时必须至少有 manifest 可落盘，否则无法安装。
+    if (!needDownload && p.manifest == null) {
+      setState(() => _errors[p.id] = '该插件既无安装来源（install）也无本地资源（manifest）');
+      return;
+    }
 
     setState(() {
       _installingIds.add(p.id);
       _errors.remove(p.id);
     });
     try {
-      final src = parseGithubSource(url);
-      // M6 · 补 5：按 install.strategy 分派下载办法。
-      final bool ok;
-      if (p.installStrategy == PluginInstallStrategy.release) {
-        final r = await widget.releaseDownloader(src, targetDir,
-            assetPattern: p.releaseAssetPattern,
-            platforms: p.releasePlatforms);
-        ok = r.success;
-        if (!ok) {
+      // install 非空 → 按 install.strategy 分派下载办法（M6 · 补 5）。
+      if (needDownload) {
+        final url = p.installUrl;
+        if (url == null || url.isEmpty) {
           setState(() {
             _installingIds.remove(p.id);
-            _errors[p.id] = r.error ?? 'release 下载失败';
+            _errors[p.id] = '该插件缺少安装来源 URL（install.url）';
           });
           return;
+        }
+        final src = parseGithubSource(url);
+        if (p.installStrategy == PluginInstallStrategy.release) {
+          final r = await widget.releaseDownloader(src, targetDir,
+              assetPattern: p.releaseAssetPattern,
+              platforms: p.releasePlatforms);
+          if (!r.success) {
+            setState(() {
+              _installingIds.remove(p.id);
+              _errors[p.id] = r.error ?? 'release 下载失败';
+            });
+            return;
+          }
+        } else {
+          final result = await widget.cloner(src, targetDir);
+          if (!mounted) return;
+          if (!result.success) {
+            final msg = switch (result.errorType) {
+              CloneErrorType.notFound => '仓库不存在（404）',
+              CloneErrorType.authRequired => '需要认证（私有仓库）',
+              CloneErrorType.timeout => '下载超时，请检查网络',
+              _ => result.error ?? '下载失败',
+            };
+            setState(() {
+              _installingIds.remove(p.id);
+              _errors[p.id] = msg;
+            });
+            return;
+          }
         }
       } else {
-        final result = await widget.cloner(src, targetDir);
-        if (!mounted) return;
-        if (!result.success) {
-          final msg = switch (result.errorType) {
-            CloneErrorType.notFound => '仓库不存在（404）',
-            CloneErrorType.authRequired => '需要认证（私有仓库）',
-            CloneErrorType.timeout => '下载超时，请检查网络',
-            _ => result.error ?? '下载失败',
-          };
-          setState(() {
-            _installingIds.remove(p.id);
-            _errors[p.id] = msg;
-          });
-          return;
-        }
-        ok = true;
+        // install 为空：文件随包分发，仅确保目标目录存在，跳过一切网络下载。
+        Directory(targetDir).createSync(recursive: true);
       }
+
       if (!mounted) return;
-      // M6 · 补 4：下载成功后，按 manifest 声明落盘 manifest.json。
-      // inline → 直接写内嵌 json；remote → 下载后写。失败仅记录，不阻断「已安装」。
+      // M6 · 补 4：按 manifest 声明落盘。inline/local/github 各自处理；
+      // manifest 为 null 时[_writeManifest] 返回 null（走下载后既有结构）。
+      // 失败仅记录，不阻断「已安装」。
       final manifestErr = await _writeManifest(p, targetDir);
       setState(() {
         _installedIds.add(p.id);
