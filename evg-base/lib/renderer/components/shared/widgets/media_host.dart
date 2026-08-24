@@ -3,7 +3,7 @@
 /// 公开类：[MediaHost]
 import 'package:flutter/material.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
-import '../docs/render_rules.dart';
+import '../../../docs/render_rules.dart';
 import 'video_player.dart';
 import 'audio_player.dart';
 import 'document_viewer.dart';

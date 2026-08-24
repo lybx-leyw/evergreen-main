@@ -36,6 +36,12 @@ ThemeData buildAppThemeFromDescriptor(
     onSecondary: isDark ? const Color(0xFF0D1117) : const Color(0xFFFFFFFF),
     error: c.stateError,
     onError: isDark ? const Color(0xFF0D1117) : const Color(0xFFFFFFFF),
+    // errorContainer / onErrorContainer：必须显式声明（否则 Flutter 自动从 error
+    // 派生 → 深色主题下 errorContainer ≈ error 深红，文字同色看不清）。
+    // 配对原则：背景用 error 的低 alpha 容器色，文字用主背景色（与 onError 相反）
+    // 保证错误提示在任何主题下都有足够对比度。
+    errorContainer: c.stateError.withValues(alpha: isDark ? 0.22 : 0.14),
+    onErrorContainer: isDark ? c.bgPrimary : c.stateError,
     surface: c.bgSecondary,
     onSurface: c.textPrimary,
     onSurfaceVariant: c.textSecondary,

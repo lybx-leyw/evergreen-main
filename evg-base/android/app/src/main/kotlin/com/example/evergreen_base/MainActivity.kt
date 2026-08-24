@@ -50,6 +50,12 @@ class MainActivity : FlutterActivity() {
     private val longRunning = AtomicBoolean(false)
     private var longThread: Thread? = null
 
+    // ── 常驻进程 stdin 队列（stdin 双向流规划 §4.2）──
+    // Python 侧注入的 queue.Queue 的 PyObject 引用；writeStdin 时 put 数据，
+    // 使 Python 脚本的 `for line in sys.stdin` 阻塞读到。单实例（当前只支持
+    // 一个常驻进程）。跨线程访问由 Chaquopy GIL 串行化，线程安全。
+    private var stdinQueue: com.chaquo.python.PyObject? = null
+
     // ── Chaquopy 资源路径缓存（避免每次递归遍历文件系统）──
     private val assetPathCache = mutableMapOf<String, String?>()
 
@@ -98,10 +104,25 @@ class MainActivity : FlutterActivity() {
                     result.success(null)
                 } else if (call.method == "stopLongServer") {
                     // 请求停止长驻 server：置标志 + 中断后台线程（尽力而为）。
+                    // 同时向 stdin 队列 put 哨兵（None），触发 Python 侧
+                    // `for line in sys.stdin` 收到 EOFError 而结束，避免阻塞残留。
+                    stdinQueue?.callAttr("put", null)
+                    stdinQueue = null
                     longRunning.set(false)
                     longThread?.interrupt()
                     longThread = null
                     result.success(null)
+                } else if (call.method == "writeStdin") {
+                    // stdin 双向流：把 Dart 侧写入的数据送入 Python 常驻进程的
+                    // stdin 队列。fire-and-forget，写入即可（Python 侧异步读）。
+                    val data = call.argument<String>("data") ?: ""
+                    val q = stdinQueue
+                    if (q == null) {
+                        result.error("NO_STDIN", "常驻进程未就绪，请先 startLongServer", null)
+                    } else {
+                        q.callAttr("put", data)
+                        result.success(null)
+                    }
                 } else if (call.method == "getAssetPath") {
                     // 返回 Chaquopy 资源在设备文件系统上的绝对路径。
                     // 不依赖硬编码路径，递归搜索 filesDir/chaquopy/ 子树。
@@ -354,6 +375,8 @@ class MainActivity : FlutterActivity() {
 
         // 重定向引导：定义 _CbOut/_CbErr（按 \n 缓冲切分后回调），再把 sys 流换掉。
         // ⚠️ envPrefix 在最前面：PROJECT_ROOT注入 → sys重定向 → 业务脚本。
+        // 另注入 stdin 队列（stdin 双向流规划 §4.2）：_CbIn 的 readline() 从
+        // queue.Queue 阻塞取数据，供脚本 `for line in sys.stdin` 使用。
         val bootstrap = envPrefix + """
 import sys
 class _CbOut:
@@ -380,6 +403,22 @@ class _CbErr:
     def flush(self):
         if self._buf:
             self._cb(self._buf); self._buf = ""
+import queue
+_stdin_q = queue.Queue()
+class _CbIn:
+    def readline(self):
+        s = _stdin_q.get()
+        if s is None:
+            raise EOFError
+        return s if s.endswith("\n") else s + "\n"
+    def read(self, *a):
+        return self.readline()
+    def __iter__(self):
+        while True:
+            try:
+                yield self.readline()
+            except EOFError:
+                return
 """
         val sys = py.getModule("sys")
         val builtins = py.getModule("builtins")
@@ -393,10 +432,12 @@ class _CbErr:
         globals.callAttr("__setitem__", "_out_cb", outCb)
         globals.callAttr("__setitem__", "_err_cb", errCb)
 
-        // exec 引导（定义 _CbOut/_CbErr），再重定向 sys.stdout/stderr。
+        // exec 引导（定义 _CbOut/_CbErr/_CbIn/_stdin_q），再重定向 sys 三个流。
         builtins.callAttr("exec", bootstrap, globals)
         builtins.callAttr("exec",
-            "sys.stdout = _CbOut(_out_cb)\nsys.stderr = _CbErr(_err_cb)", globals)
+            "sys.stdout = _CbOut(_out_cb)\nsys.stderr = _CbErr(_err_cb)\nsys.stdin = _CbIn()", globals)
+        // 保存 stdin 队列的 PyObject 引用，供 writeStdin 写入数据。
+        stdinQueue = globals.get("_stdin_q") as com.chaquo.python.PyObject
 
         // sys.argv = [entry, *args]
         val argv = builtins.callAttr("list")

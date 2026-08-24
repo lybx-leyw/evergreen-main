@@ -3,7 +3,7 @@
 | 元信息 | 值 |
 | --- | --- |
 | 状态 | active |
-| 版本 | 1.0 |
+| 版本 | 以根 `README.md` 为准 |
 | 日期 | 2026-08-02 |
 | 负责人 | 待补充 |
 | 适用 | 插件打包作者 |
@@ -208,7 +208,7 @@ OCR 管线自动执行两级降级：
 
 | 依赖 | 说明 |
 |------|------|
-| Python 3.8+ | 系统 PATH 或 `scripts/python/python.exe` |
+| Python 3.8+ | 系统 PATH，或嵌入式 Python 运行时（由安装包预置 / 资产释放提供） |
 | pytesseract | `pip install pytesseract` |
 | Pillow | `pip install Pillow` |
 | pdf2image | `pip install pdf2image`（PDF 支持） |

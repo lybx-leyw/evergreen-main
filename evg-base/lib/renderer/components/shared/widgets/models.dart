@@ -184,6 +184,9 @@ class PluginDescriptor {
   final int screenshotCount;
   final int installCount;
   final double rating;
+
+  /// GitHub star 数（市场卡片展示；本地插件无此概念时为 null）。
+  final int? stars;
   final bool installed;
   final bool hasUpdate;
 
@@ -199,6 +202,7 @@ class PluginDescriptor {
     this.screenshotCount = 0,
     this.installCount = 0,
     this.rating = 0.0,
+    this.stars,
     this.installed = false,
     this.hasUpdate = false,
   });

@@ -219,6 +219,11 @@ analyze_*.txt
 _*.txt
 build_*.txt
 test_*.txt
+# evg-base — 临时测试/构建日志（flutter/dart 命令重定向输出，非仓库资产）
+evg-base/m5_ui_test*.txt
+evg-base/pubget.txt
+evg-base/review_test_out.txt
+evg-base/lib/core/module/test_results.txt
 
 # evg-base — 运行时端口文件（App 启动时自动写入，严禁提交）
 evg-base/.*_port
@@ -260,3 +265,17 @@ evg-base/lib/core/theme/example/.cache/
 
 # 移植参考源（DeepSeek-Reasonix 浅克隆，仅供阅读，不入库）
 .reasonix-ref/
+
+# ──────────────────────────────────────────────────────────
+# 2026-08-25 push 前安全审核新增规则（组员汇报汇总）
+# ──────────────────────────────────────────────────────────
+
+# AgentTeams 团队运行时状态（inbox/会话消息，不入库）
+.agent-teams/
+
+# flutter analyze / upgrade 命令日志（含本机绝对路径）
+evg-base/analyze*.txt
+evg-base/flutter_upgrade*.txt
+
+# archify 视觉验证产物（截图/contact sheet/JSON sidecar；主交付 HTML 保留）
+docs/evergreen-architecture.visual-check.*

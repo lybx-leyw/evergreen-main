@@ -129,20 +129,24 @@ void main() {
     });
 
     test('pid 返回 -1（占位）', () {
-      final proc = ChaquopyLongProcess();
+      final proc = ChaquopyLongProcess('test.py');
       expect(proc.pid, -1);
     });
 
-    test('stdin 抛 UnsupportedError', () {
-      final proc = ChaquopyLongProcess();
-      expect(
-        () => proc.stdin,
-        throwsA(isA<UnsupportedError>()),
-      );
+    test('stdin write → 触发 writeStdin MethodChannel（stdin 双向流）', () async {
+      final proc = ChaquopyLongProcess('test.py');
+      // stdin 不再抛异常，而是返回可写 sink。
+      proc.stdin.write('status\n');
+      // 等待异步 MethodChannel 调用发出。
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(env.lastMethodCall?.method, 'writeStdin');
+      final args = env.lastMethodCall?.arguments as Map<dynamic, dynamic>?;
+      expect(args?['entry'], 'test.py');
+      expect(args?['data'], 'status\n');
     });
 
     test('stdout 流 → EventChannel type=stdout 事件正确路由', () async {
-      final proc = ChaquopyLongProcess();
+      final proc = ChaquopyLongProcess('test.py');
 
       // 先订阅，模拟 DataSourceLoader._listenStdout() 行为
       final lines = <String>[];
@@ -164,7 +168,7 @@ void main() {
     });
 
     test('stderr 流 → EventChannel type=stderr 事件正确路由', () async {
-      final proc = ChaquopyLongProcess();
+      final proc = ChaquopyLongProcess('test.py');
       final lines = <String>[];
       final sub = proc.stderr
           .transform(utf8.decoder)
@@ -180,7 +184,7 @@ void main() {
     });
 
     test('EventChannel type=exit → exitCode 完成 + 流关闭', () async {
-      final proc = ChaquopyLongProcess();
+      final proc = ChaquopyLongProcess('test.py');
       final stdoutLines = <String>[];
       final stderrLines = <String>[];
       final outSub = proc.stdout
@@ -212,7 +216,7 @@ void main() {
     });
 
     test('EventChannel onError → exitCode=1 + 流关闭', () async {
-      final proc = ChaquopyLongProcess();
+      final proc = ChaquopyLongProcess('test.py');
 
       env.streamHandler.emitError();
 
@@ -224,7 +228,7 @@ void main() {
     });
 
     test('EventChannel onDone → exitCode=0 + 流关闭', () async {
-      final proc = ChaquopyLongProcess();
+      final proc = ChaquopyLongProcess('test.py');
 
       env.streamHandler.endStream();
 
@@ -237,7 +241,7 @@ void main() {
 
     test('kill() 首次返回 true → 调用 stopLongServer → 二次 kill 返回 false',
         () async {
-      final proc = ChaquopyLongProcess();
+      final proc = ChaquopyLongProcess('test.py');
 
       final ok = proc.kill();
       expect(ok, isTrue);
@@ -257,7 +261,7 @@ void main() {
     });
 
     test('stdout/stderr 流中不包含 type=exit 行', () async {
-      final proc = ChaquopyLongProcess();
+      final proc = ChaquopyLongProcess('test.py');
       final stdoutLines = <String>[];
       final stderrLines = <String>[];
       final outSub = proc.stdout
@@ -284,7 +288,7 @@ void main() {
     });
 
     test('未知 type 事件被静默忽略（不崩溃、不污染 stdio）', () async {
-      final proc = ChaquopyLongProcess();
+      final proc = ChaquopyLongProcess('test.py');
       final stdoutLines = <String>[];
       final outSub = proc.stdout
           .transform(utf8.decoder)
@@ -301,7 +305,7 @@ void main() {
     });
 
     test('exit 之前产生的事件全部被 stdout 消费（顺序保证）', () async {
-      final proc = ChaquopyLongProcess();
+      final proc = ChaquopyLongProcess('test.py');
       final lines = <String>[];
       final sub = proc.stdout
           .transform(utf8.decoder)

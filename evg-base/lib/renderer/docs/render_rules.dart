@@ -7,8 +7,9 @@
 ///
 /// | 文件 | 引用常量 |
 /// |------|---------|
-/// | `shared/grid_layout.dart` | `GridRules.gap`, `GridRules.maxColumns` |
-/// | `shared/layout_engine.dart` | `ZoomRules.minScale`, `ZoomRules.maxScale` |
+/// | `page/layouts/grid_layout.dart` | `GridRules.gap`, `GridRules.maxColumns` |
+/// | `page/layouts/layout_engine.dart` | `LayoutEngine`（缩放常量见 `ZoomRules`） |
+/// | `components/shared/widgets/media_host.dart` | `SpacingRules` 等 |
 ///
 /// ## 来源
 /// — 设计工程师 Sprint 1 交付物（Ds-S1-4）

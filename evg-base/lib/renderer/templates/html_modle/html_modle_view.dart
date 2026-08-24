@@ -39,12 +39,14 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 import 'package:webview_windows/webview_windows.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'package:evergreen_base/core/data/data.dart';
 import 'package:evergreen_base/core/config/settings.dart';
 import 'package:evergreen_base/core/module/page_event_bus.dart';
+import 'package:evergreen_base/core/plugin/plugin_runner.dart';
 import 'package:evergreen_base/providers.dart';
 import 'package:evergreen_base/renderer/app/service/theme/render_tokens.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/creative/html-creator/html_creator_view.dart';
@@ -85,6 +87,9 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
 
   /// 数据订阅轮询：dataName → 5s 拉取，值变化推送 data:changed（共享实现）。
   late final DataSubscriptionPoller _poller;
+
+  /// 常驻进程会话（key = exe 名或 id）：`platform.process.start/stop/write/read`。
+  final Map<String, _LongProcessSession> _longProcesses = {};
 
   /// html-creator 已走 Dart 原生 [HtmlCreatorView]，不需要启动本地 HTTP
   /// 服务或 WebView；这里提前短路，避免进入开发者模式时白白初始化 WebView2。
@@ -131,6 +136,11 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
     _poller.dispose();
     _eventBusSub?.cancel();
     _eventBus.dispose();
+    // 终止所有常驻进程（避免插件卸载后残留进程）。
+    for (final session in _longProcesses.values) {
+      session.stop();
+    }
+    _longProcesses.clear();
     // 原生创作工具没有初始化 WebView2，不能调用 _controller.dispose()
     //（其内部会等待尚未创建的 _creatingCompleter，导致 LateInitializationError）。
     if (!_isNativeCreator && !Platform.isAndroid) {
@@ -374,10 +384,18 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
         return ref.read(sharedPreferencesProvider).getString(args[0] as String);
 
       case 'settings.set':
-        await ref
-            .read(sharedPreferencesProvider)
-            .setString(args[0] as String, (args[1] ?? '').toString());
-        return 'ok';
+        // 走 ConfigHttpServer 的 POST /config/settings/:key，而非直接写
+        // SharedPreferences：该路由会调用 syncConfigToGreenix()，把值同步到
+        // `.greenix/config.json`，否则 Python 常驻进程的 `_get_config` 三级降级
+        // 读不到新值（「恢复监控」等设置变更对 worker 无效）。
+        final key = args[0] as String;
+        final value = (args[1] ?? '').toString();
+        return await _httpForward(
+          CoreService.config,
+          'POST',
+          '/config/settings/$key',
+          {'value': value},
+        );
 
       case 'theme.getColors':
         return _themeColors();
@@ -391,9 +409,217 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
         _eventBus.emit(event, sourceSlot: 'html-plugin', data: payload);
         return 'ok';
 
+      case 'process.run':
+        // 运行本插件 manifest `process` 声明的 exe（白名单内才允许，方案 A）。
+        // args[0] = exe 名（或 id）；args[1] = {args, input}。
+        final exe = args[0] as String;
+        final opts = args.length > 1 && args[1] is Map
+            ? Map<String, dynamic>.from(args[1] as Map)
+            : <String, dynamic>{};
+        return await _runPluginProcess(exe, opts);
+
+      case 'process.start':
+        // 启动常驻进程（scope:"long"），输出经 process:output 事件推送。
+        // args[0] = exe 名（或 id）；args[1] = {args}。
+        return await _startLongProcess(
+          args[0] as String,
+          args.length > 1 && args[1] is Map
+              ? Map<String, dynamic>.from(args[1] as Map)
+              : <String, dynamic>{},
+        );
+
+      case 'process.write':
+        // 向常驻进程 stdin 写数据。
+        return await _writeLongProcess(
+            args[0] as String, (args.length > 1 ? args[1] : '')?.toString() ?? '');
+
+      case 'process.stop':
+        // 终止常驻进程。
+        return await _stopLongProcess(args[0] as String);
+
+      case 'process.read':
+        // 读常驻进程当前累积的 stdout。
+        return {'stdout': _readLongProcess(args[0] as String)};
+
       default:
         throw Exception('未知 API: $method');
     }
+  }
+
+  /// 运行本插件 manifest `process` 声明的 exe（方案 A：白名单内才允许）。
+  ///
+  /// [exe] 为 manifest `process[].exe` 或 `process[].id`；[opts.args] 为命令行参数
+  /// （如 `['-u', username, '-p', password]`）。
+  ///
+  /// 白名单：只允许 [ModuleDescriptor.process] 里声明的进程，杜绝 HTML 插件跑
+  /// 任意系统命令（fail-closed）。未声明 → 抛异常。返回 `{stdout, stderr, exitCode}`。
+  Future<Map<String, dynamic>> _runPluginProcess(
+      String exe, Map<String, dynamic> opts) async {
+    final declared = _findDeclaredProcess(exe);
+    if (declared == null) {
+      throw Exception(
+          '进程 "$exe" 未在 manifest 的 process 中声明，拒绝执行（fail-closed）');
+    }
+
+    final args = (opts['args'] as List?)?.map((e) => e.toString()).toList() ??
+        <String>[];
+
+    // exe 相对插件目录解析（与 ProcessManager 一致），并做跨平台扩展名兜底：
+    // Windows 上 release 二进制常带 `.exe`，manifest 写 `zjuical` 时自动补 `.exe`。
+    final pluginDir = _pluginDir();
+    if (pluginDir == null) {
+      throw Exception('无法定位插件目录');
+    }
+    final exePath = _resolveExePath(pluginDir, declared.exe);
+    if (exePath == null) {
+      throw Exception('exe 不存在: ${p.join(pluginDir, declared.exe)}');
+    }
+
+    final runner = await sharedPluginRunner;
+    final r = await runner.runOnce(
+      exePath,
+      args,
+      workingDirectory: pluginDir,
+      runtime: declared.runtime,
+    );
+    return {'stdout': r.stdout, 'stderr': r.stderr, 'exitCode': r.exitCode};
+  }
+
+  /// 解析 exe 的磁盘路径（跨平台扩展名兜底）。
+  ///
+  /// [declared] 为 manifest `process[].exe`（可能不含扩展名）。按序尝试：
+  /// 1. `pluginDir/declared`（原样）
+  /// 2. Windows 下 `pluginDir/declared.exe`
+  /// 3. 其余平台 `pluginDir/declared`（无扩展名，Unix 惯例）
+  ///
+  /// 全部不存在返回 null。
+  String? _resolveExePath(String pluginDir, String declared) {
+    // 候选路径：优先 module/ 子目录（module 进程脚本约定在 module/ 下，
+    // 如 worker.py 与 index.html 同目录），其次插件根目录（如 release 二进制
+    // zjuical.exe 直接解压到根）。每个位置都做 Windows .exe 扩展名兜底。
+    final candidates = <String>[
+      p.join(pluginDir, 'module', declared),
+      p.join(pluginDir, declared),
+    ];
+    final withExe = <String>[];
+    if (Platform.isWindows && !declared.toLowerCase().endsWith('.exe')) {
+      for (final c in candidates) {
+        withExe.add('$c.exe');
+      }
+    }
+    for (final c in [...candidates, ...withExe]) {
+      if (File(c).existsSync()) return c;
+    }
+    return null;
+  }
+
+  /// 从 manifest `process` 中查找声明（按 exe 名或 id），白名单 fail-closed。
+  ///
+  /// 返回 null 表示未声明。供 `process.run` 与 `process.start` 共用。
+  ProcessDescriptor? _findDeclaredProcess(String exe) {
+    for (final proc in widget.descriptor.process) {
+      if (proc.exe == exe || proc.id == exe) return proc;
+    }
+    return null;
+  }
+
+  // ═══════ 常驻进程（process.start/stop/write/read） ═══════
+
+  /// 启动常驻进程（`scope:"long"`），返回 `{ok:true}`。
+  ///
+  /// 白名单：只允许 manifest `process` 里声明且 `scope:"long"` 的进程。
+  /// 启动后 stdout/stderr 经 `process:output` 事件实时推送给页面，
+  /// 退出经 `process:exit` 事件推送。重复 start 已存在的进程返回 `{ok:true}`（幂等）。
+  Future<Map<String, dynamic>> _startLongProcess(
+      String exe, Map<String, dynamic> opts) async {
+    final declared = _findDeclaredProcess(exe);
+    if (declared == null) {
+      throw Exception(
+          '进程 "$exe" 未在 manifest 的 process 中声明，拒绝执行（fail-closed）');
+    }
+    if (declared.scope != 'long') {
+      throw Exception(
+          '进程 "$exe" scope="${declared.scope}"，不是常驻进程（需 scope:"long"）。'
+          '一次性任务请用 platform.process.run');
+    }
+
+    final key = declared.id ?? declared.exe;
+    if (_longProcesses.containsKey(key) && _longProcesses[key]!.isAlive) {
+      return {'ok': true}; // 幂等：已在运行
+    }
+
+    final args = (opts['args'] as List?)
+            ?.map((e) => e.toString())
+            .toList() ??
+        <String>[];
+
+    final pluginDir = _pluginDir();
+    if (pluginDir == null) {
+      throw Exception('无法定位插件目录');
+    }
+    final exePath = _resolveExePath(pluginDir, declared.exe);
+    if (exePath == null) {
+      throw Exception('exe 不存在: ${p.join(pluginDir, declared.exe)}');
+    }
+
+    final session = _LongProcessSession(
+      key: key,
+      onOutput: (stream, line) {
+        if (!mounted || !_initialized) return;
+        final payload = jsonEncode(
+            {'exe': key, 'stream': stream, 'line': line});
+        _executeJs('window.__evgFireEvent("process:output", $payload)');
+      },
+      onExit: (code) {
+        _longProcesses.remove(key);
+        if (!mounted || !_initialized) return;
+        final payload = jsonEncode({'exe': key, 'exitCode': code});
+        _executeJs('window.__evgFireEvent("process:exit", $payload)');
+      },
+    );
+
+    final runner = await sharedPluginRunner;
+    final process = await runner.startLong(
+      exePath,
+      args,
+      workingDirectory: pluginDir,
+      runtime: declared.runtime,
+    );
+    await session.attach(process);
+    _longProcesses[key] = session;
+    return {'ok': true};
+  }
+
+  /// 向常驻进程 stdin 写数据，返回 `{ok:true}`。
+  Future<Map<String, dynamic>> _writeLongProcess(
+      String exe, String data) async {
+    final declared = _findDeclaredProcess(exe);
+    final key = declared?.id ?? declared?.exe ?? exe;
+    final session = _longProcesses[key];
+    if (session == null || !session.isAlive) {
+      throw Exception('进程 "$exe" 未在运行，请先 process.start');
+    }
+    session.write(data);
+    return {'ok': true};
+  }
+
+  /// 终止常驻进程，返回 `{ok:true}`。
+  Future<Map<String, dynamic>> _stopLongProcess(String exe) async {
+    final declared = _findDeclaredProcess(exe);
+    final key = declared?.id ?? declared?.exe ?? exe;
+    final session = _longProcesses.remove(key);
+    if (session == null) return {'ok': true}; // 幂等：已不存在
+    await session.stop();
+    return {'ok': true};
+  }
+
+  /// 读常驻进程当前累积的 stdout。
+  String _readLongProcess(String exe) {
+    final declared = _findDeclaredProcess(exe);
+    final key = declared?.id ?? declared?.exe ?? exe;
+    final session = _longProcesses[key];
+    if (session == null) return '';
+    return session.stdoutBuffer;
   }
 
   // ═══════ core 服务 HTTP 转发 ═══════
@@ -457,5 +683,115 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
     }
 
     return Scaffold(body: SafeArea(child: Webview(_controller)));
+  }
+}
+
+/// 常驻进程会话 —— 管理一个 `scope:"long"` 进程的 stdio 双向流。
+///
+/// - stdout/stderr 逐行解析，经 [onOutput] 推送给页面（`process:output` 事件）。
+/// - stdin 经 [write] 写入，支持交互式终端。
+/// - 进程退出经 [onExit] 通知（`process:exit` 事件）。
+/// - [stdoutBuffer] 累积 stdout，供 `process.read` 拉取。
+class _LongProcessSession {
+  _LongProcessSession({
+    required this.key,
+    required this.onOutput,
+    required this.onExit,
+  });
+
+  /// 会话标识（manifest `process[].id` 或 `exe`）。
+  final String key;
+
+  /// 输出回调：`(stream: 'stdout'|'stderr', line)`。
+  final void Function(String stream, String line) onOutput;
+
+  /// 退出回调：`(exitCode)`。
+  final void Function(int exitCode) onExit;
+
+  Process? _process;
+  StreamSubscription<String>? _stdoutSub;
+  StreamSubscription<String>? _stderrSub;
+  final StringBuffer _stdoutBuf = StringBuffer();
+  bool _stopped = false;
+
+  /// 进程是否仍在运行。
+  bool get isAlive => _process != null && !_stopped;
+
+  /// 当前累积的 stdout（供 `process.read`）。
+  String get stdoutBuffer => _stdoutBuf.toString();
+
+  /// 挂载进程并订阅 stdout/stderr/exit。
+  Future<void> attach(Process process) async {
+    _process = process;
+
+    _stdoutSub = process.stdout
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .listen((line) {
+      _stdoutBuf.writeln(line);
+      onOutput('stdout', line);
+    });
+
+    _stderrSub = process.stderr
+        .transform(utf8.decoder)
+        .transform(const LineSplitter())
+        .listen((line) {
+      onOutput('stderr', line);
+    });
+
+    // 进程退出：取消订阅并通知（fire-and-forget，避免未捕获异常）。
+    process.exitCode.then((code) {
+      _stdoutSub?.cancel();
+      _stderrSub?.cancel();
+      _stdoutSub = null;
+      _stderrSub = null;
+      _process = null;
+      _stopped = true;
+      onExit(code);
+    }).catchError((_) {
+      _stopped = true;
+      onExit(-1);
+    });
+  }
+
+  /// 向进程 stdin 写入数据（供交互式终端）。
+  void write(String data) {
+    final process = _process;
+    if (process == null || _stopped) return;
+    try {
+      process.stdin.write(data);
+    } catch (_) {
+      // stdin 已关闭（进程已退出），忽略。
+    }
+  }
+
+  /// 终止进程（先 SIGTERM，超时 SIGKILL）。
+  Future<void> stop() async {
+    if (_stopped) return;
+    _stopped = true;
+    _stdoutSub?.cancel();
+    _stderrSub?.cancel();
+    _stdoutSub = null;
+    _stderrSub = null;
+
+    final process = _process;
+    _process = null;
+    if (process == null) return;
+
+    try {
+      process.stdin.close();
+    } catch (_) {}
+    try {
+      process.kill(ProcessSignal.sigterm);
+      final exited = await process.exitCode
+          .timeout(const Duration(seconds: 2))
+          .then((_) => true)
+          .catchError((_) => false);
+      if (!exited) {
+        process.kill(ProcessSignal.sigkill);
+      }
+    } catch (_) {
+      // 进程已退出
+    }
   }
 }

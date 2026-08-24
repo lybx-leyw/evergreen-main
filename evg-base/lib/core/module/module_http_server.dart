@@ -30,6 +30,7 @@ import 'package:evergreen_base/core/log.dart';
 import 'capability.dart';
 import 'module_descriptor.dart';
 import 'module_registry.dart';
+import 'sidecar/sidecar_controller.dart';
 
 /// 模块 HTTP 服务器——将 [ModuleRegistry] 暴露为 REST API。
 ///
@@ -41,7 +42,22 @@ class ModuleHttpServer {
   HttpServer? _server;
   File? _portFile;
 
+  /// sidecar 状态快照（由框架在 sidecar 启动/停止时刷新，避免直接依赖 loader）。
+  final List<Map<String, dynamic>> _sidecarSnapshots = [];
+
   ModuleHttpServer(this._registry, {int port = 9100}) : _port = port;
+
+  /// 写入全部 sidecar 状态快照（主包在启动时调用，传入各 loader 的元信息）。
+  void setSidecarSnapshots(List<Map<String, dynamic>> snapshots) {
+    _sidecarSnapshots
+      ..clear()
+      ..addAll(snapshots);
+  }
+
+  /// 追加单个 sidecar 状态（运行时动态注册用）。
+  void addSidecarSnapshot(Map<String, dynamic> snapshot) {
+    _sidecarSnapshots.add(snapshot);
+  }
 
   /// 服务器是否正在运行。
   bool get isRunning => _server != null;
@@ -121,6 +137,9 @@ class ModuleHttpServer {
       } else if (path == '/module/routes') {
         _routes(req);
         stderr.writeln('[ModuleHttp] GET /module/routes → 200 (${sw.elapsedMilliseconds}ms)');
+      } else if (path == '/module/sidecars') {
+        _sidecars(req);
+        stderr.writeln('[ModuleHttp] GET /module/sidecars → 200 (${sw.elapsedMilliseconds}ms)');
       } else {
         _json(req, 404, {'error': '未找到端点: $path'});
       }
@@ -199,6 +218,12 @@ class ModuleHttpServer {
   void _routes(HttpRequest req) {
     final routes = _registry.buildRoutePaths();
     _json(req, 200, {'routes': routes, 'count': routes.length});
+  }
+
+  /// GET /module/sidecars — 列出所有已注册 sidecar 运行时状态（M1-10）。
+  void _sidecars(HttpRequest req) {
+    _json(req, 200,
+        {'sidecars': _sidecarSnapshots, 'count': _sidecarSnapshots.length});
   }
 
   // ═══════ 辅助 ═══════

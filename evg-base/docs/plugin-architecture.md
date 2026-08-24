@@ -39,8 +39,7 @@ flowchart TB
         APP["app/ App 层"]
         MODL["module/ 模块层"]
         PAGE["page/ 页面层（CompositeView）"]
-        SLOT["slot/ Slot 层"]
-        COMP["components/ 组件层<br/>43 具名组件 + 7 功能域"]
+        TEMPLATES["templates/ 模板层<br/>v4_modle：slot/ 分派 + components/ 组件域"]
         HTMLOUT["HTML / Dart 产物<br/>docs/index.html · render_log.html"]
     end
 
@@ -83,14 +82,14 @@ flowchart TB
 
 ### 下流 · Renderer / HTML（lib/renderer/）
 
-- 五层渲染架构：`app/` → `module/` → `page/` → `slot/` → `components/`。
-- 组件层：43 具名组件 + 20 占位组件，按 7 功能域分组（shared/document/data/interaction/creative/learning/controls）。
-- 输出：HTML 页面（`docs/index.html`、插件 `render_log.html`）、Dart 渲染产物（`r12_dart_render.png`）。
+- 渲染分层：`app/` → `module/` → `page/` + `templates/`；slot 分派与组件域收敛于 `templates/v4_modle/`（`slot/` + `components/`）。
+- 组件域：具名组件与 `placeholder-*` 预留扩展按功能域分组（document/data/interaction/creative/learning/controls 等），注册清单见 `templates/v4_modle/_registrations.dart`。
+- 输出：HTML 页面（`docs/index.html`、插件 `render_log.html`）、Dart 渲染产物。
 
 ## 关键文件索引
 
 - `lib/evergreen_base.dart` — 双轨架构总出口
-- `lib/core/module/module_descriptor.dart` — V2 声明树（2860 行）
+- `lib/core/module/module_descriptor.dart` — V2 声明树（模块→页面→布局→插槽→组件）
 - `lib/core/module/module_registry.dart` — 注册/seal/search/reloadModule/unregister
 - `lib/core/module/module_loader.dart` — manifest 扫描 + 后端进程生命周期
 - `lib/core/module/module_lifecycle.dart` — 安装/卸载/禁用/启用/升级
@@ -98,5 +97,5 @@ flowchart TB
 - `lib/core/services/plugin_installer.dart` — .plugin 安装
 - `lib/core/docs/plugin-format.md` — .plugin ZIP 格式 + SHA-256 签名规范
 - `lib/generated/plugin_imports.g.dart` — 冷插件静态导入
-- `lib/renderer/renderer.dart` — 五层渲染 barrel
-- `plugins/` — 13 个实际插件（ai-assistant / data-dashboard / dsh / html-creator / marketplace / pdf_translate / python-runner / scraper / settings / skill-creator / theme-creator / view / warm_study）
+- `lib/renderer/renderer.dart` — renderer barrel（slot 与组件域指向 `templates/v4_modle/`）
+- `plugins/` — 内置插件（完整清单见 `plugins/README.md`）

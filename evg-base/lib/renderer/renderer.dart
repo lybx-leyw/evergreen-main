@@ -1,21 +1,23 @@
 /// renderer/ 顶层 barrel
 ///
-/// 五层架构：
+/// 结构（slot/ 与组件域已随 v4_modle 收敛到模板内部）：
 ///   app/        — App 层（顶层壳、全局主题服务）
 ///   module/     — 模块层（ModuleDispatch、ModulePage）
-///   page/       — 页面层（CompositeView、布局引擎、独立页面）
-///   slot/       — Slot 层（SlotDispatch、SlotScale）
-///   components/ — 组件层（43 具名组件 + 20 placeholder，按 7 功能域分组）
+///   page/       — 页面层（布局引擎、独立页面）
+///   components/ — 共享组件（shared/ 组合基础设施 + widgets/ 原子组件）
+///   templates/  — 模板（modle）渲染器与注册表；slot 分派与
+///                 文档/数据/交互/创意/学习/控制组件域位于
+///                 `templates/v4_modle/slot/` 与 `templates/v4_modle/components/`
 library;
 
 export 'app/app.dart';
 export 'module/module.dart';
 export 'page/page.dart';
-export 'slot/slot.dart';
 export 'components/shared/shared.dart';
-export 'components/document/document.dart';
-export 'components/data/data.dart';
-export 'components/interaction/interaction.dart';
-export 'components/creative/creative.dart';
-export 'components/learning/learning.dart';
-export 'components/controls/controls.dart';
+export 'templates/v4_modle/slot/slot.dart';
+export 'templates/v4_modle/components/document/document.dart';
+export 'templates/v4_modle/components/data/data.dart';
+export 'templates/v4_modle/components/interaction/interaction.dart';
+export 'templates/v4_modle/components/creative/creative.dart';
+export 'templates/v4_modle/components/learning/learning.dart';
+export 'templates/v4_modle/components/controls/controls.dart';

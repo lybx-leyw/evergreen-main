@@ -97,6 +97,14 @@ flutter:
   assets:
     - .greenix/skills/
     - assets/video/
+
+    # 插件市场 registry（手写声明，勿放入 bundle_plugins.dart / bundle_scripts.dart
+    # 自动生成标记块；目录资产声明不递归子目录，故逐文件显式列出）。
+    - docs/plugin-registry/plugins.json
+    - docs/plugin-registry/assets/view/module/index.html
+    - docs/plugin-registry/assets/view/module/manifest.json
+    - docs/plugin-registry/assets/warm_study/theme/theme.json
+
     # 查老师（zju teachers）：内置完整教师评分数据集（chalaoshi.top 抓取）。
     # 注意：勿放入下方 >>>PLUGIN_ASSETS_START>>> 标记块（该块由 bundle_plugins.dart 自动生成）。
     - assets/plugins_bundle/ai-assistant/module/manifest.json
@@ -123,9 +131,6 @@ flutter:
     - assets/plugins_bundle/settings/module/settings.spec
     - assets/plugins_bundle/skill-creator/module/manifest.json
     - assets/plugins_bundle/theme-creator/module/manifest.json
-    - assets/plugins_bundle/view/module/index.html
-    - assets/plugins_bundle/view/module/manifest.json
-    - assets/plugins_bundle/warm_study/theme/theme.json
 
     # <<<PLUGIN_ASSETS_END<<<
 

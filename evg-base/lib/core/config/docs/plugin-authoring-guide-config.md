@@ -3,9 +3,9 @@
 | 元信息 | 值 |
 | --- | --- |
 | 状态 | active |
-| 版本 | 1.0 |
-| 日期 | 2026-08-02 |
-| 负责人 | 待补充 |
+| 版本 | 以根 `README.md` 为准 |
+| 日期 | 2026-08-25 |
+| 负责人 | core-config |
 | 适用 | 配置插件作者 |
 
 > 面向插件开发者：如何为插件声明设置项和权限，如何通过 ConfigHttpServer 读写配置。
@@ -55,6 +55,7 @@ plugins/<name>/
 | `isSecure` | 否 | string | bool | 敏感字段标记，UI 以密码框展示，日志脱敏，默认 `false` |
 | `hint` | 否 | string / path / option | string | 帮助文本，显示在输入框下方 |
 | `options` | **是** | option | array | 下拉选项列表 `[{ "value": "存储值", "label": "显示文本" }]` |
+| `suggestions` | 否 | string / path | array | 快捷填充建议（仅 UI 提示，**不参与写入校验**，可填任意值）；元素支持 `{"value","label"}` 对象或纯字符串两种写法 |
 
 ### permissions 条目字段
 
@@ -69,7 +70,7 @@ plugins/<name>/
 
 ## 三、设置项类型
 
-Config 模块支持 **4 种**设置类型。所有值以字符串形式存储在 SharedPreferences 中。
+Config 模块支持 `string` / `bool` / `path` / `option` 设置类型。所有值以字符串形式存储在 SharedPreferences 中。
 
 | 类型 | 用途 | 特有字段 | 写入校验 |
 |------|------|---------|---------|
@@ -109,7 +110,7 @@ Config 模块支持 **4 种**设置类型。所有值以字符串形式存储在
 
 ## 五、完整示例
 
-### config.json（覆盖 4 种类型 + 权限）
+### config.json（覆盖全部设置类型 + 权限）
 
 ```json
 {
@@ -174,7 +175,7 @@ curl -X POST http://127.0.0.1:PORT/config/permissions/my_plugin \
 
 # 健康检查
 curl http://127.0.0.1:PORT/config/health
-# → {"status":"ok","settingsCount":14}
+# → {"status":"ok","settingsCount":<当前设置项数>}
 ```
 
 ---
@@ -188,7 +189,7 @@ curl http://127.0.0.1:PORT/config/health
 ```bash
 # 检查所有设置项
 curl http://127.0.0.1:PORT/config/health
-# → {"status":"ok","settingsCount":14}
+# → {"status":"ok","settingsCount":<当前设置项数>}
 ```
 
 **常见问题**：
@@ -207,6 +208,6 @@ curl http://127.0.0.1:PORT/config/health
 ## 八、参考
 
 - 本文档 §二：完整字段说明
-- 本文档 §三：4 种设置项类型详解
+- 本文档 §三：设置项类型详解
 - 本文档 §五：完整 JSON 示例
 - 本文档 §六：HTTP API 读写配置

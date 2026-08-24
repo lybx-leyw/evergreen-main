@@ -60,3 +60,5 @@ d[0-9]*_analyze*_*.txt
 
 # NuGet CLI 二进制（构建工具，官方随时可下载：https://dist.nuget.org）
 /nuget.exe
+# Widget Preview related
+.widget_preview/

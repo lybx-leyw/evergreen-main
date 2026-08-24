@@ -1,0 +1,74 @@
+<svg width="240" height="240" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="绿意不息 Logo">
+  <defs>
+    <!-- 背景柔光 -->
+    <radialGradient id="bgGlow" cx="50%" cy="42%" r="62%">
+      <stop offset="0%" stop-color="#eafff3"/>
+      <stop offset="55%" stop-color="#d4f7e4"/>
+      <stop offset="100%" stop-color="#b6efd0"/>
+    </radialGradient>
+    <!-- 叶片主渐变 -->
+    <linearGradient id="leafGrad" x1="18%" y1="8%" x2="82%" y2="95%">
+      <stop offset="0%" stop-color="#6fe3a0"/>
+      <stop offset="45%" stop-color="#2fbf71"/>
+      <stop offset="100%" stop-color="#0f9d58"/>
+    </linearGradient>
+    <!-- 高光叶脉 -->
+    <linearGradient id="veinGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#bff3d4" stop-opacity="0.35"/>
+    </linearGradient>
+    <!-- 循环环渐变 -->
+    <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#16c784"/>
+      <stop offset="50%" stop-color="#0aa56a"/>
+      <stop offset="100%" stop-color="#0d8f63"/>
+    </linearGradient>
+    <!-- 阴影 -->
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#0a6b48" flood-opacity="0.30"/>
+    </filter>
+    <filter id="innerGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="2.2" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- 圆角背景盘 -->
+  <rect x="8" y="8" width="224" height="224" rx="56" fill="url(#bgGlow)"/>
+  <rect x="8" y="8" width="224" height="224" rx="56" fill="none" stroke="#0f9d58" stroke-opacity="0.18" stroke-width="2"/>
+
+  <!-- 循环不息环（象征"不息"） -->
+  <g filter="url(#softShadow)">
+    <path d="M120 40
+             a80 80 0 1 1 -56.6 23.4"
+          fill="none" stroke="url(#ringGrad)" stroke-width="9" stroke-linecap="round"/>
+    <!-- 环首箭头 -->
+    <path d="M120 40 l-13 -2 l4 13 z" fill="#0f9d58"/>
+  </g>
+
+  <!-- 中央叶片（象征"绿意"） -->
+  <g filter="url(#softShadow)" transform="translate(120 132)">
+    <path d="M0 -78
+             C 46 -58, 60 6, 8 64
+             C -6 74, -6 74, -8 64
+             C -58 8, -42 -52, 0 -78 Z"
+          fill="url(#leafGrad)"/>
+    <!-- 主叶脉 -->
+    <path d="M0 -70 C 2 -36, 2 18, -2 60"
+          fill="none" stroke="url(#veinGrad)" stroke-width="3.4" stroke-linecap="round"/>
+    <!-- 侧脉 左 -->
+    <path d="M-1 -44 C -16 -34, -28 -22, -38 -8" fill="none" stroke="#eafff3" stroke-opacity="0.65" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M-1 -18 C -14 -10, -26 2, -34 14" fill="none" stroke="#eafff3" stroke-opacity="0.6" stroke-width="2.2" stroke-linecap="round"/>
+    <!-- 侧脉 右 -->
+    <path d="M1 -44 C 16 -36, 28 -24, 38 -12" fill="none" stroke="#eafff3" stroke-opacity="0.65" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M1 -18 C 14 -12, 26 0, 34 10" fill="none" stroke="#eafff3" stroke-opacity="0.6" stroke-width="2.2" stroke-linecap="round"/>
+    <!-- 叶面高光 -->
+    <path d="M-10 -64 C 18 -52, 34 -16, 20 20 C 6 -6, -8 -34, -10 -64 Z"
+          fill="#ffffff" fill-opacity="0.22"/>
+  </g>
+
+  <!-- 露珠点缀 -->
+  <circle cx="166" cy="78" r="6.5" fill="#ffffff" fill-opacity="0.9"/>
+  <circle cx="166" cy="78" r="6.5" fill="none" stroke="#0f9d58" stroke-opacity="0.25" stroke-width="1.2"/>
+  <circle cx="164" cy="76" r="2.2" fill="#ffffff"/>
+</svg>

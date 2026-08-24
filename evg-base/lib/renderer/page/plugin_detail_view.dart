@@ -2,8 +2,12 @@
 ///
 /// 对应 R-S2-2。遵循描述符驱动 + 数据注入模式。
 import 'package:flutter/material.dart';
+import 'package:evergreen_base/core/module/capability_bridge.dart'
+    show RiskLevel, riskOf;
 import '../components/shared/widgets/models.dart';
 import '../components/shared/widgets/ability_tag.dart';
+import '../components/shared/widgets/ability_capability_bridge.dart'
+    show toCoreDims;
 import '../components/shared/widgets/install_progress.dart';
 import '../components/shared/widgets/permission_dialog.dart';
 
@@ -291,15 +295,18 @@ class _PluginDetailViewState extends State<PluginDetailView> {
   }
 
   void _handleInstall(BuildContext context, PluginDescriptor p) async {
-    if (p.permissions.any((perm) => perm.level == PermissionLevel.danger)) {
-      final ok = await showPermissionDialog(
-        context,
+    // 安装前权限确认（M5-3）：把渲染层 AbilityDim 转核心层 CapabilityDimension，
+    // 有高危（danger）维度才弹确认窗（fail-closed，确认才安装）。
+    final dims = toCoreDims(p.dimensions);
+    final hasDanger = dims.any((d) => riskOf(d) == RiskLevel.danger);
+    if (hasDanger) {
+      final ok = await showPermissionConfirmDialog(
+        context: context,
         pluginName: p.name,
-        permissions: p.permissions,
+        dims: dims,
+        onConfirm: () => widget.onInstall?.call(),
       );
-      if (ok == true) {
-        widget.onInstall?.call();
-      }
+      if (ok) return;
     } else {
       widget.onInstall?.call();
     }

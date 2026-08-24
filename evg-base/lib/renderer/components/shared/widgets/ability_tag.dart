@@ -1,7 +1,9 @@
 /// 六色能力标签——用于市场卡片、详情页等场景。
 ///
 /// 对应 [AbilityDim] 枚举的六种维度，使用 [color_palette.md] 定义的色值。
+import 'package:evergreen_base/core/module/capability.dart';
 import 'package:flutter/material.dart';
+import 'ability_capability_bridge.dart';
 import 'models.dart';
 
 /// 单个能力维度标签。
@@ -9,12 +11,22 @@ import 'models.dart';
 /// 示例：
 /// ```dart
 /// AbilityTag(dim: AbilityDim.agent)
+/// AbilityTag.fromCapability(CapabilityDimension.agent)  // M5-4 桥接核心维度
 /// ```
 class AbilityTag extends StatelessWidget {
   final AbilityDim dim;
   final bool compact; // 紧凑模式：仅显示图标
 
   const AbilityTag({super.key, required this.dim, this.compact = false});
+
+  /// 从核心层 [CapabilityDimension] 构造（M5-4 桥接）。
+  ///
+  /// `process` 等无 UI 色标的维度 → 回退为 [AbilityDim.settings]（高危提示由
+  /// 权限弹窗单独承担，色标仅作维度归类）。
+  factory AbilityTag.fromCapability(CapabilityDimension dim) {
+    final abilityDim = toAbilityDim(dim) ?? AbilityDim.settings;
+    return AbilityTag(dim: abilityDim);
+  }
 
   static const _tagColors = <AbilityDim, _TagColor>{
     AbilityDim.agent: _TagColor(

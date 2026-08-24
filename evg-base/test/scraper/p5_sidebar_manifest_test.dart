@@ -107,8 +107,21 @@ void main() {
         (tester) async {
       // 关键：用户截图显示侧边栏已出现但 UI 仍为 0 个插件。
       // 此测试验证：当 pluginsDirProvider 注入正确路径时，MarketplaceSlot 能找到插件。
-      final pluginsDir = p.join(Directory.current.path, 'plugins').replaceAll(r'\', '/');
-      debugPrint('[Test] widget 测试注入 pluginsDir: $pluginsDir');
+      //
+      // 用临时目录 + 最小 module 插件隔离状态：真实 plugins/ 目录的
+      // .plugin_states.json 可能残留 collapsed:true 的折叠状态，导致卡片不渲染
+      // （测试脆弱）。临时目录无脏状态，且仍验证「识别本地插件」的核心能力。
+      final tmpDir = Directory.systemTemp.createTempSync('p5_market_');
+      final pluginDir = Directory(p.join(tmpDir.path, 'demo-module', 'module'))
+        ..createSync(recursive: true);
+      File(p.join(pluginDir.path, 'manifest.json')).writeAsStringSync(jsonEncode({
+        'id': 'demo-module',
+        'name': 'Demo 模块',
+        'type': 'module',
+        'version': '1.0.0',
+      }));
+      final pluginsDir = tmpDir.path.replaceAll(r'\', '/');
+      debugPrint('[Test] widget 测试注入 pluginsDir(临时): $pluginsDir');
 
       await tester.pumpWidget(
         ProviderScope(
@@ -139,6 +152,11 @@ void main() {
           find.text('显示侧栏').evaluate().isNotEmpty ||
           find.text('卸载').evaluate().isNotEmpty;
       expect(hasPluginCards, isTrue, reason: '应至少显示一个 LocalPluginCard');
+
+      // 清理临时目录。
+      try {
+        tmpDir.deleteSync(recursive: true);
+      } catch (_) {}
     });
   });
 }

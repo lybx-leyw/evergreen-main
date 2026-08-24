@@ -63,6 +63,11 @@ const List<_SystemButton> _systemButtons = [
       icon: Icons.storefront_outlined,
       route: '/marketplace'),
   _SystemButton(
+      label: '发现插件',
+      icon: Icons.explore_outlined,
+      route: '/discover'),
+
+  _SystemButton(
       label: '数据中心',
       icon: Icons.storage_outlined,
       route: '/data-dashboard'),

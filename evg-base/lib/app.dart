@@ -20,6 +20,7 @@ import 'package:evergreen_base/renderer/app/app_shell.dart';
 import 'package:evergreen_base/renderer/app/command_palette.dart';
 import 'package:evergreen_base/renderer/app/dev_mode_hub.dart';
 import 'package:evergreen_base/renderer/templates/scraper_modle/scraper_bridge_registry.dart';
+import 'package:evergreen_base/renderer/page/discovered_plugins_view.dart';
 import 'package:evergreen_base/renderer/app/service/data_change_notification_service.dart';
 import 'package:evergreen_base/renderer/app/service/providers/renderer_providers.dart';
 import 'package:evergreen_base/renderer/app/service/theme/theme_provider.dart';
@@ -188,8 +189,17 @@ final routerProvider = Provider<GoRouter>((ref) {
               state,
             ),
           ),
+          // M6-0 插件发现页（消费远程 registry，自动列出可发现插件）
+          GoRoute(
+            path: '/discover',
+            pageBuilder: (context, state) => _fadePage(
+              DiscoveredPluginsView(),
+              state,
+            ),
+          ),
           // Registry 驱动：所有模块路由
           ..._buildModuleRoutes(registry, pluginsDir, v2Manifests),
+
         ],
       ),
     ],

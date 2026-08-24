@@ -5,12 +5,12 @@
 /// 供 bridge 转发 HTTP 请求使用；缺失/读取失败时降级为「服务不可用」。
 ///
 /// ## 端口文件（写于 projectRoot）
-/// - `.agent_port`  → AgentHttpServer（24 端点：chat/stream、sessions、tools…）
-/// - `.config_port` → ConfigHttpServer（9 端点：settings、permissions、sources…）
-/// - `.data_port`   → DataHttpServer（7 端点：types、refresh、connectivity…）
-/// - `.module_port` → ModuleHttpServer（6 端点：模块路由查询）
-/// - `.theme_port`  → ThemeHttpServer（6 端点：主题配色查询）
-/// - `.core_port`   → CoreHttpServer（8 端点：install、ocr、plugins…）
+/// - `.agent_port`  → AgentHttpServer（chat/stream、sessions、tools…）
+/// - `.config_port` → ConfigHttpServer（settings、permissions、sources…）
+/// - `.data_port`   → DataHttpServer（types、refresh、connectivity…）
+/// - `.module_port` → ModuleHttpServer（模块路由查询，含 `/module/sidecars`）
+/// - `.theme_port`  → ThemeHttpServer（主题配色查询）
+/// - `.core_port`   → CoreHttpServer（install、ocr、plugins…）
 ///
 /// ## 设计
 /// - 依赖面小（dart:io / dart:convert / package:path + greenix_path 的

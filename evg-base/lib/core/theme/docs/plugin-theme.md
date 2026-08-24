@@ -3,9 +3,9 @@
 | 元信息 | 值 |
 | --- | --- |
 | 状态 | active |
-| 版本 | 1.0 |
-| 日期 | 2026-08-02 |
-| 负责人 | 待补充 |
+| 版本 | 以根 `README.md` 为准 |
+| 日期 | 2026-08-25 |
+| 负责人 | core-theme |
 | 适用 | 主题插件作者 |
 
 > 一页纸速查：文件位置、最小 JSON、8 色清单、颜色格式、校验清单。
@@ -91,3 +91,22 @@ plugins/<name>/theme/theme.json
 2. 重启应用（或查看启动日志确认无 ❌）
 3. 打开「设置」→「外观 · 主题」下拉，应出现你的主题
 4. 选中即全局换肤；重启后保持
+
+## HTTP 通道（插件 .exe 用）
+
+`ThemeHttpServer` 绑定 `127.0.0.1`，端口从 `.theme_port` 文件读取（端点见下表）：
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/theme/health` | 健康检查 |
+| GET | `/theme/themes` | 列出所有主题 |
+| GET | `/theme/themes/:id` | 主题详情或 404 |
+| GET | `/theme/active` | 当前活跃主题或 404 |
+| POST | `/theme/active` | 切换 `{"id":"..."}`，返回 400/404 |
+| GET | `/theme/token?key=<语义色名>` | 查询当前主题某个语义色（如 `key=accent`） |
+| OPTIONS | `/*` | CORS 预检（204） |
+
+```bash
+curl http://127.0.0.1:PORT/theme/active
+curl -X POST http://127.0.0.1:PORT/theme/active -H "Content-Type: application/json" -d '{"id":"my_theme"}'
+```

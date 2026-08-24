@@ -62,6 +62,9 @@ library;
 
 import 'dart:convert';
 
+import 'lattice.dart';
+import 'runtime.dart';
+
 // ═══════ JSON helpers ═══════
 
 String _require(Map<String, dynamic> json, String key) {
@@ -2663,14 +2666,29 @@ class ModuleDescriptor {
   /// 缺省 null（兼容现有全部模块）；v4 等仍走组件级/页面级数据源。
   final DataSourceDescriptor? dataSource;
 
-  /// 模板路由子选择（v5P）——消费方模块经 `modle_route` 选择 modle 内的某套子 UI。
-  /// 例如 zdbk-modle 支持 'score' | 'course_offerings' | 'training_plans' | 'notifications'，留空回退 'score'。
-  final String? modleRoute;
-
   /// 模块级多数据源（v5P）——声明式多数据源：命名 source → 数据源描述。
   /// 用于需要多个 `orch://<type>` 的 modle（如 zdbk）。键为 modle 契约约定的
   /// 语义名（如 'transcript' / 'timetable'）；模板按 [modleRoute] 取用对应子集。
   final Map<String, DataSourceDescriptor>? dataSources;
+
+  /// 模板路由子选择（v5P）——消费方模块经 `modle_route` 选择 modle 内的某套子 UI。
+  /// 例如 zdbk-modle 支持 'score' | 'course_offerings' | 'training_plans' | 'notifications'，留空回退 'score'。
+  final String? modleRoute;
+
+  /// 六格契约等级（M0 新增）——决定插件落入哪一格运行时契约。
+  ///
+  /// 可空用于直接构造（缺省推断）；[fromJson] 恒解析为具体值（显式或推断）。
+  /// 若 manifest 显式声明 `lattice`，则 [latticeExplicit] 为 true。
+  final Lattice? lattice;
+
+  /// 是否为 manifest 中**显式声明**的 lattice（区分「显式」与「推断」）。
+  ///
+  /// 用于序列化时决定是否写回 `lattice` 键，保证旧 manifest 字节兼容
+  /// （O4：旧 manifest 无 `lattice` 键，toJson 也不写）。
+  final bool latticeExplicit;
+
+  /// sidecar 运行时描述符（M0 新增）——仅 [Lattice.sidecar] 格非空。
+  final RuntimeDescriptor? runtime;
 
   const ModuleDescriptor({
     this.schemaVersion = '2.0',
@@ -2695,6 +2713,9 @@ class ModuleDescriptor {
     this.dataSource,
     this.modleRoute,
     this.dataSources,
+    this.lattice,
+    this.latticeExplicit = false,
+    this.runtime,
   });
 
   // ═══ 便捷查询 ═══
@@ -2777,7 +2798,72 @@ class ModuleDescriptor {
           json['dataSource'] as Map<String, dynamic>?),
       modleRoute: json['modle_route'] as String?,
       dataSources: _parseModuleDataSources(json['dataSources']),
+      lattice: _latticeValue(json),
+      latticeExplicit: _latticeExplicitValue(json),
+      runtime: _runtimeValue(json),
     );
+  }
+
+  /// 解析后的 lattice（显式或推断，恒非 null）。
+  static Lattice _latticeValue(Map<String, dynamic> json) =>
+      _parseLatticeAndRuntime(json).lattice!;
+
+  /// 是否为 manifest 显式声明的 lattice。
+  static bool _latticeExplicitValue(Map<String, dynamic> json) =>
+      _parseLatticeAndRuntime(json).latticeExplicit;
+
+  /// 解析后的 runtime（仅 sidecar 格非空）。
+  static RuntimeDescriptor? _runtimeValue(Map<String, dynamic> json) =>
+      _parseLatticeAndRuntime(json).runtime;
+
+  /// 解析 [lattice] + [runtime]（M0 契约格）。
+  ///
+  /// 解析规则（严格遵循 m0-lattice-contract-design.md，fail-closed）：
+  /// - `lattice` 显式声明：解析为具体值，且不接受非法值（抛 [FormatException]）。
+  /// - `lattice` 缺失：按 §2.4 优先级表推断。
+  /// - `runtime` 仅 `sidecar` 格允许非空：
+  ///   - `lattice == sidecar` 却缺 `runtime` → 抛（声明了进程却无入口）。
+  ///   - `lattice != sidecar` 却带 `runtime` → 抛（防静默降级为静态渲染）。
+  static ({Lattice? lattice, bool latticeExplicit, RuntimeDescriptor? runtime})
+      _parseLatticeAndRuntime(Map<String, dynamic> json) {
+    final rawLattice = json['lattice'];
+    final hasRuntime = json['runtime'] != null;
+
+    Lattice lattice;
+    bool latticeExplicit;
+    if (rawLattice != null) {
+      if (rawLattice is! String) {
+        throw FormatException('lattice 必须是字符串');
+      }
+      lattice = parseLattice(rawLattice);
+      latticeExplicit = true;
+    } else {
+      lattice = inferLattice(LatticeSignals(
+        hasRuntime: hasRuntime,
+        template: json['template'] as String?,
+        hasDataSource: json['dataSource'] != null ||
+            json['dataSources'] != null,
+        hasActivateSkills:
+            (json['activateSkills'] as List?)?.isNotEmpty ?? false,
+        isPlainV4: (json['pages'] as List?)?.isNotEmpty ?? false,
+      ));
+      latticeExplicit = false;
+    }
+
+    RuntimeDescriptor? runtime;
+    if (hasRuntime) {
+      if (lattice != Lattice.sidecar) {
+        throw FormatException(
+            '非 sidecar 格（实际 $lattice）不允许声明 runtime'
+            '（避免「声明了进程却按静态渲染」的静默降级）');
+      }
+      runtime = RuntimeDescriptor.fromJson(
+          json['runtime'] as Map<String, dynamic>);
+    } else if (lattice == Lattice.sidecar) {
+      throw FormatException('lattice 为 sidecar 必须提供 runtime 描述符');
+    }
+
+    return (lattice: lattice, latticeExplicit: latticeExplicit, runtime: runtime);
   }
 
   static Map<String, Map<String, String>>? _parseThemeOverride(dynamic raw) {
@@ -2842,6 +2928,15 @@ class ModuleDescriptor {
     if (dataSources != null && dataSources!.isNotEmpty) {
       m['dataSources'] =
           dataSources!.map((k, v) => MapEntry(k, v.toJson()));
+    }
+
+    // M0 契约格：lattice 仅在**显式声明**时写回（O4 字节兼容，旧 manifest 不新增键）。
+    if (latticeExplicit && lattice != null) {
+      m['lattice'] = formatLattice(lattice!);
+    }
+    // runtime 仅 sidecar 格非空；RuntimeDescriptor.toJson 内部省略 deny-all capabilities。
+    if (runtime != null) {
+      m['runtime'] = runtime!.toJson();
     }
 
     return m;

@@ -3,16 +3,39 @@
 | 元信息 | 值 |
 | --- | --- |
 | 状态 | active |
-| 版本 | 1.0 |
+| 版本 | 以根 `README.md` 为准 |
 | 日期 | 2026-08-02 |
 | 负责人 | 待补充 |
 | 适用 | services（OCR/翻译/安装/更新） |
 
-> 源码 `ocr_pipeline.dart` `deepseek_ocr_service.dart` `update_service.dart` `plugin_installer.dart` `core_http_server.dart`、测试 `../test/`
+> 源码 `ocr_pipeline.dart` `deepseek_ocr_service.dart` `update_service.dart` `plugin_installer.dart` `core_http_server.dart` `github_stars.dart`、测试 `../test/`
 >
 > **HTML-first 事实**：用户 HTML 插件通过 `platform.api.call("core", ...)` 访问 Core 服务；本目录的 OCR/更新/安装服务仍由平台内部与开发者模式插件使用。
+>
+> **barrel 说明**：`services.dart` 导出纯 Dart 服务（OCR/更新/安装/Core HTTP/GitHub stars）；
+> `github_clone.dart` / `github_metadata.dart` / `pdf_translate_service.dart` / `translate_queue.dart` /
+> `release_downloader.dart` / `ui_operation_log.dart` 含 Flutter 依赖或独立契约，按需直接 import 对应文件。
 
-平台级基础服务——OCR 文字识别、应用更新、插件安装管理、HTTP API。外部插件可直接调用。
+平台级基础服务——OCR 文字识别、应用更新、插件安装管理、HTTP API、PDF 翻译、GitHub 集成。外部插件可直接调用。
+
+---
+
+## 〇、服务清单
+
+| 服务 | 文件 | 说明 | 是否 barrel 导出 |
+|------|------|------|-----------------|
+| `OcrPipeline` | `ocr_pipeline.dart` | 两级降级 OCR + 并行 + 就绪诊断 | ✅ |
+| `DeepSeekOcrService` | `deepseek_ocr_service.dart` | DeepSeek Vision API 封装 | ✅ |
+| `UpdateService` | `update_service.dart` | 宿主/插件更新检查 | ✅ |
+| `PluginInstaller` | `plugin_installer.dart` | 插件安装/卸载/校验/崩溃监控 | ✅ |
+| `CoreHttpServer` | `core_http_server.dart` | REST 端点微服务网格 | ✅ |
+| `GithubStarsFetcher` | `github_stars.dart` | star 数数据中枢接入（DataType） | ✅ |
+| `GithubCloner` | `github_clone.dart` | GitHub 源克隆（git clone 子进程） | 直接 import |
+| `GithubMetadata` | `github_metadata.dart` | 仓库元数据抓取（市场卡片实时 star） | 直接 import |
+| `PdfTranslateService` | `pdf_translate_service.dart` | PDF 翻译（pdf2zh 子进程，JSON Lines 事件流） | 直接 import |
+| `TranslateQueue` | `translate_queue.dart` | 并行翻译调度（槽位 + FIFO 队列） | 直接 import |
+| `ReleaseDownloader` | `release_downloader.dart` | GitHub release 二进制下载/解压 | 直接 import |
+| `UIOperationLog` | `ui_operation_log.dart` | UI 操作日志（DebugErrorBar 实时显示） | 直接 import |
 
 ---
 
@@ -32,9 +55,11 @@ import 'package:evergreen_base/core/services/services.dart';
 import 'package:dio/dio.dart';
 
 // 两级降级 OCR（推荐）
-final pipeline = OcrPipeline(Dio());
-final text = await pipeline.recognizeFile(path);  // → String?，失败返回 null
-final text2 = await pipeline.recognizeUrl(url);   // → String，失败返回空字符串
+final pipeline = OcrPipeline(Dio());                 // apiKey 缺省回退环境变量 DEEPSEEK_OCR_API_KEY
+final text = await pipeline.recognizeFile(path);     // → String?，失败返回 null
+final text2 = await pipeline.recognizeUrl(url);      // → String，失败返回空字符串
+final texts = await pipeline.recognizeFiles([p1, p2]); // → List<String?>，多文件并行
+final report = await pipeline.checkReadiness();      // → OcrReadinessReport 环境诊断
 
 // 仅云端 OCR
 final svc = DeepSeekOcrService(Dio(), apiKey);
@@ -46,9 +71,12 @@ final result = await svc.testConnection();        // → Result<String>
 
 | 方法 | 输入 | 输出 | 说明 |
 |------|------|------|------|
-| `OcrPipeline(dio, [pythonEnv])` | `dio: Dio`, `pythonEnv: PythonEnv?` | `OcrPipeline` | 构造 |
+| `OcrPipeline(dio, [pythonEnv, apiKey])` | `dio: Dio`, `pythonEnv: PythonEnv?`, `apiKey: String?` | `OcrPipeline` | 构造；apiKey 缺省读 `DEEPSEEK_OCR_API_KEY` |
 | `.recognizeFile(path)` | `path: String` 本地文件路径 | `Future<String?>` | 图片/PDF→文字，失败 null |
-| `.recognizeUrl(url)` | `url: String` 图片 URL | `Future<String>` | 下载+OCR，失败抛异常 |
+| `.recognizeFiles(paths)` | `paths: List<String>` | `Future<List<String?>>` | 多文件并行，单文件失败不影响其他 |
+| `.recognizeUrl(url)` | `url: String` 图片 URL | `Future<String>` | 下载+OCR，失败返回空字符串 |
+| `.checkReadiness()` | — | `Future<OcrReadinessReport>` | Python/脚本/Key/Tesseract 就绪诊断 |
+| `pageConcurrency` | `int`（默认 4） | 属性 | PDF 逐页 OCR 并行度 |
 | `parsePageOutput(stdout)` | `stdout: String` | `String?` | 解析子进程 JSON 输出（公开静态方法） |
 
 ### DeepSeekOcrService
@@ -155,16 +183,17 @@ URL → download (3 次重试: 1s/3s/5s) → ZIP 解压 → manifest.json 校验
 
 ## 四、Core HTTP Server（I++ 微服务端点）
 
-8 个 REST 端点，绑定 `127.0.0.1` 随机端口，端口号写入 `.core_port` 供插件 `.exe` 发现。
+REST 端点（见下表），绑定 `127.0.0.1` 随机端口。端口发现文件由启动器（`app_bootstrap.dart`）统一写入
+projectRoot 下的 `.core_port` 供插件 `.exe` 发现（server 自身不再写端口文件）。
 
 ```dart
 import 'package:evergreen_base/core/services/services.dart';
 
 final server = CoreHttpServer(installer, ocrPipeline, updateService);
 final port = await server.start();    // 启动 → 返回端口号
-// 插件 .exe 读取 .core_port 文件 → http://127.0.0.1:$port/core/...
+// 插件 .exe 读取 projectRoot/.core_port 文件 → http://127.0.0.1:$port/core/...
 
-await server.stop();                  // 关闭 + 清理 .core_port
+await server.stop();                  // 关闭服务器
 print(server.isRunning);              // 运行状态
 ```
 
@@ -173,8 +202,8 @@ print(server.isRunning);              // 运行状态
 | 方法 | 说明 |
 |------|------|
 | `CoreHttpServer(installer, ocrPipeline, updateService, {port})` | 构造，默认 port=0 自动分配 |
-| `.start()` → `Future<int>` | 启动监听，返回端口号，写入 `.core_port` |
-| `.stop()` → `Future<void>` | 关闭服务器，清理 `.core_port` 文件 |
+| `.start()` → `Future<int>` | 启动监听，返回端口号 |
+| `.stop()` → `Future<void>` | 关闭服务器 |
 | `isRunning` → `bool` | 是否正在监听 |
 | `port` → `int` | 实际端口号（未启动=0） |
 
@@ -197,18 +226,21 @@ print(server.isRunning);              // 运行状态
 
 | 依赖 | 说明 |
 |------|------|
-| `scripts/python/python.exe` | 嵌入式 Python（Tesseract 降级链） |
-| `scripts/ocr_slides.exe` | OCR 子进程 |
+| 嵌入式 Python 运行时 | Tesseract 降级链解释器（由安装包预置 / 资产释放提供，非仓库资产） |
+| `scripts/ocr_slides.py` | OCR 子进程（URL 输入） |
 | `scripts/pdf_to_images.py` | PDF 拆页脚本 |
 | `scripts/ocr_file.py` | 本地 OCR 脚本 |
-| DeepSeek API Key | `DEEPSEEK_API_KEY` 设置项（OCR 云端链） |
+| DeepSeek OCR API Key | 环境变量 `DEEPSEEK_OCR_API_KEY`（OCR 云端链；`OcrPipeline` 构造可注入 apiKey 覆盖） |
+
+> 脚本运行期路径：由资产释放填充到 `.greenix/scripts`（`greenixScriptsDir`），
+> 本体维护在 `evg-base/scripts/`（platform OWNER 管辖）。
 
 ## 规则
 
 - `OcrPipeline` 两级降级——优先云端，失败回退本地。
-- `recognizeFile` 返回 `null` 表示全部降级失败。
+- `recognizeFile` 返回 `null` 表示全部降级失败；`recognizeUrl` 失败返回空字符串（不抛异常）。
 - `UpdateService` 网络错误静默返回 `(false, null, null)`。
 - `PluginInstaller.install()` 签名不匹配→拒绝、3 次重试(1s/3s/5s)、ZIP slip 防护。
 - `PluginInstaller` 崩溃阈值 10 分钟内 ≥3 次→`isUnstable=true`。
-- `CoreHttpServer` 端口写入 `.core_port` 文件供插件发现。
-- 所有服务通过 `services.dart` barrel 统一导出。
+- 端口发现文件由 `app_bootstrap.dart` 统一写入 projectRoot（`.core_port` 等端口文件）。
+- `services.dart` barrel 仅导出纯 Dart 服务；含 Flutter 依赖的服务按需直接 import（见文件头说明）。
