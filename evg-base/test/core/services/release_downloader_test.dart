@@ -16,6 +16,31 @@ import 'package:evergreen_base/core/module/github_source.dart';
 import 'package:evergreen_base/core/services/release_downloader.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+/// 复刻 release_downloader 的平台判定（与实现保持一致，使下述用例在任意桌面
+/// 平台都能通过，不写死 Windows）。CI runner 为 Linux 时同样成立。
+String _expectedPlatform() {
+  if (Platform.isWindows) return 'windows';
+  if (Platform.isMacOS) return 'darwin';
+  return 'linux';
+}
+
+String _expectedArch() {
+  if (Platform.isAndroid || Platform.isIOS || Platform.isMacOS) {
+    final v = Platform.version.toLowerCase();
+    if (v.contains('arm') || v.contains('aarch')) return 'arm64';
+  }
+  return 'amd64';
+}
+
+/// 当前平台的标准标识（用于 platforms 白名单比对）。
+String _expectedCurrentPlatform() {
+  if (Platform.isAndroid) return 'android';
+  if (Platform.isWindows) return 'windows';
+  if (Platform.isMacOS) return 'macos';
+  if (Platform.isLinux) return 'linux';
+  return 'unknown';
+}
+
 Dio _dioWith(Future<ResponseBody> Function(RequestOptions options) handler) {
   final dio = Dio();
   dio.httpClientAdapter = _MockAdapter(handler);
@@ -152,11 +177,13 @@ void main() {
 
   test('平台占位符：{platform}/{arch} 运行时替换后匹配正确 asset', () async {
     final tarGz = _tarGz({'zjuical.exe': 'bin'});
+    final platform = _expectedPlatform();
+    final arch = _expectedArch();
     final dio = _dioWith((options) async {
       if (options.path.endsWith('/releases/latest')) {
         return _json(200, _release('v1.0.0-rc7', [
-          'zjuicalsrv_1.0.0-rc7_windows_amd64.tar.gz', // 服务端，排除
-          'zjuical_1.0.0-rc7_windows_amd64.tar.gz', // 客户端，选中
+          'zjuicalsrv_1.0.0-rc7_${platform}_$arch.tar.gz', // 服务端，排除
+          'zjuical_1.0.0-rc7_${platform}_$arch.tar.gz', // 客户端，选中
           'zjuical_1.0.0-rc7_darwin_amd64.tar.gz', // 其它平台
         ]));
       }
@@ -171,10 +198,11 @@ void main() {
       dio: dio,
     );
 
-    // 测试机为 Windows，{platform} 展开为 windows，{arch} 展开为 amd64。
-    // 空格分隔 → zjuical 与 windows_amd64 各自独立匹配（中间隔版本号也能命中）。
+    // {platform}/{arch} 按当前平台展开（空格分隔让 zjuical 与平台片段独立匹配，
+    // 中间隔版本号也能命中）。Windows→windows_amd64，Linux→linux_amd64，
+    // macOS→darwin_amd64/arm64，平台无关。
     expect(r.success, isTrue, reason: r.error);
-    expect(r.assetName, 'zjuical_1.0.0-rc7_windows_amd64.tar.gz');
+    expect(r.assetName, 'zjuical_1.0.0-rc7_${platform}_$arch.tar.gz');
     Directory(tmp).deleteSync(recursive: true);
   });
 
@@ -185,12 +213,19 @@ void main() {
       return _json(200, _release('v1.0.0-rc7', []));
     });
 
-    // 白名单里没有当前平台（测试机是 Windows，白名单只放 macos/linux）。
+    // 白名单排除当前平台（平台无关：所有桌面平台里剔除当前运行的那个）。
+    // 例：Windows 上白名单为 [macos, linux]；Linux 上为 [windows, macos]。
+    final allPlatforms = ['windows', 'macos', 'linux'];
+    final current = _expectedCurrentPlatform();
+    final whitelist = allPlatforms.where((p) => p != current).toList();
+    // 仅当当前平台是已知桌面平台时才验证白名单拦截；否则无法构造「不支持」场景。
+    if (!allPlatforms.contains(current)) return;
+
     final r = await downloadRelease(
       _src(),
       Directory.systemTemp.createTempSync('release5_').path,
       assetPattern: 'zjuical {platform}_{arch}!srv',
-      platforms: ['macos', 'linux'],
+      platforms: whitelist,
       dio: dio,
     );
 
