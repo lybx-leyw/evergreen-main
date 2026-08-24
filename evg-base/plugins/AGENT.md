@@ -28,7 +28,7 @@ parent: root
 
 ### 内置插件清单
 
-`ai-assistant`、`data-dashboard`、`dsh`、`html-creator`、`marketplace`、`pdf_translate`、`python-runner`、`scraper`、`settings`、`skill-creator`、`theme-creator`、`view`、`warm_study`、`zju_autosign`
+`ai-assistant`、`data-dashboard`、`dsh`、`html-creator`、`marketplace`、`pdf_translate`、`python-runner`、`scraper`、`settings`、`skill-creator`、`theme-creator`
 
 ### 已有独立 OWNER 的插件
 
@@ -43,7 +43,8 @@ parent: root
 | `pdf_translate` | `plugin-pdf-translate` | `plugins/pdf_translate/AGENT.md` |
 | `zju_modle`（纯模板） | `plugin-zju` | `lib/renderer/templates/zju_modle/AGENT.md` |
 
-> 其余插件（`data-dashboard`、`python-runner`、`settings`、`skill-creator`、`view`、`warm_study`、`zju_autosign`）由本 OWNER 统一托管。
+> 其余插件（`data-dashboard`、`python-runner`、`settings`、`skill-creator`）由本 OWNER 统一托管。
+> `view` / `warm_study` / `zju_autosign` 已移交「发现插件」registry（`docs/plugin-registry/plugins.json`）管理。
 
 ## 2. 边界与红线
 

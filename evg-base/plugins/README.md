@@ -6,7 +6,7 @@
 > - **Agent 工具插件**：`plugins/<name>/agent/manifest.json` + 可执行文件，由 `PluginBridge` 发现
 > - **主题插件**：`plugins/<name>/theme/theme.json`，由 `ThemeLoader` 加载
 > - **配置插件**：`plugins/<name>/config/config.json`，由 `SettingsLoader` 加载
-> - **常驻进程**：`plugins/<name>/module/manifest.json` 的 `process` 字段声明长驻 worker（如 `zju_autosign`），由模块页经 `platform.process` 拉起
+> - **常驻进程**：`plugins/<name>/module/manifest.json` 的 `process` 字段声明长驻 worker，由模块页经 `platform.process` 拉起
 
 ```mermaid
 flowchart LR
@@ -40,13 +40,14 @@ flowchart LR
 | `settings` | module + config | 设置面板：API Key、模型、主题、HTTP 设置页面 |
 | `skill-creator` | module | Skill 创作中心：多 Agent 流水线生成/导出 Skill |
 | `theme-creator` | module | 主题创作中心：8 色语义色板可视化编辑 + 导出 |
-| `view` | module | 我的成绩单：HTML 插件成绩查看器（`template:"html"`，`module/index.html`） |
-| `warm_study` | theme | 温馨学习主题（暖色调） |
-| `zju_autosign` | module + config | 学在浙大自动签到：雷达/数字点名自动应答 + 钉钉推送（`template:"html"` + `module.process` 常驻 worker + `config/config.json` 新增 `AUTOSIGN_*` 设置） |
 
-> **模板路由**：`dsh`、`html-creator`、`view`、`zju_autosign`、`scraper`、`skill-creator`、`theme-creator`
-> 的 manifest 带 `template` 字段（依次为 `dsh` / `html` / `html` / `html` / `scraper` / `skill-creator` / `theme-creator`），
+> **模板路由**：`dsh`、`html-creator`、`scraper`、`skill-creator`、`theme-creator`
+> 的 manifest 带 `template` 字段（依次为 `dsh` / `html` / `scraper` / `skill-creator` / `theme-creator`），
 > 走专用模板渲染；其余内置模块走 v4 组件式渲染。新增内置插件后请同步登记本清单。
+
+> **已移交 registry 的插件**：`view`（我的成绩单）、`warm_study`（温暖学习主题）、`zju_autosign`（学在浙大自动签到）
+> 已移出内置插件目录，改由「发现插件」页经 `docs/plugin-registry/plugins.json` 管理（local 资源条目），
+> 安装后经 `_copyLocalAssets` 落盘到 `plugins/<id>/`。
 
 ## HTML 插件（用户侧主路径）
 

@@ -57,12 +57,11 @@ dart tool/gen_template_registry.dart --profile release_full
 | `pdf_translate` | 模块（JSON pages） | PDF 翻译（DeepSeek API，7 语言互译） |
 | `data-dashboard` | 模块（dart 渲染） | 数据中枢——数据源状态总览 |
 | `python-runner` | Agent 工具 | Python 运行器 |
-| `warm_study` | 主题插件 | 温习主题（`theme/theme.json`） |
-| `view` | 模板 `html` | 我的成绩单（HTML 插件） |
 | `settings` | 模块（dart 渲染） | 设置——API Key/模型/主题 |
-| `zju_autosign` | 模板 `html` | 浙大自动签到（HTML 插件） |
 
 > 说明：`html` / `theme-creator` / `skill-creator` / `scraper` / `dsh` 为模板型插件（manifest 含 `"template"`），其余为 JSON 模块（`pages` 声明）或特殊类型。当前完整清单以 `evg-base/plugins/` 目录与 `evg-base/plugins/README.md` 为准。
+>
+> **发现插件（registry）**：`view`（我的成绩单）、`warm_study`（温暖学习）、`zju_autosign`（浙大自动签到）等插件通过 `evg-base/docs/plugin-registry/plugins.json` 管理，可在「发现插件」页安装，见 [`plugin-registry-spec-v1.md`](evg-base/docs/plugin-registry/plugin-registry-spec-v1.md)。
 
 ## 文档地图
 

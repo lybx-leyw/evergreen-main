@@ -131,9 +131,6 @@ flutter:
     - assets/plugins_bundle/settings/module/settings.spec
     - assets/plugins_bundle/skill-creator/module/manifest.json
     - assets/plugins_bundle/theme-creator/module/manifest.json
-    - assets/plugins_bundle/view/module/index.html
-    - assets/plugins_bundle/view/module/manifest.json
-    - assets/plugins_bundle/warm_study/theme/theme.json
 
     # <<<PLUGIN_ASSETS_END<<<
 
