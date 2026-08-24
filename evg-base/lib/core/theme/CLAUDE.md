@@ -3,9 +3,9 @@
 | 元信息 | 值 |
 | --- | --- |
 | 状态 | active |
-| 版本 | 1.0 |
-| 日期 | 2026-08-02 |
-| 负责人 | 待补充 |
+| 版本 | 以根 `README.md` 为准 |
+| 日期 | 2026-08-25 |
+| 负责人 | core-theme |
 | 适用 | AI 协作者（theme 子包） |
 
 > Evergreen 主题系统——**扁平语义色板（8 色）**，主题即完整配色方案（明暗由色板决定），ChangeNotifier 响应式切换。
@@ -22,7 +22,7 @@ ThemeDescriptor (扁平 8 色模型) + ThemeColor (值对象)
         │
    ├── registerBuiltinThemes → 内置 dark/light/evergreen（代码注册）
    ├── ThemeLoader → plugins/ 下的主题插件（theme.json）
-   └── ThemeHttpServer (7 REST 端点)
+   └── ThemeHttpServer（HTTP 端点，见 §七）
 ```
 
 | 文件 | 职责 |
@@ -32,7 +32,7 @@ ThemeDescriptor (扁平 8 色模型) + ThemeColor (值对象)
 | `theme_store.dart` | 响应式容器，ChangeNotifier |
 | `theme_loader.dart` | 扫描目录/文件，加载 theme.json（失败输出 ❌ 日志） |
 | `builtin_themes.dart` | 内置主题（dark/light/evergreen，`registerBuiltinThemes`） |
-| `theme_http_server.dart` | 7 端点 HTTP API（含 CORS 预检） |
+| `theme_http_server.dart` | HTTP API（端点见 §七，含 CORS 预检） |
 | `render_rules.dart` | 像素级设计常量（间距/圆角/字号等） |
 | `theme.dart` | barrel 导出 |
 
@@ -42,6 +42,7 @@ ThemeDescriptor (扁平 8 色模型) + ThemeColor (值对象)
 
 ```
 lib/core/theme/
+├── AGENT.md                  # OWNER 职责书（core-theme）
 ├── CLAUDE.md                  # 本文件
 ├── README.md                  # 面向人类的使用文档（扁平 8 色模型）
 ├── pubspec.yaml               # 包声明（依赖 flutter_stub + path）
@@ -50,7 +51,7 @@ lib/core/theme/
 ├── theme_store.dart           # ThemeStore 响应式存储器
 ├── theme_loader.dart          # scanThemes / loadThemes / scanThemeFile
 ├── builtin_themes.dart        # 内置主题（dark/light/evergreen）
-├── theme_http_server.dart     # HTTP 7 端点
+├── theme_http_server.dart     # HTTP API（端点见 §七）
 ├── render_rules.dart          # 像素级设计常量
 ├── src/
 │   └── color.dart             # ThemeColor 值对象
@@ -61,7 +62,7 @@ lib/core/theme/
 │   └── plugins/my_theme/      # 示例主题插件（ocean_blue，扁平 8 色）
 └── test/
     ├── theme_test.dart        # ThemeDescriptor + ThemeStore + 扫描（扁平模型）
-    ├── theme_http_server_test.dart  # 7 端点测试
+    ├── theme_http_server_test.dart  # HTTP 端点测试
     ├── token_validation_test.dart   # 示例主题 8 色校验
     └── builtin_themes_test.dart     # 内置主题完整性
 ```
@@ -179,17 +180,17 @@ JS 侧可用 `platform.theme.getColors()` 获取，并监听 `theme:changed` 实
 
 ## 七、跨模块接口契约
 
-### HTTP 端点（7 个）
+### HTTP 端点
 
-| # | 方法 | 路径 | 说明 |
-|---|------|------|------|
-| 1 | GET | `/theme/health` | `{status, timestamp, themeCount}` |
-| 2 | GET | `/theme/themes` | 列出所有主题 |
-| 3 | GET | `/theme/themes/:id` | 主题详情或 404 |
-| 4 | GET | `/theme/active` | 活跃主题或 404 |
-| 5 | POST | `/theme/active` | 切换（`{id}`），返回 400/404 |
-| 6 | GET | `/theme/token?key=` | 查询语义色 |
-| 7 | OPTIONS | `/*` | CORS 预检（返回 204 + Allow-Origin） |
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/theme/health` | `{status, timestamp, themeCount}` |
+| GET | `/theme/themes` | 列出所有主题 |
+| GET | `/theme/themes/:id` | 主题详情或 404 |
+| GET | `/theme/active` | 活跃主题或 404 |
+| POST | `/theme/active` | 切换（`{id}`），返回 400/404 |
+| GET | `/theme/token?key=` | 查询语义色 |
+| OPTIONS | `/*` | CORS 预检（返回 204 + Allow-Origin） |
 
 ### 渲染层调用
 
@@ -207,3 +208,12 @@ JS 侧可用 `platform.theme.getColors()` 获取，并监听 `theme:changed` 实
 - 内置 `light`/`dark` 仅覆盖核心语义色，其余由渲染器 fallback
 - HTTP 绑定 `loopbackIPv4` 仅内部可访问
 - 非法 hex 返回 `null`，使用 fallback 参数指定兜底
+
+---
+
+## 九、版本历史
+
+| 日期 | 变更 |
+|------|------|
+| 2026-08-25 | 文档对齐代码：目录结构补 AGENT.md；确认 ThemeHttpServer 端点表与扁平 8 色模型一致（含 OPTIONS 预检）；按文档修订三原则去除硬编码数量与版本号 |
+| 2026-08-02 | 初始版本：创建 CLAUDE.md（扁平 8 色模型 / 废弃五层 token / HTTP 端点契约） |

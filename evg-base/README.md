@@ -3,9 +3,9 @@
 | 元信息 | 值 |
 | --- | --- |
 | 状态 | active |
-| 版本 | 1.0 |
-| 日期 | 2026-08-02 |
-| 负责人 | 待补充 |
+| 版本 | 见根 README.md |
+| 日期 | 2026-08-25 |
+| 负责人 | platform-owner |
 | 适用 | 平台底层全仓 |
 
 Flutter 桌面应用平台底层——双轨架构（`core/` 服务 + `renderer/` 渲染）。提供模块系统、Agent 运行时、数据谱仪器、主题引擎、OCR 服务。**用户侧插件创作以 HTML 为主**：用户通过 `html-creator` 自写 HTML/CSS/JS，平台提供实时预览、AI 辅助生成与一键导出；外部插件放入 `plugins/` 目录即热加载，无需修改 base 源码。
@@ -41,8 +41,9 @@ evergreen-base/
 │   ├── theme/                        兼容性 stub → Breakpoints 常量
 │   └── generated/                    兼容性 stub → re-export providers.dart
 │
-├── windows/                          Flutter Windows runner + CMake
-├── scripts/                          Python OCR 脚本 + 嵌入式运行时 + Inno Setup
+├── windows/                          Flutter Windows runner + CMake（含 media_kit 防复发保护）
+├── scripts/                          Python 管线（OCR / PDF 翻译）+ 嵌入式运行时 + Inno Setup
+├── android/                          Android 平台壳（Chaquopy Python 3.11，Gradle）
 ├── plugins/                          外部插件（安装后空占位，用户放入即热加载）
 └── pubspec.yaml
 ```
@@ -59,9 +60,10 @@ scripts\setup_python.cmd
 # 运行
 flutter run -d windows
 
-# 打包
-flutter build windows --release
-ISCC.exe scripts\installer.iss
+# 打包（完整流程见 scripts/README.md「构建 / 打包」）
+flutter build windows --release --dart-define=EVERGREEN_ZJU=true --no-tree-shake-icons
+ISCC.exe scripts\installer.iss "/DMyAppSuffix=-Zju" "/DMyBuildMode=Release"
+# 双版：-Zju（浙大专用版）/ -Std（通用版）；输出 build\installer\EvergreenSetup{Zju|Std}-{Release|Debug}-<ver>.exe
 ```
 
 ## 插件接入
@@ -80,7 +82,7 @@ plugins/<name>/
 
 一个插件可同时提供多种类型——各子目录互不冲突。
 
-## 6 模块对外接口
+## 模块对外接口
 
 | 模块 | Barrel | 核心类 | 用途 |
 |------|--------|--------|------|

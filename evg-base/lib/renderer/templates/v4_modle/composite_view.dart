@@ -56,7 +56,7 @@ import 'package:evergreen_base/renderer/templates/v4_modle/layout_engine.dart';
 
 /// 复合视图——根据 [ModuleDescriptor.pages] 渲染多页面 Tab 界面。
 ///
-/// 每页独立渲染其 slots：按 [PageDescriptor.layout.grid.columns] 分栏，
+/// 每页独立渲染其 slots：按 [LayoutPreset.columns]（V2 `layout.preset`，非旧 `layout.grid`）分栏，
 /// 每栏通过 [SlotDispatch] 调度到对应组件视图。
 ///
 /// [workingDirectory] 为模块插件目录路径（如 `plugins/vocab-tutor/`）。

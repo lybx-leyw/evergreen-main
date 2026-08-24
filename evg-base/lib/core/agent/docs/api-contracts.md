@@ -3,9 +3,9 @@
 | 元信息 | 值 |
 | --- | --- |
 | 状态 | active |
-| 版本 | 1.0 |
-| 日期 | 2026-08-02 |
-| 负责人 | 待补充 |
+| 版本 | 以根 README.md 为准 |
+| 日期 | 2026-08-25 |
+| 负责人 | core-agent |
 | 适用 | Agent API 消费者 |
 
 > 本文档为 Agent 模块全部对外接口的冻结契约，供渲染工程师和插件开发者引用。
@@ -23,9 +23,10 @@
 ///
 /// 发现规则：
 ///   1. 遍历 pluginsDir 下每个子目录
-///   2. 在子目录的 agent/ 子目录中查找 .exe（优先匹配与目录同名的）
+///   2. 在子目录的 agent/ 子目录中查找入口文件（.exe 或 .py，优先匹配与目录同名的，.exe 优先）
 ///   3. 读取 agent/manifest.json → 解析为 PluginManifest
 ///   4. manifest.isValid（name 非空）→ 构造 PluginTool
+///   5. 执行时按 manifest.runtime（native / python）选择运行方式
 static List<Tool> PluginBridge.discover(Directory pluginsDir)
 ```
 
@@ -36,7 +37,8 @@ static List<Tool> PluginBridge.discover(Directory pluginsDir)
 
 **目录规约：**
 ```
-plugins/<name>/agent/<name>.exe    # 可执行文件
+plugins/<name>/agent/<name>.exe    # 可执行文件（native）
+plugins/<name>/agent/<name>.py     # Python 脚本（runtime="python"）
 plugins/<name>/agent/manifest.json # 元数据（必写）
 ```
 
@@ -83,7 +85,7 @@ abstract class Tool {
 Stream<AgentEvent> events  // Controller.events / StreamEventSink.stream
 ```
 
-### EventKind 全集（18 种）
+### EventKind 全集
 
 | # | EventKind | 关键 payload | 渲染行为 |
 |---|-----------|-------------|---------|
@@ -179,7 +181,7 @@ final port = int.parse(File('.agent_port').readAsStringSync());
 final url = 'http://127.0.0.1:$port';
 ```
 
-### 端点速查（24 端点）
+### 端点速查
 
 | 类别 | 方法 + 路径 |
 |------|------------|
@@ -290,10 +292,11 @@ server.stop();
 
 ---
 
-## 版本历史
+## 更新记录
 
-| 版本 | 日期 | 变更 |
-|------|------|------|
-| 1.0 | 2026-07-03 | Sprint 1 接口冻结：I1–I++ 全部契约 |
-| 1.1 | 2026-07-03 | Sprint 2 补充：AiUnavailable + OCR 管线 |
-| 1.2 | 2026-07-03 | Sprint 2 补充：ScriptedAgentHttpServer + event_serializers 共享提取 |
+| 日期 | 变更 |
+|------|------|
+| 2026-07-03 | Sprint 1 接口冻结：I1–I++ 全部契约 |
+| 2026-07-03 | Sprint 2 补充：AiUnavailable + OCR 管线 |
+| 2026-07-03 | Sprint 2 补充：ScriptedAgentHttpServer + event_serializers 共享提取 |
+| 2026-08-25 | PluginBridge 支持 `.py` + `runtime` 字段；EventKind 全集表核对；版本号以根 README.md 为准 |

@@ -172,6 +172,15 @@ PluginInfo? _toPluginInfo(
     }
   }
 
+  // 非 module 插件（data-source/agent/config/theme）也支持顶层 `section` 声明，
+  // 便于「外部插件」等自定义分组（M6 · 补 5）。缺省仍回退「未分组」。
+  if (!isModule) {
+    final declared = json['section'] as String?;
+    if (declared != null && declared.isNotEmpty) {
+      section = declared;
+    }
+  }
+
   final branch = _deleteBranchForSubType(subType);
   return PluginInfo(
     id: id,

@@ -3,12 +3,12 @@
 | 元信息 | 值 |
 | --- | --- |
 | 状态 | active |
-| 版本 | 1.0 |
+| 版本 | 以根 `README.md` 为准 |
 | 日期 | 2026-08-02 |
 | 负责人 | 待补充 |
 | 适用 | core 声明层 |
 
-> 示例 `example/`、子模块 `agent/` `config/` `data/` `module/` `theme/` `services/` `utils/`、工具 `errors.dart` `log.dart` `result.dart`、测试（待添加）
+> 示例 `example/`、子模块 `agent/` `config/` `data/` `module/` `theme/` `services/` `utils/` `plugin/` `feedback/`、工具 `errors.dart` `log.dart` `result.dart`、测试 `test/`
 
 Evergreen 平台底层依赖——对外提供统一的模块注册、AI 基建、OCR 服务、文件工作区等基础能力。
 
@@ -27,14 +27,16 @@ Evergreen 平台底层依赖——对外提供统一的模块注册、AI 基建�
 | `data/` | 数据管线——DataType 注册、插件数据源加载、缓存 | [`data/README.md`](data/README.md) |
 | `module/` | 模块注册——manifest.json 驱动、路由生成、导航配置、UI 范式声明 | [`module/README.md`](module/README.md) |
 | `theme/` | 主题注册——theme.json 驱动的全局配色方案 | [`theme/README.md`](theme/README.md) |
-| `services/` | 平台服务——OCR 文字识别、应用更新 | [`services/README.md`](services/README.md) |
-| `utils/` | 通用工具——安全解析、Token 估算、Python 环境、运行路径、文件管理 | [`utils/README.md`](utils/README.md) |
+| `services/` | 平台服务——OCR、插件安装、更新、Core HTTP、PDF 翻译、GitHub 集成 | [`services/README.md`](services/README.md) |
+| `utils/` | 通用工具——安全解析、Token 估算、Python 环境、运行路径、资产释放、文件管理 | [`utils/README.md`](utils/README.md) |
+| `plugin/` | 插件运行器——桌面子进程 / 安卓 Chaquopy 统一抽象 | — |
+| `feedback/` | 用户反馈——浮窗入口、反馈表单、Issue 发布、截图 | — |
 
 ## 核心工具
 
 | 文件 | 说明 |
 |------|------|
-| `errors.dart` | `AppError` — 14 种应用层错误（Network / Auth / Parse / Cache / Timeout / Validation / Media / AI / Config / File / DataIntegrity / Render / …） |
+| `errors.dart` | `AppError` — 应用层错误（Network / Auth / Parse / Cache / Timeout / Validation / Media / AI / Config / File / DataIntegrity / Render / …） |
 | `log.dart` | `Log` — 日志单例（debug→stderr、release→文件轮转） |
 | `result.dart` | `Result<T>` — Dart 3 sealed class（Ok / Err + map / flatMap / fold） |
 
@@ -60,6 +62,6 @@ plugins/<name>/
 
 ## 规则
 
-- 所有子模块通过 barrel 导出全部公共 API。
+- 子模块通过 barrel 导出公共 API；含 Flutter 依赖的服务（如 `services/pdf_translate_service.dart`）保持直接 import，不进 barrel。
 - 子模块间的依赖通过 `package:evergreen_base/core/` 路径引用。
 - agent、config、data、module、theme 五个模块由专门工程师维护，其余模块不可修改。

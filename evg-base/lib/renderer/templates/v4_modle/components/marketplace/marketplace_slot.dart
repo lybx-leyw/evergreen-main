@@ -17,7 +17,10 @@ import 'dart:io';
 import 'package:evergreen_base/providers.dart';
 import 'package:evergreen_base/core/data/data.dart';
 import 'package:evergreen_base/core/agent/skill/skill.dart';
+import 'package:evergreen_base/core/module/capability.dart';
+import 'package:evergreen_base/core/module/plugin_review.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
+import 'package:evergreen_base/renderer/components/shared/widgets/permission_dialog.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/plugin_state_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -44,7 +47,14 @@ abstract final class PluginSortMode {
 class MarketplaceSlot extends ConsumerStatefulWidget {
   final Map<String, dynamic> config;
 
-  const MarketplaceSlot({super.key, this.config = const {}});
+  /// 审核白名单（M5-11，可选）。提供后本地卡片显示审核状态角标。
+  final ReviewQueue? reviewQueue;
+
+  const MarketplaceSlot({
+    super.key,
+    this.config = const {},
+    this.reviewQueue,
+  });
 
   @override
   ConsumerState<MarketplaceSlot> createState() => _MarketplaceSlotState();
@@ -220,11 +230,46 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
     return result.toList();
   }
 
-  void _toggleEnabled(PluginInfo plugin) {
+  /// 解析插件真实能力维度（供启用前权限闸展示）。
+  ///
+  /// 内置模块（无磁盘目录）返回空——随应用分发、已审核，不拦。
+  /// 本地磁盘插件用 [discoverCapabilities] 按目录结构推导（agent/module/theme/
+  /// data/config），不传 descriptor 故不含 process 维度（本地插件 process 由
+  /// 运行时 ModuleLoader 注册，启用本身即已发生）。
+  List<CapabilityDimension> _resolveCapabilities(PluginInfo plugin) {
+    if (plugin.dirPath.isEmpty) return const [];
+    return discoverCapabilities(plugin.dirPath);
+  }
+
+  /// 实际写入启用状态（权限闸确认后调用）。
+  void _applyEnabled(PluginInfo plugin, bool enabled) {
+    ref.read(pluginStateProvider.notifier).setEnabled(plugin.id, enabled);
+  }
+
+  Future<void> _toggleEnabled(PluginInfo plugin) async {
     final current = ref.read(pluginStateProvider).records[plugin.id];
     final newEnabled = !(current?.enabled ?? true);
-    // 经共享 Provider 写入，侧边栏（同 watch 本 Provider）会即时反映。
-    ref.read(pluginStateProvider.notifier).setEnabled(plugin.id, newEnabled);
+
+    // 启用一个本地磁盘插件（有真实能力维度）前，弹 fail-closed 权限闸：
+    // 默认不启用，用户确认后才真正写入启用状态。内置模块 / 无能力维度 / 停用 不拦。
+    if (newEnabled) {
+      final dims = _resolveCapabilities(plugin);
+      if (dims.isNotEmpty) {
+        final confirmed = await showPermissionConfirmDialog(
+          context: context,
+          pluginName: plugin.name,
+          dims: dims,
+          onConfirm: () => _applyEnabled(plugin, true),
+        );
+        if (!confirmed) {
+          debugPrint('[Marketplace] 用户取消启用 ${plugin.id}（权限闸未过）');
+        }
+        return;
+      }
+    }
+
+    // 非拦截路径：直接写入（停用 / 内置模块启用 / 无能力维度的本地插件启用）。
+    _applyEnabled(plugin, newEnabled);
   }
 
   void _toggleSidebar(PluginInfo plugin) {
@@ -598,6 +643,8 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
           return LocalPluginCard(
             plugin: plugin,
             state: state,
+            reviewStatus: widget.reviewQueue
+                ?.allStatusOf(plugin.id),
             onToggleEnabled: () => _toggleEnabled(plugin),
             onToggleSidebar: () => _toggleSidebar(plugin),
             onUninstall: () => _uninstall(plugin),
@@ -713,6 +760,8 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
                                   child: LocalPluginCard(
                                     plugin: flat[i].plugin!,
                                     state: states[flat[i].plugin!.id],
+                                    reviewStatus: widget.reviewQueue
+                                        ?.allStatusOf(flat[i].plugin!.id),
                                     onToggleEnabled: () =>
                                         _toggleEnabled(flat[i].plugin!),
                                     onToggleSidebar: () =>

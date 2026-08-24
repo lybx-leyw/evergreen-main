@@ -1,8 +1,9 @@
 /// 本地插件卡片 —— 市场列表中单个插件的卡片展示。
 library;
 
-import 'package:flutter/material.dart';
+import 'package:evergreen_base/core/module/plugin_review.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/plugin_state_service.dart';
+import 'package:flutter/material.dart';
 import 'marketplace_plugin_info.dart';
 
 /// 单个本地插件的展示卡片。
@@ -17,6 +18,9 @@ class LocalPluginCard extends StatelessWidget {
   final VoidCallback onToggleSidebar;
   final VoidCallback onUninstall;
 
+  /// 审核状态角标（M5-11，可选）。null 表示未纳入审核库。
+  final ReviewStatus? reviewStatus;
+
   const LocalPluginCard({
     super.key,
     required this.plugin,
@@ -24,6 +28,7 @@ class LocalPluginCard extends StatelessWidget {
     required this.onToggleEnabled,
     required this.onToggleSidebar,
     required this.onUninstall,
+    this.reviewStatus,
   });
 
   bool get _enabled => state?.enabled ?? true;
@@ -140,6 +145,21 @@ class LocalPluginCard extends StatelessWidget {
                     icon: plugin.typeIcon,
                   ),
                   const SizedBox(width: 8),
+                  // M5-11 审核状态角标。
+                  if (reviewStatus != null)
+                    _InfoBadge(
+                      label: switch (reviewStatus!) {
+                        ReviewStatus.approved => '已审核',
+                        ReviewStatus.pending => '待审核',
+                        ReviewStatus.rejected => '已拒绝',
+                      },
+                      icon: switch (reviewStatus!) {
+                        ReviewStatus.approved => Icons.verified,
+                        ReviewStatus.pending => Icons.pending_actions,
+                        ReviewStatus.rejected => Icons.block,
+                      },
+                    ),
+                  if (reviewStatus != null) const SizedBox(width: 8),
                   // 内置模块（如 zju 校园模块）：随应用分发、不可卸载。
                   if (plugin.isBuiltin) ...[
                     _InfoBadge(

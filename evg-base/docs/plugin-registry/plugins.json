@@ -1,0 +1,76 @@
+{
+  "$schema": "https://evergreen.local/schema/plugin-registry-v1.json",
+  "generatedNote": "Evergreen 插件市场 registry —— 自动发现的第三方插件清单。第三方作者向本文件提 PR 即可被市场自动收录（飞轮）。字段形态对齐 PluginDescriptor。",
+  "plugins": [
+    {
+      "id": "zju_autosign",
+      "name": "学在浙大自动签到",
+      "description": "自动监控并应答学在浙大课堂点名：雷达点名（GPS 坐标）+ 数字点名（穷举），结果推送钉钉",
+      "longDescription": "学在浙大（courses.zju.edu.cn）自动签到插件：HTML 仪表盘经 platform.process 拉起 stdio 常驻 worker，后台监控课堂点名，雷达点名提交 GPS 坐标（12 个校区点位 + 三点定位），数字点名 0000-9999 穷举，签到结果实时推送钉钉。纯 Python 标准库实现，零第三方依赖，凭证三级降级存储（不硬编码、不上传）。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/auto-signed-plugins",
+      "homepage": "https://github.com/lybx-leyw/auto-signed-plugins",
+      "license": "MIT",
+      "lattice": "module",
+      "dimensions": ["ui", "agent"],
+      "install": {
+        "type": "github",
+        "url": "https://github.com/lybx-leyw/auto-signed-plugins",
+        "strategy": "source"
+      },
+      "manifest": {
+        "source": "github",
+        "repo": "lybx-leyw/auto-signed-plugins",
+        "path": "plugins/zju_autosign"
+      },
+      "stars": 0
+    },
+    {
+      "id": "view",
+      "name": "我的成绩单",
+      "description": "HTML 插件成绩查看器：课程成绩、绩点、学分统计 + AI 学业分析（template:html）",
+      "longDescription": "「我的成绩单」内置 HTML 插件：从 zju_zdbk_transcript 数据源拉取课程成绩，展示课程门数 / 加权绩点 / 平均分 / 最高分概览、成绩等级分布、学期绩点走势，支持按学期筛选与按分数排序；内置 AI 学业分析（强弱项、学科结构、学习建议）。墨白极简风格，引用绿意不息 logo 与宠物形象。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evergreen-main",
+      "homepage": "https://github.com/lybx-leyw/evergreen-main",
+      "license": "MIT",
+      "lattice": "module",
+      "dimensions": ["ui"],
+      "install": {
+        "type": "github",
+        "url": "https://github.com/lybx-leyw/evergreen-main",
+        "strategy": "source"
+      },
+      "manifest": {
+        "source": "local",
+        "path": "assets/view"
+      },
+      "stars": 0
+    },
+    {
+      "id": "warm_study",
+      "name": "温暖学习",
+      "description": "温馨学习主题（暖色调）：扁平 8 色语义色板",
+      "longDescription": "「温暖学习」内置主题插件：声明扁平 8 色语义色板（background / surface / border / text / textSecondary / accent / error / others）的暖色调配色，由平台主题系统实时加载与切换。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evergreen-main",
+      "homepage": "https://github.com/lybx-leyw/evergreen-main",
+      "license": "MIT",
+      "lattice": "theme",
+      "dimensions": ["ui"],
+      "install": {
+        "type": "github",
+        "url": "https://github.com/lybx-leyw/evergreen-main",
+        "strategy": "source"
+      },
+      "manifest": {
+        "source": "local",
+        "path": "assets/warm_study"
+      },
+      "stars": 0
+    }
+  ]
+}

@@ -1,8 +1,9 @@
-# Lib — Evergreen 2.0 应用层
+# Lib — Evergreen 应用层
 
 > 入口 `main.dart` `app.dart`、提供者 `providers.dart`、barrel `evergreen_base.dart`、兼容 `theme/` `generated/`、上游 `core/`、下游 `renderer/`
+> 版本号以根 `README.md` 为准。
 
-Evergreen 2.0 采用**双轨架构**：`core/`（上游声明层）声明模块/主题/数据/Agent/配置，`renderer/`（下游渲染层）按声明渲染 UI。`lib/` 根目录负责将两者组装为完整应用。
+Evergreen 采用**双轨架构**：`core/`（上游声明层）声明模块/主题/数据/Agent/配置，`renderer/`（下游渲染层）按声明渲染 UI。`lib/` 根目录负责将两者组装为完整应用。
 
 > **用户插件创作事实**：用户侧已切换为 **HTML 为主**。用户通过 `html-creator` 编写 HTML/CSS/JS，
 > 平台提供实时预览、AI 辅助生成与一键导出；导出物是 `plugins/<id>/module/index.html + manifest.json`
@@ -15,9 +16,10 @@ Evergreen 2.0 采用**双轨架构**：`core/`（上游声明层）声明模块/
 
 ```
 lib/
-├── main.dart                 # 启动入口——初始化设置→模块→数据→主题→ProviderScope→runApp
+├── main.dart                 # 启动入口——注册全局错误处理 + 构造 AppBootstrap 执行启动步骤序列
+├── app_bootstrap.dart        # 启动序列（逐步骤 [BOOT] N/total 日志、致命步骤、窗口最后 show）
 ├── app.dart                  # MaterialApp.router——主题解析、路由生成、快捷键
-├── providers.dart            # 应用级 Riverpod 提供者（moduleRegistryProvider）
+├── providers.dart            # 应用级 Riverpod 提供者（moduleRegistryProvider 等，清单见文件）
 ├── evergreen_base.dart       # 对外 barrel——导出 core + renderer 全部公共 API
 │
 ├── core/                     # 上游——声明与引擎（agent/config/data/module/theme + services/utils/plugin/feedback）
@@ -28,7 +30,7 @@ lib/
 │   ├── theme/                #   主题声明系统
 │   ├── services/             #   通用服务（OCR 等）
 │   ├── utils/                #   工具函数
-│   ├── errors.dart           #   AppError——14 种应用层错误
+│   ├── errors.dart           #   AppError——应用层错误（类型清单见 core/errors.dart）
 │   ├── log.dart              #   Log——日志单例
 │   └── result.dart           #   Result<T>——Dart 3 sealed class
 │
@@ -39,7 +41,7 @@ lib/
 │   ├── module/               #   模块调度（ModuleDispatch / ModulePage）
 │   ├── multi_agent/          #   多 Agent 并行视图
 │   ├── page/                 #   页面视图（市场/设置/数据看板/文件/全局记忆）
-│   └── templates/            #   模板路由（v4/zju/html/scraper/theme-creator/skill-creator/dsh/paper_reading）
+│   └── templates/            #   模板路由（v4/zju/html/scraper/theme-creator/skill-creator/dsh/paper_reading）+ slot/组件域（v4_modle 内）
 │
 ├── theme/                    # 兼容性 stub——renderer 通过旧路径引用
 │   └── breakpoints.dart      #   → Breakpoints，值与 renderer 常量对齐
@@ -54,16 +56,19 @@ lib/
 
 ## 启动流程
 
-`main.dart` 按以下顺序初始化：
+`main.dart` 只做三件事：注册全局错误处理（`FlutterError.onError` / `ErrorWidget` / zone）、Web 环境提前退出、构造 `AppBootstrap` 执行启动序列。启动细节全部在 `app_bootstrap.dart` 的**步骤序列**中，每步输出 `[BOOT] N/total <step-id>` 日志，任意步骤失败凭 errorId 定位：
 
-| 步骤 | 操作 | API |
-|------|------|-----|
-| 1 | Flutter 绑定 + 桌面窗口 | `windowManager` |
-| 2 | SharedPreferences + 设置初始化 | `initSettings(prefs, pluginDirs:)` |
-| 3 | 模块注册中心（内置 + 插件） | `loadBuiltinModules()` → `scanAndLoadModules()` → `registry.seal()` |
-| 4 | 数据谱仪器 | `DataOrchestrator()` |
-| 5 | 主题加载 | `ThemeStore` + `loadThemes()` |
-| 6 | ProviderScope 注入 → runApp | `moduleRegistryProvider`、`dataOrchestratorProvider`、`themeDescriptorProvider` |
+| 阶段 | 步骤 id | 说明 |
+|------|---------|------|
+| 窗口/路径 | `window-init` → `greenix-paths` | 桌面窗口参数预设（只设不 show）；Greenix 路径初始化（**致命步骤**，失败中止启动） |
+| 运行时 | `release-assets` / `media-kit` / `webview2` | 运行时资产释放、media_kit、WebView2 CDP 环境 |
+| 基础状态 | `prefs` / `settings` / `data-orchestrator` / `themes` | SharedPreferences、设置、数据谱仪器、主题加载 |
+| 核心服务 | `http-services` / `zju-safety` / `agent-runtime` / `agent-tools` / `tool-disabled` / `agent-controller` | 核心服务构造、ZJU 凭证安全网、Agent 运行时/工具/控制器 |
+| 服务启动 | `servers-start` | 启动 core HttpServer + ScraperBridge（写 `.xxx_port` 端口文件） |
+| 注册中心 | `v2-scan` / `data-sources` / `modules` / `module-server` | V2 清单扫描、数据插件注册、模块注册中心、ModuleHttpServer |
+| UI 收尾 | `default-theme` / `ui-launch` / `window-show` | 默认主题、`ProviderScope.overrides` 注入 → `runApp`、窗口显示（最后，避免白屏） |
+
+> `kZjuEnabled`（`--dart-define=EVERGREEN_ZJU`）控制浙大专用内容：false 时 `registerZjuDataSources` / `registerZjuBuiltinModules` 不可达，浙大依赖被 AOT tree-shaker 整体剔除（通用版 release）。
 
 ---
 
@@ -91,7 +96,7 @@ lib/
 | `renderer/module/` | `module/module.dart` | ModuleDispatch / ModulePage（V2 按内容自动选视图） |
 | `renderer/multi_agent/` | `multi_agent_view.dart` | 多 Agent 并行工作区 |
 | `renderer/page/` | `page/page.dart` | 市场、设置、数据看板、文件查看器、全局记忆 |
-| `renderer/templates/` | `templates/template_registry.dart` | v4 / html / scraper / theme-creator / skill-creator / dsh / zju / paper_reading 模板路由 |
+| `renderer/templates/` | `templates/template_registry.dart` | 模板路由（清单见 `templates/templates_index.json`） |
 
 ### 应用级
 
@@ -166,7 +171,7 @@ import 'package:evergreen_base/core/module/modules.dart';
 
 final registry = ModuleRegistry();
 
-// 从 manifest.json 字符串注册（HTML-first 用户插件）
+// 从 manifest.json 字符串注册（V2：不使用 ui 字段，按 template/pages/workspace 分派）
 registry.registerFromJson('''
 {
   "type": "module",
@@ -174,7 +179,7 @@ registry.registerFromJson('''
   "name": "AI 对话",
   "icon": "chat",
   "route": "/chat",
-  "ui": "chat",
+  "template": "html",
   "sidebar": {"section": "主功能", "order": 10}
 }
 ''');

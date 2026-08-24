@@ -3,9 +3,9 @@
 | 元信息 | 值 |
 | --- | --- |
 | 状态 | active |
-| 版本 | 1.0 |
-| 日期 | 2026-08-02 |
-| 负责人 | 待补充 |
+| 版本 | 以根 `README.md` 为准 |
+| 日期 | 2026-08-25 |
+| 负责人 | core-config |
 | 适用 | config 子包 |
 
 > 完整用法 → [`example/example.dart`](example/example.dart) | AI 协作指南 → [`CLAUDE.md`](CLAUDE.md)
@@ -47,6 +47,20 @@
 | `addSource(prefs, url, name)` | 添加自定义源，重复 URL 抛 `SourceDuplicateException` |
 | `removeSource(prefs, url)` | 删除自定义源（默认源不可删） |
 
+### ConfigHttpServer 附加能力
+
+| 成员 | 说明 |
+|------|------|
+| `registerSetting(key, label)` / `unregisterSetting(key)` | 动态注册/注销设置项（无需 config.json 声明，HTTP 可读写） |
+| `setGreenixConfigPath(path)` | 设置 `.greenix/config.json` 写入路径并触发首次全量同步 |
+| `syncConfigToGreenix()` | 全部配置（静态 + 动态）覆写为扁平 JSON；非空值保护，Android 首启不覆写凭证 |
+
+### 运行期热注册（设计器/爬虫）
+
+| 函数 | 说明 |
+|------|------|
+| `registerConfigFromManifest({configServer, pluginDir})` | 读取插件 `config/config.json` → `registerSetting` 热注册；返回 `ConfigRegisterSummary(registered, savedDefaults)`，默认值由调用方写入 SP |
+
 ### HTTP 端点（ConfigHttpServer）
 
 | 方法 | 路径 | 说明 |
@@ -60,6 +74,8 @@
 | POST | `/config/permissions/:id` | 设权限 `{"key":"...","granted":true}` |
 | GET | `/config/sources` | 列出插件源 |
 | POST | `/config/sources` | 增删源 `{"action":"add"\|"remove","url":"...","name":"..."}` |
+
+> 注：`POST /config/settings` 与 `POST /config/settings/:key` 写入未在 config.json 声明的 key 时，会自动动态注册（类型固定 string，响应 `registered: true`）。所有响应带 CORS 头 `Access-Control-Allow-Origin: *`。
 
 ### 类型
 
@@ -130,10 +146,12 @@
 | 设置注册/读写/持久化 + 默认值回退 + 类型校验 | ✅ |
 | 权限注册/读写/即时生效/拒绝不阻塞安装 | ✅ |
 | 源管理（默认源 + 自定义源增删） | ✅ |
-| ConfigHttpServer 8 端点 | ✅ |
+| ConfigHttpServer 端点（含动态注册，见上表） | ✅ |
 | 配置导出/导入（含 AI 记忆） | ✅ |
 | 权限自动提取（config.json `permissions` 字段） | ✅ |
-| 测试：`dart test` 55 用例全量通过 | ✅ |
+| `.greenix/config.json` 同步（非空值保护） | ✅ |
+| 运行期热注册（registerConfigFromManifest） | ✅ |
+| 测试：`dart test` 全量通过（见 `test/`） | ✅ |
 | 静态分析：`dart analyze` 零错误零警告 | ✅ |
 | 示例：`dart run example/example.dart` 正常运行 | ✅ |
 

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "view",
+  "name": "我的成绩单",
+  "template": "html",
+  "version": "1.0.0",
+  "route": "/view",
+  "nav": {
+    "sidebar": {
+      "section": "校园",
+      "sectionOrder": 99,
+      "order": 99
+    }
+  }
+}

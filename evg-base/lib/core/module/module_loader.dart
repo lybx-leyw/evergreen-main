@@ -25,8 +25,14 @@ import 'package:path/path.dart' as p;
 import 'package:evergreen_base/core/log.dart';
 import 'package:evergreen_base/core/plugin/plugin_runner.dart';
 import 'capability.dart';
+import 'lattice.dart';
+import 'runtime.dart';
 import 'module_descriptor.dart';
 import 'module_registry.dart';
+import 'resolved_plugin.dart';
+import 'sidecar/process_sidecar_runtime.dart';
+import 'sidecar/sidecar_controller.dart';
+import 'sidecar/sidecar_factory.dart';
 
 // ═══════ ModuleLoader ═══════
 
@@ -36,13 +42,34 @@ class ModuleLoader {
   final String workingDirectory;
   final String projectRoot;
 
+  /// 解析后的单一事实源（M0 · 3.4）——loader 消费它而非重新解析 JSON。
+  final ResolvedPlugin resolved;
+
   Process? _process;
   int? _port;
   bool _healthy = false;
   StreamSubscription? _stdoutSub;
   StreamSubscription? _stderrSub;
 
-  ModuleLoader(this.manifest, this.workingDirectory, {required this.projectRoot});
+  /// sidecar 控制器（仅 [ResolvedPlugin.isSidecar] 时非 null）。
+  SidecarController? _sidecar;
+
+  /// 注入的 sidecar 运行时抽象（默认 dart:io 真实实现）。
+  ///
+  /// 测试可传入替身以不触真实子进程。
+  final SidecarRuntime sidecarRuntime;
+
+  /// 从 [ModuleDescriptor] 构造（向后兼容）。内部包成 [ResolvedPlugin]。
+  ModuleLoader(this.manifest, this.workingDirectory,
+      {required this.projectRoot, SidecarRuntime? sidecarRuntime})
+      : resolved = ResolvedPlugin.fromDescriptor(manifest),
+        sidecarRuntime = sidecarRuntime ?? ProcessSidecarRuntime();
+
+  /// 从已解析的 [ResolvedPlugin] 构造（M0 单一事实源入口，避免重复解析）。
+  ModuleLoader.fromResolved(this.resolved, this.workingDirectory,
+      {required this.projectRoot, SidecarRuntime? sidecarRuntime})
+      : manifest = resolved.descriptor,
+        sidecarRuntime = sidecarRuntime ?? ProcessSidecarRuntime();
 
   /// 进程是否已启动且健康。
   bool get isRunning => _healthy;
@@ -50,10 +77,21 @@ class ModuleLoader {
   /// 后端进程监听端口。启动完成前返回 null。
   int? get port => _port;
 
+  /// sidecar 运行时元信息（仅 sidecar 格且已启动非 null）。供 /module/sidecars 端点。
+  SidecarMeta? get sidecarMeta => _sidecar == null ? null : sidecarMetaOf(_sidecar!);
+
   /// 启动后端 exe 进程，等待端口就绪并通过 health check。
   ///
   /// V2: manifest.process 是 List<ProcessDescriptor>，启动第一个 scope 为 module 的进程。
+  /// 若 [ResolvedPlugin.isSidecar]（六格契约第 3 格），则改为走 [SidecarController]
+  /// 统一接口（Node/Python/Deno 实现），不再特判 [manifest.process]。
   Future<void> start() async {
+    // ── 六格第 3 格：sidecar 一等公民 ──
+    if (resolved.isSidecar && resolved.runtime != null) {
+      await _startSidecar(resolved.runtime!);
+      return;
+    }
+
     final processes = manifest.process;
     if (processes.isEmpty) return;
 
@@ -150,6 +188,27 @@ class ModuleLoader {
     }
   }
 
+  /// 启动 sidecar 格的运行时（复用 [SidecarController] 接口）。
+  ///
+  /// 端口分配走 [resolveSidecarPort]，健康判定复用与本类一致的
+  /// 「PORT: 行 + /health 200」协议（见 sidecar/health.dart 的退避纯逻辑）。
+  Future<void> _startSidecar(RuntimeDescriptor runtime) async {
+    try {
+      final factory = sidecarFactoryFor(runtime.kind);
+      _sidecar = factory(runtime, sidecarRuntime);
+      await _sidecar!.start();
+      _port = _sidecar!.port;
+      _healthy = _sidecar!.isHealthy;
+      Log().info('ModuleLoader: sidecar ${manifest.id} 已启动',
+          data: {'kind': runtime.kind.name, 'port': _port});
+    } catch (e, stack) {
+      Log().error('ModuleLoader: sidecar ${manifest.id} 启动失败',
+          error: e, stack: stack);
+      _healthy = false;
+      _sidecar = null;
+    }
+  }
+
   /// 终止后端进程。
   void stop() {
     _stdoutSub?.cancel();
@@ -158,6 +217,11 @@ class ModuleLoader {
     _stderrSub = null;
     _healthy = false;
     _port = null;
+    if (_sidecar != null) {
+      _sidecar!.stop();
+      _sidecar = null;
+      return;
+    }
     _kill();
   }
 
@@ -239,7 +303,9 @@ Future<List<ModuleLoader>> scanAndLoadModules(
       registry.setCapabilities(d.id, dims);
     }
     if (d.process.isNotEmpty) {
-      final loader = ModuleLoader(d, dirPath, projectRoot: root);
+      final loader = ModuleLoader.fromResolved(
+          ResolvedPlugin.fromDescriptor(d), dirPath,
+          projectRoot: root);
       loaders.add(loader);
       pending.add(loader.start());
     }

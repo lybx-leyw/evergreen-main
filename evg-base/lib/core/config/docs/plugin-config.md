@@ -3,9 +3,9 @@
 | 元信息 | 值 |
 | --- | --- |
 | 状态 | active |
-| 版本 | 1.0 |
-| 日期 | 2026-08-02 |
-| 负责人 | 待补充 |
+| 版本 | 以根 `README.md` 为准 |
+| 日期 | 2026-08-25 |
+| 负责人 | core-config |
 | 适用 | 插件 config.json 作者 |
 
 > 面向插件开发者：如何为插件声明设置项、权限。
@@ -35,7 +35,7 @@ plugins/
         └── config.json          # 推荐格式（符合插件规范）
 ```
 
-平台会先检查 `config/config.json`，找不到则回退到 `config.json`。
+平台会先检查插件根目录的 `config.json`，找不到则回退到 `config/config.json`（根目录优先，两者都存在时只加载根目录的）。
 
 ---
 
@@ -120,6 +120,7 @@ plugins/
 | `isSecure` | 否 | string | 敏感字段，UI 以密码框展示，日志脱敏 |
 | `hint` | 否 | string / path / option | 帮助文本，显示在输入框下方 |
 | `options` | 是 | option | 下拉选项 `[{value, label}]` |
+| `suggestions` | 否 | string / path | 快捷填充建议（仅 UI 提示，**不参与写入校验**，可填任意值）；元素支持 `{"value","label"}` 或纯字符串两种写法 |
 
 ### permissions 条目
 

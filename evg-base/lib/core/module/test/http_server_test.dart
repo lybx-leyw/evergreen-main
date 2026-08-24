@@ -132,6 +132,35 @@ void main() {
       expect(json['status'], 'ok');
     });
 
+    // ── GET /module/sidecars (M1-10) ──
+    test('sidecars 返回已注册快照', () async {
+      server.setSidecarSnapshots([
+        {
+          'id': 'sc1',
+          'name': 'Sidecar One',
+          'sidecar': {
+            'kind': 'node',
+            'entry': 's.js',
+            'port': 9100,
+            'healthy': true,
+            'capabilities': {'fs.scope': 'plugin-dir'},
+          },
+        },
+      ]);
+      final json = await _getJson(server.port, '/module/sidecars');
+      expect(json['count'], 1);
+      final first = (json['sidecars'] as List).first as Map;
+      expect(first['id'], 'sc1');
+      expect(first['sidecar']['kind'], 'node');
+      expect(first['sidecar']['healthy'], isTrue);
+    });
+
+    test('sidecars 未注册时返回空列表', () async {
+      final json = await _getJson(server.port, '/module/sidecars');
+      expect(json['count'], 0);
+      expect(json['sidecars'], isEmpty);
+    });
+
     // ── GET /module/modules ──
     test('modules 列出所有模块摘要', () async {
       final json = await _getJson(server.port, '/module/modules');

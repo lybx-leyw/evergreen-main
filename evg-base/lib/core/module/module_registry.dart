@@ -16,8 +16,10 @@
 /// | `paletteItems` | — | `List<({...})>` | 命令面板条目 |
 import 'package:evergreen_base/core/log.dart';
 import 'capability.dart';
+import 'lattice.dart';
 import 'module_descriptor.dart';
 import 'plugin_manifest.dart';
+import 'resolved_plugin.dart';
 import 'sidebar_section.dart';
 
 /// 模块注册中心——所有 [ModuleDescriptor] 在此注册，框架层从此读取。
@@ -32,21 +34,36 @@ import 'sidebar_section.dart';
 class ModuleRegistry {
   final List<ModuleDescriptor> _modules = [];
   final Map<String, List<CapabilityDimension>> _capabilities = {};
+
+  /// 解析后的插件单一事实源索引（M0 · 3.4）——registry/loader/权限执行器统一消费。
+  final List<ResolvedPlugin> _resolved = [];
+
   bool _sealed = false;
 
   // ═══════ 注册 ═══════
 
   /// 注册一个模块。必须在 [seal] 之前调用。
+  ///
+  /// 内部自动包装为 [ResolvedPlugin]（M0 单一事实源）。
   void register(ModuleDescriptor module) {
+    registerResolved(ResolvedPlugin.fromDescriptor(module));
+  }
+
+  /// 注册一个已解析的 [ResolvedPlugin]（M0 单一事实源入口）。
+  ///
+  /// installer/loader 若已持有 ResolvedPlugin，应直接调用此方法避免重复解析。
+  void registerResolved(ResolvedPlugin resolved) {
     if (_sealed) {
       throw StateError('ModuleRegistry 已锁定，不能再注册模块。'
           ' 请在 seal() 之前注册所有模块。');
     }
+    final module = resolved.descriptor;
     final dup = _modules.any((m) => m.id == module.id);
     if (dup) {
       throw ArgumentError('模块 id "${module.id}" 重复，请检查。');
     }
     _modules.add(module);
+    _resolved.add(resolved);
   }
 
   /// 批量注册模块。
@@ -172,6 +189,17 @@ class ModuleRegistry {
     }
     _capabilities[moduleId] = List.unmodifiable(dims);
   }
+
+  /// 按六格契约等级列出所有落在该格的插件（M0）。
+  ///
+  /// 消费 [ResolvedPlugin] 单一事实源，不重新解析 JSON。
+  List<ResolvedPlugin> findByLattice(Lattice lattice) {
+    _requireSealed();
+    return _resolved.where((r) => r.lattice == lattice).toList();
+  }
+
+  /// 所有已解析插件（只读，M0 单一事实源）。
+  List<ResolvedPlugin> get resolved => List.unmodifiable(_resolved);
 
   // ═══════ 路由 ═══════
 
@@ -334,8 +362,10 @@ class ModuleRegistry {
 
     // 移除旧（同 id），再追加新描述符
     _modules.removeWhere((m) => m.id == descriptor.id);
+    _resolved.removeWhere((r) => r.id == descriptor.id);
     _capabilities.remove(descriptor.id);
     _modules.add(descriptor);
+    _resolved.add(ResolvedPlugin.fromDescriptor(descriptor));
 
     Log().info('ModuleRegistry reloaded: ${descriptor.id} '
         '（seal=$_sealed，当前模块数 ${_modules.length}）');
@@ -348,6 +378,7 @@ class ModuleRegistry {
   bool unregister(String id) {
     final before = _modules.length;
     _modules.removeWhere((m) => m.id == id);
+    _resolved.removeWhere((r) => r.id == id);
     _capabilities.remove(id);
     final removed = _modules.length < before;
     if (removed) {

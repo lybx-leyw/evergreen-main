@@ -17,6 +17,7 @@ library;
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:evergreen_base/core/log.dart';
+import 'lattice.dart';
 import 'module_descriptor.dart';
 
 /// 插件能力维度——六种能力类型。
@@ -104,4 +105,33 @@ List<CapabilityDimension> discoverCapabilities(
 
   Log().debug('discoverCapabilities: $pluginDir → ${dims.map((d) => d.name).toList()}');
   return dims;
+}
+
+/// 六格契约 ↔ 六维能力桥接（M0 · 3.4 单一事实源）。
+///
+/// 把 [Lattice] 映射到既有 [CapabilityDimension] 能力维度，便于：
+/// - 旧能力发现（`discoverCapabilities`）与六格契约在 registry 中统一检索。
+/// - 权限执行器按格推导默认能力维度。
+///
+/// | 格 | 维度 |
+/// |---|---|
+/// | `sidecar` | [CapabilityDimension.process] |
+/// | `data-source` | [CapabilityDimension.data] |
+/// | `agent-tool` | [CapabilityDimension.agent] |
+/// | `web-bridged` / `static-web` | [CapabilityDimension.module] |
+/// | `external-app` | 无（不内嵌，仅深链/元数据） |
+CapabilityDimension? latticeToCapability(Lattice lattice) {
+  switch (lattice) {
+    case Lattice.sidecar:
+      return CapabilityDimension.process;
+    case Lattice.dataSource:
+      return CapabilityDimension.data;
+    case Lattice.agentTool:
+      return CapabilityDimension.agent;
+    case Lattice.webBridged:
+    case Lattice.staticWeb:
+      return CapabilityDimension.module;
+    case Lattice.externalApp:
+      return null;
+  }
 }

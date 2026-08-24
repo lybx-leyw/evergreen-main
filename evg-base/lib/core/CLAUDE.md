@@ -3,7 +3,7 @@
 | 元信息 | 值 |
 | --- | --- |
 | 状态 | active |
-| 版本 | 1.0 |
+| 版本 | 以根 `README.md` 为准 |
 | 日期 | 2026-08-02 |
 | 负责人 | 待补充 |
 | 适用 | AI 协作者（core 层） |
@@ -23,7 +23,7 @@
 
 ```
 lib/core/
-├── errors.dart              # AppError 基类 + 14 种子类错误
+├── errors.dart              # AppError 基类 + 种子类错误
 ├── log.dart                 # Log 单例（debug→stderr, release→文件轮转）
 ├── result.dart              # Result<T> sealed class（Ok / Err）
 ├── agent/                   # AI Agent 运行时 + 工具 + 记忆 + Skill + 守护
@@ -32,44 +32,56 @@ lib/core/
 ├── module/                  # 模块描述符/注册表/加载器/进程管理
 ├── theme/                   # 主题描述符/Store/Loader + ThemeHttpServer
 ├── services/                # 平台级基础服务
-│   ├── services.dart        #   barrel 导出
-│   ├── core_http_server.dart #   微服务网格（8 REST 端点）
-│   ├── ocr_pipeline.dart    #   两级 OCR 降级管线
+│   ├── services.dart        #   barrel 导出（纯 Dart 服务）
+│   ├── core_http_server.dart #   微服务网格（REST 端点）
+│   ├── ocr_pipeline.dart    #   两级 OCR 降级管线 + 并行 + 就绪诊断
 │   ├── deepseek_ocr_service.dart # DeepSeek Vision API 封装
 │   ├── plugin_installer.dart #   插件生命周期管理
-│   └── update_service.dart  #   应用更新检查
+│   ├── update_service.dart  #   应用更新检查
+│   ├── github_stars.dart    #   GitHub star 数据中枢接入（DataType）
+│   ├── github_clone.dart    #   GitHub 源克隆（git clone 子进程）
+│   ├── github_metadata.dart #   GitHub 仓库元数据抓取
+│   ├── pdf_translate_service.dart # PDF 翻译（pdf2zh 子进程）
+│   ├── translate_queue.dart #   并行翻译调度器（槽位 + 队列）
+│   ├── release_downloader.dart # GitHub release 二进制下载
+│   └── ui_operation_log.dart #   UI 操作日志（UIOperationLog）
 ├── utils/                   # 通用工具
 │   ├── safe_parse.dart      #   安全类型转换
 │   ├── token_estimator.dart #   Token 估算
 │   ├── python_env.dart      #   Python 环境管理
-│   ├── greenix_path.dart    #   运行时路径管理
+│   ├── greenix_path.dart    #   运行时路径管理（路径唯一真理来源）
 │   ├── path_sandbox.dart    #   路径沙箱
-│   └── file_utils.dart      #   文件管理器
-├── plugin/                  # 插件运行器/桥接相关
-├── feedback/                # 用户反馈收集
+│   ├── file_utils.dart      #   文件管理器
+│   └── plugin_asset_releaser.dart # 插件/脚本资产释放（幂等）
+├── plugin/                  # 插件运行器（plugin_runner.dart，桌面子进程/安卓 Chaquopy 统一抽象）
+├── feedback/                # 用户反馈（feedback_bar/feedback_dialog/feedback_writer/github_issue_publisher/screenshot）
 ├── example/                 # 跨模块联动示例
-│   ├── example.dart         #   交互式菜单（15 功能）
+│   ├── example.dart         #   交互式菜单
 │   └── plugins/             #   示例插件（mesh_demo / ocean_theme / super_app）
+├── core_text_app.dart       # 文本版 Core 自证应用（命令行交互验证）
 ├── test/                    # 测试
 │   ├── installer_test.dart  #   插件安装/卸载/校验/崩溃/沙箱
 │   ├── ocr_pipeline_test.dart # OCR 管线 + parsePageOutput
+│   ├── path_sandbox_test.dart # 路径沙箱越界防护
 │   ├── signature_test.dart  #   签名计算 + 常数时间比较
 │   ├── update_service_test.dart # 更新检查降级
 │   └── widget_test.dart     #   errors / result 模块验证
-├── lib/                     # Stub 隔离层
+├── lib/                     # Stub 隔离层（独立 Dart package）
 │   ├── archive_stub/        #   archive 包 stub（ZipDecoder / Archive）
 │   ├── crypto_stub/         #   crypto 包 stub（Sha256 / Digest）
 │   ├── dio_stub/            #   dio 包 stub（Dio / Response / Options）
-│   └── core/                #   文本版 Core 自证应用
+│   └── core/                #   stub 配套（log.dart 独立版，仅 stderr）
 ├── docs/
-│   ├── plugin-format.md     #   .plugin 包格式规范 v1.0
+│   ├── plugin-format.md     #   .plugin 包格式规范
 │   └── plugin-authoring-guide-core-services.md # 插件打包与分发指南
-├── scripts/                 # OCR 子进程脚本
 ├── pubspec.yaml             # 依赖声明（stub 指向 lib/）
 ├── README.md                # 模块总览
-├── CLAUDE.md                # 本文件
-└── FAIL.md                  # 踩坑记录
+└── CLAUDE.md                # 本文件
 ```
+
+> 注：OCR/论文/翻译等 Python 脚本本体位于 `evg-base/scripts/`（platform OWNER 管辖），
+> 运行期由资产释放填充到 `.greenix/scripts`（`greenixScriptsDir`），本目录 `scripts/` 仅保留
+> 一个 `ocr_file.py` 副本。`lib/core/CLAUDE.md` 不直接涉及这些脚本的维护。
 
 ---
 
@@ -133,16 +145,17 @@ sealed class Result<T> {
 OcrPipeline.recognizeFile(path)
   ├── Level 1: DeepSeek-OCR（DashScope API, vanchin/deepseek-ocr）
   │   ├── 图片：直接 base64 发送
-  │   └── PDF：pdf_to_images.py 拆页 → 逐页 OCR → 合并
+  │   └── PDF：pdf_to_images.py 拆页 → 逐页 OCR（并行）→ 合并
   └── Level 2: Tesseract 本地（Python 子进程）
-      ├── ocr_file.py（单文件）
-      └── ocr_slides.exe / ocr_slides.py（URL 输入）
+      ├── ocr_file.py（单文件 / 目录）
+      └── ocr_slides.py（URL 输入）
 ```
 
-- API Key 通过环境变量 `DEEPSEEK_OCR_API_KEY` 配置
+- API Key 通过环境变量 `DEEPSEEK_OCR_API_KEY` 配置（`OcrPipeline` 构造亦可注入 apiKey）
 - `recognizeFile` 失败返回 `null`（全部降级失败）
 - `recognizeUrl` 失败返回空字符串
 - `parsePageOutput` 解析 `{"pages": [{"page": N, "text": "..."}]}` 格式
+- 并行能力：`recognizeFiles(paths)` 多文件并行；`pageConcurrency` 控制 PDF 逐页并行度；`checkReadiness()` 输出环境就绪诊断
 
 ### 2.5 PluginInstaller 安全模型
 
@@ -159,7 +172,8 @@ URL → download（3 次重试: 1s/3s/5s）→ ZIP 解压 → manifest.json 校�
 
 ### 2.6 CoreHttpServer 微服务网格
 
-8 个 REST 端点，绑定 `127.0.0.1` 随机端口，端口写入 `.core_port` 供插件 `.exe` 发现：
+REST 端点（见下表），绑定 `127.0.0.1` 随机端口。端口发现文件由启动器（`app_bootstrap.dart`）统一
+写入 projectRoot 下的 `.core_port`，供插件 `.exe` / HTML 插件 bridge 发现（server 自身不再写端口文件）：
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
@@ -172,6 +186,10 @@ URL → download（3 次重试: 1s/3s/5s）→ ZIP 解压 → manifest.json 校�
 | POST | `/core/ocr` | OCR 识别 |
 | GET | `/core/ocr/status` | OCR 服务状态 |
 
+> 端口文件契约：`.agent_port` / `.config_port` / `.data_port` / `.module_port` /
+> `.theme_port` / `.core_port` 均由 `app_bootstrap.dart` 的 `_stepServersStart()` 统一写入
+> projectRoot（`ModuleHttpServer` 仍自写 `.module_port`，见其源码注释）。
+
 ---
 
 ## 三、开发约定
@@ -179,7 +197,7 @@ URL → download（3 次重试: 1s/3s/5s）→ ZIP 解压 → manifest.json 校�
 ### 3.1 新增 Service
 
 1. 在 `services/` 下创建新文件
-2. 在 `services/services.dart` 中添加 `export` 语句
+2. 若为纯 Dart 服务（无 Flutter 依赖），在 `services/services.dart` 中添加 `export` 语句；含 Flutter 依赖的服务（如 `pdf_translate_service.dart`）保持直接 import，不进 barrel
 3. 公开方法返回 `Result<T>`（不抛异常）
 4. 使用 `Log()` 记录关键操作
 5. 在 `test/` 下添加对应测试
@@ -201,11 +219,12 @@ URL → download（3 次重试: 1s/3s/5s）→ ZIP 解压 → manifest.json 校�
 
 | 测试文件 | 覆盖范围 |
 |----------|---------|
-| `installer_test.dart` | 安装/卸载/签名/校验/崩溃/沙箱/版本比较（22 用例） |
-| `ocr_pipeline_test.dart` | 文件不存在/空路径/parsePageOutput 多格式（9 用例） |
-| `signature_test.dart` | SHA-256 计算/常数时间比较/签名场景（10 用例） |
-| `update_service_test.dart` | 网络错误降级/自定义 repo（2 用例） |
-| `widget_test.dart` | AppError 14 工厂/Result\<T\> 完整 API |
+| `installer_test.dart` | 安装/卸载/签名/校验/崩溃/沙箱/版本比较 |
+| `ocr_pipeline_test.dart` | 文件不存在/空路径/parsePageOutput 多格式 |
+| `path_sandbox_test.dart` | 路径沙箱越界防护（`../../../` 等绕过） |
+| `signature_test.dart` | SHA-256 计算/常数时间比较/签名场景 |
+| `update_service_test.dart` | 网络错误降级/自定义 repo |
+| `widget_test.dart` | AppError 工厂方法/Result\<T\> 完整 API |
 
 运行：`dart test`（在 `lib/core/` 目录下）
 
@@ -259,6 +278,8 @@ CoreHttpServer(PluginInstaller installer, OcrPipeline ocrPipeline, UpdateService
 | `data/` | `data/README.md` | Data 工程师 |
 | `module/` | `module/README.md` | Module 工程师 |
 | `theme/` | `theme/README.md` | Theme 工程师 |
+| `services/` | `services/README.md` | Core 工程师（core-services） |
+| `utils/` + `plugin/` + `feedback/` | `utils/README.md` | Core 工程师（core-infra） |
 
 ---
 
@@ -266,5 +287,6 @@ CoreHttpServer(PluginInstaller installer, OcrPipeline ocrPipeline, UpdateService
 
 | 日期 | 变更 |
 |------|------|
+| 2026-08-25 | 文档同步：目录结构补全（services / utils / test 全量文件）、修正端口文件契约（app_bootstrap 统一写）、OCR 脚本名与 Key 环境变量、barrel 导出范围说明；按文档修订三原则去除硬编码数量与版本号 |
 | 2026-08-21 | 对齐 HTML-first 插件创作：补充用户侧 HTML 插件路径、更新目录结构与平台 bridge 说明 |
-| 2026-07-06 | 初始版本：创建 CLAUDE.md，修复 dio stub 路径，全量测试通过（84 用例），README 审核同步 |
+| 2026-07-06 | 初始版本：创建 CLAUDE.md，修复 dio stub 路径，全量测试通过，README 审核同步 |

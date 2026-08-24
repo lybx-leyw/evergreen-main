@@ -197,6 +197,9 @@ class AppBootstrap {
   /// 模块 HTTP 服务器（注册中心启动后创建）。
   ModuleHttpServer? moduleServer;
 
+  /// 已启动的模块 loader 列表（含 sidecar，供 /module/sidecars 端点快照）。
+  List<ModuleLoader> moduleLoaders = [];
+
   /// 模块注册中心。
   ModuleRegistry? registry;
 
@@ -743,6 +746,7 @@ class AppBootstrap {
     final registry = ModuleRegistry();
     final loaders = await scanAndLoadModules(pluginsDir, registry,
         projectRoot: projectRoot);
+    moduleLoaders = loaders;
     for (final loader in loaders) {
       if (loader.isRunning && loader.port != null) {
         ports[loader.manifest.id] = loader.port!;
@@ -765,6 +769,16 @@ class AppBootstrap {
   /// ModuleHttpServer（registry 创建后启动）。
   Future<Result<void>> _stepModuleServer() async {
     final server = ModuleHttpServer(registry!, port: 0);
+    // 把已启动的 sidecar 运行时状态写入端点快照（M1-10）。
+    server.setSidecarSnapshots([
+      for (final l in moduleLoaders)
+        if (l.sidecarMeta != null)
+          {
+            'id': l.manifest.id,
+            'name': l.manifest.name,
+            'sidecar': l.sidecarMeta!.toJson(),
+          },
+    ]);
     try {
       final mp = await server.start();
       ports['Module'] = mp;

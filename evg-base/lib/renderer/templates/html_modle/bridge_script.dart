@@ -107,6 +107,40 @@ String buildBridgeScript() {
         return _call('api.call', [service, path, opts || {}]);
       },
     },
+    process: {
+      // 运行本插件 manifest `process` 里声明的 exe（白名单内才允许，方案 A）。
+      // run(exe, {args}) → Promise<{stdout, stderr, exitCode}>
+      run: function(exe, opts) {
+        return _call('process.run', [exe, opts || {}]);
+      },
+      // 常驻进程（scope:"long"）：启动后可持续读写 stdio，作交互式终端。
+      // start(exe, {args}) → Promise<{ok:true}>（进程启动，输出经 process:output 事件推送）
+      // write(exe, data)   → Promise<{ok:true}>（向进程 stdin 写数据）
+      // stop(exe)          → Promise<{ok:true}>（终止进程）
+      // read(exe)          → Promise<{stdout}>（读当前累积 stdout）
+      start: function(exe, opts) {
+        return _call('process.start', [exe, opts || {}]);
+      },
+      write: function(exe, data) {
+        return _call('process.write', [exe, String(data == null ? '' : data)]);
+      },
+      stop: function(exe) {
+        return _call('process.stop', [exe]);
+      },
+      read: function(exe) {
+        return _call('process.read', [exe]);
+      },
+      // 监听常驻进程输出事件：onOutput(fn) → fn({exe, stream:'stdout'|'stderr', line})
+      onOutput: function(fn) {
+        if (!_listeners['process:output']) _listeners['process:output'] = [];
+        _listeners['process:output'].push(fn);
+      },
+      // 监听进程退出事件：onExit(fn) → fn({exe, exitCode})
+      onExit: function(fn) {
+        if (!_listeners['process:exit']) _listeners['process:exit'] = [];
+        _listeners['process:exit'].push(fn);
+      },
+    },
     settings: {
       get: function(key) { return _call('settings.get', [key]); },
       set: function(key, value) { return _call('settings.set', [key, value]); },

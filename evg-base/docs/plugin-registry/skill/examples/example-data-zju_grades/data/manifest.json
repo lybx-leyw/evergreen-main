@@ -1,0 +1,18 @@
+{
+  "type": "data-source",
+  "runtime": "python",
+  "script": "scraper.py",
+  "dataTypes": [
+    {
+      "name": "zju_grades",
+      "typeArg": "zju_grades",
+      "ttl": "5m",
+      "persistentKey": "custom-zju_grades:zju_grades",
+      "category": "zju_grades",
+      "displayName": "zju_grades",
+      "fields": []
+    }
+  ],
+  "boardId": "board_1787204819382_0004",
+  "createdBy": "scraper-capture"
+}

@@ -36,6 +36,27 @@ void main() {
       expect(js, contains('on: function(event, fn)'));
     });
 
+    test('含 process.run（HTML 插件执行本插件声明的 exe）', () {
+      expect(js, contains('process: {'));
+      expect(js, contains('run: function(exe, opts)'));
+      expect(js, contains("_call('process.run'"));
+    });
+
+    test('含常驻进程 API（start/write/stop/read + 输出/退出事件）', () {
+      expect(js, contains('start: function(exe, opts)'));
+      expect(js, contains("_call('process.start'"));
+      expect(js, contains('write: function(exe, data)'));
+      expect(js, contains("_call('process.write'"));
+      expect(js, contains('stop: function(exe)'));
+      expect(js, contains("_call('process.stop'"));
+      expect(js, contains('read: function(exe)'));
+      expect(js, contains("_call('process.read'"));
+      expect(js, contains('onOutput: function(fn)'));
+      expect(js, contains("_listeners['process:output']"));
+      expect(js, contains('onExit: function(fn)'));
+      expect(js, contains("_listeners['process:exit']"));
+    });
+
     test('含双通道发送与全局回调', () {
       expect(js, contains('chrome.webview'));
       expect(js, contains('evgBridge'));

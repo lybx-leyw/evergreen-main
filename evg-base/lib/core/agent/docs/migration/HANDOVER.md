@@ -5,7 +5,7 @@
 > 接手人：后续任意 AI 协作者 / 维护者
 >
 > **一句话现状**：迁移已过 P0/P1 全量 + P2 四包，CSV 进度 **77/2086 done**；
-> PR #51（计划+CSV 基线）与 PR #52（P1 全量 + P2 前四包）均已合入 `v2.0`，
+> PR #51（计划+CSV 基线）与 PR #52（P1 全量 + P2 前四包）均已合入主干分支，
 > 迁移源分支 `feat/reasonix-agent-full-migration-plan` 已合并删除。
 
 ---
@@ -24,7 +24,7 @@
 | 项 | 值 |
 | --- | --- |
 | 分支 | `feat/reasonix-agent-full-migration-plan`（本地；远端已合并删除） |
-| 主干 | `v2.0`（PR #51、#52 已合入） |
+| 主干 | 主干分支（PR #51、#52 已合入） |
 | CSV 进度 | `done 77 / pending 2009`（共 2086 行） |
 | 按阶段 | P1 65 done（13 包全量）/ P2 12 done（4 包）/ P3–P12 0 |
 | 最新提交 | `117555a feat(agent): port P2 netclient (77/2086 done)` |
@@ -124,7 +124,7 @@ testenv fileutil event eventwire stats trajectory`
 | 网络/凭据 | 环境无 GitHub 凭据时 push 失败（`could not read Username`）；用临时 askpass token 可推送；token 不写盘 |
 | 会话中断 | 上次因 HTTP 413（上下文过大）中断——长会话注意控制上下文，恢复时读 `PROGRESS.md` + CSV 即可 |
 | 适配器占位累积 | `platform-adapter` / `adapter` 占位在 CSV 备注有标记，P12 接线前需逐项补齐（WinHTTP、SOCKS5/CONNECT、真实 HTTP 栈等） |
-| `session.jsonl` | 仓库根下已 gitignore，不入库 |
+| `session.jsonl` | 仓库根下的本地运行产物，不入库 |
 
 ## 7. 会话恢复指引（接手者必读）
 
@@ -137,7 +137,7 @@ testenv fileutil event eventwire stats trajectory`
 
 ## 8. 下一步首个动作（建议）
 
-1. 在本地基于 `v2.0` 新建迁移分支（远端源分支已删）。
+1. 在本地基于主干分支新建迁移分支（远端源分支已删）。
 2. 按推荐顺序开始 `shellsafe`（5 行，依赖已就绪的 `shellparse`）：先读
    `.reasonix-ref/internal/shellsafe/shellsafe.go` 与 `shellsafe_test.go`，
    移植 `ref/shellsafe/shellsafe.dart` + `bash_redirect.dart` + `effect.dart` + 测试。

@@ -6,8 +6,26 @@
 > - **Agent 工具插件**：`plugins/<name>/agent/manifest.json` + 可执行文件，由 `PluginBridge` 发现
 > - **主题插件**：`plugins/<name>/theme/theme.json`，由 `ThemeLoader` 加载
 > - **配置插件**：`plugins/<name>/config/config.json`，由 `SettingsLoader` 加载
+> - **常驻进程**：`plugins/<name>/module/manifest.json` 的 `process` 字段声明长驻 worker（如 `zju_autosign`），由模块页经 `platform.process` 拉起
 
-## 内置插件清单（13 个目录）
+```mermaid
+flowchart LR
+    subgraph PLG["plugins/（内置插件，一个插件目录可含多类型子目录）"]
+        M["module/ · JSON 声明<br/>（可含 index.html / process 常驻进程）"]
+        A["agent/ · 工具 manifest + .exe"]
+        T["theme/ · theme.json"]
+        C["config/ · config.json"]
+    end
+    M -->|"template 字段路由"| R["renderer/templates<br/>v4 / html / dsh / scraper /<br/>skill-creator / theme-creator"]
+    M -->|ModuleLoader| CM["core/module"]
+    A -->|PluginBridge| CA["core/agent · toolRegistry"]
+    T -->|ThemeLoader| CT["core/theme"]
+    C -->|SettingsLoader| CC["core/config"]
+    R --> UI["renderer/ UI"]
+    CM --> UI
+```
+
+## 内置插件清单
 
 | 插件 | 类型 | 说明 |
 |------|------|------|
@@ -22,8 +40,13 @@
 | `settings` | module + config | 设置面板：API Key、模型、主题、HTTP 设置页面 |
 | `skill-creator` | module | Skill 创作中心：多 Agent 流水线生成/导出 Skill |
 | `theme-creator` | module | 主题创作中心：8 色语义色板可视化编辑 + 导出 |
-| `view` | module | 我的成绩单：HTML 模板渲染的成绩查看器 |
+| `view` | module | 我的成绩单：HTML 插件成绩查看器（`template:"html"`，`module/index.html`） |
 | `warm_study` | theme | 温馨学习主题（暖色调） |
+| `zju_autosign` | module + config | 学在浙大自动签到：雷达/数字点名自动应答 + 钉钉推送（`template:"html"` + `module.process` 常驻 worker + `config/config.json` 新增 `AUTOSIGN_*` 设置） |
+
+> **模板路由**：`dsh`、`html-creator`、`view`、`zju_autosign`、`scraper`、`skill-creator`、`theme-creator`
+> 的 manifest 带 `template` 字段（依次为 `dsh` / `html` / `html` / `html` / `scraper` / `skill-creator` / `theme-creator`），
+> 走专用模板渲染；其余内置模块走 v4 组件式渲染。新增内置插件后请同步登记本清单。
 
 ## HTML 插件（用户侧主路径）
 
@@ -87,3 +110,9 @@ plugins/<name>/theme/theme.json
 ```
 
 扁平 8 色语义色板（`background/surface/border/text/textSecondary/accent/error/others`），详见 `lib/core/theme/README.md`。
+
+## 资产打包（Android）
+
+内置插件通过 `tool/bundle_plugins.dart` 复制到 `assets/plugins_bundle/` 随 APK 发布（跳过 `.exe`、Python 缓存、
+点文件、渲染日志等非功能资源），安卓端启动期由 `lib/core/utils/plugin_asset_releaser.dart` 释放到设备可写目录。
+**修改 `plugins/` 下运行时脚本（.py 等）后必须重跑 `bundle_plugins.dart`**，否则 APK 打包旧文件。

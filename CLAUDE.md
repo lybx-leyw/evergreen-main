@@ -1,13 +1,13 @@
 # CLAUDE.md — Evergreen 项目 AI 协作入口
 
 > 本文档是整个仓库的 AI 协作总入口。子包级约定见各子目录 `CLAUDE.md` / `README.md`。
-> 最后更新：2026-08-21
+> 最后更新：2026-08-25
 
 ---
 
 ## 项目定位
 
-Evergreen 是一个面向 AI4Life 的开源 AI 平台，当前版本为 **2.0-beta**。
+Evergreen 是一个面向 AI4Life 的开源 AI 平台，当前版本为 **v2.0-rc 系列**（版本号以根 `README.md` 为准）。
 核心形态是本地优先的 Flutter 桌面/移动应用，提供 AI 助手、数据采集、HTML 插件创作、主题创作、Skill 创作等能力。
 
 **当前最重要的事实：用户侧插件创作已切换为 HTML 为主。**
@@ -26,7 +26,9 @@ Evergreen 是一个面向 AI4Life 的开源 AI 平台，当前版本为 **2.0-be
 evergreen-main/
 ├── README.md                     # 项目总览 / 快速开始 / 内置插件
 ├── CLAUDE.md                     # 本文件（AI 协作总入口）
-├── docs/                         # 产品特性截图等
+├── AGENT.md                      # OWNER 职责书（仓库总工程师 root）
+├── CONTRIBUTING.md               # 贡献协议（OWNER 分工 / 架构红线 / 提交规范）
+├── docs/                         # 下载中心（index.html）+ 产品特性截图 + 设计文档（superpowers/specs）
 ├── evg-base/                     # Flutter 应用主体
 │   ├── lib/
 │   │   ├── main.dart / app.dart  # 启动入口 + MaterialApp.router
@@ -51,18 +53,19 @@ evergreen-main/
 │   │   │   └── templates/        #   模板注册表（v4/html/scraper/theme-creator/skill-creator/dsh/zju/paper_reading）
 │   │   ├── theme/                # 兼容性 stub
 │   │   └── generated/            # 兼容性 stub
-│   ├── plugins/                  # 内置插件仓库（13 个目录）
+│   ├── plugins/                  # 内置插件仓库（完整清单见 evg-base/plugins/README.md）
 │   ├── scripts/                  # Python 管线 / 打包脚本
 │   ├── assets/                   # 插件 bundle / 媒体
 │   ├── android/                  # Android 平台（Chaquopy Python）
 │   └── windows/                  # Windows 平台（CMake / Inno Setup）
-├── .reasonix-ref/                # 参考实现（非当前 Flutter 主应用）
-└── v2.0重点优化对象.md           # 版本重点
+└── .reasonix/                    # 参考实现（非当前 Flutter 主应用）
 ```
 
 ---
 
 ## 核心架构
+
+> 📐 交互式架构示意图：[`docs/evergreen-architecture.html`](docs/evergreen-architecture.html)（可缩放 / 聚焦 / 明暗主题）
 
 ```
 core/（纯 Dart 服务层）
@@ -86,11 +89,12 @@ renderer/（Flutter UI 渲染层）
 
 | API | 说明 |
 |------|------|
-| `platform.data.get(name)` / `refresh(name)` / `subscribe(name, fn)` / `testConnectivity()` | 数据中枢 |
+| `platform.data.get(name)` / `refresh(name)` / `subscribe(name, fn)` / `testConnectivity()` / `list()` | 数据中枢（`list()` 列出可用数据源） |
 | `platform.ai.chat(prompt, style)` | AI 对话 |
 | `platform.api.call(service, path, opts)` | 通用 core 服务转发（agent/config/data/module/theme/core） |
 | `platform.settings.get(key)` / `set(key, value)` | 设置读写 |
 | `platform.theme.getColors()` | 当前主题色板 |
+| `platform.process.*`（run/start/write/stop/read/onOutput/onExit） | 常驻进程（manifest `process` 白名单 fail-closed，`scope:"long"` 常驻） |
 | `platform.emit(event, payload)` / `platform.on(event, fn)` | 页级事件 |
 
 HTML 页面自动获得 `--evg-*` CSS 变量（主题色），主题切换时实时更新。
@@ -153,7 +157,11 @@ dart tool/gen_template_registry.dart --profile release_full
 
 | 范围 | 文档 |
 |------|------|
+| OWNER 职责书 | `AGENT.md`（root §6 为全部 OWNER 索引） |
+| 贡献协议 | `CONTRIBUTING.md` |
 | 项目总览 | `README.md` |
+| 下载中心 / 特性截图 | `docs/index.html` + `docs/features/*.png` |
+| 设计文档 | `docs/superpowers/specs/*.md` |
 | 平台底层 | `evg-base/README.md` |
 | Lib 层 API | `evg-base/lib/README.md` |
 | Core 总规范 | `evg-base/lib/core/CLAUDE.md` |
@@ -166,3 +174,4 @@ dart tool/gen_template_registry.dart --profile release_full
 | Renderer | `evg-base/lib/renderer/CLAUDE.md` + `README.md` |
 | 内置插件 | `evg-base/plugins/README.md` |
 | Python 脚本 | `evg-base/scripts/README.md` |
+| 插件上架协议 | `evg-base/docs/plugin-registry/plugin-registry-spec-v1.md` |

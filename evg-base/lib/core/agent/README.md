@@ -3,9 +3,9 @@
 | 元信息 | 值 |
 | --- | --- |
 | 状态 | active |
-| 版本 | 1.0 |
-| 日期 | 2026-08-02 |
-| 负责人 | 待补充 |
+| 版本 | 以根 README.md 为准 |
+| 日期 | 2026-08-25 |
+| 负责人 | core-agent |
 | 适用 | agent 子包 |
 
 > **示例 & 测试路径**
@@ -32,7 +32,7 @@ runtime.events.listen((e) { ... });
 | `agentRuntimeProvider` | `Provider<AgentRuntime>` | 全局唯一运行时 |
 | `controller` | `Controller` | send / cancel / approve / reject |
 | `session` | `Session` | 当前会话消息历史 |
-| `events` | `Stream<AgentEvent>` | 事件流（17 种 EventKind） |
+| `events` | `Stream<AgentEvent>` | 事件流（EventKind 全集） |
 
 ### ChatMessage
 
@@ -60,10 +60,11 @@ notifier.clear();
 
 ### 开关
 
-| Provider | 类型 | 默认 |
-|------|------|------|
-| `webSearchEnabledProvider` | `StateProvider<bool>` | `false` |
-| `deepThinkingEnabledProvider` | `StateProvider<bool>` | `false` |
+| Provider | 类型 | 默认 | 说明 |
+|------|------|------|------|
+| `webSearchEnabledProvider` | `StateProvider<bool>` | `false` | 启用后注册 `web_search` / `web_fetch` |
+| `reasoningEffortProvider` | `StateProvider<String>` | `'off'` | 深度思考档位：`off` / `low` / `medium` / `high` / `max`（主要入口） |
+| `deepThinkingEnabledProvider` | `StateProvider<bool>` | `false` | 旧 bool 开关，与 effort 双向同步（向后兼容） |
 
 ### Session
 
@@ -116,15 +117,28 @@ await writer.execute({'action': 'replace_text', 'path': 'a.txt', 'old_text': 'fo
 | `WorkspaceTool(dir)` | `workspace` | 列出/读取工作区文件（对接 module/ WorkspaceDescriptor） |
 | `ReadFileTool({maxSize})` | `read_file` | 读取磁盘文件，支持 offset/limit、二进制 hex dump |
 | `WriteFileTool({workspaceDir, allowedDirs})` | `write_file` | 精准文件编辑：write / append / insert / replace_lines / delete_lines / replace_text |
+| `GrepTool(workspaceDir)` | `grep` | 正则搜索文件内容 |
+| `ReadHeadTool` / `ReadTailTool` | `read_head` / `read_tail` | 读取文件头部/尾部片段 |
+| `FileInfoTool(workspaceDir)` | `file_info` | 文件元信息（大小/修改时间/类型） |
+| `WebSearchTool(dio)` | `web_search` | 网页搜索（默认禁用，开关开启后注册） |
+| `WebFetchTool(dio)` | `web_fetch` | 抓取 URL 内容 |
+| `ArxivSearchTool` / `GithubSearchTool` / `CrossrefSearchTool` | `arxiv_search` / `github_search` / `crossref_search` | 专业学术/代码检索（Research 工具，见 `tools/RESEARCH_TOOLS.md`） |
+| `DataQueryTool({orchestrator})` | `data_query` | 查询数据谱仪器注册的数据源 |
+| `PythonRunnerTool({pythonExePath, ...})` | `python_runner` | 进程内 Python 执行（run/pip/sys，嵌入版 Python 存在时注册） |
+| `RunSkillTool` / `ListSkillsTool` | `run_skill` / `list_skills` | 动态执行/列出 Skill |
+| `GetUserInfoTool` | `user_info` | 获取用户信息 |
+| `ReadGlobalMemoryTool` / `WriteGlobalMemoryTool` | `read_global_memory` / `write_global_memory` | 全局记忆读写 |
+| `AskTool({asker})` | `ask` | 运行时向用户提问/确认（headless 时模型假设回退） |
+| `GuardianReviewTool({session})` | `guardian_review` | 高风险操作前的人工/策略复核 |
 
 ### PluginBridge
 
 | 方法 | 说明 |
 |------|------|
-| `PluginBridge.discover(pluginsDir)` | 入: `Directory` / 出: `List<Tool>` / 同步扫描 `plugins/` |
+| `PluginBridge.discover(pluginsDir)` | 入: `Directory` / 出: `List<Tool>` / 同步扫描 `plugins/`（`.exe` 或 `.py`） |
 | `PluginBridge.registerAll(registry, pluginsDir)` | 入: `Registry`, `Directory` / 扫描并注册，跳过已注册 |
 | `PluginBridge.refresh(registry, pluginsDir)` | 入: `Registry`, `Directory` / 重新扫描，同步增删 |
-| `PluginManifest.fromJson(json)` | 入: `String` / 出: `PluginManifest` / JSON → 清单 |
+| `PluginManifest.fromJson(json)` | 入: `String` / 出: `PluginManifest` / JSON → 清单（含 `runtime` 字段） |
 | `ArgSpec.fromJson(map)` | 入: `Map?` / 出: `ArgSpec` / argSpec JSON → 规范 |
 | `Registry.register(tool)` | 入: `Tool` / 注册工具，重复抛异常 |
 | `Registry.remove(name)` | 入: `String` / 移除已注册工具 |
@@ -139,7 +153,7 @@ await writer.execute({'action': 'replace_text', 'path': 'a.txt', 'old_text': 'fo
 | `Tool.execute(args)` | 入: `Map<String,dynamic>` / 出: `Future<String>` / 执行工具 |
 | `Tool.readOnly` | 出: `bool` / 默认 `true` |
 
-### AgentEvent（17 种 EventKind）
+### AgentEvent（EventKind 全集）
 
 ```dart
 runtime.events.listen((event) {
@@ -155,7 +169,7 @@ runtime.events.listen((event) {
 
 | 属性 | 类型 | 说明 |
 |------|------|------|
-| `kind` | `EventKind` | 17 种事件类型 |
+| `kind` | `EventKind` | EventKind 全集 |
 | `text` | `String?` | text / reasoning / notice / phase 的文本 |
 | `reasoning` | `String?` | 思考过程 delta |
 | `tool` | `ToolEventPayload?` | 工具调用/结果负载 |
@@ -178,6 +192,7 @@ runtime.events.listen((event) {
 | `compactionStarted` / `compactionDone` | 上下文压实 | — |
 | `mcpSurfaceReady` | MCP 后台资源就绪 | — |
 | `retrying` | Provider 重试通知 | `text` |
+| `guardianAssessment` | Guardian 审查裁决 | `guardian`（GuardianResult） |
 
 ### ToolEventPayload
 
@@ -291,7 +306,7 @@ try {
 | `unsupportedModel(model)` | 模型不支持，可恢复 |
 | `fromStatusCode(int, {body})` | 从 HTTP 状态码自动选择异常 |
 
-### AgentHttpServer（24 端点）
+### AgentHttpServer（端点速查）
 
 > 完整 API 文档：`docs/agent-http-api.md`
 
@@ -354,14 +369,14 @@ await for (final event in MockEventStream.generate()) {
     case EventKind.turnStarted:  /* ... */ break;
     case EventKind.reasoning:    /* ... */ break;
     case EventKind.text:         /* ... */ break;
-    // ... 全部 17 种 EventKind
+    // ... 全部 EventKind
   }
 }
 ```
 
 | 方法 | 说明 |
 |------|------|
-| `MockEventStream.generate({delay})` | 出: `Stream<AgentEvent>` / 覆盖 17 种 EventKind 的模拟流 |
+| `MockEventStream.generate({delay})` | 出: `Stream<AgentEvent>` / 覆盖全部 EventKind 的模拟流 |
 | `MockEventStream.eventKindReference` | 出: `List<Map>` / 全部 EventKind 的描述和 payload 参考表 |
 
 ### OcrAttachmentHandler
@@ -415,6 +430,7 @@ server.stop();
 > **完整示例模板**：`example/plugins/time/`（Python + args + flag）、`example/plugins/date/`（Python + stdin）、`example/plugins/weather/`（Python + args + flag + 短 flag）、`example/plugins/random/`（C + args + flag），含 manifest.json + 源码 + README，复制改改就能用。
 >
 > 注意：普通用户创作插件不需要编写 `.exe` Agent 工具；用户侧主路径是 `html-creator` 中的 HTML/JS 插件。
+> 自 PluginBridge 支持 `.py` 起入口可以是 `.exe` 或 `.py`，`manifest.json` 的 `runtime` 字段（`native` / `python`）决定执行方式。
 
 ### 第一步：写一个可执行程序
 
@@ -460,6 +476,7 @@ print(result)
 | `readOnly` | | `false` | 只读工具可并行 |
 | `argMode` | | `"stdin"` | `"stdin"`（JSON → stdin）或 `"args"`（JSON → 命令行） |
 | `argSpec` | | `{"style":"json"}` | args 模式命令行构造规范 |
+| `runtime` | | `"native"` | `"native"`（直跑 `.exe`）或 `"python"`（用 Python 解释器跑 `.py`） |
 
 ### 第三步：配置 argSpec（argMode="args" 时）
 
@@ -517,33 +534,32 @@ stdout 作为结果返回 Agent。stderr 附加尾部。非零退出码返回 `[
 平台启动时自动执行，插件开发者无需干预：
 
 1. 扫描 `plugins/` 下所有子目录
-2. 发现 `.exe` + `manifest.json` → 解析并构造 `PluginTool`
+2. 发现 `.exe` 或 `.py`（同名优先，`.exe` 优先于 `.py`）+ `manifest.json` → 解析并构造 `PluginTool`
 3. 注册到 `Registry`
-4. Agent 调用时启动进程 → 传入参数 → 收集结果
+4. Agent 调用时启动进程（或经 `PluginRunner` 进程内执行）→ 传入参数 → 收集结果
 
 ## 规则
 
 - `name` 全局唯一，重复抛异常。
 - `schema` 每个属性要有 `description`。
 - 只读工具可并行，写工具串行。
-- 插件 = `plugins/<name>/agent/<name>.exe` + 必写 `manifest.json`。
+- 插件 = `plugins/<name>/agent/` 下入口文件（`.exe` / `.py`）+ 必写 `manifest.json`。
 - 使用 `agentRuntimeProvider`，不手动构造 Controller / Registry。
 
 ---
 
 ## 代码质量摘要
 
-| 类别 | 文件数 | 总行数 | 测试用例 | 状态 |
-|------|--------|--------|----------|------|
-| 核心（tool/event/message/provider/agent/session/compose/gate/controller） | 9 | ~2,550 | — | ★★★★ |
-| 记忆（memory/agent/facade/router） | 4 | ~705 | 24 | ★★★★ |
-| 插件系统（plugin_bridge/workspace/read_file/write_file/skill） | 5 | ~1,020 | — | ★★★★ |
-| 守护/提问/大文件/Skill 改写（guardian/ask/large_file/skill_rewriter） | 4+ | — | 54 | ★★★★ |
-| 示例（example.dart + 4 插件） | 5 | — | — | ★★★★ |
-| 测试（13 文件） | 13 | — | 229 | All passed |
-| **合计** | — | — | **229** | `dart analyze` → 0 issues |
+| 类别 | 说明 | 状态 |
+|------|------|------|
+| 核心（tool/event/message/provider/agent/session/compose/gate/controller） | 运行时主链路 | ★★★★ |
+| 记忆（memory/） | 三 scope 记忆 + MemoryAgent | ★★★★ |
+| 工具（tools/） | 文件/网络/记忆/Skill/插件桥/guardian/ask/python/data_query | ★★★★ |
+| 守护/提问/大文件/Skill 改写（guardian/ask/large_file/skill_rewriter） | 安全与生产能力 | ★★★★ |
+| 示例（example/） | Demo + 插件模板 | ★★★★ |
+| 测试（test/） | 文件清单见 CLAUDE.md 测试策略表 | All passed |
 
-> 完整自评明细见 `CLAUDE.md`。
+> 测试与代码质量明细见 `CLAUDE.md`。
 
 ## 已知问题
 

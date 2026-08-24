@@ -181,7 +181,7 @@ class ChaquopyRunner implements PluginRunner {
     // server，stdout 经 EventChannel 流式回传，原生侧 [ChaquopyLongProcess]
     // 把其包装成 [Process]，使 [DataSourceLoader] 的 PORT:/health/{port} 协议
     // 与桌面完全一致。
-    final proc = ChaquopyLongProcess();
+    final proc = ChaquopyLongProcess(entry);
     await _ch.invokeMethod<void>('startLongServer', {
       'entry': entry,
       'args': args,
@@ -210,7 +210,16 @@ class ChaquopyLongProcess implements Process {
   bool _killed = false;
   StreamSubscription? _streamSub;
 
-  ChaquopyLongProcess() {
+  /// 入口脚本路径（用于 stdin 写入时定位目标进程；当前 Kotlin 侧为单实例，
+  /// 仅作透传，未来多实例时据此路由）。
+  final String entry;
+
+  /// stdin 写入 sink：把命令经 MethodChannel('evergreen/python') 的
+  /// `writeStdin` 转发到 Kotlin 侧，注入到 Python 常驻进程的 stdin 队列。
+  /// 惰性创建，避免无 stdin 需求的场景浪费。
+  IOSink? _stdin;
+
+  ChaquopyLongProcess(this.entry) {
     _streamSub = _streamCh.receiveBroadcastStream().listen(
       (event) {
         final map = event as Map<dynamic, dynamic>;
@@ -252,8 +261,7 @@ class ChaquopyLongProcess implements Process {
   int get pid => -1;
 
   @override
-  IOSink get stdin =>
-      throw UnsupportedError('安卓长驻进程不支持 stdin 写入');
+  IOSink get stdin => _stdin ??= _ChaquopyStdinSink(_ctrlCh, entry);
 
   @override
   bool kill([ProcessSignal signal = ProcessSignal.sigterm]) {
@@ -263,4 +271,62 @@ class ChaquopyLongProcess implements Process {
     _completeExit(0);
     return true;
   }
+}
+
+/// 安卓常驻进程的 stdin 写入 sink（stdin 双向流规划 §4.2）。
+///
+/// 把 [write] / [writeln] 等调用经 MethodChannel('evergreen/python') 的
+/// `writeStdin` 转发到 Kotlin 侧，再由其注入到 Python 常驻进程的 stdin 队列。
+/// 其余 `IOSink` 接口方法按需实现（多为 no-op，仅 write 系列有实际语义）。
+class _ChaquopyStdinSink implements IOSink {
+  final MethodChannel _ch;
+  final String entry;
+
+  _ChaquopyStdinSink(this._ch, this.entry);
+
+  @override
+  Encoding encoding = utf8;
+
+  @override
+  void add(List<int> data) {
+    write(utf8.decode(data));
+  }
+
+  @override
+  void write(Object? object) {
+    final s = object?.toString() ?? '';
+    if (s.isEmpty) return;
+    // fire-and-forget：命令发出即可，Python 侧异步读。
+    _ch.invokeMethod<void>('writeStdin', {'entry': entry, 'data': s});
+  }
+
+  @override
+  void writeAll(Iterable<dynamic> objects, [String separator = ""]) {
+    write(objects.join(separator));
+  }
+
+  @override
+  void writeln([Object? object = ""]) {
+    write('${object ?? ''}\n');
+  }
+
+  @override
+  void writeCharCode(int charCode) {
+    write(String.fromCharCode(charCode));
+  }
+
+  @override
+  void addError(Object error, [StackTrace? stackTrace]) {}
+
+  @override
+  Future<dynamic> addStream(Stream<List<int>> stream) async {}
+
+  @override
+  Future<dynamic> flush() async {}
+
+  @override
+  Future<dynamic> close() async {}
+
+  @override
+  Future<dynamic> get done async {}
 }

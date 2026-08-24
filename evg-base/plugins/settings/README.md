@@ -40,7 +40,7 @@ pyinstaller --onefile --windowed settings.py
 
 ## 设置声明
 
-所有设置项在 `plugins/core-settings/config/config.json` 中声明，格式：
+所有设置项在 `plugins/settings/config/config.json` 中声明，格式：
 
 ```json
 {

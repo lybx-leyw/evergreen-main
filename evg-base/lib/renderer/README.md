@@ -3,13 +3,14 @@
 | 元信息 | 值 |
 | --- | --- |
 | 状态 | active |
-| 版本 | 1.0 |
+| 版本 | 见根 `README.md` |
 | 日期 | 2026-08-02 |
-| 负责人 | 待补充 |
+| 负责人 | renderer |
 | 适用 | renderer 渲染层 |
 
 > 纯渲染层：读 `ModuleDescriptor`，按声明/模板画 UI。不解析 manifest、不管理进程、不写业务逻辑。
 > **用户侧插件创作主路径为 HTML**：`html-creator` 编写 HTML/CSS/JS → 导出 HTML 插件 → `html_modle` WebView 渲染。
+> 最后更新：2026-08-25。
 
 ---
 
@@ -32,12 +33,13 @@ lib/renderer/
 ├── atomic/            # 原子取数原语（DataSourceResolver / JSONPath / TransformRegistry）
 ├── components/        # 共享组件
 │   ├── shared/        # 组合基础设施（TemplateEngine / SlotScale / AgentTrace）
-│   └── shared/widgets/ # 原子组件（约 60 个）
+│   └── shared/widgets/ # 原子组件（清单见 widgets/）
 ├── module/            # 模块调度（EvergreenModulePage / ModuleDispatch）
 ├── multi_agent/       # 多 Agent 并行视图
 ├── page/              # 页面视图（市场 / 设置 / 数据看板 / 文件 / 全局记忆 / Skill 管理）
 ├── templates/         # 模板（modle）渲染器与注册表
-├── lib/               # 11 个 Stub 包
+│   └── v4_modle/      #   slot 分派 + 组件域（document/data/interaction/creative/learning/controls）收敛于此
+├── lib/               # Stub 包（独立 dart analyze）
 ├── docs/              # 设计规范 + 渲染常量
 └── renderer.dart      # barrel 导出
 ```
@@ -51,10 +53,12 @@ lib/renderer/
 | 条件 | 视图 | 说明 |
 |------|------|------|
 | `descriptor.id == 'ai-assistant'` | `ChatControllerView` | AI 助手专用全屏对话 |
-| `descriptor.template` 非空且非 `v4` | `TemplateRegistry.render` | 自定义模板：html / scraper / theme-creator / skill-creator / dsh / zju / paper_reading |
+| `descriptor.template` 非空且非 `v4` | `TemplateRegistry.render` | 自定义模板：html / scraper / theme-creator / skill-creator / dsh / zju / classroom / zdbk / paper_reading |
 | `descriptor.pages` 非空 | `TemplateRegistry.render` | 有 pages 时按模板路由（默认 v4 composite） |
 | `descriptor.workspace.enabled` | `EditorView` | 文件工作区 / 代码编辑 |
 | 其他 | `DefaultView` | 通用数据绑定兜底 |
+
+> **lattice 契约现状**：六格契约（`static-web`/`web-bridged`/`data-source`/`sidecar`/`agent-tool`/`external-app`）由 `core/module` 解析与权限层裁决；renderer **不按 lattice 路由**（`ModuleDispatch` 只消费 `template`/`pages`/`workspace`），`external-app` 深链特判未在 renderer 实现。详见 `CLAUDE.md`。
 
 模板注册表（生成物 `templates/generated/template_registry.g.dart`）：
 
@@ -76,15 +80,17 @@ lib/renderer/
 `html_modle` 是用户侧插件的核心模板：
 
 1. 本地 HTTP 服务加载 `plugins/<id>/module/index.html`（支持 css/js/json/png/svg 等静态资源）
-2. Windows WebView / Android WebView 加载页面
-3. 自动注入 `platform.*` JS Bridge
+2. Windows WebView / Android WebView 加载页面（bridge 双通道 `chrome.webview` / `evgBridge`）
+3. 自动注入 `platform.*` JS Bridge（服务端文档顶部内联 + document-created + onPageStarted 三保险）
 4. 当前主题色板注入为 `--evg-*` CSS 变量，主题切换实时推送
 
 插件侧可用 API（Promise 风格）：
 
 ```js
 const data = await platform.data.get('zju_scores');
+const all = await platform.data.list();
 await platform.data.refresh('zju_scores');
+await platform.data.testConnectivity();
 platform.data.subscribe('zju_scores', (payload) => console.log(payload));
 
 const reply = await platform.ai.chat('总结这段数据', 'concise');
@@ -93,7 +99,16 @@ await platform.settings.set('THEME_MODE', 'dark');
 const colors = await platform.theme.getColors();
 platform.emit('my-event', { hello: 'world' });
 platform.on('theme:changed', (colors) => { ... });
+
+// 进程白名单（manifest `process` 声明，fail-closed）：
+const r = await platform.process.run('zjuical', { args: ['-u', user] });
+await platform.process.start('worker.py', { args: [] });   // scope:"long" 常驻
+await platform.process.write('worker.py', 'go\n');
+const out = await platform.process.read('worker.py');
+await platform.process.stop('worker.py');
 ```
+
+> 特例：`descriptor.id == 'html-creator'` 时短路到 Dart 原生 `HtmlCreatorView`（创作中心三栏 IDE），不启动本地 HTTP / WebView。
 
 ---
 
@@ -101,11 +116,11 @@ platform.on('theme:changed', (colors) => { ... });
 
 ### 原子组件（components/shared/widgets/）
 
-按领域分组，代表性组件：
+按领域分组，代表性组件（`app_shell` / `command_palette` 等壳组件在 `app/`，不属于 widgets）：
 
 | 分组 | 代表组件 |
 |------|----------|
-| 应用/通用 | `app_shell`, `command_palette`, `toast`, `empty_state`, `error_card` |
+| 通用 | `toast`, `empty_state`, `error_card`, `loading_indicator`, `confirm_dialog` |
 | Chat | `message_bubble`, `thinking_block`, `tool_call_card`, `chat_input_bar` |
 | 数据展示 | `data_table`, `data_list`, `data_card_grid`, `dashboard_card`, `freshness_badge` |
 | 交互 | `crud_toolbar`, `confirm_dialog`, `search_bar`, `export_menu`, `refresh_widget` |
@@ -169,7 +184,7 @@ HTML 插件使用 CSS 变量：
 
 - `renderer/test/`：组件级 widgetTest
 - 项目根 `test/`：集成测试
-- `dart analyze lib/`：11 stub 包零问题
+- `dart analyze lib/`：stub 包零问题
 
 ```dart
 testWidgets('renders DashboardCard', (tester) async {
@@ -196,6 +211,8 @@ testWidgets('renders DashboardCard', (tester) async {
 ## 相关文档
 
 - [CLAUDE.md](./CLAUDE.md) — AI 协作规范
-- [docs/plugin-authoring-guide-renderer.md](./docs/plugin-authoring-guide-renderer.md) — 插件开发者集成指南
+- [AGENT.md](./AGENT.md) — OWNER 职责书
 - [templates/template_registry.dart](./templates/template_registry.dart) — 模板注册表
+- [templates/templates_index.json](./templates/templates_index.json) — 模板清单（生成器输入）
 - [templates/html_modle/html_modle_view.dart](./templates/html_modle/html_modle_view.dart) — HTML 插件视图
+- [templates/html_modle/bridge_script.dart](./templates/html_modle/bridge_script.dart) — JS Bridge 生成 + core 转发 + 数据订阅轮询

@@ -60,6 +60,47 @@ Future<ProcessResult> runOcrProcess(
     workingDirectory: workingDirectory, includeParentEnvironment: true);
 }
 
+/// 用已解析的 Python 解释器安装一组第三方包（M6 · 方案 A）。
+///
+/// [packages] 为 pip 可识别的包名/约束（如 `aiohttp`、`selenium>=4.0`）。
+/// 返回成功与否；失败原因经 [Log] 记录，不抛异常（调用方据此给出可读提示）。
+///
+/// 用于插件安装阶段：manifest 声明 `requirements`，安装器据此补齐嵌入式
+/// Python 缺的第三方依赖（如 zjucrawler 的 aiohttp/selenium 等）。
+Future<bool> pipInstallPackages(
+  List<String> packages, {
+  String? pythonExe,
+  Duration timeout = const Duration(seconds: 300),
+}) async {
+  if (packages.isEmpty) return true;
+  final exe = pythonExe ?? await resolvePythonExe();
+  if (exe == null) {
+    Log().warn('PythonEnv: pip install 跳过（未找到 Python）',
+        data: {'packages': packages});
+    return false;
+  }
+  try {
+    final result = await Process.run(
+      exe,
+      ['-m', 'pip', 'install', ...packages],
+      includeParentEnvironment: true,
+    ).timeout(timeout);
+    final ok = result.exitCode == 0;
+    Log().info(
+      ok ? 'PythonEnv: pip install 成功' : 'PythonEnv: pip install 失败',
+      data: {
+        'packages': packages,
+        'exitCode': result.exitCode,
+        if (!ok) 'stderr': (result.stderr as String).toString(),
+      },
+    );
+    return ok;
+  } catch (e) {
+    Log().warn('PythonEnv: pip install 异常', data: {'error': e.toString()});
+    return false;
+  }
+}
+
 /// Python 依赖管理。
 class PythonEnv {
   final String? _configuredPython;

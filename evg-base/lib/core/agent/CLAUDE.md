@@ -3,9 +3,9 @@
 | 元信息 | 值 |
 | --- | --- |
 | 状态 | active |
-| 版本 | 1.0 |
-| 日期 | 2026-08-02 |
-| 负责人 | 待补充 |
+| 版本 | 以根 README.md 为准 |
+| 日期 | 2026-08-25 |
+| 负责人 | core-agent |
 | 适用 | AI 协作者（agent 子包） |
 
 > 本文件为 AI 协作入口，提供模块架构、设计决策、开发约定、测试策略和跨模块接口契约。
@@ -30,7 +30,7 @@
      ┌────────────┐    ┌─────────────┐    ┌──────────────┐
      │ Controller │◄───│   Agent     │◄───│  EventSink   │
      │ (send/     │    │  (主循环)    │    │  (事件流)     │
-     │  cancel/   │    │  compose→   │    │  17种EventKind│
+     │  cancel/   │    │  compose→   │    │  EventKind  │
      │  approve)  │    │  LLM→tools  │    └──────────────┘
      └────────────┘    │  →readiness │
                        └─────┬───────┘
@@ -54,7 +54,7 @@
 
 ┌──────────────────────────────────────────────────────────┐
 │                   PluginBridge                            │
-│  plugins/<name>/agent/<name>.exe + manifest.json         │
+│  plugins/<name>/agent/{<name>.exe|<name>.py} + manifest   │
 │  → 自动发现 → PluginTool → Registry.register()           │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -89,13 +89,13 @@ lib/core/agent/
 ├── skill/          ← Skill 加载/索引/生成/改写 (skill_generator/skill_rewriter)
 ├── compact/        ← AI 上下文压实
 ├── evidence/       ← 审计收据与账本
-├── output_style/   ← 4 种输出风格
+├── output_style/   ← 输出风格
 ├── guardian/       ← Agent 守护策略（GuardianPolicy / GuardianReviewTool）
-├── tools/          ← 18 个内置工具 (plugin_bridge/workspace/read_file/write_file/ask/guardian_review/...)
-├── docs/           ← api-contracts.md + agent-http-api.md
+├── tools/          ← 内置工具（web/文件/记忆/skill/插件桥/ask/guardian/python/data_query/...）
+├── docs/           ← api-contracts / agent-http-api / plugin-agent-tool / plugin-authoring-guide / migration
 ├── example/        ← Demo + 插件模板
-├── test/           ← 13 个测试文件（229 个 test 调用）
-└── lib/            ← 5 个 stub 包 (dio/flutter/riverpod/shared_preferences/uuid)
+├── test/           ← 测试（tool/registry/session/memory/plugin_bridge/provider/compact/integration/...）
+└── lib/            ← stub 包 (dio/flutter/riverpod/shared_preferences/uuid) + core 辅助
 ```
 
 ---
@@ -161,10 +161,11 @@ MemoryFacade (统一入口)
 
 ### 6. PluginBridge 设计
 
-- **扫描路径**：`plugins/<name>/agent/` → 找 `.exe` + `manifest.json`
+- **扫描路径**：`plugins/<name>/agent/` → 找入口文件（`.exe` 或 `.py`，同名优先）+ `manifest.json`
+- **执行抽象**：`PluginRunner`（桌面子进程 / 安卓 Chaquopy 进程内），`manifest.runtime` 决定解释器（`native` 默认直跑 `.exe`；`python` 用 Python 解释器跑 `.py`）
 - **不管理进程生命周期**——只负责发现和注册到 Registry
 - **三种 arg 风格**：`stdin` (JSON→stdin)、`args+flag` (`--key value`)、`args+positional` (按序传值)
-- **manifest.json 必写**：name + description + schema + readOnly + argMode + argSpec
+- **manifest.json 必写**：name + description + schema + readOnly + argMode + argSpec + runtime
 
 ### 7. Guardian 守护策略
 
@@ -184,12 +185,13 @@ MemoryFacade (统一入口)
 
 ### 10. Stub 隔离
 
-5 个 stub 包位于 `lib/` 下，隔离外部 Flutter 依赖：
+stub 包位于 `lib/` 下，隔离外部 Flutter 依赖：
 - `dio_stub` — HTTP 客户端
 - `flutter_stub` — Flutter Widget
 - `flutter_riverpod_stub` — Riverpod 状态管理
 - `shared_preferences_stub` — SharedPreferences
 - `uuid_stub` — UUID 生成
+- `core/` — 子包测试用辅助（log/python_env/plugin_runner 副本）
 
 这使得 Agent 核心逻辑可在纯 Dart 环境测试，不依赖 Flutter Widget。
 
@@ -237,22 +239,22 @@ MemoryFacade (统一入口)
 
 ## 测试策略
 
-| 文件 | test 调用数 | 覆盖 |
-|------|------|------|
-| `tool_test.dart` | 25 | Tool 接口、Registry、BuiltinRegistry、Previewer |
-| `registry_test.dart` | 14 | 跨插件调度、并行工具、边界条件 |
-| `session_test.dart` | 19 | Session CRUD、token 统计、序列化 |
-| `memory_test.dart` | 24 | Memory 模型、InMemoryStore、FileMemoryStore、Router |
-| `plugin_bridge_test.dart` | 18 | PluginManifest 解析、ArgSpec、discover/registerAll/refresh |
-| `provider_test.dart` | 26 | AiUnavailableException、MockEventStream、OCR |
-| `compact_test.dart` | 13 | Context Compaction、sanitizeToolPairing |
-| `integration_test.dart` | 20 | 跨插件联调、OCR E2E、StormBreaker、FinalReadiness |
-| `scripted_server_test.dart` | 16 | ScriptedAgentHttpServer HTTP SSE + 场景[3][4] |
-| `hooks_test.dart` | 10 | ToolHooks / LoggingHooks / CompositeHooks |
-| `ask_tool_test.dart` | 9 | AskTool 提问/确认 |
-| `large_file_tools_test.dart` | 14 | 大文件读写/边界 |
-| `skill_rewriter_test.dart` | 21 | Skill 改写管线 |
-| **合计** | **229** | `dart test` → All passed · `dart analyze` → 0 issues |
+| 文件 | 覆盖 |
+|------|------|
+| `tool_test.dart` | Tool 接口、Registry、BuiltinRegistry、Previewer |
+| `registry_test.dart` | 跨插件调度、并行工具、边界条件 |
+| `session_test.dart` | Session CRUD、token 统计、序列化 |
+| `memory_test.dart` | Memory 模型、InMemoryStore、FileMemoryStore、Router |
+| `plugin_bridge_test.dart` | PluginManifest 解析、ArgSpec、discover/registerAll/refresh |
+| `provider_test.dart` | AiUnavailableException、MockEventStream、OCR |
+| `compact_test.dart` | Context Compaction、sanitizeToolPairing |
+| `integration_test.dart` | 跨插件联调、OCR E2E、StormBreaker、FinalReadiness |
+| `scripted_server_test.dart` | ScriptedAgentHttpServer HTTP SSE + 场景[3][4] |
+| `hooks_test.dart` | ToolHooks / LoggingHooks / CompositeHooks |
+| `ask_tool_test.dart` | AskTool 提问/确认 |
+| `large_file_tools_test.dart` | 大文件读写/边界 |
+| `skill_rewriter_test.dart` | Skill 改写管线 |
+| `skill_loader_test.dart` | Skill 加载/索引/插件禁用状态 |
 
 运行：
 ```bash
@@ -275,11 +277,11 @@ cd lib/core/agent && dart pub get && dart test
 - `AgentHttpServer` 在启动时写入 `.agent_port` 文件
 - 插件 .exe 通过读取 `.agent_port` 发现端口号
 - 通信协议：HTTP + JSON，支持 SSE 流式输出
-- 24 个 REST 端点覆盖：健康检查、对话、会话、工具、控制、风格、记忆、技能、配置
+- REST 端点覆盖：健康检查、对话、会话、工具、控制、风格、记忆、技能、配置（完整清单见 `docs/agent-http-api.md`）
 
 ### 与渲染层的接口
 
-- **事件流**：`Stream<AgentEvent>` — 17 种 EventKind，覆盖全生命周期
+- **事件流**：`Stream<AgentEvent>` — EventKind 全集（见 `event.dart` 枚举），覆盖全生命周期
 - **Mock 流**：`MockEventStream.generate()` — 渲染工程师不依赖真实 LLM 即可开发 UI
 - **ChatMessage**：渲染层专用的消息模型，支持 `addUser/addAssistant/addToolCall/addToolResult/clear`
 - **Controller**：`send(input, {attachments})` / `cancel()` / `approve()` / `reject()`
@@ -288,4 +290,4 @@ cd lib/core/agent && dart pub get && dart test
 
 ---
 
-_版本: 1.1 (2026-08-21，对齐 HTML-first 与新增子系统)_
+_更新：2026-08-25（资产清点对齐：EventKind 全集、内置工具清单、测试文件清单、PluginBridge .py/runtime 支持、docs/ 新增插件指南与 migration；版本号以根 README.md 为准）_

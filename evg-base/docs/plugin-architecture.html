@@ -6,53 +6,89 @@
 <title>Evergreen 上中下插件架构图（Dart 冷/热插件）</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Segoe UI','Microsoft YaHei',sans-serif;background:#f7f9fc;color:#263238;padding:28px 16px 48px}
-h1{text-align:center;font-size:26px;margin-bottom:6px}
-.sub{text-align:center;color:#607d8b;margin-bottom:20px;font-size:14px}
-.legend{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:24px}
-.legend span{padding:6px 12px;border-radius:8px;font-size:12.5px;font-weight:600;border:2px solid}
-.leg-core{background:#f3e5f5;border-color:#9c27b0;color:#6a1b9a}
-.leg-plug{background:#e3f2fd;border-color:#1565c0;color:#0d47a1}
-.leg-render{background:#e8f5e9;border-color:#2e7d32;color:#1b5e20}
-.leg-cold{background:#e1f5fe;border-color:#0277bd;color:#01579b}
-.leg-hot{background:#fff8e1;border-color:#ef6c00;color:#e65100}
-.flow{text-align:center;padding:8px 0;color:#37474f;font-size:13.5px}
-.flow b{background:#eceff1;padding:3px 10px;border-radius:12px;font-weight:600}
-.flow .arrow{font-size:20px;display:block;color:#90a4ae}
-.layer{max-width:1180px;margin:0 auto;border-radius:14px;padding:16px 16px 18px;border:2px solid}
-.core{background:#faf5ff;border-color:#9c27b0}
-.plugins{background:#f1f8ff;border-color:#1565c0}
-.renderer{background:#f2fbf3;border-color:#2e7d32}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',sans-serif;background:#fafafa;color:#17181a;padding:32px 16px 48px;-webkit-font-smoothing:antialiased}
+/* 顶部品牌 */
+.brand{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:6px}
+.brand-mark{width:54px;height:54px;border-radius:15px;background:#fff;border:1px solid rgba(17,24,39,.08);overflow:hidden;flex-shrink:0}
+.brand-mark svg{display:block;width:100%;height:100%}
+/* 「黑白放映」：墨白（灰度）为主，周期性"放映"彩色版；悬停常显彩色 */
+.brand-mark .logo-reel{filter:grayscale(1);transition:filter .6s ease;animation:logoReel 12s ease-in-out infinite}
+.brand-mark:hover .logo-reel{filter:grayscale(0);animation-play-state:paused}
+@keyframes logoReel{0%,16%{filter:grayscale(1)}28%,56%{filter:grayscale(0)}72%,100%{filter:grayscale(1)}}
+h1{text-align:left;font-size:22px;font-weight:700;letter-spacing:-.02em;line-height:1.3}
+.sub{text-align:center;color:#6b7280;margin-bottom:22px;font-size:13.5px}
+.sub code{font-family:Consolas,Menlo,monospace;background:#f4f4f5;padding:1px 5px;border-radius:4px;font-size:12.5px;color:#17181a}
+.legend{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:26px}
+.legend span{padding:5px 12px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid}
+.leg-core{background:#fff;border-color:#e5e7eb;color:#374151}
+.leg-plug{background:#f0fdf4;border-color:#16a34a;color:#15803d}
+.leg-render{background:#fff;border-color:#e5e7eb;color:#374151}
+.leg-cold{background:#f4f4f5;border-color:#d1d5db;color:#111827}
+.leg-hot{background:#f0fdf4;border-color:#16a34a;color:#15803d}
+.flow{text-align:center;padding:10px 0;color:#374151;font-size:13px}
+.flow b{background:#f4f4f5;border:1px solid #e5e7eb;padding:3px 12px;border-radius:999px;font-weight:600}
+.flow .arrow{font-size:18px;display:block;color:#9ca3af;margin-bottom:4px}
+.layer{max-width:1180px;margin:0 auto;border-radius:14px;padding:16px 16px 18px;border:1px solid #e5e7eb;background:#fff}
+.core{background:#fff}
+.plugins{background:#fcfdfc;border-color:#d1fae5}
+.renderer{background:#fff}
 .layer-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
-.layer-tag{padding:5px 12px;border-radius:20px;color:#fff;font-size:13px;font-weight:700}
-.tag-core{background:#9c27b0}
-.tag-plug{background:#1565c0}
-.tag-render{background:#2e7d32}
-.layer-title{font-size:17px;font-weight:700}
-.layer-sub{font-size:12.5px;color:#607d8b;margin-left:auto}
+.layer-tag{padding:4px 12px;border-radius:999px;color:#fff;font-size:12px;font-weight:700}
+.tag-core{background:#111827}
+.tag-plug{background:#16a34a}
+.tag-render{background:#374151}
+.layer-title{font-size:16px;font-weight:700}
+.layer-sub{font-size:12px;color:#9ca3af;margin-left:auto}
 .boxes{display:grid;gap:10px}
 .cols3{grid-template-columns:repeat(3,1fr)}
 .cols4{grid-template-columns:repeat(4,1fr)}
 .cols2{grid-template-columns:repeat(2,1fr)}
-.card{background:#fff;border:1px solid #d7e0e8;border-radius:9px;padding:9px 11px;font-size:12.5px;line-height:1.55}
-.card b{color:#37474f;font-size:13px;display:block;margin-bottom:3px}
-.card code{font-family:Consolas,Menlo,monospace;background:#eef2f6;padding:0 4px;border-radius:4px;color:#c62828;font-size:11.5px}
-.card .p{color:#546e7a}
-.mini{font-size:11px;color:#78909c;margin-top:4px}
-.cold,.hot{border-width:2px}
-.cold{background:#e1f5fe;border-color:#0277bd}
-.hot{background:#fff8e1;border-color:#ef6c00}
-.pill{display:inline-block;padding:1px 8px;border-radius:10px;color:#fff;font-size:11px;font-weight:700;margin-right:4px}
-.pill-cold{background:#0277bd}
-.pill-hot{background:#ef6c00}
+.card{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;font-size:12.5px;line-height:1.6;color:#374151}
+.card b{color:#111827;font-size:13px;display:block;margin-bottom:3px}
+.card code{font-family:Consolas,Menlo,monospace;background:#f4f4f5;padding:0 4px;border-radius:4px;color:#b91c1c;font-size:11.5px}
+.card .p{color:#6b7280}
+.mini{font-size:11px;color:#9ca3af;margin-top:5px}
+.cold,.hot{border-width:1.5px}
+.cold{background:#fafafa;border-color:#d1d5db}
+.hot{background:#f0fdf4;border-color:#16a34a}
+.pill{display:inline-block;padding:2px 9px;border-radius:999px;color:#fff;font-size:11px;font-weight:700;margin-right:6px}
+.pill-cold{background:#111827}
+.pill-hot{background:#16a34a}
 .chain{margin:6px 0;display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px}
-.chain .step{background:#fff;border:1px solid #cfd8dc;border-radius:6px;padding:3px 8px}
-.arrow-mini{color:#78909c;font-weight:700}
+.chain .step{background:#fff;border:1px solid #e5e7eb;border-radius:6px;padding:3px 8px}
+.arrow-mini{color:#9ca3af;font-weight:700}
+.foot{max-width:1180px;margin:18px auto 0;background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px;font-size:12px;color:#6b7280;line-height:1.7}
+.foot b{color:#111827}
+.foot code{font-family:Consolas,Menlo,monospace;background:#f4f4f5;padding:0 4px;border-radius:4px;font-size:11px}
+.footer{text-align:center;margin-top:22px;color:#9ca3af;font-size:12px;display:flex;flex-direction:column;align-items:center;gap:6px}
+.footer svg{width:44px;height:44px;opacity:.9}
 @media(max-width:860px){.cols3,.cols4,.cols2{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
-<h1>Evergreen 上 · 中 · 下 插件架构图</h1>
+
+<div class='brand'>
+  <div class='brand-mark'>
+    <svg class='logo-reel' viewBox='0 0 240 240' xmlns='http://www.w3.org/2000/svg' role='img' aria-label='绿意不息 Logo'>
+      <defs>
+        <linearGradient id='lg-leaf' x1='18%' y1='8%' x2='82%' y2='95%'>
+          <stop offset='0%' stop-color='#6fe3a0'/><stop offset='45%' stop-color='#2fbf71'/><stop offset='100%' stop-color='#0f9d58'/>
+        </linearGradient>
+        <linearGradient id='lg-ring' x1='0%' y1='0%' x2='100%' y2='100%'>
+          <stop offset='0%' stop-color='#16c784'/><stop offset='50%' stop-color='#0aa56a'/><stop offset='100%' stop-color='#0d8f63'/>
+        </linearGradient>
+      </defs>
+      <rect x='8' y='8' width='224' height='224' rx='56' fill='#f0fdf4'/>
+      <path d='M120 40 a80 80 0 1 1 -56.6 23.4' fill='none' stroke='url(#lg-ring)' stroke-width='9' stroke-linecap='round'/>
+      <path d='M120 40 l-13 -2 l4 13 z' fill='#0f9d58'/>
+      <g transform='translate(120 132)'>
+        <path d='M0 -78 C 46 -58, 60 6, 8 64 C -6 74, -6 74, -8 64 C -58 8, -42 -52, 0 -78 Z' fill='url(#lg-leaf)'/>
+        <path d='M0 -70 C 2 -36, 2 18, -2 60' fill='none' stroke='#ffffff' stroke-opacity='0.8' stroke-width='3.2' stroke-linecap='round'/>
+      </g>
+    </svg>
+  </div>
+  <h1>Evergreen 上 · 中 · 下 插件架构图</h1>
+</div>
 <div class='sub'>上游 <code>core/</code>（声明与运行内核） → 中游 <code>plugins/</code>（manifest 声明 + 冷/热加载） → 下游 <code>renderer/</code>（渲染 / HTML 输出） · 本图基于 evg-base 代码实况绘制</div>
 
 <div class='legend'>
@@ -113,7 +149,7 @@ h1{text-align:center;font-size:26px;margin-bottom:6px}
 
   <div class='boxes cols2' style='margin-top:10px'>
     <div class='card'><b>注册与加载管道</b><code>ModuleRegistry</code>：register → seal → 依赖校验 → 路由/导航/命令面板<br><code>ModuleLoader</code>：扫描 manifest → 启动后端进程（.exe/.py）→ 端口检测 + <code>/health</code><br><code>PluginRunner</code>：runOnce 短任务 / startLong 长驻进程</div>
-    <div class='card'><b>plugins/ 实际插件（13 个）</b><span class='p'>ai-assistant · data-dashboard · dsh · html-creator · marketplace · pdf_translate · python-runner · scraper · settings · skill-creator · theme-creator · view · warm_study</span></div>
+    <div class='card'><b>plugins/ 实际插件</b><span class='p'>完整清单见 <code>plugins/README.md</code>；一个插件目录可含 module / agent / theme / data / config / skill 多类型子目录</span></div>
   </div>
 </div>
 
@@ -130,15 +166,41 @@ h1{text-align:center;font-size:26px;margin-bottom:6px}
     <div class='card'><b>module/ 模块层</b><code>ModuleDispatch</code>、<code>ModulePage</code></div>
     <div class='card'><b>page/ 页面层</b><code>CompositeView</code>、布局引擎、独立页面</div>
     <div class='card'><b>slot/ Slot 层</b><code>SlotDispatch</code>、<code>SlotScale</code></div>
-    <div class='card'><b>components/ 组件层</b>43 具名组件 + 20 占位<br><span class='p'>7 功能域：shared / document / data / interaction / creative / learning / controls</span></div>
+    <div class='card'><b>components/ 组件层</b>具名组件 + 占位组件<br><span class='p'>功能域：shared / document / data / interaction / creative / learning / controls</span></div>
     <div class='card'><b>HTML / Dart 产物</b><code>docs/index.html</code>、<code>plugin_guide.html</code>、<code>架构示意图.html</code>、插件 <code>render_log.html</code>、<code>r12_dart_render.png</code></div>
   </div>
   <div class='card' style='margin-top:10px'><b>数据回补（热反馈回路）</b><span class='p'>渲染层用户交互 / 插件设计器修改声明 → 触发 <code>reloadModule</code> 或数据源请求 → 后端进程（<code>PORT</code> + <code>/health</code>，HTTP 数据源）→ 组件重新渲染。冷/热插件共用的同一批 manifest 字段在此最终落地为 HTML 页面。</span></div>
 </div>
 
-<div style='max-width:1180px;margin:18px auto 0;background:#eceff1;border-radius:10px;padding:12px 14px;font-size:12px;color:#455a64'>
+<div class='foot'>
 <b>本图所依据的代码实况（evg-base）：</b>
-<code>lib/evergreen_base.dart</code>（barrel 双轨）、<code>lib/core/module/</code>（ModuleDescriptor 2860 行 V2 树 / ModuleRegistry / ModuleLoader / ModuleLifecycle / ProcessManager）、<code>lib/core/plugin/plugin_runner.dart</code>（SubprocessRunner / ChaquopyRunner）、<code>lib/core/services/plugin_installer.dart</code>、<code>lib/core/docs/plugin-format.md</code>（.plugin ZIP + SHA-256）、<code>lib/generated/plugin_imports.g.dart</code>（冷插件静态导入）、<code>lib/renderer/renderer.dart</code>（五层）、<code>plugins/</code>（13 个实际插件）。
+<code>lib/evergreen_base.dart</code>（barrel 双轨）、<code>lib/core/module/</code>（ModuleDescriptor V2 声明树 / ModuleRegistry / ModuleLoader / ModuleLifecycle / ProcessManager）、<code>lib/core/plugin/plugin_runner.dart</code>（SubprocessRunner / ChaquopyRunner）、<code>lib/core/services/plugin_installer.dart</code>、<code>lib/core/docs/plugin-format.md</code>（.plugin ZIP + SHA-256）、<code>lib/generated/plugin_imports.g.dart</code>（冷插件静态导入）、<code>lib/renderer/renderer.dart</code>（五层）、<code>plugins/</code>（内置插件，完整清单见 <code>plugins/README.md</code>）。
+</div>
+
+<div class='footer'>
+  <svg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg' role='img' aria-label='绿意不息宠物 - 叶灵猫' aria-hidden='true'>
+    <defs>
+      <linearGradient id='fc-leaf' x1='15%' y1='0%' x2='85%' y2='100%'>
+        <stop offset='0%' stop-color='#86ebb0'/><stop offset='100%' stop-color='#12b15f'/>
+      </linearGradient>
+    </defs>
+    <path d='M100 60 C 146 60, 162 100, 162 126 C 162 158, 138 174, 100 174 C 62 174, 38 158, 38 126 C 38 100, 54 60, 100 60 Z' fill='#c2f3da' stroke='#12b15f' stroke-opacity='0.35' stroke-width='2'/>
+    <path d='M58 70 L 50 40 L 80 58 Z' fill='#c2f3da' stroke='#12b15f' stroke-opacity='0.35' stroke-width='1.5'/>
+    <path d='M142 70 L 150 40 L 120 58 Z' fill='#c2f3da' stroke='#12b15f' stroke-opacity='0.35' stroke-width='1.5'/>
+    <path d='M60 64 L 56 48 L 72 58 Z' fill='#ff9bb3' fill-opacity='0.5'/>
+    <path d='M140 64 L 144 48 L 128 58 Z' fill='#ff9bb3' fill-opacity='0.5'/>
+    <g transform='translate(100 132)'>
+      <path d='M0 -26 C 26 -18, 34 14, 4 34 C -4 38, -4 38, -6 34 C -34 12, -26 -18, 0 -26 Z' fill='url(#fc-leaf)'/>
+      <path d='M0 -22 C 1 -8, 1 12, -2 28' fill='none' stroke='#eafff3' stroke-opacity='0.85' stroke-width='2.2' stroke-linecap='round'/>
+    </g>
+    <path d='M66 110 C 72 104, 82 104, 88 110' fill='none' stroke='#22332b' stroke-width='3' stroke-linecap='round'/>
+    <path d='M112 110 C 118 104, 128 104, 134 110' fill='none' stroke='#22332b' stroke-width='3' stroke-linecap='round'/>
+    <path d='M97 122 l6 0 l-3 4 z' fill='#ff7a98'/>
+    <circle cx='62' cy='124' r='12' fill='#ff9bb3' fill-opacity='0.35'/>
+    <circle cx='138' cy='124' r='12' fill='#ff9bb3' fill-opacity='0.35'/>
+    <path d='M160 150 C 184 148, 190 124, 178 110 C 184 128, 172 142, 158 142 Z' fill='url(#fc-leaf)'/>
+  </svg>
+  <div>墨白极简 · Powered by Evergreen</div>
 </div>
 
 </body>

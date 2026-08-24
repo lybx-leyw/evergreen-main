@@ -6,42 +6,64 @@
   <title>Evergreen 下载中心</title>
   <style>
     :root {
-      --bg: #0f1419;
-      --card: #1a2027;
-      --card-hover: #222b34;
-      --accent: #4ade80;
-      --accent-2: #38bdf8;
-      --text: #e6edf3;
-      --muted: #8b949e;
-      --border: #2d333b;
-      --zju: #f59e0b;
-      --std: #38bdf8;
-      --debug: #a78bfa;
-      --release: #4ade80;
+      --ink: #16181d;          /* 墨 */
+      --ink-2: #3a3f47;
+      --paper: #fafaf7;        /* 白 */
+      --paper-2: #f0f0ec;
+      --line: #dcdcd6;
+      --muted: #7a7f88;
+      --accent: #2f8f5b;       /* 绿色仅作少量强调 */
+      --accent-ink: #1f5c3c;
+      --badge-pre: #6b7280;
+      --badge-stable: #16181d;
+      --badge-draft: #9ca3af;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
         "Microsoft YaHei", sans-serif;
-      background: radial-gradient(circle at top, #16202b 0%, var(--bg) 60%);
-      color: var(--text);
+      background: var(--paper);
+      color: var(--ink);
       line-height: 1.6;
       min-height: 100vh;
       padding: 0 16px 64px;
     }
-    header {
+    /* —— 放映区：logo 由黑白渐映为彩色，悬停回到黑白 —— */
+    .stage {
       text-align: center;
-      padding: 56px 16px 32px;
+      padding: 44px 16px 20px;
     }
-    header h1 {
-      font-size: 2.2rem;
-      background: linear-gradient(90deg, var(--accent), var(--accent-2));
-      -webkit-background-clip: text;
-      background-clip: text;
-      -webkit-text-fill-color: transparent;
-      margin-bottom: 8px;
+    .stage .brand {
+      width: 108px;
+      height: 108px;
+      margin: 0 auto 18px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 10px 30px rgba(22, 24, 29, 0.10);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      animation: reelshow 6s ease-in-out infinite alternate;
     }
-    header p { color: var(--muted); font-size: 1rem; }
+    .stage .brand svg {
+      width: 84px;
+      height: 84px;
+      filter: grayscale(1) contrast(1.12);
+      transition: filter 0.6s ease;
+    }
+    .stage .brand:hover svg { filter: grayscale(0) contrast(1); }
+    @keyframes reelshow {
+      0%   { transform: translateY(0) scale(1); }
+      100% { transform: translateY(-5px) scale(1.03); }
+    }
+    .stage h1 {
+      font-size: 2rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      color: var(--ink);
+    }
+    .stage p { color: var(--muted); font-size: 0.95rem; margin-top: 6px; }
     .container { max-width: 880px; margin: 0 auto; }
     .status {
       text-align: center;
@@ -49,16 +71,20 @@
       padding: 24px;
       font-size: 0.95rem;
     }
-    .status.error { color: #f87171; }
+    .status.error { color: #b03a3a; }
     .version {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 24px;
-      margin-bottom: 20px;
-      transition: border-color 0.2s;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 22px 24px;
+      margin-bottom: 18px;
+      box-shadow: 0 2px 10px rgba(22, 24, 29, 0.04);
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
-    .version:hover { border-color: #3d4753; }
+    .version:hover {
+      border-color: var(--ink);
+      box-shadow: 0 6px 18px rgba(22, 24, 29, 0.08);
+    }
     .version-head {
       display: flex;
       align-items: center;
@@ -66,18 +92,19 @@
       gap: 10px;
       margin-bottom: 4px;
     }
-    .version-name { font-size: 1.3rem; font-weight: 700; }
+    .version-name { font-size: 1.25rem; font-weight: 700; }
     .badge {
-      font-size: 0.72rem;
+      font-size: 0.7rem;
       padding: 2px 10px;
       border-radius: 999px;
       font-weight: 600;
       letter-spacing: 0.3px;
+      color: #fff;
     }
-    .badge.pre { background: rgba(167,139,250,0.15); color: var(--debug); }
-    .badge.stable { background: rgba(74,222,128,0.15); color: var(--release); }
-    .badge.draft { background: rgba(139,148,158,0.15); color: var(--muted); }
-    .version-date { color: var(--muted); font-size: 0.85rem; margin-left: auto; }
+    .badge.pre { background: var(--badge-pre); }
+    .badge.stable { background: var(--badge-stable); }
+    .badge.draft { background: var(--badge-draft); }
+    .version-date { color: var(--muted); font-size: 0.83rem; margin-left: auto; }
     .version-note {
       color: var(--muted);
       font-size: 0.9rem;
@@ -87,49 +114,57 @@
     .grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 16px;
+      gap: 14px;
     }
     .group {
-      background: var(--card-hover);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 16px;
+      background: var(--paper-2);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px 16px;
     }
     .group-title {
-      font-size: 0.95rem;
+      font-size: 0.92rem;
       font-weight: 700;
       margin-bottom: 12px;
       display: flex;
       align-items: center;
       gap: 8px;
     }
-    .dot { width: 10px; height: 10px; border-radius: 50%; }
-    .dot.zju { background: var(--zju); }
-    .dot.std { background: var(--std); }
+    .dot { width: 9px; height: 9px; border-radius: 50%; }
+    .dot.zju { background: var(--accent); }
+    .dot.std { background: var(--ink); }
     .btns { display: flex; flex-direction: column; gap: 8px; }
     a.btn {
       display: flex;
       align-items: center;
       justify-content: space-between;
       text-decoration: none;
-      background: var(--card);
-      border: 1px solid var(--border);
-      color: var(--text);
+      background: #fff;
+      border: 1px solid var(--line);
+      color: var(--ink);
       padding: 10px 14px;
-      border-radius: 9px;
+      border-radius: 8px;
       font-size: 0.88rem;
       transition: all 0.15s;
     }
-    a.btn:hover { background: #2c3742; border-color: var(--accent); transform: translateY(-1px); }
+    a.btn:hover {
+      background: var(--ink);
+      border-color: var(--ink);
+      color: #fff;
+      transform: translateY(-1px);
+    }
     a.btn .tag {
-      font-size: 0.7rem;
+      font-size: 0.68rem;
       padding: 1px 8px;
       border-radius: 6px;
       font-weight: 600;
     }
-    a.btn .tag.release { background: rgba(74,222,128,0.15); color: var(--release); }
-    a.btn .tag.debug { background: rgba(167,139,250,0.15); color: var(--debug); }
+    a.btn .tag.release { background: var(--ink); color: #fff; }
+    a.btn .tag.debug { background: var(--paper-2); color: var(--muted); border: 1px solid var(--line); }
+    a.btn:hover .tag.release { background: #fff; color: var(--ink); }
+    a.btn:hover .tag.debug { background: rgba(255,255,255,0.16); color: #c9ccd2; border-color: transparent; }
     a.btn .arrow { color: var(--muted); }
+    a.btn:hover .arrow { color: #fff; }
     .empty {
       grid-column: 1 / -1;
       text-align: center;
@@ -141,16 +176,34 @@
       text-align: center;
       color: var(--muted);
       font-size: 0.8rem;
-      margin-top: 40px;
+      margin-top: 44px;
       line-height: 1.8;
     }
-    footer a { color: var(--accent-2); text-decoration: none; }
-    footer a:hover { text-decoration: underline; }
+    footer .pets { display: flex; justify-content: center; gap: 18px; margin-bottom: 14px; }
+    footer .pets svg { width: 34px; height: 34px; opacity: 0.55; filter: grayscale(1); transition: all 0.4s; }
+    footer .pets svg:hover { opacity: 1; filter: grayscale(0); }
+    footer a { color: var(--ink-2); text-decoration: none; border-bottom: 1px solid var(--line); }
+    footer a:hover { color: var(--accent-ink); border-bottom-color: var(--accent); }
   </style>
 </head>
 <body>
-  <header>
-    <h1>🌿 Evergreen 下载中心</h1>
+  <header class="stage">
+    <!-- logo：黑白放映（CSS 灰度滤镜 + 悬停还原彩色） -->
+    <div class="brand" title="绿意不息">
+      <svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="绿意不息 Logo">
+        <g transform="translate(0 0)">
+          <path fill="#e8e8e2" d="M120 16a104 104 0 1 0 0 208 104 104 0 0 0 0-208z" opacity="0.55"/>
+          <path fill="#d9d9d2" d="M120 26a94 94 0 1 0 0 188 94 94 0 0 0 0-188z" opacity="0.4"/>
+          <g fill="#3a3f47">
+            <path d="M120 52c-22 26-38 50-38 84 0 26 17 46 38 52 21-6 38-26 38-52 0-34-16-58-38-84z"/>
+            <path d="M120 70c-10 16-18 32-18 52 0 16 8 30 18 36 10-6 18-20 18-36 0-20-8-36-18-52z" fill="#fafaf7"/>
+            <path d="M100 118c-10-4-24-2-32 6 4 10 18 16 32 14z" fill="#4a5058"/>
+            <path d="M140 118c10-4 24-2 32 6-4 10-18 16-32 14z" fill="#4a5058"/>
+          </g>
+        </g>
+      </svg>
+    </div>
+    <h1>Evergreen 下载中心</h1>
     <p>所有版本（含预发布）一键下载安装 · 数据本地优先 · 无账号</p>
   </header>
 
@@ -160,6 +213,36 @@
   </div>
 
   <footer>
+    <div class="pets">
+      <!-- 宠物：黑白待机，悬停放映彩色 -->
+      <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="绿意不息宠物 叶灵猫">
+        <g fill="#3a3f47">
+          <ellipse cx="100" cy="118" rx="52" ry="46"/>
+          <path d="M62 88l-24-30 8-2 20 22z"/>
+          <path d="M138 88l24-30-8-2-20 22z"/>
+        </g>
+        <ellipse cx="100" cy="126" rx="16" ry="10" fill="#fafaf7"/>
+        <circle cx="92" cy="112" r="4" fill="#16181d"/>
+        <circle cx="108" cy="112" r="4" fill="#16181d"/>
+      </svg>
+      <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="绿意不息宠物 绿芽精灵">
+        <g fill="#3a3f47">
+          <circle cx="100" cy="120" r="46"/>
+          <path d="M100 74c-10-14-26-22-40-22 4 14 18 24 34 24z"/>
+          <path d="M100 74c10-14 26-22 40-22-4 14-18 24-34 24z"/>
+        </g>
+        <circle cx="86" cy="114" r="5" fill="#fafaf7"/>
+        <circle cx="114" cy="114" r="5" fill="#fafaf7"/>
+      </svg>
+      <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="绿意不息宠物 睡眠款">
+        <g fill="#3a3f47">
+          <ellipse cx="100" cy="120" rx="52" ry="44"/>
+          <path d="M120 128c6 6 14 8 22 6-4 8-14 12-24 8z" fill="#fafaf7"/>
+        </g>
+        <circle cx="84" cy="112" r="4" fill="#16181d"/>
+        <circle cx="116" cy="112" r="4" fill="#16181d"/>
+      </svg>
+    </div>
     版本数据来自 GitHub Releases，自动同步。<br />
     遇到问题？前往
     <a href="https://github.com/lybx-leyw/evergreen-main/issues" target="_blank" rel="noopener">Issue 反馈</a>
@@ -225,10 +308,10 @@
       const group = (edition, label, dotCls) => {
         const e = cls[edition];
         const cells = [
-          btn("🤖 安卓 APK", e["android-release"], "release"),
-          btn("🤖 安卓 APK（调试）", e["android-debug"], "debug"),
-          btn("🪟 Windows 安装包", e["windows-release"], "release"),
-          btn("🪟 Windows 安装包（调试）", e["windows-debug"], "debug"),
+          btn("安卓 APK", e["android-release"], "release"),
+          btn("安卓 APK（调试）", e["android-debug"], "debug"),
+          btn("Windows 安装包", e["windows-release"], "release"),
+          btn("Windows 安装包（调试）", e["windows-debug"], "debug"),
         ].join("");
         return `<div class="group">
           <div class="group-title"><span class="dot ${dotCls}"></span>${label}</div>
@@ -277,7 +360,7 @@
         statusEl.className = "status error";
         statusEl.innerHTML =
           "加载失败：" + e.message +
-          '<br/>可前往 <a href="https://github.com/lybx-leyw/evergreen-main/releases" target="_blank" rel="noopener" style="color:var(--accent-2)">GitHub Releases</a> 手动下载。';
+          '<br/>可前往 <a href="https://github.com/lybx-leyw/evergreen-main/releases" target="_blank" rel="noopener" style="color:var(--ink-2);text-decoration:underline">GitHub Releases</a> 手动下载。';
       }
     }
 

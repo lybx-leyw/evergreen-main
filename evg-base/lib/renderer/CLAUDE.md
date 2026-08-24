@@ -3,12 +3,12 @@
 | 元信息 | 值 |
 | --- | --- |
 | 状态 | active |
-| 版本 | 1.0 |
+| 版本 | 见根 `README.md` |
 | 日期 | 2026-08-02 |
-| 负责人 | 待补充 |
+| 负责人 | renderer |
 | 适用 | AI 协作者（renderer 层） |
 
-> 供 AI 助手理解本模块约定。最后更新：2026-08-21。
+> 供 AI 助手理解本模块约定。最后更新：2026-08-25。
 
 ---
 
@@ -26,7 +26,7 @@ lib/renderer/
 ├── multi_agent/       # 多 Agent 并行视图
 ├── page/              # 页面视图（市场 / 设置 / 数据看板 / 文件查看器 / 全局记忆 / Skill 管理）
 ├── templates/         # 模板（modle）渲染器与注册表
-│   ├── v4_modle/      # 通用组件式模板
+│   ├── v4_modle/      # 通用组件式模板（slot 分派 + 组件域收敛于此）
 │   ├── html_modle/    # HTML 插件模板（WebView + JS Bridge）
 │   ├── scraper_modle/ # 爬虫生成器
 │   ├── theme_creator_modle/ # 主题创作中心
@@ -34,7 +34,7 @@ lib/renderer/
 │   ├── dsh_modle/     # DeepSeek Harness
 │   ├── paper_reading_modle/ # 论文阅读
 │   └── zju_modle/     # 浙大校园（zju / classroom / zdbk）
-├── lib/               # 11 个 Stub 包（独立 dart analyze）
+├── lib/               # Stub 包（独立 dart analyze，清单见 lib/）
 ├── docs/              # 设计规范 + 渲染常量
 └── renderer.dart      # barrel 导出
 ```
@@ -47,31 +47,36 @@ lib/renderer/
 2. **模块调度 V2** — 不再使用 `descriptor.ui` 字段；`ModuleDispatch` 按 `template` / `pages` / `workspace` 自动选择视图。
 3. **未知静默忽略** — 未识别字段/UI 值不抛异常（容错）。
 4. **描述符驱动** — 配置通过 `*Options` / `*Descriptor` 不可变类传入。
-5. **数据注入分离** — 视图接收 `descriptor`（配置）和 `data`（运行时数据）两个独立参数。
-6. **Stub 隔离** — `lib/` 下 11 个 stub 包使 renderer 可脱离 Flutter SDK 独立分析。
+5. **数据注入分离** — 视图接收 `descriptor`（配置）与 `data`（运行时数据）独立参数分离注入。
+6. **Stub 隔离** — `lib/` 下 stub 包使 renderer 可脱离 Flutter SDK 独立分析。
 
 ### 模块调度（V2）
 
 | 条件 | → 视图 | 说明 |
 |------|--------|------|
 | `descriptor.id == 'ai-assistant'` | `ChatControllerView` | 全屏 AI 对话 |
-| `descriptor.template` 非空且非 `v4` | `TemplateRegistry.render` | 按 `html` / `scraper` / `theme-creator` / `skill-creator` / `dsh` / `zju` / `paper_reading` 路由 |
+| `descriptor.template` 非空且非 `v4` | `TemplateRegistry.render` | 按 `html` / `scraper` / `theme-creator` / `skill-creator` / `dsh` / `zju` / `classroom` / `zdbk` / `paper_reading` 路由 |
 | `descriptor.pages` 非空 | `TemplateRegistry.render` | 通常走 v4 composite |
 | `descriptor.workspace.enabled` | `EditorView` | 代码/文本编辑器 |
 | 其他 | `DefaultView` | 数据绑定兜底（不崩溃） |
+
+> **lattice 契约现状**：六格契约（`static-web`/`web-bridged`/`data-source`/`sidecar`/`agent-tool`/`external-app`）由 `core/module` 解析与权限层（`PermissionResolver`/`BridgeInterceptor`）裁决，renderer **不按 lattice 路由**——`ModuleDispatch` 只消费 `template`/`pages`/`workspace`；`external-app`「不内嵌、深链」语义当前由 core 侧契约定义（`resolved_plugin.isExternalApp`），renderer 未做深链跳转特判。sidecar 格由 `core/module` 的 `SidecarController` 管理进程与端口，renderer 正常按模板渲染（数据经 bridge/HTTP 转发）。若 renderer 需按 lattice 区分渲染/深链，属跨 OWNER 契约变更，需与 core-module 对齐后广播。
 
 ### HTML 插件渲染
 
 - `html_modle` 以本地 HTTP 服务加载 `plugins/<id>/module/index.html`。
 - Windows 使用 `webview_windows`，Android 使用 `webview_flutter`。
-- 统一注入 `platform.*` JS Bridge：
-  - `platform.data.get/refresh/subscribe`
-  - `platform.ai.chat`
-  - `platform.api.call(service, path, opts)`
-  - `platform.settings.get/set`
+- 统一注入 `platform.*` JS Bridge（Promise 风格，双通道 `chrome.webview` / `evgBridge`）：
+  - `platform.data.get(name)` / `list()` / `refresh(name)` / `testConnectivity()` / `subscribe(name, fn)`
+  - `platform.ai.chat(prompt, [style])`（style ∈ explanatory/learning/concise/socratic）
+  - `platform.api.call(service, path, {method, body})` — 通用 core 服务转发（agent/config/data/module/theme/core，端口来自 `.xxx_port` 端口文件）
+  - `platform.process.run(exe, {args})` / `start` / `write` / `stop` / `read` / `onOutput(fn)` / `onExit(fn)` — 运行 manifest `process` 白名单内声明的 exe（fail-closed；`scope:"long"` 为常驻进程）
+  - `platform.settings.get(key)` / `set(key, value)`
   - `platform.theme.getColors()`
-  - `platform.emit/on`
-- 当前主题色板自动注入为 `--evg-*` CSS 变量，主题切换时实时推送。
+  - `platform.emit(event, payload)` / `platform.on(event, fn)`
+- bridge 注入三保险：服务端文档顶部内联 + document-created + onPageStarted（幂等守卫）。
+- 当前主题色板自动注入为 `--evg-*` CSS 变量（background/surface/border/text/textSecondary/accent/accentBg/accentBorder/error/others），主题切换时实时推送。
+- 特例：`descriptor.id == 'html-creator'` 时短路到 Dart 原生 `HtmlCreatorView`（创作中心），不启动本地 HTTP / WebView。
 
 ---
 
@@ -119,10 +124,11 @@ class MyModleTemplate extends ModleRenderer {
 
 ---
 
-## 当前状态 (2026-08-21)
+## 当前状态 (2026-08-25)
 
 - ✅ V2 调度已对齐：`ModuleDispatch` 按 template/pages/workspace 自动选择，不使用 `ui` 字段
-- ✅ HTML 插件主路径：`html-creator` 三栏 IDE + `html_modle` WebView + JS Bridge + 导出热注册
-- ✅ 模板注册表：v4 / html / scraper / theme-creator / skill-creator / dsh / zju / paper_reading 共 10 条路由
+- ✅ HTML 插件主路径：`html-creator` 三栏 IDE + `html_modle` WebView + JS Bridge（含 `platform.process.*` 进程白名单）+ 导出热注册
+- ✅ 模板注册表：路由清单见 `templates/templates_index.json`（生成物 `generated/template_registry.g.dart`）
 - ✅ 主题色统一：RenderTokens 从扁平 8 色 ThemeDescriptor 动态派生，HTML 引擎使用 CSS 变量
-- ✅ 11 个 stub 包，`dart analyze lib/` 可独立通过
+- ✅ Stub 包，`dart analyze lib/` 可独立通过
+- ✅ `renderer.dart` barrel 已收敛：slot/ 与组件域随 v4_modle 移入 `templates/v4_modle/`，导出路径同步更新

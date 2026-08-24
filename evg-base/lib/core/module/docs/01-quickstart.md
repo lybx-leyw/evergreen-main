@@ -7,13 +7,17 @@
 ```
 plugins/
   my_plugin/
-    manifest.json    ← 唯一必需的文件
-    plugin.exe       ← 可选，后端进程
+    module/
+      manifest.json    ← 唯一必需的文件
+      plugin.exe       ← 可选，后端进程
 ```
+
+> `ModuleLoader` 只扫描 `plugins/<name>/module/manifest.json`（`type: "module"`）。
+> 一个插件可同时提供多种能力：`module/`、`agent/`、`data/`、`config/`、`theme/` 各放一类声明。
 
 ## 最小 manifest
 
-新建 `plugins/my_plugin/manifest.json`：
+新建 `plugins/my_plugin/module/manifest.json`：
 
 ```json
 {
@@ -24,6 +28,7 @@ plugins/
 ```
 
 `type` 必须为 `"module"`。`id` 全局唯一。`name` 是展示名称。
+（`schemaVersion` 缺省 `"2.0"`；`template` 缺省 `"v4"`，声明式组件模块。）
 
 ## 加一个页面
 
@@ -41,6 +46,8 @@ plugins/
 
 ## 出现在侧边栏
 
+V2 导航统一放在 `nav` 下（旧版顶层 `sidebar` 键已不解析）：
+
 ```json
 {
   "type": "module",
@@ -48,13 +55,15 @@ plugins/
   "name": "我的插件",
   "icon": "extension",
   "route": "/my-plugin",
-  "sidebar": { "section": "AI 工具", "order": 50 }
+  "nav": {
+    "sidebar": { "section": "AI 工具", "sectionOrder": 50, "order": 10 }
+  }
 }
 ```
 
 ## 验证
 
-将 manifest.json 放入 `plugins/my_plugin/`，启动应用。你的模块将出现在侧边栏的 "AI 工具" 分组中，点击进入页面。
+将 `module/manifest.json` 放入 `plugins/my_plugin/module/`，启动应用。你的模块将出现在侧边栏的 "AI 工具" 分组中，点击进入页面。
 
 ## 下一步
 

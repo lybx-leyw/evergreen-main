@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "2.0",
+  "id": "zju_autosign",
+  "name": "学在浙大自动签到",
+  "settings": [
+    {
+      "key": "AUTOSIGN_ENABLED",
+      "label": "自动签到开关",
+      "type": "bool",
+      "default": "true",
+      "hint": "关闭后监控进程保持运行但不再应答点名；可在模块页一键切换"
+    },
+    {
+      "key": "AUTOSIGN_RADAR_LOCATION",
+      "label": "雷达签到地点",
+      "type": "option",
+      "default": "ZJGD1",
+      "options": [
+        { "value": "ZJGD1", "label": "紫金港 · 东一教学楼" },
+        { "value": "ZJGX1", "label": "紫金港 · 西教学楼" },
+        { "value": "ZJGB1", "label": "紫金港 · 段永平教学楼" },
+        { "value": "ZJG4",  "label": "紫金港 · 大西区" },
+        { "value": "YQ4",   "label": "玉泉 · 教四" },
+        { "value": "YQ1",   "label": "玉泉 · 教一" },
+        { "value": "YQ7",   "label": "玉泉 · 教七" },
+        { "value": "YQSS",  "label": "玉泉 · 宿舍区" },
+        { "value": "ZJ1",   "label": "之江校区 1" },
+        { "value": "ZJ2",   "label": "之江校区 2" },
+        { "value": "HJC1",  "label": "华家池校区 1" },
+        { "value": "HJC2",  "label": "华家池校区 2" }
+      ],
+      "hint": "优先用该地点坐标应答雷达点名；失败后自动遍历全部点位，再尝试三点定位（500 米内有效）"
+    },
+    {
+      "key": "AUTOSIGN_POLL_INTERVAL",
+      "label": "轮询间隔",
+      "type": "option",
+      "default": "4",
+      "options": [
+        { "value": "2",  "label": "2 秒（激进）" },
+        { "value": "4",  "label": "4 秒（推荐）" },
+        { "value": "8",  "label": "8 秒（保守）" },
+        { "value": "15", "label": "15 秒（最省）" }
+      ],
+      "hint": "两次点名检查之间的等待秒数"
+    }
+  ]
+}

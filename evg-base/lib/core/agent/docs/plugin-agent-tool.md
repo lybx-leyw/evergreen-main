@@ -3,12 +3,12 @@
 | 元信息 | 值 |
 | --- | --- |
 | 状态 | active |
-| 版本 | 1.0 |
-| 日期 | 2026-08-02 |
-| 负责人 | 待补充 |
-| 适用 | Agent 工具 .exe 作者 |
+| 版本 | 以根 README.md 为准 |
+| 日期 | 2026-08-25 |
+| 负责人 | core-agent |
+| 适用 | Agent 工具 .exe/.py 作者 |
 
-> 面向插件开发者：如何编写一个可与 Evergreen Agent 桥接的 `.exe` 工具。
+> 面向插件开发者：如何编写一个可与 Evergreen Agent 桥接的 `.exe`（或 `.py`）工具。
 
 ---
 
@@ -18,13 +18,15 @@
 plugins/<name>/
   agent/
     manifest.json    # 工具元数据（必写）
-    <name>.exe       # 可执行文件（必写，优先匹配目录同名 .exe）
+    <name>.exe       # 可执行文件（native，优先匹配目录同名 .exe）
+    <name>.py        # Python 脚本（runtime="python" 时直接执行，无需编译）
     README.md        # 插件说明（可选）
 ```
 
 PluginBridge 扫描 `plugins/` 下每个子目录的 `agent/` 子目录：
-- 必须有至少一个 `.exe` 文件（优先匹配 `<目录名>.exe`）
+- 必须有至少一个入口文件（`.exe` 或 `.py`，优先匹配 `<目录名>.exe`，其次 `<目录名>.py`）
 - 必须有 `manifest.json` 且 `name` 非空
+- `.py` 入口需在 manifest 中声明 `"runtime": "python"`（或由 `.py` 扩展名自动推断）
 
 ---
 
@@ -40,6 +42,7 @@ PluginBridge 扫描 `plugins/` 下每个子目录的 `agent/` 子目录：
 | `readOnly` | bool | 否 | `false` | `true`=只读（可并行）；`false`=写操作（串行） |
 | `argMode` | string | 否 | `"stdin"` | `"stdin"`：JSON 写入标准输入；`"args"`：命令行参数传递 |
 | `argSpec` | object | 否 | `{"style":"json"}` | 仅 `argMode="args"` 时生效，控制命令行构造方式 |
+| `runtime` | string | 否 | `"native"` | `"native"`=直接执行入口（`.exe`）；`"python"`=用 Python 解释器执行（`.py`） |
 
 ### 最小示例（stdin 模式）
 
@@ -157,7 +160,10 @@ else:
 
 ## 语言与构建
 
-### Python → .exe（PyInstaller）
+### Python → .exe（PyInstaller，可选）
+
+> 当前 PluginBridge 支持 `.py` 入口直接运行（`runtime: "python"`），无需编译。
+> 编译 `.exe` 仅在需要独立可执行文件时使用。
 
 ```bash
 pip install pyinstaller
@@ -187,7 +193,7 @@ dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=
 
 ## 完整示例
 
-参考 `example/plugins/` 下的 4 个插件：
+参考 `example/plugins/` 下的插件模板：
 
 | 插件 | 语言 | argMode | 说明 |
 |------|------|---------|------|

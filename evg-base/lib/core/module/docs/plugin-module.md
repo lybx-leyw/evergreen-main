@@ -3,13 +3,29 @@
 | 元信息 | 值 |
 | --- | --- |
 | 状态 | active |
-| 版本 | 1.0 |
+| 版本 | 以根 `README.md` 为准 |
 | 日期 | 2026-08-02 |
 | 负责人 | 待补充 |
 | 适用 | Module 插件作者 |
 
 > 面向插件开发者——第三方如何编写 `manifest.json` 来声明一个 UI 模块。
 > 本文档是 Module 插件开发的**唯一权威参考**，合并了原 `plugin-authoring-guide-module.md` 和 `plugin-module.md`。
+
+> ## ⚠️ V2 迁移说明（2026-08）
+>
+> 当前解析器为 **V2（schemaVersion "2.0"）**，以下 V1 顶层键**已不再解析**（静默忽略，插件会静默失效）：
+>
+> | V1 写法 | V2 写法 |
+> |---------|---------|
+> | 顶层 `"sidebar": {...}` | `"nav": { "sidebar": {...} }` |
+> | 顶层 `"secondaryNavs": [...]` | `"nav": { "secondary": [...] }` |
+> | 顶层 `"ui": "chat"` | `template` 路由 + `pages[].layout.slots.<k>.component.type` |
+> | `layout.mode/grid/panels` | `layout.type/preset/features/slots`（多 tab 用 `pages[]`） |
+> | `process: { "exe": ... }` 单对象 | `process: [ { "exe": ... } ]`（单对象仍兼容） |
+> | `pages[].globalProcess` | `pages[].process`（`globalProcess` 仍兼容） |
+>
+> 新增顶层字段：`template`（渲染模板）、`lattice`（六格契约）、`runtime`（sidecar 描述符）、
+> `modle_route`（模板内子路由）、`pages[]`（V2 页面树）。详见下文 3.1 / 3.2 / 3.3 与「四、」。
 
 ---
 
@@ -47,26 +63,35 @@ plugins/<name>/module/manifest.json
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
+| `schemaVersion` | `string` | `"2.0"` | 声明式 schema 版本 |
+| `type` | `"module"` | — | 固定值，区分模块与其他插件类型 |
 | `id` | `string` | — | 全局唯一标识 |
 | `name` | `string` | — | 展示名称 |
 | `description` | `string` | `""` | 描述文本 |
 | `icon` | `string\|int` | — | 图标名（如 `"smart_toy"`）或 Material Icons codePoint |
 | `version` | `string` | `"0.0.0"` | 语义版本号 |
 | `dependencies` | `string[]` | `[]` | 依赖的其他模块 id |
+| `template` | `string` | `"v4"` | 渲染模板：`v4` / `html` / `scraper` / `theme-creator` / `skill-creator` / `dsh` / `zju` / `paper_reading` |
+| `lattice` | `string` | 推断 | 六格契约：`static-web` / `web-bridged` / `data-source` / `sidecar` / `agent-tool` / `external-app`（缺省按信号推断；非法值抛错） |
+| `runtime` | `object` | — | sidecar 运行时描述符（仅 `lattice:"sidecar"` 非空，见「四、」） |
+| `modle_route` | `string` | — | 模板内子路由（如 zdbk 的 score/notifications） |
 
 ### 3.2 路由与导航
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `route` | `string` | — | 主路由路径（如 `"/my-plugin"`）；不填 = 纯服务模块 |
-| `sidebar` | `object` | — | 侧边栏配置 |
-| `sidebar.section` | `string` | — | 分类标签 |
-| `sidebar.sectionOrder` | `int` | `50` | 分类间排序（越小越靠前） |
-| `sidebar.order` | `int` | `50` | 分类内排序 |
-| `sidebar.badge` | `bool` | `false` | 角标 |
-| `secondaryNavs` | `array` | `[]` | 子导航条目 |
+| `nav` | `object` | — | V2 导航聚合（sidebar + secondary） |
+| `nav.sidebar` | `object` | — | 侧边栏配置 |
+| `nav.sidebar.section` | `string` | — | 分类标签 |
+| `nav.sidebar.sectionOrder` | `int` | `50` | 分类间排序（越小越靠前） |
+| `nav.sidebar.order` | `int` | `50` | 分类内排序 |
+| `nav.sidebar.badge` | `bool` | `false` | 角标 |
+| `nav.secondary` | `array` | `[]` | 子导航条目 |
 
-#### 子导航条目
+> V1 顶层 `sidebar` / `secondaryNavs` 键已不解析，请写入 `nav` 下。
+
+#### 子导航条目（`nav.secondary[]`）
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
@@ -77,11 +102,46 @@ plugins/<name>/module/manifest.json
 
 ### 3.3 UI 范式
 
-| 字段 | 类型 | 默认值 | 说明 |
-|------|------|--------|------|
-| `ui` | `string` | `"default"` | `default` / `chat` / `spreadsheet` / `document` / `presentation` / `dashboard` / `editor` / `composite` |
+> **V2 变更**：顶层 `ui` 字段已不解析。范式由 `template`（渲染模板）+ `pages[].layout.slots.<k>.component.type`（v4 组件类型）声明。
+> 下面的范式专属配置键（`chat.thinking` / `spreadsheet.formulas` 等）在 V2 中放进 `component.config` 下（前缀去掉 `chat.`/`spreadsheet.` 等，直接平铺）：
 
-**范式选择建议**：纯展示→`default`+data | 对话AI→`chat` | 表格→`spreadsheet` | 文档→`document` | 复杂布局→`composite`
+```json
+{
+  "pages": [
+    {
+      "id": "chat_page",
+      "label": "Chat",
+      "layout": {
+        "slots": {
+          "main": {
+            "component": {
+              "type": "chat",
+              "config": {
+                "thinking": { "visible": true },
+                "toolCalls": { "visible": true },
+                "placeholder": "问点什么..."
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
+```
+
+| 组件类型 | 范式 | 说明 |
+|------|------|--------|
+| `data-table` | default 列表/表格 | 纯展示 + data 绑定 |
+| `chat` | 对话 | 对话AI |
+| `spreadsheet` | 电子表格 | 表格 |
+| `document` | Word 级文档 | 文档 |
+| `presentation` | PPT 级幻灯片 | 幻灯片 |
+| `chart` / `dashboard` | 仪表盘 | 数据看板 |
+| `code-editor` | 代码/文本编辑器 | 编辑器 |
+| `flashcard` / `type-check` | 学习组件 | 单词卡 / 打字练习 |
+
+**范式选择建议**：纯展示→`data-table`+data | 对话AI→`chat` | 表格→`spreadsheet` | 文档→`document` | 复杂布局→多 slot 组合
 
 #### chat 模式专属
 
@@ -139,20 +199,27 @@ plugins/<name>/module/manifest.json
 | `presentation.layouts` | `string[]` | `["title","content","blank","two-column"]` | 版式 |
 | `presentation.exportFormats` | `string[]` | `["pdf","pptx"]` | 导出格式 |
 
-### 3.4 布局
+### 3.4 布局（V2）
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `layout.mode` | `string` | `"scroll"` | `scroll` / `fit` |
-| `layout.grid.columns` | `int` | `2` | 分框列数 |
-| `layout.grid.gap` | `int` | `16` | 框间距 |
-| `layout.zoom.enabled` | `bool` | `false` | 启用缩放 |
-| `layout.zoom.min` | `number` | `0.5` | 最小比例 |
-| `layout.zoom.max` | `number` | `2.0` | 最大比例 |
-| `layout.drawers` | `string[]` | `[]` | 子集: `top`/`left`/`right`/`bottom` |
-| `layout.search.enabled` | `bool` | `false` | 显示搜索栏 |
-| `layout.search.placeholder` | `string` | `"搜索..."` | 搜索栏占位文本 |
-| `layout.panels` | `array` | `[]` | 多 tab 面板 |
+| `layout.type` | `string` | `"grid"` | `grid` / `flex` / `fullscreen` / `absolute` / `dock` |
+| `layout.preset.columns` | `int` | — | grid 列数 |
+| `layout.preset.rows` | `string` | — | grid 行数 |
+| `layout.preset.direction` | `string` | — | flex 方向（`row`/`column`） |
+| `layout.preset.wrap` | `bool` | — | flex 是否换行 |
+| `layout.preset.gap` | `number` | — | 间距 |
+| `layout.preset.justify` / `align` | `string` | — | flex 主轴/交叉轴对齐 |
+| `layout.preset.regions` | `object` | — | dock 布局各区域配置 |
+| `layout.features.zoom.enabled` | `bool` | `false` | 启用缩放 |
+| `layout.features.zoom.min` | `number` | `0.5` | 最小比例 |
+| `layout.features.zoom.max` | `number` | `2.0` | 最大比例 |
+| `layout.features.drawers` | `string[]` | `[]` | 子集: `top`/`left`/`right`/`bottom` |
+| `layout.features.search.enabled` | `bool` | `false` | 显示搜索栏 |
+| `layout.features.search.placeholder` | `string` | `"搜索..."` | 搜索栏占位文本 |
+| `layout.slots` | `object` | `{}` | 插槽映射：slotName → `{component, process, events, ...}` |
+
+> V1 的 `layout.mode/grid/panels` 顶层键已不解析；多 tab 由模块级 `pages[]` 表达（见 3.3 与「五、」）。
 
 #### 面板条目
 
@@ -290,13 +357,18 @@ plugins/<name>/module/manifest.json
 | `form.fields[].options` | `string[]` | — | select 选项 |
 | `form.fields[].placeholder` | `string` | — | 占位文本 |
 
-### 3.10 后端进程
+### 3.10 后端进程（V2：`process` 为数组）
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `process.exe` | `string` | — | 可执行文件名 |
-| `process.protocol` | `string` | `"http"` | `http` / `stdio` |
-| `process.preferredPort` | `int` | `0` | 首选端口（0=自动） |
+| `process[].id` | `string` | — | 进程唯一标识（V2） |
+| `process[].exe` | `string` | — | 可执行文件名（`runtime:"python"` 时可写 `.py` 入口） |
+| `process[].runtime` | `string` | `"native"` | `native` / `python` |
+| `process[].protocol` | `string` | `"http"` | `http` / `stdio` |
+| `process[].scope` | `string` | `"long"` | `long` / `short` |
+| `process[].autoStart` | `bool` | `true` | 是否自动启动 |
+| `process[].autoRestart` | `bool` | `false` | 崩溃自动重启（仅 long） |
+| `process[].preferredPort` | `int` | `0` | 首选端口（0=自动） |
 
 ### 3.11 AI 助手胶水
 
@@ -308,11 +380,14 @@ plugins/<name>/module/manifest.json
 
 ## 四、四级 .exe 层级
 
+> V2：`process` 为**数组**（`ProcessDescriptor[]`，单对象仍兼容自动包装）；
+> 栏位级进程在 `pages[].layout.slots.<k>.process`。
+
 | 层级 | manifest 位置 | 生命周期 | 适用场景 |
 |------|--------------|---------|---------|
 | ① 模块级 | `process`（顶层） | 加载 → 卸载 | 数据库连接、认证 |
-| ② 页面级 | `pages[].globalProcess` | 激活 → 切走 | 页面级数据拉取 |
-| ③ 栏位级 | `pages[].slots.<k>.process` | 可见 → 隐藏 | 栏专属后端 |
+| ② 页面级 | `pages[].process`（V1 别名 `globalProcess`） | 激活 → 切走 | 页面级数据拉取 |
+| ③ 栏位级 | `pages[].layout.slots.<k>.process` | 可见 → 隐藏 | 栏专属后端 |
 | ④ 动作级 | `actions[].process` | 触发 → 完成退出 | 翻译、导出、计算 |
 
 ### 进程协议
@@ -344,6 +419,36 @@ if __name__ == "__main__":
     HTTPServer(("127.0.0.1", PORT), H).serve_forever()
 ```
 
+### 备选：sidecar 语言运行时（`lattice: "sidecar"`）
+
+不编 exe 时可用 `lattice: "sidecar"` + `runtime` 直接跑 Node/Python/Deno 脚本，自带能力沙箱
+（deny-all 默认：`fs.scope` 限目录、`net.allow` 白名单、`spawn` 白名单；能力只窄不宽）：
+
+```json
+{
+  "type": "module",
+  "id": "py_helper",
+  "name": "Python 助手",
+  "lattice": "sidecar",
+  "runtime": {
+    "kind": "python",
+    "entry": "backend.py",
+    "protocol": "http",
+    "port": 0,
+    "gracefulTimeoutMs": 8000,
+    "capabilities": {
+      "fs.scope": "plugin-dir",
+      "net.allow": ["api.example.com"],
+      "spawn": []
+    }
+  }
+}
+```
+
+- `runtime.kind` 必填（`node` / `python` / `deno`）；`runtime.entry` 必填（相对插件根）。
+- `lattice: sidecar` 却缺 `runtime`、或非 sidecar 格却带 `runtime` → 解析期抛 `FormatException`（fail-closed）。
+- 运行状态经 `GET /module/sidecars` 查询；生命周期由 `SidecarController` 统一管理（详见 `CLAUDE.md`）。
+
 ---
 
 ## 五、Composite 模式（PLAN_NOW 终局方向）
@@ -354,19 +459,19 @@ if __name__ == "__main__":
 ModuleDescriptor
   └── pages[]                    ← 多页面
         ├── id / label           ← 页面标识和 Tab 标签
-        ├── layout               ← 页面级布局
-        ├── globalProcess        ← 页面级 .exe
-        └── slots                ← 栏目映射 {left, right, center, top, bottom, main}
-              └── ComponentConfig {component, config, process, events, expose_state}
+        ├── layout               ← 页面级布局（type/preset/features/slots）
+        ├── process              ← 页面级 .exe（V1 别名 globalProcess）
+        └── layout.slots         ← 栏目映射 {left, right, center, top, bottom, main}
+              └── SlotDescriptor {component, config, process, events, expose_state}
 ```
 
 ### Slot 字段
 
 | 字段 | 说明 |
 |------|------|
-| `component` | 组件类型名（如 `"type-check"`、`"data-table"`） |
+| `component` | 组件声明 `{type, config, input, events, process}`（V2 为对象；旧字符串 `component: "chat"` 已不解析） |
 | `config` | 组件专属配置（透传给 Widget） |
-| `process` | 栏级后端进程（可选） |
+| `process` | 栏级后端进程（数组，可选） |
 | `events` | `{emit: [...], subscribe: [...]}` |
 | `expose_state` | `{events: [...], format: "json", subdir: "..."}` → `.greenix/workspaces/<id>/<subdir>/state.json` |
 
@@ -381,39 +486,42 @@ ModuleDescriptor
   "type": "module",
   "id": "vocab-tutor",
   "name": "单词教练",
-  "ui": "composite",
   "route": "/vocab-tutor",
-  "sidebar": { "section": "教育", "order": 20 },
+  "nav": { "sidebar": { "section": "教育", "order": 20 } },
 
   "pages": [
     {
       "id": "learn", "label": "学习",
-      "slots": {
-        "left": {
-          "component": "type-check",
-          "config": { "wordList": ["apple", "banana", "cherry"] },
-          "process": { "exe": "checker.exe" },
-          "events": { "emit": ["word_completed"] },
-          "expose_state": { "events": ["word_completed"], "subdir": "type-check" }
-        },
-        "right": {
-          "component": "data-table",
-          "config": { "dataType": "progress" },
-          "events": { "subscribe": ["word_completed"] }
+      "layout": {
+        "type": "grid",
+        "preset": { "columns": 2 },
+        "slots": {
+          "left": {
+            "component": { "type": "type-check", "config": { "wordList": ["apple", "banana", "cherry"] } },
+            "process": [{ "exe": "checker.exe" }],
+            "events": { "emit": ["word_completed"] },
+            "expose_state": { "events": ["word_completed"], "subdir": "type-check" }
+          },
+          "right": {
+            "component": { "type": "data-table", "config": { "dataType": "progress" } },
+            "events": { "subscribe": ["word_completed"] }
+          }
         }
       }
     },
     {
       "id": "review", "label": "复习",
-      "slots": {
-        "main": { "component": "flashcard", "config": { "mode": "spaced-repetition" } }
+      "layout": {
+        "slots": {
+          "main": { "component": { "type": "flashcard", "config": { "mode": "spaced-repetition" } } }
+        }
       }
     }
   ],
 
   "actions": [
     { "trigger": "button:export-progress", "label": "导出进度",
-      "process": { "exe": "export.exe", "protocol": "stdio" } }
+      "process": [{ "exe": "export.exe", "protocol": "stdio" }] }
   ]
 }
 ```
@@ -422,24 +530,24 @@ ModuleDescriptor
 
 ## 六、多页多栏能力矩阵
 
-以下字段在所有 UI 范式下均可用（`pages[]` + `slots` 仅 composite）：
+以下字段在所有 UI 范式下均可用（`pages[]` + `layout.slots` 仅 composite）：
 
-| 能力 | 字段 | 层级 | 非 composite | composite |
+| 能力 | 字段（V2） | 层级 | 非 composite | composite |
 |------|------|------|:-----------:|:---------:|
-| 侧边栏子导航 | `secondaryNavs` | 模块级（路由跳转） | ✅ | ✅ |
-| 页面内 Tab 面板 | `layout.panels` | 模块级/页面级 | ✅ | ✅ |
-| 多列分框布局 | `layout.grid` | 页面级（数据自动分配） | ✅ | ✅ |
-| 可滑出抽屉 | `layout.drawers` | 页面级（top/left/right/bottom） | ✅ | ✅ |
-| 多页面 | `pages[]` | 模块级（Tab 切换） | ❌ | ✅ |
-| 栏目映射 | `pages[].slots` | 页面级（栏间事件总线） | ❌ | ✅ |
+| 侧边栏子导航 | `nav.secondary[]` | 模块级（路由跳转） | ✅ | ✅ |
+| 多页面 Tab | `pages[]` | 模块级（Tab 切换） | ✅ | ✅ |
+| 多列分框布局 | `layout.preset.columns` + `slots` | 页面级（组件显式入栏） | ✅ | ✅ |
+| 可滑出抽屉 | `layout.features.drawers` | 页面级（top/left/right/bottom） | ✅ | ✅ |
+| 多页面 | `pages[]` | 模块级（Tab 切换） | ✅ | ✅ |
+| 栏目映射 | `pages[].layout.slots` | 页面级（栏间事件总线） | ❌ | ✅ |
 | 动作按钮 | `actionButtons[]` | 模块级 | ❌ | ✅ |
 | 栏间事件 | `PageEventBus` | 页面级 | ❌ | ✅ |
 
-> **层级关系**：`pages[]` > `panels`（父子）。`pages[]` 是一级页面 Tab，`panels` 是页面内的二级 Tab。
+> **层级关系**：`pages[]` 是一级页面 Tab；单页内的分栏由 `layout.slots` 表达（旧 `panels`/`grid` 顶层键已不解析）。
 >
-> **`secondaryNavs`** 不是页面内 Tab，而是**侧边栏的二级导航条目**——切换即路由跳转，和点击侧边栏主条目行为一致。
+> **`nav.secondary[]`** 不是页面内 Tab，而是**侧边栏的二级导航条目**——切换即路由跳转，和点击侧边栏主条目行为一致。
 >
-> **`layout.drawers`** 是页面级布局面板（常驻区域），与 `media.mode: "drawer"`（媒体文件临时滑入）是不同概念。slot 与 drawer 之间无源码级映射，由渲染层约定。
+> **`layout.features.drawers`** 是页面级布局面板（常驻区域），与 `media.mode: "drawer"`（媒体文件临时滑入）是不同概念。slot 与 drawer 之间无源码级映射，由渲染层约定。
 
 ---
 
@@ -452,7 +560,7 @@ ModuleDescriptor
   "type": "module",
   "id": "background_service",
   "name": "后台服务",
-  "process": { "exe": "service.exe", "protocol": "stdio" }
+  "process": [{ "exe": "service.exe", "protocol": "stdio" }]
 }
 ```
 
@@ -465,10 +573,24 @@ ModuleDescriptor
   "name": "AI 助手",
   "icon": "smart_toy",
   "route": "/chat",
-  "ui": "chat",
-  "sidebar": { "section": "AI 工具", "order": 10 },
-  "chat": { "stream": { "enabled": true } },
-  "input": { "mode": "free-text", "multiline": false, "sendOnEnter": true },
+  "nav": { "sidebar": { "section": "AI 工具", "order": 10 } },
+  "pages": [
+    {
+      "id": "chat",
+      "label": "对话",
+      "layout": {
+        "slots": {
+          "main": {
+            "component": {
+              "type": "chat",
+              "config": { "stream": { "enabled": true } },
+              "input": { "mode": "free-text", "multiline": false, "sendOnEnter": true }
+            }
+          }
+        }
+      }
+    }
+  ],
   "activateSkills": ["web_search", "memory"]
 }
 ```
@@ -490,56 +612,65 @@ ModuleDescriptor
 }
 ```
 
-### 带子导航 + 多 Tab + 抽屉的设置页（非 composite）
+### 带子导航 + 多页 + 抽屉的设置页
 
 ```jsonc
 {
   "type": "module",
   "id": "settings",
   "name": "设置",
-  "ui": "default",
   "route": "/settings",
-  "sidebar": { "section": "系统", "order": 90 },
-  // 侧边栏子导航：切换即路由跳转
-  "secondaryNavs": [
-    { "label": "通用", "routePath": "/settings/general", "section": "系统", "icon": "tune" },
-    { "label": "账户", "routePath": "/settings/account", "section": "系统", "icon": "account_circle" },
-    { "label": "关于", "routePath": "/settings/about", "section": "系统", "icon": "info" }
-  ],
-  "layout": {
-    "drawers": ["right"],              // 右侧可滑出抽屉
-    "panels": [                        // 页面内 Tab 面板
-      { "id": "prefs", "label": "偏好", "path": "/settings/general", "default": true },
-      { "id": "advanced", "label": "高级", "path": "/settings/general/advanced" }
+  "nav": {
+    "sidebar": { "section": "系统", "order": 90 },
+    // 侧边栏子导航：切换即路由跳转
+    "secondary": [
+      { "label": "通用", "routePath": "/settings/general", "section": "系统", "icon": "tune" },
+      { "label": "账户", "routePath": "/settings/account", "section": "系统", "icon": "account_circle" },
+      { "label": "关于", "routePath": "/settings/about", "section": "系统", "icon": "info" }
     ]
-  }
+  },
+  "pages": [
+    {
+      "id": "general",
+      "label": "偏好",
+      "route": "/settings/general",
+      "default": true,
+      "layout": { "features": { "drawers": ["right"] } }
+    },
+    {
+      "id": "advanced",
+      "label": "高级",
+      "route": "/settings/general/advanced",
+      "layout": { "features": { "drawers": ["right"] } }
+    }
+  ]
 }
 ```
 
-**说明**：`secondaryNavs` 在侧边栏生成 3 个二级条目（通用/账户/关于），点击触发路由跳转。"通用"页内通过 `panels` 展示 2 个 Tab（偏好/高级），右侧 `drawers` 提供属性面板。
+**说明**：`nav.secondary` 在侧边栏生成 3 个二级条目（通用/账户/关于），点击触发路由跳转；`pages[]` 提供页面内 Tab（偏好/高级），右侧 `drawers` 提供属性面板。
 
-### 分框数据看板（非 composite）
+### 分框数据看板
 
 ```jsonc
 {
   "type": "module",
   "id": "analytics",
   "name": "数据分析",
-  "ui": "dashboard",
   "route": "/analytics",
   "layout": {
-    "grid": { "columns": 3, "gap": 12 },  // 3 列分框，数据按声明顺序自动分配
-    "drawers": ["left"]                    // 左侧筛选面板
-  },
-  "data": [
-    { "type": "revenue", "display": "chart" },
-    { "type": "users", "display": "card" },
-    { "type": "orders", "display": "table" }
-  ]
+    "type": "grid",
+    "preset": { "columns": 3, "gap": 12 },
+    "features": { "drawers": ["left"] },
+    "slots": {
+      "c1": { "component": { "type": "chart", "config": { "dataType": "revenue" } } },
+      "c2": { "component": { "type": "data-table", "config": { "dataType": "users", "display": "card" } } },
+      "c3": { "component": { "type": "data-table", "config": { "dataType": "orders" } } }
+    }
+  }
 }
 ```
 
-**说明**：`grid.columns: 3` 将 3 个数据源自动分 3 列展示（revenue→第1列图表，users→第2列卡片，orders→第3列表格），`drawers: ["left"]` 提供左侧筛选面板。
+**说明**：`preset.columns: 3` + 3 个 slot 分 3 列展示（revenue→图表，users→卡片，orders→表格），`features.drawers: ["left"]` 提供左侧筛选面板。
 
 ---
 
@@ -571,6 +702,7 @@ ModuleDescriptor
 |--------------|-------------|------|
 | 1.0 | — | 初始版本，所有字段 |
 | 1.1+ | — | `activateSkills` 新增 |
+| 2.0 | 当前版本（见根 `README.md`） | `nav`/`template`/`lattice`/`runtime`/`pages[]` 树形结构；顶层 `ui`/`sidebar`/`secondaryNavs` 停用（静默忽略）；`process` 数组化 |
 
 ---
 

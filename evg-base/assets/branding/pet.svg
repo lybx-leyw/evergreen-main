@@ -1,0 +1,74 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="绿意不息宠物 - 绿芽精灵">
+  <defs>
+    <radialGradient id="bodyGrad" cx="42%" cy="34%" r="72%">
+      <stop offset="0%" stop-color="#f2fff8"/>
+      <stop offset="55%" stop-color="#c9f7df"/>
+      <stop offset="100%" stop-color="#9aeebd"/>
+    </radialGradient>
+    <linearGradient id="sproutGrad" x1="20%" y1="0%" x2="80%" y2="100%">
+      <stop offset="0%" stop-color="#7fe9ab"/>
+      <stop offset="100%" stop-color="#16b865"/>
+    </linearGradient>
+    <radialGradient id="cheek" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ff9bb3" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#ff9bb3" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bellyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#eafff3" stop-opacity="0.4"/>
+    </linearGradient>
+    <filter id="petShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="5" stdDeviation="6" flood-color="#0a6b48" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#petShadow)">
+    <!-- 身体 -->
+    <path d="M100 52
+             C 150 52, 168 96, 168 124
+             C 168 160, 140 178, 100 178
+             C 60 178, 32 160, 32 124
+             C 32 96, 50 52, 100 52 Z"
+          fill="url(#bodyGrad)" stroke="#16b865" stroke-opacity="0.25" stroke-width="2"/>
+    <!-- 肚皮 -->
+    <ellipse cx="100" cy="138" rx="40" ry="34" fill="url(#bellyGrad)"/>
+
+    <!-- 头顶双嫩芽 -->
+    <path d="M88 56 C 80 36, 64 28, 58 30 C 62 44, 74 54, 88 56 Z" fill="url(#sproutGrad)"/>
+    <path d="M112 56 C 120 36, 136 28, 142 30 C 138 44, 126 54, 112 56 Z" fill="url(#sproutGrad)"/>
+    <path d="M100 54 C 100 40, 100 30, 100 22" fill="none" stroke="#16b865" stroke-width="3" stroke-linecap="round"/>
+
+    <!-- 耳朵（叶形） -->
+    <path d="M52 64 C 30 52, 22 72, 30 88 C 44 80, 52 74, 52 64 Z" fill="url(#sproutGrad)"/>
+    <path d="M148 64 C 170 52, 178 72, 170 88 C 156 80, 148 74, 148 64 Z" fill="url(#sproutGrad)"/>
+
+    <!-- 腮红 -->
+    <circle cx="64" cy="128" r="13" fill="url(#cheek)"/>
+    <circle cx="136" cy="128" r="13" fill="url(#cheek)"/>
+
+    <!-- 眼睛 -->
+    <g>
+      <ellipse cx="76" cy="112" rx="11" ry="13" fill="#22332b"/>
+      <ellipse cx="124" cy="112" rx="11" ry="13" fill="#22332b"/>
+      <circle cx="80" cy="107" r="4" fill="#ffffff"/>
+      <circle cx="128" cy="107" r="4" fill="#ffffff"/>
+      <circle cx="73" cy="116" r="2" fill="#ffffff" fill-opacity="0.7"/>
+      <circle cx="121" cy="116" r="2" fill="#ffffff" fill-opacity="0.7"/>
+    </g>
+
+    <!-- 嘴 -->
+    <path d="M92 134 C 96 142, 104 142, 108 134" fill="none" stroke="#22332b" stroke-width="2.6" stroke-linecap="round"/>
+    <path d="M100 138 l-4 4 M100 138 l4 4" fill="none" stroke="#22332b" stroke-width="2" stroke-linecap="round"/>
+
+    <!-- 小手 -->
+    <ellipse cx="38" cy="142" rx="11" ry="14" fill="url(#bodyGrad)" stroke="#16b865" stroke-opacity="0.25" stroke-width="1.5"/>
+    <ellipse cx="162" cy="142" rx="11" ry="14" fill="url(#bodyGrad)" stroke="#16b865" stroke-opacity="0.25" stroke-width="1.5"/>
+
+    <!-- 脚 -->
+    <ellipse cx="78" cy="176" rx="15" ry="9" fill="url(#sproutGrad)"/>
+    <ellipse cx="122" cy="176" rx="15" ry="9" fill="url(#sproutGrad)"/>
+
+    <!-- 叶面高光 -->
+    <path d="M70 70 C 96 58, 130 62, 144 84 C 120 74, 92 74, 70 88 Z" fill="#ffffff" fill-opacity="0.3"/>
+  </g>
+</svg>

@@ -2,28 +2,54 @@
 
 从真实应用场景学会组合字段。
 
+> ## ⚠️ V2 说明（2026-08）
+>
+> 本文早期示例使用 V1 扁平 schema（顶层 `ui` / `sidebar` / `secondaryNavs` / `layout.mode|grid|panels` /
+> 单对象 `process`），这些键在 V2 中**已不再解析**。第一个示例（AI 助手）已按 V2 重写，
+> 其余示例保留 V1 形态作为字段组合参考，迁移对照表见
+> [`plugin-module.md`](plugin-module.md) 开头的「V2 迁移说明」。
+> 要点：`ui: "chat"` → `pages[].layout.slots.<k>.component.type`；`sidebar` → `nav.sidebar`；
+> `process` 单对象 → 数组。
+
 ---
 
-## AI 助手（Chat）
+## AI 助手（Chat）— V2
 
 ```json
 {
   "type": "module", "id": "agent", "name": "AI 助手",
   "icon": "auto_awesome", "route": "/agent",
-  "ui": "chat",
-  "sidebar": { "section": "AI 工具", "sectionOrder": 20, "order": 10 },
-  "layout": { "mode": "scroll", "drawers": ["right"] },
-  "chat": {
-    "thinking": { "visible": true, "mode": "expand", "showDuration": true },
-    "toolCalls": { "visible": true, "autoCollapse": true },
-    "bubble": { "style": "rounded" },
-    "stream": { "enabled": true, "animation": "typewriter", "cursorStyle": "blinking" }
-  },
-  "input": { "mode": "free-text", "attachments": { "enabled": true }, "slashCommands": true },
+  "nav": { "sidebar": { "section": "AI 工具", "sectionOrder": 20, "order": 10 } },
+  "pages": [
+    {
+      "id": "chat",
+      "label": "对话",
+      "layout": {
+        "type": "grid",
+        "features": { "drawers": ["right"] },
+        "slots": {
+          "main": {
+            "component": {
+              "type": "chat",
+              "config": {
+                "thinking": { "visible": true, "mode": "expand", "showDuration": true },
+                "toolCalls": { "visible": true, "autoCollapse": true },
+                "bubble": { "style": "rounded" },
+                "stream": { "enabled": true, "animation": "typewriter", "cursorStyle": "blinking" }
+              },
+              "input": { "mode": "free-text", "attachments": { "enabled": true }, "slashCommands": true }
+            }
+          }
+        }
+      }
+    }
+  ],
   "workspace": { "enabled": true, "aiCreatable": ["docx","pdf","pptx"] },
-  "process": { "exe": "agent_bridge.exe", "protocol": "http" }
+  "process": [{ "exe": "agent_bridge.exe", "protocol": "http" }]
 }
 ```
+
+> `workspace` 与 `process` 仍是顶层字段（V2 不变）；`input` 在 V2 属于组件级配置（`component.input`）。
 
 ---
 

@@ -3,12 +3,12 @@
 | 元信息 | 值 |
 | --- | --- |
 | 状态 | active |
-| 版本 | 1.0 |
-| 日期 | 2026-08-02 |
-| 负责人 | 待补充 |
+| 版本 | 以根 README.md 为准 |
+| 日期 | 2026-08-25 |
+| 负责人 | core-agent |
 | 适用 | Agent 工具插件作者 |
 
-> **面向**：插件开发者（编写 `.exe` 工具供 Agent 调用）  
+> **面向**：插件开发者（编写 `.exe` / `.py` 工具供 Agent 调用）  
 > **完整示例**：见本文档 §6（包含 date、weather 等可运行的完整示例）
 
 ---
@@ -30,7 +30,8 @@
 plugins/<name>/                     ← 插件根目录，name 为蛇形命名
 └── agent/                          ← Agent 工具子目录（必写）
     ├── manifest.json               ← 工具声明（必写，PluginBridge 扫描入口）
-    ├── <name>.exe                  ← 编译产物（必写，优先匹配目录同名 .exe）
+    ├── <name>.exe                  ← native 入口（.exe 优先匹配）
+    ├── <name>.py                   ← Python 入口（runtime="python" 直接执行，可选）
     ├── plugin.py                   ← 源码（可选，推荐保留用于调试）
     └── README.md                   ← 插件说明（可选）
 ```
@@ -39,17 +40,19 @@ plugins/<name>/                     ← 插件根目录，name 为蛇形命名
 
 1. 遍历 `plugins/` 下所有子目录
 2. 检查 `<子目录>/agent/` 是否存在
-3. 在 `agent/` 中查找 `.exe` 文件，**优先匹配 `<目录名>.exe`**
+3. 在 `agent/` 中查找入口文件，**优先匹配 `<目录名>.exe`**，其次 `<目录名>.py`（.exe 优先于 .py）
 4. 读取 `manifest.json`，`name` 非空即为有效插件
 5. 构造 `PluginTool` 并注册到 `Registry`
 
-> **注意**：当前 PluginBridge **不** 直接执行 `.py` 文件。Python 插件需要先编译为 `.exe`（见 [§4](#4-编译为-exe-指南)）。
+> **注意**：`.py` 入口当前**直接支持**——`PluginRunner` 按
+> `manifest.runtime`（`"python"`）或 `.py` 扩展名自动拼出 `python <entry>` 执行，
+> 无需先编译为 `.exe`（Windows 桌面；安卓走 Chaquopy 进程内执行）。
 
 ---
 
 ## 2. manifest.json 完整字段说明
 
-### 2.1 当前支持字段（PluginBridge v1）
+### 2.1 当前支持字段（PluginBridge 现状）
 
 | 字段 | 类型 | 必填 | 默认值 | 说明 |
 |------|------|------|--------|------|
@@ -59,6 +62,7 @@ plugins/<name>/                     ← 插件根目录，name 为蛇形命名
 | `readOnly` | `bool` | 否 | `false` | `true`=只读工具（可并行调用）；`false`=写操作（串行执行） |
 | `argMode` | `string` | 否 | `"stdin"` | `"stdin"`=JSON 写入标准输入；`"args"`=命令行参数传递 |
 | `argSpec` | `object` | 否 | `{"style":"json"}` | 仅 `argMode="args"` 时生效，控制命令行参数构造方式 |
+| `runtime` | `string` | 否 | `"native"` | `"native"`=直接执行入口；`"python"`=用 Python 解释器执行 `.py` |
 
 #### `argSpec` 子字段
 
@@ -69,7 +73,7 @@ plugins/<name>/                     ← 插件根目录，name 为蛇形命名
 | `flags` | `object` | `{}` | 按 key 覆盖 flag 名，如 `{"city":"-c"}` |
 | `order` | `array` | schema properties 声明顺序 | positional 模式的参数顺序 |
 
-### 2.2 规划中字段（v2，当前 PluginBridge 不识别）
+### 2.2 规划中字段（当前 PluginBridge 不识别）
 
 以下字段为全局工程师规划的扩展方向，**暂未实现**，请勿在 manifest.json 中使用：
 
@@ -82,7 +86,7 @@ plugins/<name>/                     ← 插件根目录，name 为蛇形命名
 | `timeout_ms` | `int` | 超时毫秒数（默认 30000） |
 | `env` | `object` | 环境变量键值对 |
 
-> **实现状态**：当前 PluginBridge 使用 `_findExe` 硬编码 `.exe` 发现 + `PluginManifest` 6 字段。v2 扩展需 Agent 工程师后续实现。
+> **实现状态**：当前 PluginBridge 使用 `_findEntry` 发现 `.exe` / `.py`（同名优先）+ `PluginManifest`（含 `runtime` 字段）。扩展方向中 `runtime` 已落地；其余字段（`type`/`version`/`entry`/`permissions`/`timeout_ms`/`env`）仍需 Agent 工程师后续实现。
 
 ### 2.3 三种 argMode 对比
 
@@ -243,7 +247,8 @@ if __name__ == "__main__":
 
 ## 4. 编译为 .exe 指南
 
-PluginBridge 当前只扫描 `.exe` 文件，Python 插件需要先编译。
+PluginBridge 支持 `.py` 入口直接运行（`runtime: "python"`），**Python 插件无需先编译**；
+仅在需要独立可执行文件（无 Python 环境目标机）时才编译 `.exe`。
 
 ### 4.1 PyInstaller（Python）
 
@@ -476,25 +481,27 @@ cp dist/weather.exe plugins/weather/agent/
 
 | 插件 | 语言 | argMode | 说明 |
 |------|------|---------|------|
-| `date` | Python | stdin | JSON → stdin，空输入容错，3 种日期格式 |
+| `date` | Python | stdin | JSON → stdin，空输入容错，多格式日期输出 |
 | `weather` | Python | args + flag + 短flag | `--city` / `-c` 短长 flag 映射，模拟天气 |
 | `time` | Python | args + flag | `--offset` 时区偏移，12h/24h 格式切换 |
 | `random` | C | args + flag | 编译型语言示例，`--min` / `--max` 范围 |
-| `mkdir` | Python | args + flag | 写操作示例（`readOnly: false`），创建目录 |
+
+> 以上插件对应 `example/plugins/` 下完整模板（manifest + 源码 + README）。
+> 写操作示例（`readOnly: false`）可参考 `random` 的 manifest 结构，将 `readOnly` 置为 `false` 并实现目录创建逻辑。
 
 **通用模板**：
 1. 选择 argMode（stdin 适合复杂参数，args+flag 适合 CLI 工具）
-2. 编写 manifest.json（6 字段：name/description/schema/readOnly/argMode/argSpec）
-3. 编写 plugin.py（见 §3 三种模式的代码模板）
-4. 编译 `.exe`（见 §4 各语言编译命令）
-5. 独立测试（见 §5.1 `echo '...' | ./name.exe`）
+2. 编写 manifest.json（字段：name/description/schema/readOnly/argMode/argSpec/runtime）
+3. 编写 plugin.py（见 §3 三种模式的代码模板；`.py` 入口声明 `runtime: "python"` 即可直接运行）
+4. 按需编译 `.exe`（见 §4 各语言编译命令）
+5. 独立测试（见 §5.1 `echo '...' | ./name.exe` 或 `python plugin.py`）
 
 ---
 
 ## 附录：PluginBridge 工作原理
 
-**发现**：扫描 `plugins/<name>/agent/` → 优先匹配 `<name>.exe` → 解析 `manifest.json` → 注册 `PluginTool`。
+**发现**：扫描 `plugins/<name>/agent/` → 优先匹配 `<name>.exe` / `<name>.py` → 解析 `manifest.json` → 注册 `PluginTool`。
 
-**调用**：`registry.call(name, json)` → `Process.start(.exe)` → stdin/args 传入参数 → 收集 stdout + stderr → 返回结果。
+**调用**：`registry.call(name, json)` → `PluginRunner.runOnce`（桌面 `SubprocessRunner` 子进程 / 安卓 `ChaquopyRunner` 进程内）→ stdin/args 传入参数 → 收集 stdout + stderr → 返回结果。
 
 **生命周期**：`registerAll`（启动时）→ `refresh`（运行时增量同步）→ `remove`（插件卸载）。

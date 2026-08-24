@@ -1,0 +1,11 @@
+# Python 缓存
+__pycache__/
+*.pyc
+
+# 运行期状态（worker 写入，不入库）
+plugins/zju_autosign/module/state.json
+plugins/zju_autosign/module/state.json.tmp
+
+# 系统
+.DS_Store
+Thumbs.db

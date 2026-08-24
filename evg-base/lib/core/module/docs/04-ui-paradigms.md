@@ -1,20 +1,24 @@
 # 04 · UI 范式
 
-`ui` 字段决定页面的核心交互范式。
+组件的核心交互范式由**页面布局 slot 里的组件类型**决定。
 
-## 七种范式
+> V2 说明：顶层 `ui` 字段（`"chat"` / `"spreadsheet"` 等）**已不再解析**。
+> 范式现在由两条路径声明：
+> 1. `template`（模块级）——路由到渲染器（`v4` / `html` / `scraper` / `zju` ...）；
+> 2. `pages[].layout.slots.<k>.component.type`（v4 声明式模块）——决定页面内各栏位的组件范式。
+> 各范式的专属配置（`thinking` / `toolCalls` / `bubble` / `stream` 等）放在 `component.config` 下。
 
-| `ui` | 范式 | 适用场景 |
+## 七种组件范式
+
+| `component.type` | 范式 | 适用场景 |
 |------|------|---------|
-| `"default"` | 通用列表/表格/卡片 | 成绩单、新闻列表、课程卡片 |
-| `"chat"` | 对话 | AI 助手、客服机器人 |
-| `"spreadsheet"` | 电子表格 | 成绩分析、数据表 |
-| `"document"` | Word 级文档 | 论文写作、报告编辑 |
-| `"presentation"` | PPT 级幻灯片 | 课件展示、汇报 |
-| `"dashboard"` | 仪表盘 | 数据看板、统计概览 |
-| `"editor"` | 代码/文本编辑器 | C IDE、LaTeX 编辑器 |
-
-不填 `ui` 默认为 `"default"`。
+| `data-table` | 通用列表/表格/卡片 | 成绩单、新闻列表、课程卡片 |
+| `chat` | 对话 | AI 助手、客服机器人 |
+| `spreadsheet` | 电子表格 | 成绩分析、数据表 |
+| `document` | Word 级文档 | 论文写作、报告编辑 |
+| `presentation` | PPT 级幻灯片 | 课件展示、汇报 |
+| `chart` / `dashboard` | 仪表盘 | 数据看板、统计概览 |
+| `code-editor` | 代码/文本编辑器 | C IDE、LaTeX 编辑器 |
 
 ---
 
@@ -22,18 +26,33 @@
 
 ```json
 {
-  "ui": "chat",
-  "chat": {
-    "thinking": { "visible": true, "transparent": false, "mode": "expand", "showDuration": true },
-    "toolCalls": { "visible": true, "showArgs": true, "showResult": true, "autoCollapse": true },
-    "bubble": { "style": "rounded", "avatarPosition": "left", "showTimestamp": true },
-    "stream": { "enabled": true, "animation": "typewriter", "cursorStyle": "blinking" },
-    "placeholder": "问点什么..."
-  }
+  "pages": [
+    {
+      "id": "chat",
+      "label": "对话",
+      "layout": {
+        "type": "grid",
+        "slots": {
+          "main": {
+            "component": {
+              "type": "chat",
+              "config": {
+                "thinking": { "visible": true, "transparent": false, "mode": "expand", "showDuration": true },
+                "toolCalls": { "visible": true, "showArgs": true, "showResult": true, "autoCollapse": true },
+                "bubble": { "style": "rounded", "avatarPosition": "left", "showTimestamp": true },
+                "stream": { "enabled": true, "animation": "typewriter", "cursorStyle": "blinking" },
+                "placeholder": "问点什么..."
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
 ```
 
-### thinking（思考栏）
+### thinking（思考栏，`config.thinking`）
 
 | 字段 | 默认值 | 说明 |
 |------|--------|------|
@@ -42,7 +61,7 @@
 | `mode` | `"expand"` | `"expand"` 展开 / `"scroll"` 滑动窗口 |
 | `showDuration` | `false` | 显示耗时 |
 
-### toolCalls（工具调用）
+### toolCalls（工具调用，`config.toolCalls`）
 
 | 字段 | 默认值 | 说明 |
 |------|--------|------|
@@ -51,7 +70,7 @@
 | `showResult` | `true` | 展示调用结果 |
 | `autoCollapse` | `false` | 完成后自动折叠 |
 
-### bubble（气泡）
+### bubble（气泡，`config.bubble`）
 
 | 字段 | 默认值 | 说明 |
 |------|--------|------|
@@ -59,7 +78,7 @@
 | `avatarPosition` | `"left"` | `"left"` / `"none"` |
 | `showTimestamp` | `true` | 显示时间戳 |
 
-### stream（流式输出）
+### stream（流式输出，`config.stream`）
 
 | 字段 | 默认值 | 说明 |
 |------|--------|------|
@@ -69,58 +88,100 @@
 
 ---
 
-## Spreadsheet（电子表格）
+## Spreadsheet（电子表格，`config` 同前缀键）
 
 ```json
 {
-  "ui": "spreadsheet",
-  "spreadsheet": {
-    "formulas": true,
-    "charts": true,
-    "sheets": true,
-    "conditionalFormatting": true,
-    "resizableColumns": true,
-    "columns": 26,
-    "rows": 100
-  }
+  "pages": [
+    {
+      "id": "sheet",
+      "label": "表格",
+      "layout": {
+        "slots": {
+          "main": {
+            "component": {
+              "type": "spreadsheet",
+              "config": {
+                "formulas": true,
+                "charts": true,
+                "sheets": true,
+                "conditionalFormatting": true,
+                "resizableColumns": true,
+                "columns": 26,
+                "rows": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
 ```
 
 ---
 
-## Document（Word）
+## Document（Word，`config` 同前缀键）
 
 ```json
 {
-  "ui": "document",
-  "document": {
-    "trackChanges": true,
-    "comments": true,
-    "tableOfContents": true,
-    "footnotes": true,
-    "headersFooters": false,
-    "pageSetup": true,
-    "exportFormats": ["pdf", "docx"]
-  }
+  "pages": [
+    {
+      "id": "doc",
+      "label": "文档",
+      "layout": {
+        "slots": {
+          "main": {
+            "component": {
+              "type": "document",
+              "config": {
+                "trackChanges": true,
+                "comments": true,
+                "tableOfContents": true,
+                "footnotes": true,
+                "headersFooters": false,
+                "pageSetup": true,
+                "exportFormats": ["pdf", "docx"]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
 ```
 
 ---
 
-## Presentation（PPT）
+## Presentation（PPT，`config` 同前缀键）
 
 ```json
 {
-  "ui": "presentation",
-  "presentation": {
-    "transitions": true,
-    "animations": true,
-    "speakerNotes": true,
-    "presenterView": true,
-    "slideMaster": true,
-    "layouts": ["title", "content", "blank", "two-column"],
-    "exportFormats": ["pdf", "pptx"]
-  }
+  "pages": [
+    {
+      "id": "slides",
+      "label": "幻灯片",
+      "layout": {
+        "slots": {
+          "main": {
+            "component": {
+              "type": "presentation",
+              "config": {
+                "transitions": true,
+                "animations": true,
+                "speakerNotes": true,
+                "presenterView": true,
+                "slideMaster": true,
+                "layouts": ["title", "content", "blank", "two-column"],
+                "exportFormats": ["pdf", "pptx"]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
 ```
 
