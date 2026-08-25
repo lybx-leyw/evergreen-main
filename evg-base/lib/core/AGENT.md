@@ -29,6 +29,9 @@ parent: root
 | `Result<T>`（Ok/Err） | `result.dart` | 全 core + renderer | sealed class 变更影响穷尽检查 |
 | `Log` 单例 | `log.dart` | 全 core + renderer | 输出行为变更需广播 |
 | 6 个 HTTP Server 端口文件 | `.agent_port`/`.config_port`/`.data_port`/`.module_port`/`.theme_port`/`.core_port` | plugins .exe | 端口文件格式变更需通知 plugins |
+| `PluginRunner.runOnce(timeout)`（超时 kill 子进程，T4） | `plugin/plugin_runner.dart`（**core/agent/data 三副本同步**） | core-data（CLI 数据源）/ core-agent / core-data 子包 | 副本必须三处同步，diff 仅差标记注释 |
+| `PythonSession`（stdio JSON Lines 常驻会话，T5） | `plugin/python_session.dart` | 数据源/工具常驻场景 | 协议/终止语义变更需广播 |
+| `DataFileService.downloadFile/downloadFiles`（T8a） | `services/data_file_service.dart` | renderer（文件导出 UI）/ 消费方 | 返回 `Result<String>`；签名变更需通知 renderer |
 
 ## 4. 规则（本 OWNER 内必须遵守）
 

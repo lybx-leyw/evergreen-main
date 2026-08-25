@@ -57,6 +57,16 @@ class DataDiff {
   /// 是否有实质变化（忽略易变字段后）。
   bool get hasChanges => added + removed + changed > 0;
 
+  /// 序列化为 JSON（供 SSE 变更事件帧 / 跨进程传输）。
+  Map<String, dynamic> toJson() => {
+        'added': added,
+        'removed': removed,
+        'changed': changed,
+        'addedItems': addedItems,
+        'removedItems': removedItems,
+        'changedItems': changedItems,
+      };
+
   static const kMaxDiffDetailItems = 5;
 
   /// 人类可读摘要，如「新增 2 项、移除 1 项 · 线性代数；高等数学」。
@@ -95,6 +105,14 @@ class DataChangeEvent {
   final DataDiff diff;
 
   final DateTime at;
+
+  /// 序列化为 JSON（供 SSE 变更事件帧 / 跨进程传输）。
+  Map<String, dynamic> toJson() => {
+        'sourceName': sourceName,
+        'displayName': displayName,
+        'diff': diff.toJson(),
+        'at': at.toIso8601String(),
+      };
 }
 
 /// 计算 before → after 的结构差异。

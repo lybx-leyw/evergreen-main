@@ -31,6 +31,15 @@
 
 > `.evgconfig` v2 契约与同步中心（.egsync）规格见 `docs/superpowers/specs/egsync-sync-center-spec-v1.md`。
 
+### 凭据存储（CredentialStore，T2 主题 A 登录不挤占）
+
+| 成员 | 说明 |
+|------|------|
+| `CredentialStore.get/set/delete/has` | 平台级凭据统一读写（SP 主存储 + `.greenix/config.json` / `env.json` 镜像），`set({isSecure})` 敏感标记 |
+| `CredentialStore` 写路径互斥锁 | 并发写/读改写串行（对齐 Cache 锁模式） |
+| `writeCredentialDirect(key, value, {isSecure})` | **不依赖 ConfigHttpServer/`.config_port` 的直写**（save_credential 已切此路径，T9）；写 SP + 镜像 config.json |
+| 消费方 | `SessionProvider`（`core/data/session_provider.dart`）、scraper/html-creator `SaveCredentialTool` |
+
 ### 权限
 
 | 函数 | 说明 |

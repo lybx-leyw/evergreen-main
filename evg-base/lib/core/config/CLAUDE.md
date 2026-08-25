@@ -54,6 +54,7 @@ lib/core/config/
 ├── permissions.dart         # 权限注册、读写、检查
 ├── sources.dart             # 插件源管理
 ├── config_http_server.dart  # HTTP API 服务器（端点见 §六）
+├── credential_store.dart    # 平台级凭据存储（统一 SP/config.json/env.json 读写 + isSecure + 写锁；writeCredentialDirect 直写）
 ├── sync_export_service.dart # 同步中心导出端 pack_sync（.egsync.zip，见 §三「导出端 pack_sync」）
 ├── register_config.dart     # 运行期热注册（registerConfigFromManifest，供设计器/爬虫）
 ├── exceptions.dart          # 异常类定义
@@ -119,6 +120,7 @@ lib/core/config/
 |------|---------|
 | `settings_test.dart` | SettingDecl 构造、initSettings（扫描/默认值/类型解析）、getSetting/setSetting（读写/校验）、getAllSettings、getSettingSources、exportConfig/importConfig v2（动态段/权限段/appPrefs/白名单/version 校验/isSecure/非空保护/onChanged/v1 兼容/类型语义校验）、异常 toString |
 | `permissions_test.dart` | PermissionDecl 构造、registerPermissions/getPermissions、setPermission/checkPermission、describePermission、getAllPermissions/importPermissions（枚举/bool 类型/白名单/覆盖语义）、PluginSource、getSources/addSource/removeSource、异常 toString |
+| `credential_store_test.dart` | CredentialStore 读写/删除/空值、config.json 镜像（读改写保留其它 key）、env.json 镜像（mirrorEnv）、isSecure 标记跟踪、写路径互斥锁（并发写串行）、writeCredentialDirect 直写 |
 | `sync_export_service_test.dart` | 导出端冒烟：.egsync.zip 结构（§二）、排除清单、全相对路径、manifest 内容、双维勾选过滤、空勾选、isSecure 明文控制 |
 
 **运行**：
@@ -204,6 +206,7 @@ config (纯 Dart)
 
 | 日期 | 变更 |
 |------|------|
+| 2026-08-25 | **T2 平台级凭据存储（主题 A）**：新增 `credential_store.dart`（CredentialStore：统一 SP / `.greenix/config.json` 镜像 / `env.json` 读写，`get`/`set({isSecure})`/`delete`/`has`，isSecure 标记跟踪 + 写路径互斥锁；顶层 `writeCredentialDirect` 提供不依赖 ConfigHttpServer/`.config_port` 的直写路径）；`config.dart` barrel 导出；新增 `dart_test.yaml`（concurrency:1，规避 1GB cgroup 下默认并发编译 OOM）；测试 +18 用例（credential_store_test.dart），全量 99 用例通过 |
 | 2026-08-25 | **导出端 pack_sync 实现（t15）**：新增 `sync_export_service.dart`（SyncExportService/SyncSelection/SyncExportResult，.egsync.zip 打包：config v2 + sessions/memories/plugins/data/themes 按勾选收集 + 排除清单 + 全相对路径 + manifest）；config 新增 archive/path 依赖（stub + dependency_overrides，同 core 模式）；测试 +4 冒烟用例（sync_export_service_test.dart），全量 81 用例通过；规格文档更新 v1.1 |
 | 2026-08-25 | **config v2（.evgconfig）实现**：exportConfig/importConfig 升级 v2（dynamicSettings/permissions/appPrefs 可选段 + version 校验 + 白名单过滤 + isSecure 跳过 + onChanged 触发 greenix 同步 + overwrite 覆盖语义），修复 O1 ①权限类型②动态项枚举③extra 无过滤④无 version 校验⑤导入不同步⑥isSecure 明文；新增 getSettingSources / getAllPermissions / importPermissions / ConfigHttpServer.dynamicSettingKeys / importConfigAndSync；同步中心契约规格 docs/superpowers/specs/egsync-sync-center-spec-v1.md；测试 +20 用例全量通过 |
 | 2026-08-25 | 文档对齐代码：ConfigHttpServer 端点表修正（对齐源码路由）、补充动态注册（registerSetting/unregisterSetting）、.greenix 同步（setGreenixConfigPath/syncConfigToGreenix）、运行期热注册（registerConfigFromManifest）、目录结构补 register_config.dart/AGENT.md；按文档修订三原则去除硬编码数量与版本号 |

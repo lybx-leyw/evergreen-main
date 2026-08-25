@@ -25,6 +25,7 @@
 | `displayName` | | UI 展示名，默认同 name |
 | `ttl` | | 缓存有效期，默认 5 分钟 |
 | `persistentKey` | | 持久化键，不设则不缓存 |
+| `fallback` | | 静态兜底值（可选）：拉取失败且无旧缓存时由中枢返回，缺省 null 零行为变化 |
 | `label` | | getter：`displayName ?? name` |
 
 ### DataOrchestrator
@@ -63,6 +64,10 @@
 | `testAllConnectivity()` | 全源测试 | `final r = await orch.testAllConnectivity()` |
 | `addDataChangeListener(fn)` | 订阅数据变更事件（后台刷新） | `orch.addDataChangeListener((e) => ...)` |
 | `removeDataChangeListener(fn)` | 取消订阅变更事件 | `orch.removeDataChangeListener(fn)` |
+| `dataChangeEvents` | 数据变更事件广播流（与 addDataChangeListener 共享同一 diff 通知源） | `orch.dataChangeEvents.listen((e) => ...)` |
+| `registerStream(type, fetcher)` | 注册流式数据类型（与 register 并存，同名互不覆盖） | `orch.registerStream(videoType, () => Stream.periodic(...))` |
+| | | 入: `DataType<T>`, `() → Stream<T>` / 出: `void` |
+| `streamOf(type)` / `streamByName(name)` | 取流式数据流（未注册返回 null；自动接线状态映射 onData/onError/onDone） | `final s = orch.streamOf(videoType)` |
 
 ### DataSourceStatus
 
@@ -72,6 +77,7 @@
 | `cacheKey` / `ttl` | 缓存键（persistentKey）/ 有效期 |
 | `connected` | 连通状态 |
 | `lastFetchedAt` / `lastError` | 最近拉取时间 / 最近错误 |
+| `completed` | 流式数据源是否已完成（onDone 标记，不注销） |
 | `isFresh` | 是否在 TTL 内 |
 | `freshnessLabel` | "新鲜" / "过期" / "从未" |
 | `relativeTime` | "3 分钟前" 等人性化时间 |
@@ -87,6 +93,9 @@
 | `DataDiff.addedItems` / `removedItems` / `changedItems` | 示例条目（最多 5 条） |
 | `DataDiff.hasChanges` / `summarize()` | 是否有变化 / 中文摘要（如「新增 2 项、移除 1 项 · 线性代数；高等数学」） |
 | `computeDataDiff(before, after)` | 计算结构差异（忽略 `kVolatileDiffKeys` 易变字段） |
+| `DataChangeEvent.toJson()` / `DataDiff.toJson()` | 变更事件/差异 JSON 序列化（供 SSE 帧与跨进程传输） |
+| `dataStreamSseFrame(name, data)` / `dataStreamErrorSseFrame` / `dataStreamDoneSseFrame` | data 流 SSE 帧构造（`sse_frame.dart`，`event: data/error/done`） |
+| `changeEventSseFrame(event)` | 变更事件 SSE 帧构造（`event: change`） |
 
 ### DataHttpServer
 
@@ -107,6 +116,8 @@
 - `GET /data/status/:name` — 单个数据源状态
 - `POST /data/connectivity/test` — 测试全量连通性
 - `POST /data/register` — 运行期热注册 CLI 数据源（body: `{"pluginDir": "<plugins>/data-<name>"}`）
+- `GET /data/stream/:name` — 流式数据源 SSE 长连接（`text/event-stream`；`event: data`/`event: error`/`event: done` 帧）
+- `GET /data/events` — 全局数据变更事件 SSE 长连接（`event: change` 帧）
 
 ### 其他公共符号
 
@@ -115,10 +126,10 @@
 | `Cache` | 持久化缓存单例，文件存储于 `web_cache/{key}.json` |
 | `scanAndLoadDataSources({pluginsDir, orchestrator, projectRoot})` | 扫描 `plugins/*/data/manifest.json`，批量启动外部 `.exe`（HTTP 模型） |
 | `registerDataSourcesFromManifest({orch, pluginDir, projectRoot, onlyType})` | 读取 manifest 注册 CLI 数据源（返回注册的类型名列表） |
-| `cliDataSourceSupportedOn(json, {isAndroid})` | 安卓支持判断（`androidSupport` 安全网） |
+| `cliDataSourceSupportedOn(json, {isAndroid})` | 安卓支持判断（`androidSupport` 严格 bool 安全网） |
 | `fetchRemoteManifestList(url)` / `fetchRemoteManifest(url)` | 从远程拉取 manifest（失败返回空/null，不抛） |
-| `DataSourceLoader` | 单个 `.exe` 生命周期（启动→健康检查→注册，HTTP 模型） |
-| `DataSourceManifest` / `DataSourceTypeDecl` | 插件清单模型（含 `runtime` / `androidSupport` / `typeArg`） |
+| `DataSourceLoader` | 单个 `.exe` 生命周期（启动→健康检查→注册；崩溃后退避 1s/3s/9s 自动重启、手动 `.restart()`，HTTP 模型） |
+| `DataSourceManifest` / `DataSourceTypeDecl` | 插件清单模型（统一双模型；含 `script`/`typeArg`/`process`/`auth`/`stream`/`file`） |
 | `DataTypeNotRegisteredException` / `DataFetchException` | 异常类型 |
 | `dataOrchestratorProvider` | Riverpod Provider（`provider.dart`，不被 barrel 导出；renderer 侧使用） |
 
@@ -234,20 +245,24 @@ server.serve_forever()
 | 字段 | 必填 | 说明 |
 |------|------|------|
 | `type` | ✓ | 固定 `"data-source"` |
-| `id` | ✓ | 唯一标识，不可与其他插件重复 |
-| `name` | ✓ | 展示名 |
-| `process` | ✓（模型 B） | 可执行文件名 |
-| `script` | ✓（模型 A） | CLI 脚本文件名（与 process 二选一） |
+| `id` | | 唯一标识（**可选**：模型 A 缺省由目录 basename 派生） |
+| `name` | | 展示名（**可选**） |
+| `process` | ✓（模型 B） | 可执行文件名（字符串）或进程声明（对象，吸收 ProcessDescriptor 语义） |
+| `script` | ✓（模型 A） | CLI 脚本文件名（与 process **互斥二选一**） |
 | `runtime` | | 脚本运行时：`native`（默认）/ `python`（也可按 `.py` 扩展名推断） |
-| `androidSupport` | | 默认 true；`false` 时安卓跳过加载（C 扩展类插件安全网） |
+| `androidSupport` | | **严格 bool**：仅真实 bool 有效，缺省 true，非 bool 视为 false（安卓跳过） |
+| `auth` | | **可选，缺省零行为变化**：`{sessionProvider?, credentialKeys?[]}`，引用 config.json 已声明凭据 key |
 | `dataTypes` | ✓ | 数据类型声明数组 |
 | `dataTypes[].name` | ✓ | 类型唯一标识 |
 | `dataTypes[].typeArg` | | 传给 CLI 脚本的 `--type` 参数，默认同 name（仅模型 A） |
-| `dataTypes[].endpoint` | ✓（模型 B） | HTTP 路径，`{port}` 由平台自动替换 |
-| `dataTypes[].category` | | 分类，默认 `"未分类"` |
+| `dataTypes[].endpoint` | ✓（模型 B） | HTTP 路径，`{port}` 由平台自动替换；模型 A 可缺省 |
+| `dataTypes[].category` | | 分类，默认 `"未分类"`（模型 A/B 统一） |
 | `dataTypes[].displayName` | | UI 展示名，默认同 name |
-| `dataTypes[].ttl` | | 缓存有效期，如 `"1h"` `"30m"` `"60s"` `"500ms"`，默认 5 分钟 |
+| `dataTypes[].ttl` | | 缓存有效期，如 `"1h"` `"30m"` `"60s"` `"500ms"` 或秒数，默认 5 分钟（统一解析器） |
 | `dataTypes[].persistentKey` | | 持久化缓存键，不设则不缓存 |
+| `dataTypes[].stream` | | **可选，缺省零行为变化**：`{enabled, protocol?, mime?, credentialed?}` |
+| `dataTypes[].file` | | **可选，缺省零行为变化**：`{enabled, downloadEndpoint?}` |
+| `dataTypes[].fallbackJson` | | **可选，缺省零行为变化**：静态兜底（顶层 Map），拉取失败且无旧缓存时返回并标记「使用静态兜底」 |
 
 #### 第三步：构建 .exe（模型 B）
 
@@ -307,7 +322,10 @@ registerDataSourcesFromManifest(
 | 问题 | 状态 |
 |------|------|
 | `scanAndLoadDataSources` 插件退出后 Dart event loop 不退出 | `stop()` 已加 `force:true` + `exit(0)` 兜底 |
-| `Cache` 单例缺少并发安全 | 当前单线程访问，后续可加锁 |
+| `Cache` 单例缺少并发安全 | ✅ T4 已加写路径互斥队列（单 isolate Future 链式串行） |
+| 模型 B（.exe）进程崩溃后 `get` 永久失败 | ✅ T4 已加崩溃自动重启（退避 1s/3s/9s 最多 3 次）+ 手动 `restart()` |
+| CLI 数据源脚本挂起无超时 | ✅ T4 已加 `runOnce` 超时（默认 60s，超时 kill 子进程） |
+| 空 vs 不可达语义混为一谈 | ✅ T4 已区分 `lastError`（「源可达但数据为空」vs「拉取失败: ...」） |
 | barrel `data.dart` 依赖根包 core（greenix_path 等） | 子包独立 `dart test` 需精确 import 纯数据文件（`../orchestrator.dart` 等），见测试文件头注释 |
 | ~~`example/plugins/douban/` 提交了 PyInstaller 构建产物（`build/`、`dist/`）~~ | ✅ t13 已迁移模型 A(.py) 并清理（25.71MB → 7.08KB），`.gitignore` 保留防误提交 |
 | 模型 B（.exe）为 legacy，跨平台导出受限 | 新数据源一律模型 A（CLI .py）；同步中心导出以模型 A 为规范化形态 |

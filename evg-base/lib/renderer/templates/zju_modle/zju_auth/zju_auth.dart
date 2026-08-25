@@ -15,5 +15,12 @@ export 'html_parser.dart' show HtmlParser;
 export 'network_config.dart' show NetworkConfig;
 export 'retry_interceptor.dart' show RetryInterceptor;
 export 'zdbk_patterns.dart' show ZdbkPatterns;
-export 'zju_session.dart' show ensureZjuSession;
+export 'zju_session.dart'
+    show
+        ensureZjuSession,
+        zjuVideoHttpHeaders,
+        zjuRefreshSession,
+        zjuIsSessionExpiredError,
+        ZjuSessionProvider,
+        ZjuMediaRequestHeadersProvider;
 export 'zjuam_service.dart' show ZjuAmService;

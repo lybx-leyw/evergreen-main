@@ -23,6 +23,11 @@
 > **2026-08-25（t25）**：paper_reading_modle 模板撤销（项目未开放论文阅读）——删除整个模板目录（24 文件）；
 > `PymupdfTool`（skill_creator `pdf_extract_text` 工具在用）迁移至 `skill_creator_modle/tools/pymupdf_tool.dart`；
 > templates_index.json 与 build_profiles 移除 paper_reading，`template_registry.g.dart` 重新生成（10→9 路由）。
+>
+> **2026-08-25（T8b）**：数据源文件导出（验收目标 4 UI/module 侧）——新增 `components/shared/file_export_names.dart`
+> （纯函数：文件名净化/冲突命名）、`file_export.dart`（选目录 + `exportFileEntry`/`exportFileEntries`）、
+> `file_export_bar.dart`（`FileExportButton`/`FileExportBar`）；下载走 core `DataFileService`，选目录走 file_picker，
+> 无新 pub 依赖；演示页未接（文档示例 + 组件就绪），详见「数据源文件导出（T8b）」节。
 
 ---
 
@@ -165,6 +170,56 @@ await platform.process.stop('worker.py');
 - `template_engine.dart` — 模板引擎
 - `slot_scale.dart` — 槽位缩放
 - `trace/` — Agent 轨迹记录与视图
+- `file_export_names.dart` / `file_export.dart` / `file_export_bar.dart` — 数据源文件导出（见下节）
+
+---
+
+## 数据源文件导出（T8b）
+
+让「数据源声明 `file` → 返回文件清单（PDF 等）→ module 页面一键导出到用户自选路径」成立。
+三件套位于 `components/shared/`，barrel `renderer.dart` 已导出：
+
+| 文件 | 职责 |
+|------|------|
+| `file_export_names.dart` | 纯函数（零依赖，可独立单测）：`sanitizeFileName`（防路径穿越/非法字符）、`fileNameFromUrl`、`uniqueFileName`（冲突追加序号） |
+| `file_export.dart` | 服务：`pickExportDirectory`（file_picker 选目录）、`resolveExportTargetPath`、`exportFileEntry`/`exportFileEntries`、`fileEntriesFromData` |
+| `file_export_bar.dart` | 组件：`FileExportButton` / `FileExportBar`（选目录 → 批量下载 → SnackBar 结果） |
+
+### 用法（fileOf → extractFileEntries → 选目录 → downloadFile）
+
+```dart
+// 1. 判定该数据源声明了文件下载（未声明 / disabled → 无导出入口）
+final decl = orch.fileByName(typeName);
+if (decl?.enabled != true) return;
+
+// 2. 拉数据并提取文件清单（core extractFileEntries）
+final data = await orch.get(type);           // 或 refresh
+final entries = fileEntriesFromData(data);   // dynamic → List<FileEntry>（非 Map 返回空）
+
+// 3. 复用通用导出组件（凭据 headers 由回调注入，匿名传 null）
+FileExportBar(
+  entries: entries,
+  service: DataFileService(),                // 可传 sandboxRoot 限制落盘边界
+  headersProvider: () => sessionHeaders,     // T2 会话中心导出，本任务不实作
+  onDone: (summary) { /* summary.savedPaths / failures */ },
+);
+```
+
+- 文件名：优先 `FileEntry.name`，缺省从 `url` 末段派生；统一经 `sanitizeFileName`
+  （取末段防穿越 + 非法字符替换 + Windows 保留名规避）。
+- 冲突策略：**不覆盖**——同名文件追加序号 `name (n).ext`（`uniqueFileName`）；
+  `overwrite: true` 可显式覆盖（导出是「另存」，覆盖用户既有文件属不可接受的数据丢失）。
+- 下载走 core `DataFileService.downloadFile`（headers/超时/重试/沙箱），renderer 不直连 HTTP。
+- 选目录走 `FilePicker.platform.getDirectoryPath()`（file_picker 8.x，已在依赖中，无新依赖）；
+  移动端目录选择受限时返回 `null`，调用方回退默认下载目录（如 `getDownloadsDirectory()`）。
+
+### 演示页接线状态
+
+- 通用组件 + 服务已就绪；**未接具体演示页**（data-dashboard / data 列表）。理由：
+  ① 仓库内尚无「非 zju 的文件型数据源」可供演示（zju 播放/下载页迁移属 T9 之后
+  评估，本任务不接 zju_modle）；② 主包 `flutter test` 受沙箱 1GB 内存限制无法本地
+  编译验证，避免对既有页面做大改动引入不可验证的回归。接线只需上面 3 步，任一
+  module 播放/查看页在有真实文件数据源后即可低成本接入。
 
 ---
 

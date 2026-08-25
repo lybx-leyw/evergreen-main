@@ -12,8 +12,29 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
+import 'package:path/path.dart' as p;
 
 import 'package:evergreen_base/core/utils/python_env.dart';
+
+/// Greenix 脚本目录提供者（无 Flutter 依赖的注入点，`PYTHONPATH` 注入源）。
+typedef GreenixScriptsDirProvider = String Function();
+
+GreenixScriptsDirProvider _greenixScriptsDirProvider =
+    _defaultGreenixScriptsDir;
+
+/// 未绑定时按历史行为：`cwd/.greenix/scripts`（开发模式 cwd = 项目根）。
+String _defaultGreenixScriptsDir() =>
+    p.join(Directory.current.path, '.greenix', 'scripts');
+
+/// 绑定 Greenix 脚本目录——平台 Python 库 `evg_lib` 落盘处。
+///
+/// app 启动（`app_bootstrap` 的 `initGreenixPaths()` 之后）绑定为
+/// `greenix_path.greenixScriptsDir`（`.greenix/scripts/`），使启动 Python
+/// 子进程时注入 `PYTHONPATH` 后 `import evg_lib` 可用而不需拷贝。
+/// 子包测试未绑定时保持 [Directory.current] 历史行为。
+void bindGreenixScriptsDir(GreenixScriptsDirProvider provider) {
+  _greenixScriptsDirProvider = provider;
+}
 
 /// 一次性执行的结果。
 class RunResult {
@@ -35,6 +56,7 @@ abstract class PluginRunner {
     String? workingDirectory,
     String? runtime,
     Map<String, String>? environment,
+    Duration? timeout,
   });
 
   Future<Process> startLong(
@@ -67,6 +89,27 @@ class SubprocessRunner implements PluginRunner {
     return [entry, ...args];
   }
 
+  /// 合并环境变量并注入 `PYTHONPATH`（`.greenix/scripts/`），使 `import evg_lib`
+  /// 可用而不需拷贝。仅对 Python 入口（[runtime]=='python' 或 `.py`）注入，
+  /// 避免影响原生 `.exe` 子进程的环境契约。
+  ///
+  /// [environment] 为 null 时基于父进程环境（[Platform.environment]）合并；
+  /// 非 null 时基于传入环境合并（保留调用方注入的 PROJECT_ROOT 等变量）。
+  Map<String, String>? _withPythonPath(
+      String entry, Map<String, String>? environment,
+      [String? runtime]) {
+    if (!_isPython(entry, runtime)) return environment;
+    final scriptsDir = _greenixScriptsDirProvider();
+    if (scriptsDir.isEmpty) return environment;
+    final env = Map<String, String>.from(environment ?? Platform.environment);
+    final sep = Platform.isWindows ? ';' : ':';
+    final existing = env['PYTHONPATH'];
+    env['PYTHONPATH'] = (existing == null || existing.isEmpty)
+        ? scriptsDir
+        : '$scriptsDir$sep$existing';
+    return env;
+  }
+
   @override
   Future<RunResult> runOnce(
     String entry,
@@ -75,22 +118,44 @@ class SubprocessRunner implements PluginRunner {
     String? workingDirectory,
     String? runtime,
     Map<String, String>? environment,
+    Duration? timeout,
   }) async {
     final exec = _buildExec(entry, args, runtime);
     final process = await Process.start(
       exec.first,
       exec.skip(1).toList(),
       workingDirectory: workingDirectory,
-      environment: environment,
+      environment: _withPythonPath(entry, environment, runtime),
     );
     if (stdinJson != null) {
       process.stdin.write(jsonEncode(stdinJson));
       await process.stdin.close();
     }
-    final out = await process.stdout.transform(utf8.decoder).join();
-    final err = await process.stderr.transform(utf8.decoder).join();
-    final code = await process.exitCode;
-    return RunResult(out, err, code);
+    final outF = process.stdout.transform(utf8.decoder).join();
+    final errF = process.stderr.transform(utf8.decoder).join();
+
+    Future<RunResult> collect() async {
+      final out = await outF;
+      final err = await errF;
+      final code = await process.exitCode;
+      return RunResult(out, err, code);
+    }
+
+    if (timeout == null) return collect();
+
+    // 超时必须 kill 子进程，避免 `Future.timeout` 丢下孤儿进程。
+    return collect().timeout(timeout, onTimeout: () {
+      try {
+        process.kill(ProcessSignal.sigterm);
+      } catch (_) {}
+      try {
+        process.kill(ProcessSignal.sigkill);
+      } catch (_) {}
+      throw TimeoutException(
+        'runOnce 超时（>${timeout.inSeconds}s），已终止子进程: $entry',
+        timeout,
+      );
+    });
   }
 
   @override
@@ -106,6 +171,7 @@ class SubprocessRunner implements PluginRunner {
       exec.first,
       exec.skip(1).toList(),
       workingDirectory: workingDirectory,
+      environment: _withPythonPath(entry, null, runtime),
     );
   }
 }
@@ -152,21 +218,38 @@ class ChaquopyRunner implements PluginRunner {
     String? workingDirectory,
     String? runtime,
     Map<String, String>? environment,
+    Duration? timeout,
   }) async {
-    final resp = await _ch.invokeMethod<Map<dynamic, dynamic>>('runScript', {
-      'entry': entry,
-      'args': args,
-      'stdinJson': stdinJson,
-      'workingDirectory': workingDirectory,
-      'runtime': runtime,
-      // 安卓进程内解释器：environment 由原生侧合并（未实现则忽略，
-      // 凭据经 .greenix/config.json 镜像（Tier 1）兜底读取）。
-      'environment': environment,
+    final invoke = () async {
+      final resp = await _ch.invokeMethod<Map<dynamic, dynamic>>('runScript', {
+        'entry': entry,
+        'args': args,
+        'stdinJson': stdinJson,
+        'workingDirectory': workingDirectory,
+        'runtime': runtime,
+        // 安卓进程内解释器：environment 由原生侧合并（未实现则忽略，
+        // 凭据经 .greenix/config.json 镜像（Tier 1）兜底读取）。
+        'environment': environment,
+        // 平台 Python 库目录（`.greenix/scripts/`）：原生侧据此把 evg_lib
+        // 落盘目录加入 sys.path，使 `import evg_lib` 在安卓进程内可用。
+        'pythonPath': _greenixScriptsDirProvider(),
+      });
+      final out = (resp?['stdout'] as String?) ?? '';
+      final err = (resp?['stderr'] as String?) ?? '';
+      final code = (resp?['exitCode'] as int?) ?? -1;
+      return RunResult(out, err, code);
+    }();
+
+    if (timeout == null) return invoke;
+
+    // 安卓进程内解释器无独立子进程可 kill——超时经 `Future.timeout` 放弃等待
+    // 并抛 [TimeoutException]（原生侧由自身超时/取消策略兜底）。
+    return invoke.timeout(timeout, onTimeout: () {
+      throw TimeoutException(
+        'runOnce 超时（>${timeout.inSeconds}s）: $entry',
+        timeout,
+      );
     });
-    final out = (resp?['stdout'] as String?) ?? '';
-    final err = (resp?['stderr'] as String?) ?? '';
-    final code = (resp?['exitCode'] as int?) ?? -1;
-    return RunResult(out, err, code);
   }
 
   @override
@@ -188,6 +271,7 @@ class ChaquopyRunner implements PluginRunner {
       'workingDirectory': workingDirectory,
       'preferredPort': preferredPort,
       'runtime': runtime,
+      'pythonPath': _greenixScriptsDirProvider(),
     });
     return proc;
   }

@@ -1,0 +1,3 @@
+# SharedPreferences 桩与 settings `_decls` 模块级共享状态——需要顺序执行以避免
+# 测试间状态竞争，同时规避 1GB cgroup 下默认并发编译 OOM（SIGKILL）。
+concurrency: 1

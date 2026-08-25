@@ -60,8 +60,20 @@ class Cache {
     _instance = Cache._(cacheDir);
     return _instance!;
   }
+
   /// 同步获取已初始化的实例。未初始化时返回 null。
   static Cache? get instanceOrNull => _instance;
+
+  /// 写/删/清空操作的互斥队列（单 isolate 内 Future 链式串行，避免并发覆写与
+  /// 读改写竞争）。写路径严格按调用顺序串行；失败不中断后续操作。
+  Future<void> _mutex = Future<void>.value();
+
+  /// 将 [action] 串行排入互斥队列执行，返回其原样结果。
+  Future<T> _serialized<T>(Future<T> Function() action) {
+    final result = _mutex.then((_) => action());
+    _mutex = result.then((_) {}, onError: (_) {});
+    return result;
+  }
 
   /// 读缓存。返回 `(data, cachedAt)`，无数据则返回 null。
   (String, DateTime)? read(String key) {
@@ -71,7 +83,12 @@ class Cache {
   }
 
   /// 写缓存，自动记录当前时间为写入时间。返回 `true` 表示写入成功。
-  Future<bool> write(String key, String data) async {
+  ///
+  /// 写入经内部互斥队列串行化，保证同一 key 并发写入按调用顺序落盘、最终一致。
+  Future<bool> write(String key, String data) =>
+      _serialized(() => _doWrite(key, data));
+
+  Future<bool> _doWrite(String key, String data) async {
     try {
       final entry = _CacheEntry(data: data, cachedAt: DateTime.now());
       final file = File(p.join(_cacheDir, '$key.json'));
@@ -83,16 +100,20 @@ class Cache {
     }
   }
 
-  /// 删除指定 key 的缓存。
-  Future<void> evict(String key) async {
+  /// 删除指定 key 的缓存（经互斥队列，与写入串行）。
+  Future<void> evict(String key) => _serialized(() => _doEvict(key));
+
+  Future<void> _doEvict(String key) async {
     try {
       final file = File(p.join(_cacheDir, '$key.json'));
       if (await file.exists()) await file.delete();
     } catch (_) {}
   }
 
-  /// 清空全部缓存。
-  Future<void> clear() async {
+  /// 清空全部缓存（经互斥队列，与写入串行）。
+  Future<void> clear() => _serialized(_doClear);
+
+  Future<void> _doClear() async {
     try {
       final dir = Directory(_cacheDir);
       if (await dir.exists()) {

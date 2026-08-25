@@ -123,6 +123,10 @@ flutter:
     # <<<PLUGIN_ASSETS_END<<<
 
     # >>>SCRIPTS_ASSETS_START>>>
+    - assets/scripts_bundle/evg_lib/__init__.py
+    - assets/scripts_bundle/evg_lib/cas.py
+    - assets/scripts_bundle/evg_lib/config.py
+    - assets/scripts_bundle/evg_lib/jsonio.py
     - assets/scripts_bundle/ocr_file.py
     - assets/scripts_bundle/ocr_slides.py
     - assets/scripts_bundle/paper_reader.py

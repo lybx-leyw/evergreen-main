@@ -111,6 +111,101 @@ def _get_config(key):
 /// 旧版 config_reader.py（保留兼容导出）。
 const String configReaderPy = scraperConfigTemplate;
 
+/// evg_lib 可选库模式模板——`useEvgLib: true` 时注入，替代逐字复制 70 行内联模板。
+///
+/// 新生成的 scraper.py 顶部优先 `import evg_lib`（平台库，T5 提供，随 PYTHONPATH 注入，
+/// 提供 `_get_config` 三级降级 + `jsonio` 的 emit/fail/validate_and_output 助手）；
+/// 平台库缺失（旧解释器 / 未分发）时回退到与 [scraperConfigTemplate] 语义一致的内联三级降级，
+/// 保证脚本仍可独立运行。**缺省（useEvgLib=false）不注入本模板，存量产物零变化。**
+///
+/// AI 只能填充 `{CREDENTIAL_PLACEHOLDER}` 占位符，填入具体凭证变量声明。
+const String scraperEvgLibTemplate = r'''
+# ═══════════════════════════════════════════════════════════
+# EVERGREEN CONFIG TEMPLATE (evg_lib 可选库模式 — LOCKED)
+# ═══════════════════════════════════════════════════════════
+import json, os
+
+try:
+    from evg_lib.config import _get_config
+    from evg_lib import jsonio  # emit / fail / validate_and_output 助手
+    _EVG_LIB_AVAILABLE = True
+except ImportError:
+    _EVG_LIB_AVAILABLE = False
+
+if not _EVG_LIB_AVAILABLE:
+    # ── 内联 fallback（与 evg_lib.config._get_config 三级降级语义一致） ──
+    import urllib.request, urllib.error
+    from pathlib import Path
+
+    def _get_config(key):
+        """从平台配置读取凭证（三级降级）。
+
+        策略1（主）：.greenix/config.json 本地文件直接读取（路径由 GREENIX_CONFIG_PATH 环境变量指定）
+        策略2（降级）：HTTP 从 ConfigHttpServer 读取
+        策略3（兜底）：系统环境变量
+        """
+        # ── 策略1：.greenix/config.json 本地文件直接读取 ──
+        greenix_path = os.environ.get('GREENIX_CONFIG_PATH')
+        if greenix_path:
+            try:
+                config_path = Path(greenix_path)
+                if config_path.exists():
+                    with open(config_path, 'r', encoding='utf-8') as f:
+                        cfg = json.load(f)
+                    val = cfg.get(key, '')
+                    if val:
+                        return val
+            except Exception:
+                pass
+
+        # ── 策略2：HTTP 从 ConfigHttpServer 读取 ──
+        try:
+            port_file = None
+            for base in [Path.cwd(), Path(os.environ.get('PROJECT_ROOT', '.'))]:
+                try:
+                    for d in [base] + list(base.parents):
+                        pf = d / '.config_port'
+                        if pf.exists():
+                            port_file = pf
+                            break
+                except Exception:
+                    continue
+                if port_file:
+                    break
+
+            if port_file:
+                with open(port_file, 'r') as f:
+                    port = f.read().strip()
+                url = f'http://127.0.0.1:{port}/config/settings/{key}'
+                req = urllib.request.Request(url)
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    data = json.loads(resp.read())
+                    val = data.get('value', '')
+                    if val:
+                        return val
+        except Exception:
+            pass
+
+        # ── 策略3：系统环境变量 ──
+        val = os.environ.get(key)
+        if val:
+            return val
+
+        raise RuntimeError(
+            f'无法获取配置 "{key}"：\n'
+            f'  1. .greenix/config.json 不存在或无此 key\n'
+            f'  2. ConfigHttpServer 不可用（检查 .config_port）\n'
+            f'  3. 环境变量未设置\n'
+            f'  → 请在设置面板注册此配置项，或设置环境变量 {key}'
+        )
+
+# ═══════════════════════════════════════════════════════════
+# CREDENTIALS — AI 填空区（只允许修改以下行）
+# 格式: VARIABLE_NAME = _get_config('CONFIG_KEY_NAME')
+# ═══════════════════════════════════════════════════════════
+{CREDENTIAL_PLACEHOLDER}
+''';
+
 /// manifest 自动生成配置 — 传给 [exportAsPython] / [exportAsExe] 的可选参数。
 ///
 /// 提供后，.py 或 .exe 导出成功时自动调用 [exportDataManifest]。
@@ -118,7 +213,19 @@ class ExportManifestConfig {
   final String name;
   final InferredSchema schema;
 
-  const ExportManifestConfig({required this.name, required this.schema});
+  /// 可选：写入 manifest 顶层 `auth.credentialKeys`（引用 config.json 已声明凭据 key）。
+  /// 非空时生成 `auth: {"credentialKeys": [...]}`，缺省 null 不写 auth（零行为变化）。
+  final List<String>? credentialKeys;
+
+  /// 可选：写入 manifest 顶层 `auth.sessionProvider`（如 `"zju"`）。缺省 null 不写。
+  final String? sessionProvider;
+
+  const ExportManifestConfig({
+    required this.name,
+    required this.schema,
+    this.credentialKeys,
+    this.sessionProvider,
+  });
 }
 
 /// 导出爬虫为 .py 文件（含配置模板）。
@@ -132,6 +239,12 @@ Future<ExportResult> exportAsPython(
   String pythonCode,
   String outputDir, {
   ExportManifestConfig? manifestConfig,
+
+  /// 可选开关（默认 false）：新生成的 scraper.py 顶部改用 `evg_lib` 可选库模式模板
+  /// （`try: from evg_lib.config import _get_config; from evg_lib import jsonio
+  /// except ImportError: <内联 fallback>`）替代逐字复制 70 行内联模板。
+  /// **缺省 false 保持现有内联模板，存量产物零变化。**
+  bool useEvgLib = false,
 }) async {
   try {
     // 回退：若 pythonCode 为空，尝试从已有的 scraper.py 读取
@@ -140,7 +253,9 @@ Future<ExportResult> exportAsPython(
       final existingFile = File(existingPath);
       if (existingFile.existsSync()) {
         pythonCode = existingFile.readAsStringSync();
-        debugPrint('[ScraperExporter] 从已有 scraper.py 读取代码 (${pythonCode.length} chars)');
+        debugPrint(
+          '[ScraperExporter] 从已有 scraper.py 读取代码 (${pythonCode.length} chars)',
+        );
       }
     }
 
@@ -151,14 +266,24 @@ Future<ExportResult> exportAsPython(
       );
     }
 
-    // 若代码不含 _get_config，强制注入锁定模板
-    if (!pythonCode.contains('def _get_config(key)')) {
-      debugPrint('[ScraperExporter] ⚠ 代码中未包含 _get_config 模板，强制注入');
-      final injected = scraperConfigTemplate
-        .replaceFirst(
-          '{CREDENTIAL_PLACEHOLDER}',
-          '# TODO: 在此填入凭证变量声明，格式: VAR = _get_config(\'KEY_NAME\')',
-        );
+    // 选择模板：useEvgLib=true 用 evg_lib 可选库模式，否则用内联锁定模板。
+    final template = useEvgLib ? scraperEvgLibTemplate : scraperConfigTemplate;
+    // 注入守卫：内联模式认 `def _get_config(key)`；evg_lib 模式认 `evg_lib` 或 `_get_config`。
+    final hasConfig = useEvgLib
+        ? (pythonCode.contains('evg_lib') ||
+              pythonCode.contains('def _get_config(key)'))
+        : pythonCode.contains('def _get_config(key)');
+
+    // 若代码不含配置读取逻辑，强制注入所选模板
+    if (!hasConfig) {
+      debugPrint(
+        '[ScraperExporter] ⚠ 代码中未包含配置模板，强制注入'
+        '（${useEvgLib ? 'evg_lib 可选库模式' : '内联锁定模板'}）',
+      );
+      final injected = template.replaceFirst(
+        '{CREDENTIAL_PLACEHOLDER}',
+        '# TODO: 在此填入凭证变量声明，格式: VAR = _get_config(\'KEY_NAME\')',
+      );
       pythonCode = '$injected\n$pythonCode';
     }
 
@@ -167,13 +292,12 @@ Future<ExportResult> exportAsPython(
       dir.createSync(recursive: true);
     }
 
-    // 写入 config_reader.py（独立副本）
+    // 写入 config_reader.py（独立副本，与所选模板一致）
     final readerPath = p.join(outputDir, 'config_reader.py');
-    final readerContent = scraperConfigTemplate
-      .replaceFirst(
-        '{CREDENTIAL_PLACEHOLDER}',
-        '# 使用示例:\n# USERNAME = _get_config(\'ZJU_USERNAME\')\n# PASSWORD = _get_config(\'ZJU_PASSWORD\')',
-      );
+    final readerContent = template.replaceFirst(
+      '{CREDENTIAL_PLACEHOLDER}',
+      '# 使用示例:\n# USERNAME = _get_config(\'ZJU_USERNAME\')\n# PASSWORD = _get_config(\'ZJU_PASSWORD\')',
+    );
     await File(readerPath).writeAsString(readerContent);
     debugPrint('[ScraperExporter] 写入 config_reader.py: $readerPath');
 
@@ -188,7 +312,7 @@ Future<ExportResult> exportAsPython(
       filePath: scraperPath,
     );
 
-    // 可选：自动生成 data/manifest.json
+    // 可选：自动生成 data/manifest.json（含可选 auth 声明）
     if (manifestConfig != null) {
       debugPrint('[ScraperExporter] 📝 auto manifest → ${manifestConfig.name}');
       await exportDataManifest(
@@ -196,16 +320,15 @@ Future<ExportResult> exportAsPython(
         fetcherScript: 'scraper.py',
         schema: manifestConfig.schema,
         outputDir: outputDir,
+        credentialKeys: manifestConfig.credentialKeys,
+        sessionProvider: manifestConfig.sessionProvider,
       );
     }
 
     return result;
   } catch (e) {
     debugPrint('[ScraperExporter] ❌ 导出 .py 失败: $e');
-    return ExportResult(
-      success: false,
-      message: '导出失败: $e',
-    );
+    return ExportResult(success: false, message: '导出失败: $e');
   }
 }
 
@@ -217,6 +340,10 @@ Future<ExportResult> exportAsPython(
 ///   "type": "data-source",
 ///   "runtime": "python",
 ///   "script": "scraper.py",
+///   "auth": {                                 // 可选：仅当 credentialKeys 非空时写出
+///     "sessionProvider": "zju",               //   可选
+///     "credentialKeys": ["ZJU_USERNAME"]      //   引用 config.json 已声明 key
+///   },
 ///   "dataTypes": [
 ///     {
 ///       "name": "...",
@@ -239,14 +366,25 @@ Future<ExportResult> exportDataManifest({
   required String fetcherScript,
   required InferredSchema schema,
   required String outputDir,
+
   /// 显式指定的数据类型名称（如用户命名）。null 时回退到 [schema.title ?? name]。
   String? dataTypeName,
+
   /// Phase 4：探索模式显式归类（manifest category，D3 细粒度归类）。
   String? category,
+
   /// Phase 4：探索模式显式展示名（manifest displayName）。
   String? displayName,
+
   /// Phase 6：字段 schema（探索模式候选字段，落盘供下游/校验复用）。
   List<Map<String, dynamic>>? fields,
+
+  /// 可选：写入顶层 `auth.credentialKeys`（引用 config.json 已声明凭据 key）。
+  /// 非空时生成 `auth: {"credentialKeys": [...]}`；缺省 null 不写 auth（零行为变化）。
+  List<String>? credentialKeys,
+
+  /// 可选：写入顶层 `auth.sessionProvider`（如 `"zju"`）。缺省 null 不写。
+  String? sessionProvider,
 }) async {
   try {
     debugPrint('[ScraperExporter] 📝 生成 data manifest: $name → $outputDir');
@@ -272,20 +410,27 @@ Future<ExportResult> exportDataManifest({
           ? <Map<String, dynamic>>[]
           : fields,
     };
-    final manifest = {
+    final manifest = <String, dynamic>{
       'type': 'data-source',
       // 统一 .py 插件契约：script 指向 .py，由解释器（桌面）/ Chaquopy（安卓）
       // 执行，不再依赖 PyInstaller 编译的 .exe（安卓无法 exec PE 格式）。
       'runtime': 'python',
       'script': fetcherScript,
+      // 可选 auth 声明（T1 新契约，缺省不写 → 零行为变化）：仅引用 config.json
+      // 已声明的凭据 key（复用 isSecure），不在此重复声明凭据值（避免双真相源）。
+      if (credentialKeys != null && credentialKeys.isNotEmpty)
+        'auth': <String, dynamic>{
+          if (sessionProvider != null) 'sessionProvider': sessionProvider,
+          'credentialKeys': credentialKeys,
+        },
       'dataTypes': [dataTypeEntry],
     };
 
     // 3) 写入 manifest.json
     final manifestPath = p.join(dataDir.path, 'manifest.json');
-    await File(manifestPath).writeAsString(
-      const JsonEncoder.withIndent('  ').convert(manifest),
-    );
+    await File(
+      manifestPath,
+    ).writeAsString(const JsonEncoder.withIndent('  ').convert(manifest));
 
     debugPrint('[ScraperExporter] ✅ data manifest 已写入: $manifestPath');
     return ExportResult(
@@ -295,10 +440,7 @@ Future<ExportResult> exportDataManifest({
     );
   } catch (e) {
     debugPrint('[ScraperExporter] ❌ data manifest 生成失败: $e');
-    return ExportResult(
-      success: false,
-      message: 'data manifest 生成失败: $e',
-    );
+    return ExportResult(success: false, message: 'data manifest 生成失败: $e');
   }
 }
 
@@ -311,10 +453,18 @@ Future<ExportResult> exportAsExe(
   String outputDir,
   Future<String?> Function() resolvePython, {
   ExportManifestConfig? manifestConfig,
+
+  /// 与 [exportAsPython] 的 `useEvgLib` 同义（透传）。
+  bool useEvgLib = false,
 }) async {
   try {
     // 1) 先导出 .py
-    final pyResult = await exportAsPython(pythonCode, outputDir, manifestConfig: manifestConfig);
+    final pyResult = await exportAsPython(
+      pythonCode,
+      outputDir,
+      manifestConfig: manifestConfig,
+      useEvgLib: useEvgLib,
+    );
     if (!pyResult.success) return pyResult;
 
     // 2) 发现 Python
@@ -327,17 +477,21 @@ Future<ExportResult> exportAsExe(
     }
 
     // 3) 检查 PyInstaller
-    final checkResult = await Process.run(
-      pyExe,
-      ['-m', 'pip', 'show', 'pyinstaller'],
-    ).timeout(const Duration(seconds: 15));
+    final checkResult = await Process.run(pyExe, [
+      '-m',
+      'pip',
+      'show',
+      'pyinstaller',
+    ]).timeout(const Duration(seconds: 15));
 
     if (checkResult.exitCode != 0) {
       debugPrint('[ScraperExporter] PyInstaller 未安装，正在安装...');
-      final installResult = await Process.run(
-        pyExe,
-        ['-m', 'pip', 'install', 'pyinstaller'],
-      ).timeout(const Duration(seconds: 120));
+      final installResult = await Process.run(pyExe, [
+        '-m',
+        'pip',
+        'install',
+        'pyinstaller',
+      ]).timeout(const Duration(seconds: 120));
 
       if (installResult.exitCode != 0) {
         return ExportResult(
@@ -352,33 +506,26 @@ Future<ExportResult> exportAsExe(
     final distDir = p.join(outputDir, 'dist');
     debugPrint('[ScraperExporter] 运行 PyInstaller: $scraperPath');
 
-    final result = await Process.run(
-      pyExe,
-      [
-        '-m',
-        'PyInstaller',
-        '--onefile',
-        '--console',
-        '--distpath',
-        distDir,
-        '--workpath',
-        p.join(outputDir, 'build'),
-        '--specpath',
-        outputDir,
-        scraperPath,
-      ],
-      workingDirectory: outputDir,
-    ).timeout(const Duration(seconds: 300));
+    final result = await Process.run(pyExe, [
+      '-m',
+      'PyInstaller',
+      '--onefile',
+      '--console',
+      '--distpath',
+      distDir,
+      '--workpath',
+      p.join(outputDir, 'build'),
+      '--specpath',
+      outputDir,
+      scraperPath,
+    ], workingDirectory: outputDir).timeout(const Duration(seconds: 300));
 
     if (result.exitCode != 0) {
       final err = (result.stderr as String).length > 500
           ? '${(result.stderr as String).substring(0, 500)}...'
           : (result.stderr as String);
       debugPrint('[ScraperExporter] ❌ PyInstaller 失败: $err');
-      return ExportResult(
-        success: false,
-        message: 'PyInstaller 打包失败:\n$err',
-      );
+      return ExportResult(success: false, message: 'PyInstaller 打包失败:\n$err');
     }
 
     final exePath = p.join(distDir, 'scraper.exe');
@@ -397,9 +544,6 @@ Future<ExportResult> exportAsExe(
     }
   } catch (e) {
     debugPrint('[ScraperExporter] 💥 导出 .exe 异常: $e');
-    return ExportResult(
-      success: false,
-      message: '导出异常: $e',
-    );
+    return ExportResult(success: false, message: '导出异常: $e');
   }
 }

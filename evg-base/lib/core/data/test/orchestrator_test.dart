@@ -593,4 +593,109 @@ void main() {
       expect(s.lastFetchedAt, isNotNull);
     });
   });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 空 vs 不可达区分（T4）：源可达但语义空 vs 源不可达/异常，lastError 文案区分
+  // ═══════════════════════════════════════════════════════════════════════
+
+  group('空 vs 不可达区分', () {
+    test('fetcher 正常返回空 Map → lastError 标「源可达但数据为空」', () async {
+      orch.register(testType, () async => <String, dynamic>{});
+      await orch.get(testType);
+
+      final s = orch.status(testType.name)!;
+      expect(s.connected, isFalse);
+      expect(s.lastError, kDataEmptyReachableError);
+    });
+
+    test('fetcher 正常返回 null → lastError 标「源可达但数据为空」', () async {
+      orch.register(testType, () async => null);
+      await orch.get(testType);
+
+      expect(orch.status(testType.name)!.lastError, kDataEmptyReachableError);
+    });
+
+    test('fetcher 抛异常（源不可达）→ lastError 标「拉取失败: ...」', () async {
+      orch.register(testType, () async => throw Exception('boom'));
+      await orch.get(testType);
+
+      final s = orch.status(testType.name)!;
+      expect(s.connected, isFalse);
+      expect(s.lastError, startsWith(kDataFetchFailedPrefix));
+      expect(s.lastError, isNot(kDataEmptyReachableError));
+    });
+
+    test('包装了空列表的非空 Map 属可达，正常入缓存不被门控', () async {
+      orch.register(testType, () async => {'items': <dynamic>[]});
+      final data = await orch.get(testType);
+
+      expect(data, isNotNull);
+      expect(data, {'items': <dynamic>[]});
+      expect(orch.status(testType.name)!.connected, isTrue);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 静态兜底（T4 第三级降级）：拉取失败且无旧缓存 → 返回 fallback + lastError
+  // ═══════════════════════════════════════════════════════════════════════
+
+  group('静态兜底', () {
+    const fallbackType = DataType<Map<String, dynamic>>(
+      name: '${_pfx}fb',
+      category: '测试',
+      persistentKey: null,
+      fallback: {'items': <dynamic>[], 'fromFallback': true},
+    );
+
+    test('拉取失败且无旧缓存 → 返回兜底并标记「使用静态兜底」', () async {
+      orch.register(fallbackType, () async => throw Exception('down'));
+      final data = await orch.get(fallbackType);
+
+      expect(data, isNotNull);
+      expect(data!['fromFallback'], isTrue);
+      final s = orch.status(fallbackType.name)!;
+      expect(s.connected, isFalse);
+      expect(s.lastError, startsWith(kDataStaticFallbackPrefix));
+    });
+
+    test('拉取返回空且无旧缓存 → 返回兜底', () async {
+      orch.register(fallbackType, () async => <String, dynamic>{});
+      final data = await orch.get(fallbackType);
+
+      expect(data!['fromFallback'], isTrue);
+      expect(orch.status(fallbackType.name)!.lastError,
+          startsWith(kDataStaticFallbackPrefix));
+    });
+
+    test('有旧缓存时拉取失败 → 保留旧缓存，不使用兜底', () async {
+      // 带 persistentKey 的类型：先写入旧缓存，再让 fetcher 失败
+      const cachedType = DataType<Map<String, dynamic>>(
+        name: '${_pfx}fb_cached',
+        category: '测试',
+        persistentKey: '${_pfx}fb_cached',
+        fallback: {'fromFallback': true},
+      );
+      orch.register(cachedType, () async => {'value': 1});
+      await orch.refresh(cachedType); // 写入旧缓存
+
+      orch.register(cachedType, () async => throw Exception('down'));
+      final data = await orch.refresh(cachedType); // 强制刷新失败
+
+      expect(data, isNull); // 无兜底返回，旧缓存保留
+      expect(orch.status(cachedType.name)!.lastError,
+          startsWith(kDataFetchFailedPrefix));
+
+      // get 走缓存命中，仍返回旧缓存
+      final cached = await orch.get(cachedType);
+      expect(cached!['value'], 1);
+    });
+
+    test('未声明 fallback 的类型行为与历史一致（拉取失败返回 null）', () async {
+      orch.register(testType, () async => throw Exception('down'));
+      final data = await orch.get(testType);
+      expect(data, isNull);
+      expect(orch.status(testType.name)!.lastError,
+          startsWith(kDataFetchFailedPrefix));
+    });
+  });
 }

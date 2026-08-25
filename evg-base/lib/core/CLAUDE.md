@@ -42,6 +42,7 @@ lib/core/
 │   ├── github_clone.dart    #   GitHub 源克隆（git clone 子进程）
 │   ├── github_metadata.dart #   GitHub 仓库元数据抓取
 │   ├── release_downloader.dart # GitHub release 二进制下载
+│   ├── data_file_service.dart  #   文件下载服务（headers/超时/重试/沙箱，T8a）
 │   └── ui_operation_log.dart #   UI 操作日志（UIOperationLog）
 ├── utils/                   # 通用工具
 │   ├── safe_parse.dart      #   安全类型转换
@@ -51,7 +52,7 @@ lib/core/
 │   ├── path_sandbox.dart    #   路径沙箱
 │   ├── file_utils.dart      #   文件管理器
 │   └── plugin_asset_releaser.dart # 插件/脚本资产释放（幂等）
-├── plugin/                  # 插件运行器（plugin_runner.dart，桌面子进程/安卓 Chaquopy 统一抽象）
+├── plugin/                  # 插件运行器（plugin_runner.dart：runOnce(可选 timeout，超时 kill 子进程)/startLong；python_session.dart：PythonSession 常驻 stdio JSON Lines 会话，T5）
 ├── feedback/                # 用户反馈（feedback_bar/feedback_dialog/feedback_writer/github_issue_publisher/screenshot）
 ├── example/                 # 跨模块联动示例
 │   ├── example.dart         #   交互式菜单
@@ -224,6 +225,7 @@ REST 端点（见下表），绑定 `127.0.0.1` 随机端口。端口发现文�
 | `python_env_test.dart` | PythonInterpreter 统一解析（configuredPath/greenix 绑定/缓存）、哨兵常量、bundledPathSync |
 | `signature_test.dart` | SHA-256 计算/常数时间比较/签名场景 |
 | `update_service_test.dart` | 网络错误降级/自定义 repo |
+| `data_file_service_test.dart` | DataFileService：成功/404 不重试/5xx 重试/超时/headers 透传/沙箱越界拒绝/批量（本地临时 HttpServer） |
 | `widget_test.dart` | AppError 工厂方法/Result\<T\> 完整 API |
 
 运行：`dart test`（在 `lib/core/` 目录下）
@@ -287,6 +289,9 @@ CoreHttpServer(PluginInstaller installer, OcrPipeline ocrPipeline, UpdateService
 
 | 日期 | 变更 |
 |------|------|
+| 2026-08-25 | **T5 平台 Python 库 + 常驻会话（core/plugin 域）**：`SubprocessRunner` 对 Python 入口注入 `PYTHONPATH`（`greenixScriptsDir`，`bindGreenixScriptsDir` 由 app_bootstrap 绑定）、`ChaquopyRunner` 透传 `pythonPath`（Kotlin `sys.path.insert`）；`plugin_runner.dart` 三副本（core/agent/data）同步并对齐既有 ChaquopyLongProcess 漂移；新增 `plugin/python_session.dart`（`PythonSession`：stdio JSON Lines 双向会话 + 阶梯终止「退出命令→2s→SIGTERM→2s→SIGKILL」）；平台 Python 库 `scripts/evg_lib/{config,cas,jsonio}.py` 见 platform 域 |
+| 2026-08-25 | **T4 降级链 + 进程守护（core 域）**：`PluginRunner.runOnce` 增可选 `timeout`（超时 kill 子进程 + 抛 `TimeoutException`，三副本同步）；`Cache` 写/删/清空路径互斥队列；`DataSourceLoader` 崩溃退避重启（1s/3s/9s×3）+ 手动 `restart()`（详见 data 域 CLAUDE.md） |
+| 2026-08-25 | **T8a 文件下载服务（core 服务层）**：新增 `services/data_file_service.dart`（`DataFileService.downloadFile` / `downloadFiles`）：`dart:io` HttpClient 实现（零新依赖），支持自定义 headers（凭据头）、超时、退避重试（对齐 PluginInstaller「3 次重试 1s/3s/5s」，429/5xx 可重试、4xx fail-fast）、路径沙箱（`PathSandbox` 防目录穿越）；返回 core `Result<String>`；barrel `services.dart` 导出；新增 `test/data_file_service_test.dart`（本地临时 HttpServer：成功/404 不重试/5xx 重试/超时/headers 透传/沙箱拒绝越界/批量），core 子包 `dart test -j 1` 全量 110 通过 |
 | 2026-08-25 | **t21 PDF 翻译撤销（core 服务层）**：删除 `services/pdf_translate_service.dart` + `services/translate_queue.dart`（用户决定撤销 PDF 翻译以减少内存；renderer t20 已删 translate_slot、plugins t19 已删 pdf_translate 插件）；barrel `services.dart` 本就未导出两者，无需变更；全仓 grep 无遗留引用（paper_reading `paper_service.dart` 仅注释提及，无 import）；pdf2zh_next/paper_reader.py 属 platform 域保留 |
 | 2026-08-25 | **t9 统一 Python 解释器路径**：python_env.dart 新增 `PythonInterpreter.resolve()` 单例（解析顺序 configuredPath → greenix 目录 → PATH → 安卓 Chaquopy 枚举）、`PythonRuntime`/`PythonRuntimeKind` 结构化结果、`kChaquopySentinel` 哨兵常量、`bindGreenixPythonDir` 双真理源合并（app_bootstrap 绑定 greenixPythonDir）、`bundledPathSync` 同步探测；core 域调用点（ocr_pipeline/pdf_translate/plugin_runner/app_bootstrap）与跨域已知点（agent_runtime/agent_factory/skill_creator/paper_reading/translate_slot）迁移收敛；新增 python_env_test（14 用例） |
 | 2026-08-25 | 文档同步：目录结构补全（services / utils / test 全量文件）、修正端口文件契约（app_bootstrap 统一写）、OCR 脚本名与 Key 环境变量、barrel 导出范围说明；按文档修订三原则去除硬编码数量与版本号 |

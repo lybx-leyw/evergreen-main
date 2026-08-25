@@ -7,7 +7,10 @@
 /// |------|------|
 /// | `register(type, fetcher)` | 注册数据类型与拉取方式；重复覆盖 |
 /// | `registerAll(entries)` | 批量注册 |
-/// | `isRegistered(type)` | 是否已注册 |
+/// | `registerStream(type, fetcher)` | 注册流式数据类型（与 register 并存，同名互不覆盖） |
+/// | `streamOf(type)` / `streamByName(name)` | 取流式数据流（未注册返回 null；自动接线状态映射） |
+/// | `dataChangeEvents` | 数据变更事件广播流（与 addDataChangeListener 共享同一 diff 通知源） |
+/// | `isRegistered(type)` | 是否已注册（pull 或流式任一） |
 /// | `unregister(type)` | 注销并清除缓存 |
 /// | `get(type)` | 缓存优先：读磁盘→写内存→返回；无缓存则拉取 |
 /// | `fastRead(type)` | 快读：直接从内存返回，不碰磁盘 I/O；未命中 fallback get() |
@@ -27,8 +30,9 @@
 /// | 属性 | 说明 |
 /// |------|------|
 /// | `name` / `category` / `displayName` | 基本信息 |
-/// | `connected` | 连通状态，get / refresh / testConnectivity 自动更新 |
+/// | `connected` | 连通状态，get / refresh / testConnectivity / 流事件 自动更新 |
 /// | `lastFetchedAt` / `lastError` | 最近拉取时间 / 最近错误 |
+/// | `completed` | 流式数据源是否已完成（onDone 标记，不注销） |
 /// | `isFresh` | 是否在 TTL 内 |
 /// | `freshnessLabel` | "新鲜" / "过期" / "从未" |
 /// | `relativeTime` | "3 分钟前" 等人性化时间 |
@@ -44,6 +48,25 @@ import 'type.dart';
 import 'exceptions.dart';
 import 'cache.dart';
 import 'data_diff.dart';
+import 'session_provider.dart';
+import 'plugin/data_source_manifest.dart';
+
+/// 空数据门控触发时的 `lastError` 文案——「源可达但语义空」（fetcher 正常返回但
+/// 结果为 null/空容器），与「源不可达/异常」（fetcher 抛异常，`kDataFetchFailedPrefix`）
+/// 区分，供消费方/测试区分信号。
+const String kDataEmptyReachableError = '源可达但数据为空';
+
+/// 拉取失败（fetcher 抛异常）时的 `lastError` 前缀。
+const String kDataFetchFailedPrefix = '拉取失败';
+
+/// 使用静态兜底（[DataType.fallback]）时的 `lastError` 前缀。
+const String kDataStaticFallbackPrefix = '使用静态兜底';
+
+/// 会话失效重登成功但重拉仍失败时的 `lastError` 前缀。
+const String kDataReloginRetryFailedPrefix = '已重登仍失败';
+
+/// 会话失效但重登本身失败时的 `lastError` 前缀。
+const String kDataReloginFailedPrefix = '重登失败';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DataSourceStatus
@@ -61,6 +84,10 @@ class DataSourceStatus {
   DateTime? lastFetchedAt;
   String? lastError;
 
+  /// 流式数据源是否已完成（onDone 标记，不注销）。仅 [DataOrchestrator.registerStream]
+  /// 注册的流式类型会更新此标志；pull 类型恒为 false。
+  bool completed = false;
+
   DataSourceStatus({
     required this.name,
     required this.category,
@@ -73,8 +100,7 @@ class DataSourceStatus {
   set debugLastFetchedAt(DateTime? value) => lastFetchedAt = value;
 
   bool get isFresh =>
-      lastFetchedAt != null &&
-      DateTime.now().difference(lastFetchedAt!) < ttl;
+      lastFetchedAt != null && DateTime.now().difference(lastFetchedAt!) < ttl;
 
   String get freshnessLabel {
     if (lastFetchedAt == null) return '从未';
@@ -106,9 +132,23 @@ class _MemCacheEntry {
 class DataOrchestrator {
   final Map<String, DataType> _types = {};
   final Map<String, Future<dynamic> Function()> _fetchers = {};
+  final Map<String, Stream<dynamic> Function()> _streamFetchers = {};
   final Map<String, DataSourceStatus> _statuses = {};
   final Map<String, _MemCacheEntry> _memCache = {};
+
+  /// 文件下载声明登记表（name → [DataSourceFileDecl]）。来自 manifest
+  /// `dataTypes[].file`（T1 已解析），由 [registerFile] 登记，供 [fileOf] /
+  /// [fileByName] 查询。未声明/未登记返回 null。
+  final Map<String, DataSourceFileDecl> _fileDecls = {};
   Cache? get _cache => Cache.instanceOrNull;
+
+  /// 会话协调器（可选，默认 null）。设置后，声明了 `sessionProviderId`
+  /// （manifest `auth.sessionProvider`）的数据源在拉取失败且错误被判为「会话失效」时，
+  /// 会经协调器**单点重登**后重拉一次（主题 A 登录不挤占）。缺省 null 零行为变化。
+  ///
+  /// app 启动期（或 T9）把 [SessionCoordinator.instance]（或独立实例）赋给本字段，
+  /// 使所有数据源共享同一登录锁。
+  SessionCoordinator? sessionCoordinator;
 
   // ═══════════════════════════════════════════════════════════════════════
   // 注册
@@ -141,17 +181,115 @@ class DataOrchestrator {
     }
   }
 
-  bool isRegistered(DataType type) => _fetchers.containsKey(type.name);
-  List<String> get registeredTypes => _fetchers.keys.toList();
+  /// 注册流式数据类型。与 [register]（pull 单值拉取）并存——二者用不同内部表，
+  /// 同名互不覆盖；流式类型进入注册表（[status] / [typeByName] / [allStatuses] 可见），
+  /// 状态复用 [DataSourceStatus]（connected/lastError/completed）。
+  ///
+  /// [fetcher] 为「流工厂」：每次调用返回一条新 [Stream]，供多个订阅者各取所需
+  /// （如 `streamOf` / SSE 端点）。流事件自动映射状态：
+  /// - onData → `connected=true`（并刷新 lastFetchedAt）
+  /// - onError → `connected=false` + `lastError`
+  /// - onDone → 标记 `completed=true`（**不注销**，类型仍在注册表）
+  void registerStream<T>(DataType<T> type, Stream<T> Function() fetcher) {
+    final existed = _statuses.containsKey(type.name);
+    _types[type.name] = type;
+    _streamFetchers[type.name] = fetcher;
 
-  /// 注销数据类型并清除缓存。
+    if (!existed) {
+      _statuses[type.name] = DataSourceStatus(
+        name: type.name,
+        category: type.category,
+        displayName: type.label,
+        cacheKey: type.persistentKey,
+        ttl: type.ttl,
+      );
+      Log().info('DataOrchestrator: 注册流式 $type (${type.category})');
+    } else {
+      Log().info('DataOrchestrator: 覆盖注册流式 $type');
+    }
+  }
+
+  /// 是否已注册（pull 或流式任一）。
+  bool isRegistered(DataType type) =>
+      _fetchers.containsKey(type.name) ||
+      _streamFetchers.containsKey(type.name);
+
+  /// 已注册类型名列表（pull 与流式合并）。
+  List<String> get registeredTypes =>
+      {..._fetchers.keys, ..._streamFetchers.keys}.toList();
+
+  /// 注销数据类型并清除缓存（同时清除 pull 与流式注册）。
   void unregister(DataType type) {
     _types.remove(type.name);
     _fetchers.remove(type.name);
+    _streamFetchers.remove(type.name);
     _statuses.remove(type.name);
     _memCache.remove(type.name);
+    _fileDecls.remove(type.name);
     _cache?.evict(type.name);
     Log().info('DataOrchestrator: 注销 $type');
+  }
+
+  /// 登记数据源的「文件下载声明」（manifest `dataTypes[].file`，T8a）。
+  ///
+  /// 由 [registerDataSourcesFromManifest] 在注册 DataType 时调用；[decl] 为
+  /// null 时清除该名称的既有登记（重注册/未声明语义收敛）。
+  void registerFile(String name, DataSourceFileDecl? decl) {
+    if (decl == null) {
+      _fileDecls.remove(name);
+    } else {
+      _fileDecls[name] = decl;
+    }
+  }
+
+  /// 按 [DataType] 查询文件下载声明；未声明/未登记返回 null。
+  DataSourceFileDecl? fileOf(DataType type) => _fileDecls[type.name];
+
+  /// 按名称查询文件下载声明；未声明/未登记返回 null。
+  DataSourceFileDecl? fileByName(String name) => _fileDecls[name];
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 流式访问
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /// 按 [DataType] 取得流式数据流。未注册流式类型时返回 null。
+  ///
+  /// 返回的流已接线状态映射：onData → connected=true（刷新 lastFetchedAt），
+  /// onError → connected=false + lastError，onDone → completed=true（不注销）。
+  /// 每次调用都会经 [registerStream] 的流工厂取一条**新**流。
+  Stream<T>? streamOf<T>(DataType<T> type) {
+    final fetcher = _streamFetchers[type.name];
+    if (fetcher == null) return null;
+    return _decorateStream<T>(fetcher(), type.name);
+  }
+
+  /// 按名称取得流式数据流（无类型参数版本）。未注册返回 null。
+  Stream<dynamic>? streamByName(String name) {
+    final fetcher = _streamFetchers[name];
+    if (fetcher == null) return null;
+    return _decorateStream<dynamic>(fetcher(), name);
+  }
+
+  /// 给原始流接线状态映射（onData/onError/onDone → DataSourceStatus）。
+  ///
+  /// 用 `async*` 逐事件转发（而非 `Stream.transform`，避免 `Stream<dynamic>` 与
+  /// `Stream<T>` 之间的 Transformer 类型不匹配），在转发前更新状态：
+  /// - onData → connected=true（刷新 lastFetchedAt）
+  /// - onError → connected=false + lastError，并向订阅者重新抛出该错误
+  /// - onDone → completed=true（不注销），流正常结束
+  Stream<T> _decorateStream<T>(Stream<dynamic> raw, String name) async* {
+    try {
+      await for (final data in raw) {
+        _updateStatus(name, connected: true, fetchedAt: DateTime.now());
+        _statuses[name]?.completed = false; // 新数据 → 流重新活跃
+        yield data as T;
+      }
+      _statuses[name]?.completed = true; // 标记完成，不注销
+      Log().info('DataOrchestrator: 流式完成 $name');
+    } catch (e) {
+      _updateStatus(name, connected: false, error: e.toString());
+      rethrow;
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -174,9 +312,11 @@ class DataOrchestrator {
         final decoded = _decode<T>(data);
         _memCache[type.name] = _MemCacheEntry(decoded, cachedAt);
         _updateStatus(type.name, connected: true, fetchedAt: cachedAt);
-        Log().info('DataOrchestrator: 缓存命中（跳过拉取）',
-            data: {'name': type.name, 'cachedAt': cachedAt.toIso8601String(),
-              'bytes': data.length});
+        Log().info('DataOrchestrator: 缓存命中（跳过拉取）', data: {
+          'name': type.name,
+          'cachedAt': cachedAt.toIso8601String(),
+          'bytes': data.length
+        });
         return decoded;
       }
     }
@@ -222,6 +362,8 @@ class DataOrchestrator {
     for (final entry in _statuses.entries) {
       if (entry.value.isFresh) continue;
       if (names != null && !names.contains(entry.key)) continue;
+      // 仅刷新 pull 类型；流式类型（registerStream）无 Future fetcher，跳过。
+      if (!_fetchers.containsKey(entry.key)) continue;
       final type = _types[entry.key];
       if (type == null) continue;
       try {
@@ -270,8 +412,7 @@ class DataOrchestrator {
     final mem = _memCache[type.name];
     if (mem != null) {
       _updateStatus(type.name, connected: true, fetchedAt: mem.cachedAt);
-      Log().info('DataOrchestrator: 快读命中',
-          data: {'name': type.name});
+      Log().info('DataOrchestrator: 快读命中', data: {'name': type.name});
       return mem.data as T?;
     }
 
@@ -314,8 +455,7 @@ class DataOrchestrator {
   String? dumpDataFormat(String name) {
     final entry = _cache?.read(name);
     if (entry == null) {
-      Log().info('DataOrchestrator: 格式打印失败（无缓存）',
-          data: {'name': name});
+      Log().info('DataOrchestrator: 格式打印失败（无缓存）', data: {'name': name});
       return null;
     }
     try {
@@ -368,7 +508,11 @@ class DataOrchestrator {
           buf.write(indent * (depth + 1));
           buf.write('$keyLabel: ');
           buf.write('List (${v.length} 项)');
-          typeHint(v.isEmpty ? null : v.first is Map ? null : v);
+          typeHint(v.isEmpty
+              ? null
+              : v.first is Map
+                  ? null
+                  : v);
           buf.writeln();
           _expandListItems(buf, v, depth: depth + 1);
         } else {
@@ -514,10 +658,8 @@ class DataOrchestrator {
     }
   }
 
-  int get connectedCount =>
-      _statuses.values.where((s) => s.connected).length;
-  int get freshCount =>
-      _statuses.values.where((s) => s.isFresh).length;
+  int get connectedCount => _statuses.values.where((s) => s.connected).length;
+  int get freshCount => _statuses.values.where((s) => s.isFresh).length;
   int get totalCount => _statuses.length;
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -545,42 +687,100 @@ class DataOrchestrator {
     debugPrint('[Orch] _fetchAndCache: 即将拉取 ${type.name}');
     Log().info('DataOrchestrator: 拉取 $type');
     try {
-      final data = await fetcher();
-      debugPrint('[Orch] _fetchAndCache: ${type.name} fetcher 返回: ${data != null ? "有数据" : "NULL"}');
-
-      if (data == null || data is! T || _isEmptyData(data)) {
-        _updateStatus(type.name, connected: false, error: '拉取返回无效或空数据');
-        Log().warn(
-            'DataOrchestrator: 拉取返回无效/空数据 $type（不覆写缓存，保留旧缓存）');
-        debugPrint(
-            '[Orch] _fetchAndCache: ${type.name} 返回无效/空数据(NULL/类型不匹配/空容器)');
-        return null;
-      }
-
-      // diff 基线：覆写前的旧缓存（磁盘优先，其次内存）——首次拉取为 null
-      final baseline = _readBaseline(type);
-
-      final now = DateTime.now();
-      final encoded = _encode(data);
-      if (type.persistentKey != null) {
-        await _cache?.write(type.name, encoded);
-        Log().info('DataOrchestrator: 缓存写入',
-            data: {'name': type.name, 'bytes': encoded.length});
-      }
-      _memCache[type.name] = _MemCacheEntry(data, now);
-      _updateStatus(type.name, connected: true, fetchedAt: now);
-
-      if (notifyOnChange) {
-        _maybeEmitChange(type, baseline, data, now);
-      }
-      return data;
+      return await _attemptFetch<T>(type, fetcher, notifyOnChange);
     } catch (e, st) {
-      _updateStatus(type.name, connected: false, error: e.toString());
-      Log().warn('DataOrchestrator: 拉取失败 $type',
-          data: {'error': e.toString()});
       debugPrint('[Orch] _fetchAndCache: ${type.name} 异常: $e\n$st');
+      // 会话失效自动重登重拉（主题 A）：仅当声明了 sessionProviderId、注册了
+      // provider、且错误被判为「会话失效」时触发；否则走既有降级链（零行为变化）。
+      final sid = type.sessionProviderId;
+      final coordinator = sessionCoordinator;
+      if (sid != null &&
+          sid.isNotEmpty &&
+          coordinator != null &&
+          coordinator.sessionProviderById(sid)?.isSessionExpired(e) == true) {
+        final refreshed = await coordinator.refreshSession(sid);
+        if (refreshed) {
+          Log().info('DataOrchestrator: 会话失效已重登，重拉 $type');
+          try {
+            return await _attemptFetch<T>(type, fetcher, notifyOnChange);
+          } catch (e2, st2) {
+            debugPrint('[Orch] 重登后重拉仍失败: ${type.name}: $e2\n$st2');
+            return _handleFinalFailure<T>(type, e2,
+                prefix: kDataReloginRetryFailedPrefix);
+          }
+        }
+        Log().warn('DataOrchestrator: 会话重登失败 $type',
+            data: {'error': e.toString()});
+        return _handleFinalFailure<T>(type, e,
+            prefix: kDataReloginFailedPrefix);
+      }
+      return _handleFinalFailure<T>(type, e);
+    }
+  }
+
+  /// 执行一次拉取并处理成功/空结果（空结果走空数据门控 + 静态兜底）。异常向上抛出，
+  /// 由 [_fetchAndCache] 统一处理（含会话重登重拉）。
+  Future<T?> _attemptFetch<T>(DataType<T> type,
+      Future<dynamic> Function() fetcher, bool notifyOnChange) async {
+    final data = await fetcher();
+    debugPrint(
+        '[Orch] _attemptFetch: ${type.name} fetcher 返回: ${data != null ? "有数据" : "NULL"}');
+
+    if (data == null || data is! T || _isEmptyData(data)) {
+      // 静态兜底（第三级降级）：源可达但返回空/无效，且无旧缓存 → 返回兜底。
+      if (type.fallback != null && _readBaseline(type) == null) {
+        return _applyFallback<T>(type, '$kDataStaticFallbackPrefix（源返回空数据）');
+      }
+      _updateStatus(type.name,
+          connected: false, error: kDataEmptyReachableError);
+      Log().warn('DataOrchestrator: 源可达但数据为空 $type（不覆写缓存，保留旧缓存）');
+      debugPrint('[Orch] _attemptFetch: ${type.name} 返回无效/空数据(NULL/类型不匹配/空容器)');
       return null;
     }
+
+    // diff 基线：覆写前的旧缓存（磁盘优先，其次内存）——首次拉取为 null
+    final baseline = _readBaseline(type);
+
+    final now = DateTime.now();
+    final encoded = _encode(data);
+    if (type.persistentKey != null) {
+      await _cache?.write(type.name, encoded);
+      Log().info('DataOrchestrator: 缓存写入',
+          data: {'name': type.name, 'bytes': encoded.length});
+    }
+    _memCache[type.name] = _MemCacheEntry(data, now);
+    _updateStatus(type.name, connected: true, fetchedAt: now);
+
+    if (notifyOnChange) {
+      _maybeEmitChange(type, baseline, data, now);
+    }
+    return data;
+  }
+
+  /// 拉取最终失败的统一处理（T4 降级链）：静态兜底（若声明且无旧缓存）→ 否则
+  /// 标记 `connected=false` + `lastError`（默认前缀 [kDataFetchFailedPrefix]，
+  /// 会话重登路径传 `kDataReloginRetryFailedPrefix`/`kDataReloginFailedPrefix`）。
+  T? _handleFinalFailure<T>(DataType<T> type, Object e,
+      {String prefix = kDataFetchFailedPrefix}) {
+    // 静态兜底（第三级降级）：源不可达/异常，且无旧缓存 → 返回兜底。
+    if (type.fallback != null && _readBaseline(type) == null) {
+      return _applyFallback<T>(type, '$kDataStaticFallbackPrefix（$prefix: $e）');
+    }
+    _updateStatus(type.name, connected: false, error: '$prefix: $e');
+    Log().warn('DataOrchestrator: 拉取失败 $type', data: {'error': e.toString()});
+    return null;
+  }
+
+  /// 应用静态兜底：标记 `connected=false` + `lastError`（含「使用静态兜底」），
+  /// 返回 [DataType.fallback] 强转为 [T]。仅当无旧缓存时由 [_fetchAndCache] 调用。
+  T? _applyFallback<T>(DataType<T> type, String reason) {
+    _updateStatus(type.name, connected: false, error: reason);
+    Log().warn('DataOrchestrator: 拉取失败，使用静态兜底 $type', data: {
+      'fallback': type.fallback is Map
+          ? 'Map(${(type.fallback as Map).length} 键)'
+          : type.fallback?.runtimeType.toString()
+    });
+    return type.fallback as T?;
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -588,6 +788,17 @@ class DataOrchestrator {
   // ═══════════════════════════════════════════════════════════════════════
 
   final List<void Function(DataChangeEvent)> _changeListeners = [];
+
+  /// 数据变更事件广播流。与 [addDataChangeListener] 共享同一 diff 通知源
+  /// （[_maybeEmitChange] 内部转发，不二次计算 diff、不双写），供 SSE 端点
+  /// （`/data/events`）与 renderer 以 `Stream` 形式消费。
+  final StreamController<DataChangeEvent> _changeEventsController =
+      StreamController<DataChangeEvent>.broadcast(sync: true);
+
+  /// 数据变更事件流（broadcast）。每次 diff 通知（见 [addDataChangeListener]）
+  /// 都会转发到本流。
+  Stream<DataChangeEvent> get dataChangeEvents =>
+      _changeEventsController.stream;
 
   /// 注册数据变更监听（后台循环刷新覆写缓存且内容变化时回调）。
   void addDataChangeListener(void Function(DataChangeEvent) listener) {
@@ -634,6 +845,15 @@ class DataOrchestrator {
         Log().warn('DataOrchestrator: 变更监听器异常',
             data: {'name': type.name, 'error': e.toString()});
       }
+    }
+    // 桥到广播流（同一 diff 通知源内部转发，不双写、不二次计算 diff）。
+    // sync 广播控制器同步派发：单个流订阅者抛异常不应中断其他订阅者/回调，
+    // 故包 try/catch 兜底（SSE 端点在内部已自行捕获写入错误）。
+    try {
+      _changeEventsController.add(event);
+    } catch (e) {
+      Log().warn('DataOrchestrator: 变更事件流转发异常',
+          data: {'name': type.name, 'error': e.toString()});
     }
   }
 

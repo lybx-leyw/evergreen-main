@@ -50,6 +50,7 @@ import 'package:evergreen_base/core/log.dart';
 import 'package:evergreen_base/core/module/module_http_server.dart';
 import 'package:evergreen_base/core/module/module_loader.dart';
 import 'package:evergreen_base/core/module/module_registry.dart';
+import 'package:evergreen_base/core/plugin/plugin_runner.dart';
 import 'package:evergreen_base/core/result.dart';
 import 'package:evergreen_base/core/services/core_http_server.dart';
 import 'package:evergreen_base/core/services/ocr_pipeline.dart';
@@ -345,6 +346,9 @@ class AppBootstrap {
     // Python 解释器解析收敛：绑定 greenixPythonDir 为单一真理来源
     // （消除 python_env 内联 cwd 路径与 greenix_path 的双真理）。
     bindGreenixPythonDir(() => greenixPythonDir);
+    // 平台 Python 库目录（evg_lib）绑定：启动 Python 子进程时注入 PYTHONPATH
+    // （与 --greenix-config / envForSubprocess 机制并列），使 import evg_lib 可用。
+    bindGreenixScriptsDir(() => greenixScriptsDir);
     // 路径必须在 initGreenixPaths 之后解析（安卓：可写目录；桌面：项目根）
     projectRoot = Platform.isAndroid
         ? p.dirname(androidPluginsDir)

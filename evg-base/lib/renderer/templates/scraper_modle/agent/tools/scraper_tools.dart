@@ -12,7 +12,9 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:evergreen_base/core/agent/tool.dart';
+import 'package:evergreen_base/core/config/credential_store.dart';
 import 'package:evergreen_base/core/plugin/plugin_runner.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
 import 'package:evergreen_base/core/utils/python_env.dart';
@@ -221,15 +223,17 @@ class ReadExistingCredentialTool extends SimpleTool {
 
 // ═══════ save_credential ═══════
 
-/// 工具：通过 ConfigHttpServer 保存凭证。
+/// 工具：直写平台凭证（[CredentialStore.writeCredentialDirect]）。
 ///
-/// 凭证写入 SharedPreferences，后续生成的 Python 脚本通过
-/// `_get_config(key)` 从 HTTP API 读取。
+/// 凭证写入 SharedPreferences + 镜像 `.greenix/config.json`。T9 起去掉
+/// `.config_port` 端口文件的硬依赖——不再要求 ConfigHttpServer 在线，未启动时
+/// 直写同样生效；后续生成的 Python 脚本经 `_get_config(key)` 从 greenix
+/// config.json 读取（SP 侧同时让 getSetting 一致）。
 class SaveCredentialTool extends SimpleTool {
-  /// 项目根目录（含 .config_port 文件）。
-  final String projectRoot;
+  /// 可选注入 SharedPreferences；缺省时延迟 [SharedPreferences.getInstance]。
+  final SharedPreferences? prefs;
 
-  SaveCredentialTool({required this.projectRoot})
+  SaveCredentialTool({this.prefs})
       : super(
           name: 'save_credential',
           description: '将爬虫所需凭证写入/更新到平台配置。'
@@ -256,40 +260,18 @@ class SaveCredentialTool extends SimpleTool {
             final value = args['value'] as String? ?? '';
             if (key.isEmpty) return '[error: key 参数为空]';
 
-            // 读取 ConfigHttpServer 端口
-            final portFile = File(p.join(projectRoot, '.config_port'));
-            if (!portFile.existsSync()) {
-              return '[error: .config_port 文件未找到，ConfigHttpServer 可能未启动]';
-            }
-
-            final port = portFile.readAsStringSync().trim();
-            debugPrint('[SaveCredential] 保存 $key → Config:${port}');
-
             try {
-              // 通过 HTTP POST 写入配置
-              final client = HttpClient();
-              try {
-                final request = await client.postUrl(
-                  Uri.parse('http://127.0.0.1:$port/config/settings'),
-                );
-                request.headers.contentType =
-                    ContentType.json;
-                request.write(jsonEncode({'key': key, 'value': value}));
-                final response = await request.close();
-
-                if (response.statusCode == 200) {
-                  debugPrint('[SaveCredential] ✅ $key 已保存');
-                  return '✅ 凭证 "$key" 已保存到项目配置。';
-                } else {
-                  debugPrint(
-                      '[SaveCredential] ⚠ HTTP ${response.statusCode}');
-                  return '⚠ 保存凭证 "$key" 失败 (HTTP ${response.statusCode})';
-                }
-              } finally {
-                client.close();
-              }
+              final p = prefs ?? await SharedPreferences.getInstance();
+              await writeCredentialDirect(
+                prefs: p,
+                key: key,
+                value: value,
+                configPath: greenixConfigPath,
+              );
+              debugPrint('[SaveCredential] ✅ $key 已直写 SP + config.json');
+              return '✅ 凭证 "$key" 已保存到平台配置。';
             } catch (e) {
-              debugPrint('[SaveCredential] 💥 HTTP 请求异常: $e');
+              debugPrint('[SaveCredential] 💥 直写异常: $e');
               return '[error: 保存凭证失败: $e]';
             }
           },
@@ -770,7 +752,7 @@ List<Tool> createScraperTools({
       getResult: getTerminalResult,
     ),
     ReadExistingCredentialTool(projectRoot: projectRoot),
-    SaveCredentialTool(projectRoot: projectRoot),
+    SaveCredentialTool(),
     // 环境变量写入/列出（用户账号密码等凭据；探索模式同样可用）
     if (envStore != null) ...[
       SetEnvVarTool(envStore: envStore),

@@ -59,6 +59,9 @@ lib/core/data/
 ├── orchestrator.dart            # DataOrchestrator + DataSourceStatus + 变更事件（核心中枢）
 ├── cache.dart                   # Cache 持久化缓存单例（磁盘文件存储）
 ├── data_diff.dart               # DataDiff / DataChangeEvent / computeDataDiff（变更差异引擎）
+├── sse_frame.dart               # data 层 SSE 帧序列化（event: data/error/done/change，零依赖）
+├── session_provider.dart        # SessionProvider 抽象 + SessionCoordinator 登录锁（主题 A 会话中心）
+├── file_entries.dart            # FileEntry + extractFileEntries（数据源 stdout 文件清单解析，T8a）
 ├── provider.dart                # Riverpod Provider（可选，不被 barrel 导出）
 ├── data_http_server.dart        # HTTP 管理服务器（REST 端点）
 ├── register_data_source.dart    # CLI 数据源热注册：registerDataSourcesFromManifest
@@ -143,7 +146,8 @@ null / 空白字符串 / 空 List / 空 Map / 空 Set。**注意**：`{'courses'
 - 文件存储：`{appSupportDir}/web_cache/{key}.json`
 - 每个缓存条目包含 `{data, cachedAt}`（data 为 String 原文或 JSON 编码串）
 - `Cache` 为异步初始化的单例（`getInstance()`），`instanceOrNull` 未初始化时返回 null
-- 单线程访问，不保证并发安全（`dart_test.yaml` 设 `concurrency: 1`）
+- 写/删/清空路径经**互斥队列**串行（单 isolate Future 链式，避免并发覆写与读改写竞争）；读仍为同步
+- 空 vs 不可达在 `lastError` 上区分：fetcher 正常返回但为空 → `kDataEmptyReachableError`（「源可达但数据为空」）；fetcher 抛异常 → `kDataFetchFailedPrefix: $e`（「拉取失败: ...」）
 
 ### 3. 查询 vs 订阅：变更通知（DataChangeEvent）
 
@@ -175,7 +179,7 @@ null / 空白字符串 / 空 List / 空 Map / 空 Set。**注意**：`{'courses'
 3. 请求 `GET /health` 确认就绪
 4. 将各 `dataType` 注册到 `DataOrchestrator`（`orch.get(type)` → HTTP 调用 `{port}/endpoint`）
 
-**进程终止（模型 B）**：SIGTERM → 2 秒超时 → SIGKILL。插件崩溃 → connected=false，已注册 DataType 保留。
+**进程终止（模型 B）**：SIGTERM → 2 秒超时 → SIGKILL。插件崩溃 → 退避 1s/3s/9s 自动重启（最多 3 次，成功恢复 `_healthy`，用尽标记 connected=false + lastError）；手动 `restart()` 可用；重启期间已注册 DataType 保留（`get` 返回旧缓存或「未就绪」明确错误）。
 
 **Android 安全网**：manifest `androidSupport: false`（如依赖 C 扩展 wheel 缺失的 OCR/PDF/ML 插件）在安卓自动跳过注册，避免崩溃。
 
@@ -188,8 +192,19 @@ null / 空白字符串 / 空 List / 空 Map / 空 Set。**注意**：`{'courses'
 | **错误** | `connected == false` | 最近一次拉取/连通测试失败 |
 
 `freshnessLabel` 返回 `"新鲜"` / `"过期"` / `"从未"`；`relativeTime` 返回 `"刚刚"` / `"N 分钟前"` / `"N 小时前"` / `"N 天前"`（未拉取过返回 `"从未更新"`）。
-`DataSourceStatus` 字段：`name` / `category` / `displayName` / `cacheKey` / `ttl` / `connected` / `lastFetchedAt` / `lastError`。
+`DataSourceStatus` 字段：`name` / `category` / `displayName` / `cacheKey` / `ttl` / `connected` / `lastFetchedAt` / `lastError` / `completed`（流式 onDone 标记，仅 `registerStream` 类型使用）。
 `refreshStatusFromDisk()` 在启动时从磁盘缓存恢复 `lastFetchedAt`。
+
+### 6. 流式数据类型（registerStream + SSE）
+
+data 层新增**流式数据类型**形态，与 pull（`register`）并存，为「视频/持续数据时时拉取播放」提供 core 侧传输基础（零新依赖）：
+
+- **注册**：`registerStream(type, Stream<T> Function() fetcher)`——fetcher 为「流工厂」，每次调用返回新 `Stream`；同名与 pull 注册互不覆盖（独立 `_streamFetchers` 表），但共享 `_types` / `DataSourceStatus`（进入注册表，`status`/`typeByName`/`allStatuses` 可见）。
+- **访问**：`streamOf(type)` / `streamByName(name)` 返回 `Stream<T>?`（未注册返回 null），返回流已用 `async*` 接线状态映射——onData → `connected=true`（刷新 lastFetchedAt）、onError → `connected=false`+`lastError` 并向订阅者重抛、onDone → `completed=true`（**不注销**）。
+- **变更事件流桥**：`dataChangeEvents`（`Stream<DataChangeEvent>` broadcast，sync）与 `addDataChangeListener` 共享同一 diff 通知源（`_maybeEmitChange` 内部转发，不二次计算 diff、不双写）。
+- **SSE 端点**：`GET /data/stream/:name`（订阅 `streamByName`）、`GET /data/events`（订阅 `dataChangeEvents`）；帧格式 `event: data/error/done/change\ndata: {...}\n\n`（`sse_frame.dart`，最小自实现，复用 agent 侧帧约定）；错误帧后关闭连接（流级错误=源损坏，关闭后客户端可重连取新流）；客户端断开经 `response.add` 写入失败或 `response.done` 错误完成检测 → 取消订阅 + 关闭响应。
+
+**设计理由**：pull 路径（get/refresh/fastRead）语义完全不变（回归）；流式形态是**新增**传输能力，把 agent 侧已成熟的 SSE 通道复用到 data 层，替换未来 renderer 的 5s 轮询订阅。
 
 ---
 
@@ -279,6 +294,39 @@ registerDataSourcesFromManifest(
 覆盖：相同数据无变化、Map 新增/移除 key、标量变化、嵌套 Map 递归、List 增删（标题字段标签）、
 易变字段忽略、列表元素仅时间戳不同不算增删、字符串变化、类型变化、null 与空串、summarize 摘要、示例上限截断。
 
+### data_source_manifest_test.dart
+
+覆盖：模型 A/B 旧 manifest 回归解析（含 `id`/`name` 缺省、`endpoint` 模型 A 可缺省）、`process`
+字符串/对象双形态、`script`/`process` 互斥、新增可选字段（`auth`/`stream`/`file`/process 增强）解析与
+缺省、`category` 默认「未分类」、TTL（s/m/h/ms/纯秒数）统一、`androidSupport` 严格 bool、未知字段静默忽略、
+`toJson` 可选段仅非默认值写出。
+
+### orchestrator_stream_test.dart（T3 新增）
+
+覆盖：`registerStream` 进入注册表（status/typeByName/isRegistered/registeredTypes）、`streamOf`/`streamByName`
+未注册返回 null、与 pull `register` 并存（同名互不覆盖）、注销连带清除；流事件状态映射（onData→connected、
+onError→connected=false+lastError、onDone→completed 且不注销、每次取新流）；`dataChangeEvents` 广播流桥
+（首次无基线不发、无变化不发、与 `addDataChangeListener` 共享同一事件对象——不双写/不二次计算）。
+
+### sse_frame_test.dart（T3 新增）
+
+覆盖：`dataStreamSseFrame`/`dataStreamErrorSseFrame`/`dataStreamDoneSseFrame`/`changeEventSseFrame` 四类
+帧的 `event: <name>\ndata: {...}\n\n` 格式（含 Map/List/标量编码、非 JSON 对象回退 toString、双换行结尾）；
+`DataChangeEvent.toJson`/`DataDiff.toJson` 结构完整。SSE 端点集成测试（原始 Socket 直连）见主包
+`evg-base/test/core/data/data_http_server_sse_test.dart`（受主包 flutter test 环境限制，不在子包运行）。
+
+### file_entries_test.dart（T8a 新增）
+
+覆盖：`FileEntry` toJson 可选字段省略、相等/hashCode；`extractFileEntries` 多键形态（`files` 列表 Map
+元素 / `downloads` 字符串元素 / `attachments` / `fileList`）、`files` 单对象形态、`file` 单对象形态
+（`url` 或 `downloadEndpoint`）、`downloadEndpoint` 字符串形态、未知结构/缺失返回空、元素缺 url/非法元素跳过、
+`name`/`mime` 别名解析（`filename`/`fileName`/`type`/`contentType`）。
+
+### orchestrator_file_test.dart（T8a 新增）
+
+覆盖：`registerFile` 后 `fileOf`/`fileByName` 返回声明、未登记/未注册返回 null、`registerFile(null)`
+清除既有声明（重注册语义）、`unregister` 连带清除、`enabled=false` 声明仍可查询（由消费方判 enabled）。
+
 ### 运行测试
 
 ```bash
@@ -309,6 +357,8 @@ dart test test/data_diff_test.dart
 | `GET` | `/data/status/:name` | 单个数据源状态 | 状态 JSON 或 404 |
 | `POST` | `/data/connectivity/test` | 测试全量连通性 | `{"results": {"name1": true, "name2": false}}` |
 | `POST` | `/data/register` | 运行期热注册 CLI 数据源（body `{"pluginDir": "..."}`） | `{"registered": [...], "pluginDir": ...}`；缺参 `400`；未注册到 `404` |
+| `GET` | `/data/stream/:name` | 流式数据源 SSE 长连接（订阅 `streamByName`） | `text/event-stream`；`event: data`/`event: error`/`event: done` 帧；未注册 `404` |
+| `GET` | `/data/events` | 全局数据变更事件 SSE 长连接（订阅 `dataChangeEvents`） | `text/event-stream`；`event: change` 帧 |
 
 > `GET/POST /data/types/:name` 与 `POST /data/register` 会优先复用中枢已注册的 DataType（携带
 > persistentKey/ttl），未注册时兜底空壳 DataType（拉取路径退化为异常/502）。
@@ -320,25 +370,31 @@ dart test test/data_diff_test.dart
 - 外部插件数据源需返回 `Content-Type: application/json`，body 为合法 JSON
 - `DataSourceStatus` 序列化包含：`name, category, displayName, connected, isFresh, freshnessLabel, relativeTime, lastFetchedAt, lastError`
 
-### 数据源插件 manifest.json 格式（双模型）
+### 数据源插件 manifest.json 格式（双模型，统一 typed model）
 
 ```json
 {
   "type": "data-source",
-  "id": "plugin-id",
-  "name": "展示名",
-  "script": "fetch.py",              // 模型 A（CLI）：脚本文件名，相对 data/ 目录
+  "id": "plugin-id",                 // 可选：模型 A 缺省由目录 basename 派生
+  "name": "展示名",                  // 可选
+  "script": "fetch.py",              // 模型 A（CLI）：脚本文件名，相对 data/ 目录（与 process 互斥二选一）
   "runtime": "python",               // 可选：native | python（默认 native，按扩展名也可推断）
-  "androidSupport": true,            // 可选：false 时安卓跳过该数据源
+  "androidSupport": true,            // 可选：严格 bool，仅真实 bool 有效，缺省 true，非 bool 视为 false
+  "auth": {                          // 可选（缺省零行为变化）：引用 config.json 已声明凭据 key
+    "sessionProvider": "zju",
+    "credentialKeys": ["ZJU_USERNAME"]
+  },
   "dataTypes": [
     {
       "name": "type_name",
       "typeArg": "type_name",        // 可选：传给脚本的 --type 参数（默认同 name）
-      "category": "分类",
+      "category": "分类",             // 默认「未分类」（模型 A/B 统一）
       "displayName": "展示名",
-      "ttl": "5m",
+      "ttl": "5m",                   // s/m/h/ms/纯秒数（统一解析器）
       "persistentKey": "cache_key",
-      "endpoint": "/api/data"        // 仅模型 B（HTTP 长驻）使用
+      "endpoint": "/api/data",       // 仅模型 B（HTTP 长驻）使用；模型 A 可缺省
+      "stream": { "enabled": true, "protocol": "sse" },  // 可选（缺省零行为变化）
+      "file": { "enabled": true, "downloadEndpoint": "/download" }
     }
   ]
 }
@@ -346,8 +402,10 @@ dart test test/data_diff_test.dart
 
 > **模型 A（CLI）**：必填 `script`；每次拉取执行 `script --type <typeArg> --project-root <root> --greenix-config <cfg>`，
 > stdout 顶层必须是 `Map<String, dynamic>`（列表型包 `{"items": [...]}`），`exitCode != 0` 或含 `error` key 视为失败。
-> **模型 B（HTTP）**：必填 `process` + `endpoint`；长驻 HTTP 服务，`PORT:` 行 + `/health` 探测，`{port}` 由平台替换。
-> 两种模型互斥：有 `script` 走 CLI，有 `process` 走 HTTP。
+> **模型 B（HTTP）**：必填 `process`（字符串或对象形态，对象吸收 ProcessDescriptor 语义）+ `endpoint`；
+> 长驻 HTTP 服务，`PORT:` 行 + `/health` 探测，`{port}` 由平台替换。
+> 两种模型互斥：有 `script` 走 CLI，有 `process` 走 HTTP。解析统一走 `DataSourceManifest.fromJson`
+> （`register_data_source.dart` 不再手写逐字段读）。
 
 ### 插件行为契约
 
@@ -391,4 +449,9 @@ data 模块（pubspec.yaml，name: evergreen_base）
 
 | 日期 | 变更 |
 |------|------|
+| 2026-08-25 | **T8a 文件型数据源 core 支持**：新增 `file_entries.dart`（`FileEntry` + `extractFileEntries` 纯函数：识别 `files`/`downloads`/`attachments`/`fileList`、`file` 单对象、`downloadEndpoint` 字符串形态，未知结构返回空）；`orchestrator.dart` 增 `_fileDecls` 登记表 + `registerFile`/`fileOf`/`fileByName`（未声明/未登记返回 null，`unregister` 连带清除）；`register_data_source.dart` 把 `decl.file` 经 `orch.registerFile` 接线；`data.dart` barrel 导出 `file_entries.dart`。测试 +16 用例（file_entries_test + orchestrator_file_test），全量 167 用例通过。下载服务 `DataFileService` 见 core-services 域（`services/data_file_service.dart`） |
+| 2026-08-25 | **T2 会话中心（主题 A 登录不挤占）**：新增 `session_provider.dart`（`SessionProvider` 抽象：`ensureSession`/`isSessionExpired`/`refreshSession`/`invalidate` + `SessionCoordinator` 登录锁/注册表：同一 `sessionProviderId` 并发 `ensureSession`/`refreshSession` Future 共享、单点重登 + `InMemorySessionProvider` 最小示例）；`DataType` 增可选 `sessionProviderId`（来自 manifest `auth.sessionProvider`）；`register_data_source.dart` 把 `manifest.auth?.sessionProvider` 透传到 `DataType`；`orchestrator.dart` 增 `sessionCoordinator` 字段 + `_fetchAndCache` 会话失效自动重登重拉（声明 auth + 注册 provider + 错误被判会话失效 → `refreshSession` → 重拉一次；仍失败 `lastError`「已重登仍失败」/重登失败「重登失败」；未声明/未注册零行为变化，走 T4 既有降级链）。新增 `kDataReloginRetryFailedPrefix`/`kDataReloginFailedPrefix`；`data.dart` barrel 导出 `session_provider.dart`；测试 +17 用例（session_provider_test + orchestrator_auth_test），全量 151 用例通过 |
+| 2026-08-25 | **T4 降级链第三级 + 进程守护 + 一次性陷阱修复**：① `PluginRunner.runOnce` 增可选 `timeout`（超时 kill 子进程 + 抛 `TimeoutException`，三副本 core/agent/data 同步）；CLI 数据源 fetcher 用 `kCliDataSourceTimeout`（60s）。② `_fetchAndCache` 区分「源可达但语义空」（`lastError=kDataEmptyReachableError`）vs「源不可达/异常」（`kDataFetchFailedPrefix: $e`）。③ `DataType.fallback`/`DataSourceTypeDecl.fallbackJson` 静态兜底（第三级降级：拉取失败且无旧缓存 → 返回兜底 + `lastError`「使用静态兜底」，缺省零行为变化）。④ `Cache` 写/删/清空路径加互斥队列（单 isolate Future 链式串行）。⑤ `DataSourceLoader` 崩溃自动重启（退避 1s/3s/9s 最多 3 次，成功恢复 `_healthy`、用尽标记 `connected=false`+`lastError`）+ 手动 `restart()`，重启期间已注册 DataType 保留 |
+| 2026-08-25 | **T3 data 层流式能力**：`DataOrchestrator` 新增 `registerStream`/`streamOf`/`streamByName`（流式注册 + 状态映射 onData/onError/onDone，`DataSourceStatus` 增 `completed`）；`dataChangeEvents` 广播流桥（与 `addDataChangeListener` 共享同一 diff 通知源，不双写）；新增 `sse_frame.dart`（data 层 SSE 帧序列化，零依赖）；`DataHttpServer` 新增 `GET /data/stream/:name` 与 `GET /data/events` SSE 长连接端点（dart:io 长连接 + 客户端断开清理）；`DataChangeEvent`/`DataDiff` 增 `toJson()`。pull 路径（get/refresh/fastRead）语义完全不变 |
+| 2026-08-25 | **T1 manifest 契约统一**：模型 A/B 解析收敛为单一 typed model；`script`/`typeArg` 补入 `DataSourceManifest`/`DataSourceTypeDecl`、`script`/`process` 互斥二选一、`endpoint` 模型 A 可缺省、`category` 默认统一「未分类」、TTL 统一解析器（s/m/h/ms/纯秒数）、`androidSupport` 严格 bool；新增可选 `auth`/`stream`/`file`/`process` 增强声明（缺省零行为变化）；`register_data_source.dart` 复用 `fromJson`，删除内联 TTL 正则与逐字段读 |
 | 2026-08-25 | **t13 阶段1·主题1**：douban 示例从模型 B（.exe/PyInstaller）迁移为模型 A（CLI .py 纯标准库），清理 25.71MB 构建产物；`register_data_source.dart` 变量名 `exePath`/`exeExists` → `scriptPath`/`scriptExists`；模型 B 全文档标注 legacy，模型 A(.py) 为数据源规范化形态（同步中心导出基准） |

@@ -6,9 +6,12 @@ library data;
 export 'type.dart';
 export 'exceptions.dart';
 export 'orchestrator.dart';
+export 'session_provider.dart';
+export 'file_entries.dart';
 // export 'provider.dart' show dataOrchestratorProvider; // 需要 flutter_riverpod，示例中不用
 export 'cache.dart';
 export 'data_diff.dart';
+export 'sse_frame.dart';
 export 'data_http_server.dart';
 export 'plugin/data_source_manifest.dart';
 export 'plugin/data_source_loader.dart';

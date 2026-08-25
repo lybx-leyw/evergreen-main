@@ -98,13 +98,11 @@ void main() {
       );
     });
 
-    test('id 缺失时抛 FormatException', () {
+    test('id 缺失时回退为空字符串（模型 A 兼容，由目录 basename 派生）', () {
+      // T1 统一后 id/name 为可选（模型 A scraper 产物无 id/name 仍可解析）
       final json = Map<String, dynamic>.from(_fullManifestJson);
       json.remove('id');
-      expect(
-        () => DataSourceManifest.fromJson(json),
-        throwsA(isA<FormatException>()),
-      );
+      expect(DataSourceManifest.fromJson(json).id, '');
     });
 
     test('process 缺失时抛 FormatException', () {
@@ -206,16 +204,16 @@ void main() {
           isTrue);
     });
 
-    test('androidSupport 为非布尔真值 → 不被误判为 false', () {
-      // 规范只接受显式 boolean false 才跳过
+    test('androidSupport 为非布尔值 → 严格视为 false（跳过）', () {
+      // T1 严格 bool：字符串/数字不再视为 true（fail-closed，避免 C 扩展在安卓崩溃）
       expect(
           cliDataSourceSupportedOn(
               {'androidSupport': 'true'}, isAndroid: true),
-          isTrue);
+          isFalse);
       expect(
           cliDataSourceSupportedOn(
               {'androidSupport': 1}, isAndroid: true),
-          isTrue);
+          isFalse);
     });
 
     test('androidSupport=null → 视为 true', () {

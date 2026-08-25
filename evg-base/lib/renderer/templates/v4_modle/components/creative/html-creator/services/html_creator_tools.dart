@@ -15,6 +15,7 @@ library html_creator_tools;
 import 'dart:convert';
 import 'dart:io';
 import 'package:evergreen_base/core/agent/tool.dart';
+import 'package:evergreen_base/core/config/credential_store.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
 import 'package:evergreen_base/renderer/templates/html_modle/bridge_script.dart'
     show forwardCoreHttp;
@@ -22,6 +23,7 @@ import 'package:evergreen_base/renderer/templates/html_modle/core_api_discovery.
     show CoreService;
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'html_export_service.dart' show htmlPluginIdError, writeHtmlPluginModule;
 
@@ -463,12 +465,19 @@ class GetConfigValueTool extends SimpleTool {
         );
 }
 
-/// 工具：写入/更新平台配置项（ConfigHttpServer，凭证管理）。
+/// 工具：直写平台配置项（[CredentialStore.writeCredentialDirect]，凭证管理）。
+///
+/// T9 起去掉对 ConfigHttpServer / `.config_port` 的硬依赖——ConfigHttpServer
+/// 未启动时直写 SP + 镜像 `.greenix/config.json` 同样生效（与 HTTP 路径的
+/// 终态等价：SP 供 getSetting/设置面板读取，config.json 供 CLI/插件镜像）。
 class SaveCredentialTool extends SimpleTool {
-  SaveCredentialTool()
+  /// 可选注入 SharedPreferences；缺省时延迟 [SharedPreferences.getInstance]。
+  final SharedPreferences? prefs;
+
+  SaveCredentialTool({this.prefs})
       : super(
           name: 'save_credential',
-          description: '将凭证/配置写入平台（ConfigHttpServer）。'
+          description: '将凭证/配置直写平台（SP + .greenix/config.json 镜像）。'
               'key 命名规范：大写字母开头，仅含大写字母/数字/下划线'
               '（如 SCRAPER_USERNAME / DEEPSEEK_API_KEY）。'
               '写入后插件可经 platform.api.call("config", "/config/settings/KEY")'
@@ -495,14 +504,15 @@ class SaveCredentialTool extends SimpleTool {
             final err = validateCredentialKey(key);
             if (err != null) return '[error: $err]';
             try {
-              await forwardCoreHttp(
-                CoreService.config,
-                'POST',
-                '/config/settings',
-                {'key': key, 'value': value},
+              final p = prefs ?? await SharedPreferences.getInstance();
+              await writeCredentialDirect(
+                prefs: p,
+                key: key,
+                value: value,
+                configPath: greenixConfigPath,
               );
-              debugPrint('[SaveCredential] ✅ $key 已写入平台配置');
-              return '✅ 配置 "$key" 已保存到平台（ConfigHttpServer）。';
+              debugPrint('[SaveCredential] ✅ $key 已直写平台配置');
+              return '✅ 配置 "$key" 已保存到平台（SP + config.json）。';
             } catch (e) {
               debugPrint('[SaveCredential] ❌ 保存 $key 失败: $e');
               return '[error: 保存配置 $key 失败: $e]';
