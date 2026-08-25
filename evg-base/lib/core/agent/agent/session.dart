@@ -19,6 +19,16 @@ class Session {
   DateTime createdAt;
   DateTime updatedAt;
 
+  /// 派生元数据（同步中心契约，见 docs/superpowers/specs/egsync-sync-center-spec-v1.md §七）。
+  ///
+  /// [parentId]：本会话派生的父会话 id；`null` = 根会话（默认）。
+  /// [forkTurn]：分叉点在父会话 `messages` 中的 0-based 索引——子会话继承父消息
+  /// `[0..forkTurn)` 后路径分化；`null` = 未分叉（普通续写，父消息全继承）。
+  ///
+  /// 约束：`forkTurn != null` 时 `parentId` 必须非空（写入方保证，读取方容忍不一致）。
+  String? parentId;
+  int? forkTurn;
+
   /// Token 统计（累计）。
   int totalPromptTokens = 0;
   int totalCompletionTokens = 0;
@@ -33,6 +43,8 @@ class Session {
     this.title = '',
     DateTime? createdAt,
     DateTime? updatedAt,
+    this.parentId,
+    this.forkTurn,
   })  : id = id ?? _generateId(),
         createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
@@ -140,6 +152,8 @@ class Session {
         'title': title,
         'created_at': createdAt.toIso8601String(),
         'updated_at': updatedAt.toIso8601String(),
+        if (parentId != null) 'parent_id': parentId,
+        if (forkTurn != null) 'fork_turn': forkTurn,
         'messages': messages.map((m) => m.toJson()).toList(),
         'total_prompt_tokens': totalPromptTokens,
         'total_completion_tokens': totalCompletionTokens,
@@ -154,6 +168,8 @@ class Session {
       title: json['title']?.toString() ?? '',
       createdAt: DateTime.tryParse(json['created_at']?.toString() ?? ''),
       updatedAt: DateTime.tryParse(json['updated_at']?.toString() ?? ''),
+      parentId: json['parent_id']?.toString(),
+      forkTurn: (json['fork_turn'] as num?)?.toInt(),
     );
     final msgs = json['messages'] as List? ?? [];
     for (final m in msgs) {

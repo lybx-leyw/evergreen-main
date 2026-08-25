@@ -10,6 +10,8 @@
 /// | `checkPermission(prefs, pluginId, permKey)` | 检查权限，拒绝时抛异常 |
 /// | `describePermission(perm)` | 生成通俗语言描述 |
 /// | `getPermissionDecls(pluginId)` | 查询插件的权限声明列表 |
+/// | `getAllPermissions(prefs)` | 枚举全部已注册插件的权限状态（导出用） |
+/// | `importPermissions(prefs, permissions, {overwrite})` | 批量导入权限状态（白名单 + bool 正确类型） |
 library permissions;
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -132,4 +134,54 @@ String describePermission(PermissionDecl perm) {
 /// 返回 `null` 表示该插件未注册任何权限。
 List<PermissionDecl>? getPermissionDecls(String pluginId) {
   return _permDecls[pluginId];
+}
+
+/// 枚举全部已注册插件的权限状态（供 `.evgconfig` v2 导出）。
+///
+/// 返回 `pluginId → {permKey: granted}`；仅包含已注册权限的插件，
+/// 未显式设置的权限回退 [PermissionDecl.defaultGranted]。
+/// 所有值为 **bool**（与 SP 存储类型一致，避免 getString 读 bool 键的类型错误）。
+Map<String, Map<String, bool>> getAllPermissions(SharedPreferences prefs) {
+  final result = <String, Map<String, bool>>{};
+  for (final pluginId in _permDecls.keys) {
+    final states = getPermissions(prefs, pluginId);
+    if (states.isNotEmpty) result[pluginId] = states;
+  }
+  return result;
+}
+
+/// 批量导入权限状态（供 `.evgconfig` v2 导入）。
+///
+/// 安全过滤：仅写入**已注册**插件的**已声明**权限键，值必须为 bool
+/// （非法值静默跳过——未知静默忽略约定）；写入走 [setPermission] 语义
+/// （`prefs.setBool`），不直接写裸 SP 键。
+///
+/// [overwrite] 默认 `true`（与 settings 导入语义一致：写入即覆盖）；
+/// 传 `false` 启用非空值保护——已有**显式设置**的权限不被导入值覆盖。
+///
+/// 返回实际写入的权限条数。
+Future<int> importPermissions(
+  SharedPreferences prefs,
+  Map<String, dynamic> permissions, {
+  bool overwrite = true,
+}) async {
+  var written = 0;
+  for (final pEntry in permissions.entries) {
+    final pluginId = pEntry.key;
+    final decls = _permDecls[pluginId];
+    if (decls == null) continue; // 未注册插件不导入
+    final states = pEntry.value;
+    if (states is! Map<String, dynamic>) continue;
+    for (final permEntry in states.entries) {
+      if (!decls.any((d) => d.key == permEntry.key)) continue; // 声明校验
+      final granted = permEntry.value;
+      if (granted is! bool) continue; // 类型校验
+      final spKey = _permKey(pluginId, permEntry.key);
+      if (overwrite || !prefs.containsKey(spKey)) {
+        await setPermission(prefs, pluginId, permEntry.key, granted);
+        written++;
+      }
+    }
+  }
+  return written;
 }

@@ -7,4 +7,5 @@ export 'update_service.dart';
 export 'plugin_installer.dart';
 export 'core_http_server.dart';
 export 'github_stars.dart';
+export 'sync_import_service.dart';
 

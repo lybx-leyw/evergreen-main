@@ -39,6 +39,7 @@ parent: root
 | 路由表 | `app.dart` | 全 renderer | 路由变更需广播 |
 | 启动组装流程 | `main.dart` | platform（打包） | 初始化顺序变更需通知 platform |
 | 全局错误处理 | `main.dart`（FlutterError.onError） | 全仓 | 错误处理变更需广播 |
+| 插件导出路径 | `core/utils/greenix_path.dart` `resolvePluginsRoot()` | renderer（html-creator / theme-creator 等创作工具） | **2026-08-25 起：创作中心导出统一走 `resolvePluginsRoot()`（单一真理来源），不再依赖 `pluginsDirProvider` 注入；`assets/plugins_bundle/` 仅由 `tool/bundle_plugins.dart` 生成，renderer 禁止直写**。路径解析变更需与 core-utils 对齐后广播 |
 
 ## 4. 规则（本 OWNER 内必须遵守）
 

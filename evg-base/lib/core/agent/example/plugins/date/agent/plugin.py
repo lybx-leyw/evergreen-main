@@ -6,6 +6,8 @@ from datetime import datetime, timezone, timedelta
 
 def main():
     raw = sys.stdin.read()
+    if raw.startswith("\ufeff"):  # Windows 控制台管道可能带 UTF-8 BOM
+        raw = raw[1:]
     args = json.loads(raw) if raw.strip() else {}
     fmt = args.get("format", "iso")
 

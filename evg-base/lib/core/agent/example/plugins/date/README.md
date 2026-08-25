@@ -5,10 +5,10 @@
 
 ## 快速上手
 
+统一 python 路径：`.py` 入口直接运行（manifest `runtime: "python"`，无需编译）。
+
 ```bash
-pip install pyinstaller
-pyinstaller --onefile plugin.py
-cp dist/plugin.exe ./date.exe
+echo '{"format":"cn"}' | python plugin.py
 ```
 
 ## 通信协议
@@ -16,7 +16,7 @@ cp dist/plugin.exe ./date.exe
 stdin 风格。Agent 调用时 JSON 写入进程 stdin：
 
 ```bash
-echo '{"format":"cn"}' | ./date.exe
+echo '{"format":"cn"}' | python plugin.py
 ```
 
 stdout 示例：`2026年07月01日`

@@ -11,8 +11,8 @@
 /// | 3 | 平台 | `Registry` — 工具的注册/启用/禁用/调用全流程 | ★★ |
 /// | 4 | 平台 | `BuiltinRegistry` — 编译时就确定的内置工具 | ★ |
 /// | 5 | 平台 | `Previewer` / `ToolChange` — 写文件前的预览机制 | ★★ |
-/// | 6 | 双方 | `PluginManifest` / `ArgSpec` — .exe 插件怎么声明自己 | ★★ |
-/// | 7 | 插件 | 真实插件发现与执行 — 用 4 个已构建的 .exe 演示 | ★★★ |
+/// | 6 | 双方 | `PluginManifest` / `ArgSpec` — .py 插件怎么声明自己（.exe 为 legacy） | ★★ |
+/// | 7 | 插件 | 真实插件发现与执行 — 用 4 个 .py 演示（统一 python 路径） | ★★★ |
 /// | 8 | 平台 | `Message` 五种工厂 — system/user/assistant/tool 消息怎么造 | ★★ |
 /// | 9 | 平台 | `Session` — 会话的消息历史、token 统计、序列化 | ★★ |
 /// | 10 | 平台 | `AgentEvent` / `TokenUsage` / `StreamEventSink` — 事件总线 | ★★★ |
@@ -421,15 +421,15 @@ void _demoPluginManifest() {
 
 // ═══════ 7. 插件发现与执行 ═══════
 
-/// # 7. 插件发现与执行 — 用真实 .exe 演示
+/// # 7. 插件发现与执行 — 用真实 .py 演示
 ///
 /// 学习目标：理解 PluginBridge 的完整流程——扫描目录 → 解析 manifest → 注册 → 执行 → 刷新。
 ///
 /// 核心概念：
 /// - `PluginBridge.discover(dir)` 同步扫描 `plugins/<name>/` 下的每个子目录
-/// - 发现规则：必须有 `<name>.exe`（或目录下任一 .exe）+ 有效的 `manifest.json`
+/// - 发现规则：必须有 `.py`（统一主路径，或 legacy `.exe`）+ 有效的 `manifest.json`
 /// - 执行方式取决于 manifest.argMode：stdin（JSON 写入标准输入）或 args（根据 ArgSpec 构造命令行）
-/// - 4 个示例插件覆盖了不同语言（Python/C）和不同 arg 风格
+/// - 4 个示例插件覆盖了不同 arg 风格，全部为 Python 标准库实现
 Future<void> _demoPlugins() async {
   _section('7. 插件发现与执行');
 
@@ -442,10 +442,10 @@ Future<void> _demoPlugins() async {
 
   // Step 2：discover — 扫描目录，返回发现的所有 PluginTool
   // PluginBridge 内部逻辑：
-  //   遍历每个子目录 → 找 .exe 文件（优先匹配目录同名的）→ 读 manifest.json → 构造 PluginTool
+  //   遍历每个子目录 → 找入口文件（.py 优先，同名匹配）→ 读 manifest.json → 构造 PluginTool
   final tools = PluginBridge.discover(pluginsDir);
   if (tools.isEmpty) {
-    print('未发现插件（需 .exe + manifest.json）。');
+    print('未发现插件（需 .py + manifest.json）。');
     return;
   }
 
@@ -479,7 +479,7 @@ Future<void> _demoPlugins() async {
     ('date', {'format': 'cn'}),
     // weather：argMode=args, argSpec=flag+flags={"city":"-c","days":"-d"} → -c 北京 -d 2
     ('weather', {'city': '北京', 'days': 2}),
-    // random：argMode=args, argSpec=flag, C 语言实现 → --min 1 --max 100
+    // random：argMode=args, argSpec=flag, Python 标准库实现 → --min 1 --max 100
     ('random', {'min': 1, 'max': 100}),
   ];
 
@@ -487,7 +487,7 @@ Future<void> _demoPlugins() async {
     final name = tc.$1;
     final args = tc.$2;
     if (!registry.has(name)) continue;
-    // callWithArgs → PluginTool.execute → 启动 .exe 进程 → 传入参数 → 收集 stdout
+    // callWithArgs → PluginTool.execute → 启动插件进程（.py 经 python 解释器）→ 传参 → 收集 stdout
     final result = await registry.callWithArgs(name, args);
     // 截断过长输出，保持控制台整洁
     final preview = result.length > 120 ? '${result.substring(0, 120)}...' : result.trimRight();

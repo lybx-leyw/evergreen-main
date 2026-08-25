@@ -10,6 +10,18 @@
 //   - `classroom-demo` 的运行时缓存：ppt_cache / downloads / data/ppt
 //   - 根级非插件元数据：README.md / .data_port / .plugin_states.json / .code-workspace
 //
+// 不变式：`assets/plugins_bundle/` 是 `plugins/` 的**纯镜像**，仅由本脚本生成。
+// 运行期代码（renderer 导出等）禁止直写 bundle —— 违者产生陈旧副本/僵尸条目。
+//
+// 用法：
+//   dart run tool/bundle_plugins.dart             # 重建 bundle + 重写 pubspec 标记块
+//   dart run tool/bundle_plugins.dart --check     # 校验模式（CI 门禁）：
+//                                                 #   a) pubspec.yaml PLUGIN_ASSETS 标记块
+//                                                 #      与 plugins/ 源一致（提交态校验）
+//                                                 #   b) assets/plugins_bundle/ 与源逐文件
+//                                                 #      一致（本地存在时；CI 首建场景跳过）
+//                                                 # 不一致退出码非 0
+//
 // 运行：C:\flutter\bin\cache\dart-sdk\bin\dart.exe tool/bundle_plugins.dart
 import 'dart:io';
 import 'package:path/path.dart' as p;
@@ -67,6 +79,9 @@ bool _shouldSkip(String relative) {
     }
   }
 
+  // 任意层级的 OWNER 职责书（AGENT.md，仓库治理文档，非运行期资源）
+  if (parts.last == 'AGENT.md') return true;
+
   // 点文件 / 点目录（如 .gitignore）：Flutter 资产打包器通常不把这些
   // 实际打进 APK，若仍声明在 manifest 里会导致 rootBundle.load 抛错。
   for (final part in parts) {
@@ -87,7 +102,138 @@ bool _shouldSkip(String relative) {
   return false;
 }
 
-void main() {
+/// 收集 [root] 下所有应打包的相对路径（应用 [_shouldSkip]），排序。
+List<String> _collectRels(String root) {
+  final rels = <String>[];
+  for (final entity in Directory(root).listSync(recursive: true)) {
+    if (entity is! File) continue;
+    final rel = p.relative(entity.path, from: root).replaceAll('\\', '/');
+    if (_shouldSkip(rel)) continue;
+    rels.add(rel);
+  }
+  rels.sort();
+  return rels;
+}
+
+/// 从 pubspec 内容中提取 PLUGIN_ASSETS 标记块行（trim 后，不含标记行）。
+/// 标记块缺失返回 null。
+List<String>? _readPubspecBlock(String content) {
+  final startIdx = content.indexOf('>>>PLUGIN_ASSETS_START>>>');
+  final endIdx = content.indexOf('<<<PLUGIN_ASSETS_END<<<');
+  if (startIdx < 0 || endIdx < 0) return null;
+  final startLineEnd = content.indexOf('\n', startIdx) + 1;
+  final endLineStart = content.lastIndexOf('\n', endIdx);
+  if (startLineEnd <= 0 || endLineStart < startLineEnd) return const [];
+  return content
+      .substring(startLineEnd, endLineStart)
+      .split('\n')
+      .map((l) => l.trim())
+      .where((l) => l.isNotEmpty)
+      .toList();
+}
+
+/// 与 [_injectPubspecAssets] 同一格式的期望标记块行（trim 后）。
+List<String> _expectedBlockLines(List<String> rels) =>
+    rels.map((rel) => '- assets/plugins_bundle/$rel').toList();
+
+/// 逐字节比较。
+bool _bytesEqual(List<int> a, List<int> b) {
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
+}
+
+/// --check 校验模式：返回进程退出码（0=一致，1=不一致）。
+///
+/// 校验三件事：
+///   1) pubspec.yaml PLUGIN_ASSETS 标记块与 plugins/ 源一致（**提交态门禁**，
+///      CI 关键检查——bundle 目录被 .gitignore，提交态只有 pubspec 块能守）；
+///   2) assets/plugins_bundle/ 与 plugins/ 源**文件清单**一致（无陈旧副本/缺漏）；
+///   3) 两侧**文件内容**一致（逐字节）。
+/// bundle 目录不存在（CI 首建场景，构建前将重建）时仅做 pubspec 门禁并提示。
+int _check() {
+  final src = Directory(kSource);
+  if (!src.existsSync()) {
+    stderr.writeln('[bundle-check] ❌ 源目录不存在: $kSource');
+    return 1;
+  }
+  final expected = _collectRels(kSource);
+  final failures = <String>[];
+
+  // ── 1) pubspec 标记块（提交态门禁）──
+  final pubspec = File(kPubspec);
+  if (!pubspec.existsSync()) {
+    stderr.writeln('[bundle-check] ❌ pubspec.yaml 不存在: $kPubspec');
+    return 1;
+  }
+  final block = _readPubspecBlock(pubspec.readAsStringSync());
+  final expectedBlock = _expectedBlockLines(expected);
+  if (block == null) {
+    failures.add('pubspec.yaml 缺少 PLUGIN_ASSETS 标记块'
+        '（>>>PLUGIN_ASSETS_START>>> / <<<PLUGIN_ASSETS_END<<<）');
+  } else {
+    final missing =
+        expectedBlock.where((l) => !block.contains(l)).toList();
+    final extra = block.where((l) => !expectedBlock.contains(l)).toList();
+    if (missing.isNotEmpty) {
+      failures.add('pubspec 标记块缺 ${missing.length} 条：'
+          '${missing.take(3).join(', ')}${missing.length > 3 ? ', ...' : ''}');
+    }
+    if (extra.isNotEmpty) {
+      failures.add('pubspec 标记块含 ${extra.length} 条陈旧引用：'
+          '${extra.take(3).join(', ')}${extra.length > 3 ? ', ...' : ''}');
+    }
+  }
+
+  // ── 2)+3) bundle 目录镜像（本地存在时；CI 首建场景仅提示）──
+  final dest = Directory(kDest);
+  if (!dest.existsSync()) {
+    stderr.writeln('[bundle-check] ℹ assets/plugins_bundle/ 不存在'
+        '（CI 首建场景，构建前将重建）；本次仅校验 pubspec 提交态。');
+  } else {
+    final actual = _collectRels(kDest);
+    final missingInDest =
+        expected.where((r) => !actual.contains(r)).toList();
+    final extraInDest =
+        actual.where((r) => !expected.contains(r)).toList();
+    if (missingInDest.isNotEmpty) {
+      failures.add('bundle 缺 ${missingInDest.length} 个镜像文件：'
+          '${missingInDest.take(3).join(', ')}${missingInDest.length > 3 ? ', ...' : ''}');
+    }
+    if (extraInDest.isNotEmpty) {
+      failures.add('bundle 含 ${extraInDest.length} 个非镜像文件（陈旧副本）：'
+          '${extraInDest.take(3).join(', ')}${extraInDest.length > 3 ? ', ...' : ''}');
+    }
+    for (final rel in expected) {
+      if (!actual.contains(rel)) continue;
+      final a = File(p.join(kSource, rel)).readAsBytesSync();
+      final b = File(p.join(kDest, rel)).readAsBytesSync();
+      if (a.length != b.length || !_bytesEqual(a, b)) {
+        failures.add('文件内容不一致: $rel');
+      }
+    }
+  }
+
+  if (failures.isEmpty) {
+    stderr.writeln('[bundle-check] ✅ 一致：${expected.length} 个插件资产，'
+        'pubspec 标记块 ${expectedBlock.length} 条。');
+    return 0;
+  }
+  stderr.writeln('[bundle-check] ❌ 发现 ${failures.length} 处不一致：');
+  for (final f in failures) {
+    stderr.writeln('  - $f');
+  }
+  stderr.writeln('[bundle-check] 修复：重新运行 `dart run tool/bundle_plugins.dart`'
+      ' 重建 bundle 与 pubspec 标记块，并把 pubspec.yaml 变更一并提交。');
+  return 1;
+}
+
+void main(List<String> args) {
+  if (args.contains('--check')) {
+    exit(_check());
+  }
+
   final src = Directory(kSource);
   if (!src.existsSync()) {
     stderr.writeln('[bundle] 源目录不存在: $kSource');
@@ -97,27 +243,19 @@ void main() {
   if (dest.existsSync()) dest.deleteSync(recursive: true);
   dest.createSync(recursive: true);
 
-  final rels = <String>[];
+  final rels = _collectRels(kSource);
   var copied = 0;
-  var skipped = 0;
-  for (final entity in src.listSync(recursive: true)) {
-    if (entity is! File) continue;
-    final rel = p.relative(entity.path, from: kSource).replaceAll('\\', '/');
-    if (_shouldSkip(rel)) {
-      skipped++;
-      continue;
-    }
+  for (final rel in rels) {
     final out = File(p.join(kDest, rel));
     out.parent.createSync(recursive: true);
-    entity.copySync(out.path);
+    File(p.join(kSource, rel)).copySync(out.path);
     copied++;
-    rels.add(rel);
   }
-  stderr.writeln('[bundle] 完成：复制 $copied 个文件，跳过 $skipped 个。');
+  stderr.writeln('[bundle] 完成：复制 $copied 个文件。');
   stderr.writeln('[bundle] 目标: $kDest');
 
   // 注入显式资产清单到 pubspec.yaml（本环境 Flutter 目录资产包含不递归子目录）
-  _injectPubspecAssets(rels..sort());
+  _injectPubspecAssets(rels);
 }
 
 /// 把 [rels] 显式写入 pubspec.yaml 的标记块之间，保证 APK 打包包含所有插件资产。

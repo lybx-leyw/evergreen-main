@@ -60,24 +60,48 @@ final total = TokenEstimator.estimateConversation(messages);
 
 ## 三、Python 环境
 
-`PythonEnv` — Python 解释器发现 + 依赖安装 + 子进程执行。
+`python_env.dart` — **统一解释器路径发现（单例收敛）+ 依赖安装 + 子进程执行**。
+
+自 2026-08-25（t9）起，全仓 Python 解释器发现统一收敛到 `PythonInterpreter.resolve()`，
+解析顺序：**configuredPath → Greenix 嵌入式目录 → 系统 PATH → 安卓 Chaquopy 标记**。
+Greenix 目录由 `bindGreenixPythonDir(() => greenixPythonDir)` 在 app 启动
+（`app_bootstrap` 的 `initGreenixPaths()` 之后）绑定为单一真理来源，消除
+`python_env` 内联 cwd 路径与 `greenix_path.greenixPythonDir` 的双真理。
 
 ```dart
 import 'package:evergreen_base/core/utils/python_env.dart';
 
-final env = PythonEnv();
-final error = await env.ensureReady(onProgress: (msg) => print(msg));
-if (error != null) print('环境异常: $error');
+// ① 新代码：结构化解析（推荐）
+final rt = await PythonInterpreter.instance.resolve();
+if (rt.isAvailable) {
+  if (rt.isAndroidChaquopy) {
+    // 安卓进程内解释器：走 ChaquopyRunner / MethodChannel，不可当命令执行
+  } else {
+    Process.run(rt.exePath!, [script], ...); // rt.kind: bundled | system
+  }
+}
+
+// ② 旧签名兼容层（行为不变，内部已收敛到单例）
+final py = await resolvePythonExe(configuredPath: bundledCandidate);
+if (py != null) { /* 安卓返回 kChaquopySentinel */ }
+
+// ③ 同步组装点（无法 await 的 provider 构造等）
+final bundled = PythonInterpreter.bundledPathSync(); // → greenix 目录 python.exe 或 null
 ```
 
-| 函数 | 输入 | 输出 | 说明 |
-|------|------|------|------|
-| `PythonEnv({python, requirements})` | `python: String?` 自定义路径<br>`requirements: String?` 自定义 requirements.txt | `PythonEnv` | 创建实例 |
-| `.ensureReady({onProgress})` | `onProgress: void Function(String)` | `Future<String?>` | 检查并安装依赖，null 则就绪 |
-| `.checkDeps()` | — | `Future<String?>` | 仅检查依赖 |
-| `.installDeps({onProgress})` | `onProgress: void Function(String, bool)` | `Future<bool>` | 仅安装 |
-| `resolvePythonExe({configuredPath})` | `configuredPath: String?` | `Future<String?>` | 自动发现 Python 路径 |
-| `runOcrProcess(exe, args, {dir})` | `exe: String`, `args: List<String>`, `dir: String?` | `Future<ProcessResult>` | 运行 Python 子进程 |
+| 成员 | 说明 |
+|------|------|
+| `PythonInterpreter.instance.resolve({configuredPath})` | `Future<PythonRuntime>` — 统一解析入口（成功结果缓存，configuredPath 传参跳过缓存） |
+| `PythonRuntime` | 结构化结果：`kind`（bundled/system/androidChaquopy/none）+ `exePath` + `isAvailable`/`isAndroidChaquopy`/`isBundled`/`legacyExePath` |
+| `PythonRuntimeKind` | 运行时种类枚举（哨兵收敛，杜绝字符串散落） |
+| `kChaquopySentinel` | 安卓哨兵常量（`'chaquopy'`，`legacyExePath` 在安卓返回） |
+| `bindGreenixPythonDir(provider)` | 绑定 Greenix Python 目录（app 启动调用；消除双真理来源；会清空缓存） |
+| `PythonInterpreter.resolveExePath({configuredPath})` | 兼容旧签名：返回路径 / 哨兵 / null |
+| `PythonInterpreter.bundledPathSync()` | 同步探测嵌入式 Python（供无法 await 的组装点） |
+| `resolvePythonExe({configuredPath})` | 顶层兼容包装（行为不变，收敛到单例） |
+| `PythonEnv({python, requirements})` | OCR 依赖检查/安装实例（`pythonExe` 内部走单例） |
+| `runOcrProcess(exe, args, {dir})` | 运行 OCR Python 子进程 |
+| `pipInstallPackages(packages, {pythonExe, timeout})` | pip 安装（⚠️ 仅桌面：安卓 Chaquopy 无 pip，依赖须构建期打进 APK） |
 
 ---
 

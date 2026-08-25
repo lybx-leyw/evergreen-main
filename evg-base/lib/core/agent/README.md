@@ -81,12 +81,37 @@ sessionStoreProvider.overrideWith((ref) => MyStore());
 | Provider | 说明 |
 |------|------|
 | `sessionListProvider` | 出: `AsyncValue<List<Session>>` / 会话列表 |
-| `createSessionProvider(title?)` | 入: `String?` / 新建并切换 |
-| `switchSessionProvider(id)` | 入: `String` / 切换（自动保存当前） |
+| `createSessionProvider(title?)` | 入: `String?` / 新建并切换（根会话） |
+| `switchSessionProvider(id)` | 入: `String` / 切换（自动保存当前，透传 parent_id/fork_turn） |
+| `forkSessionProvider(sourceId, forkTurn, {title?})` | 入: `String`, `int` / 从源会话分叉新会话（「从此处继续」：parent_id=源、fork_turn=索引、继承 `[0..forkTurn)` 消息） |
 | `saveCurrentSessionProvider(id)` | 入: `String` / 保存当前 |
 | `deleteSessionProvider(id)` | 入: `String` / 删除 |
 | `renameSessionProvider(id, title)` | 入: `String`, `String` / 重命名 |
 | `activeSessionTitleProvider` | 出: `String` / 当前标题 |
+
+### 会话合并与记忆拼接（同步中心）
+
+```dart
+// 会话合并：包含则删小 / 路径分化都保留
+final r = mergeSessions(localSessions, importedSessions);
+r.merged;             // 保留会话（updatedAt 降序）
+r.deletedSessionIds;  // 删除清单
+r.keepReasons;        // 保留 id → 原因
+r.deletedReasons;     // 删除 id → 原因
+
+// 记忆直接拼接：同 name（id）跳过避免重复写入
+final r2 = mergeMemories(localMemories, importedMemories);
+r2.merged;                // 拼接后全量
+r2.skippedDuplicates;     // 同 id 已存在被跳过的导入记忆
+await mergeMemoriesIntoStore(store, importedMemories); // 落盘 + 索引重建
+```
+
+- **判定标准**：A.messages 是 B.messages 的严格前缀（逐条序列化相等）→ 删 A 留 B；
+  fork 分叉 / 独立树 / 同前缀不同尾 → 都保留；空会话不删除；旧数据（无
+  `parent_id`/`fork_turn`）按前缀比较兜底。契约见
+  `docs/superpowers/specs/egsync-sync-center-spec-v1.md` §七/§八。
+- **Session 派生字段**：`parentId`（`parent_id`）/ `forkTurn`（`fork_turn`），
+  缺失回退 null、旧文件向后兼容。
 
 ### 文件 I/O 工具
 
@@ -135,10 +160,10 @@ await writer.execute({'action': 'replace_text', 'path': 'a.txt', 'old_text': 'fo
 
 | 方法 | 说明 |
 |------|------|
-| `PluginBridge.discover(pluginsDir)` | 入: `Directory` / 出: `List<Tool>` / 同步扫描 `plugins/`（`.exe` 或 `.py`） |
+| `PluginBridge.discover(pluginsDir)` | 入: `Directory` / 出: `List<Tool>` / 同步扫描 `plugins/`（**`.py` 优先**，`.exe` 为 legacy 回退） |
 | `PluginBridge.registerAll(registry, pluginsDir)` | 入: `Registry`, `Directory` / 扫描并注册，跳过已注册 |
 | `PluginBridge.refresh(registry, pluginsDir)` | 入: `Registry`, `Directory` / 重新扫描，同步增删 |
-| `PluginManifest.fromJson(json)` | 入: `String` / 出: `PluginManifest` / JSON → 清单（含 `runtime` 字段） |
+| `PluginManifest.fromJson(json)` | 入: `String` / 出: `PluginManifest` / JSON → 清单（含 `runtime` 字段：`native`=legacy .exe、`python`=.py） |
 | `ArgSpec.fromJson(map)` | 入: `Map?` / 出: `ArgSpec` / argSpec JSON → 规范 |
 | `Registry.register(tool)` | 入: `Tool` / 注册工具，重复抛异常 |
 | `Registry.remove(name)` | 入: `String` / 移除已注册工具 |
@@ -237,6 +262,8 @@ runtime.events.listen((event) {
 |------|------|
 | `id` | `String` / 会话 ID |
 | `title` | `String` / 标题 |
+| `parentId` | `String?` / 派生父会话 id（`parent_id`，null=根会话） |
+| `forkTurn` | `int?` / 分叉点索引（`fork_turn`，父消息 `[0..forkTurn)` 继承后分化） |
 | `messages` | `List<Message>` / 完整消息历史 |
 | `add(msg)` | 入: `Message` / 追加消息 |
 | `lastUsage` | `TokenUsage?` / 最近一次用量 |

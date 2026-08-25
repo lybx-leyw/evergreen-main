@@ -25,5 +25,7 @@
     },
     "required": []
   },
-  "readOnly": false
+  "readOnly": false,
+  "runtime": "python",
+  "implementation": "builtin-dart"
 }

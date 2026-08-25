@@ -290,7 +290,7 @@ void _themeShow() {
 void _linkage() {
   print('''
   super_app/
-    data/plugin.exe     → DataOrchestrator 数据源 (super_grades)
+    data/plugin.py      → DataOrchestrator 数据源 (super_grades)
     module/manifest.json → ModuleRegistry 页面 (data[].type 引用数据源)
     agent/agent_bridge   → PluginBridge AI工具 → HTTP GET 数据源 → 过滤返回
 
@@ -298,8 +298,8 @@ void _linkage() {
     theme/theme.json    → ThemeStore 全局暗色主题
 
   Agent 调用流程:
-    AI → PluginBridge → agent_bridge.exe --query 李
-      → HTTP GET data/plugin.exe:/data?q=李
+    AI → PluginBridge → agent_bridge.py --query 李
+      → HTTP GET data/plugin.py:/data?q=李
       → 过滤 → stdout → AI
 
   加载顺序: data → module → agent → theme

@@ -15,12 +15,15 @@ library html_creator_tools;
 import 'dart:convert';
 import 'dart:io';
 import 'package:evergreen_base/core/agent/tool.dart';
+import 'package:evergreen_base/core/utils/greenix_path.dart';
 import 'package:evergreen_base/renderer/templates/html_modle/bridge_script.dart'
     show forwardCoreHttp;
 import 'package:evergreen_base/renderer/templates/html_modle/core_api_discovery.dart'
     show CoreService;
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
+
+import 'html_export_service.dart' show htmlPluginIdError, writeHtmlPluginModule;
 
 /// 工具：将 HTML 内容写入磁盘文件。
 ///
@@ -116,10 +119,15 @@ class ReadHtmlFileTool extends SimpleTool {
 
 /// 工具：将工作区文件导出为完整的 Evergreen HTML 插件。
 ///
-/// 生成 plugins/<id>/module/ 目录结构，包含 manifest.json + index.html + style.css + script.js。
+/// 生成 plugins/<id>/module/ 目录结构，包含 manifest.json + index.html
+/// （style.css / script.js 合并进 index.html）。
 class ExportHtmlPluginTool extends SimpleTool {
   final String workspaceDir;
-  final String pluginsDir;
+  /// 插件根目录；缺省时使用 [resolvePluginsRoot]（与手动导出/主题插件同源）。
+  final String? pluginsDir;
+
+  /// 插件根目录（平台正确解析：桌面=项目 plugins/，安卓=应用私有 .greenix/plugins）。
+  String get pluginsRoot => pluginsDir ?? resolvePluginsRoot();
   /// 回调：导出成功后通知 UI 刷新预览（切换到 HTTP 模式）。
   final void Function(String pluginId) onExported;
 
@@ -138,7 +146,7 @@ class ExportHtmlPluginTool extends SimpleTool {
 
   ExportHtmlPluginTool({
     required this.workspaceDir,
-    required this.pluginsDir,
+    this.pluginsDir,
     required this.onExported,
     this.resolveBoundPluginId,
     this.onBound,
@@ -175,27 +183,14 @@ class ExportHtmlPluginTool extends SimpleTool {
             if (boundId != null && boundId.isNotEmpty) {
               pluginId = boundId;
             }
-            // T3-P3D 守卫：插件 ID 格式校验（小写字母/数字/连字符，
-            // 禁止路径分隔符——防路径穿越逃出 plugins/ 目录）。
-            if (pluginId.isEmpty) return '[error: plugin_id 参数为空]';
-            if (pluginId.length > 64) {
-              return '[error: plugin_id 过长（${pluginId.length} 字符，上限 64）]';
+            // T3-P3D 守卫：插件 ID 格式校验（共享 htmlPluginIdError：
+            // 小写字母开头 + 小写字母/数字/连字符，防纯数字/大写/路径穿越）。
+            final idErr = htmlPluginIdError(pluginId);
+            if (idErr != null) {
+              return '[error: $idErr]';
             }
-            final idPattern = RegExp(r'^[a-z0-9]+(?:-[a-z0-9]+)*$');
-            if (!idPattern.hasMatch(pluginId)) {
-              return '[error: plugin_id 非法: "$pluginId"——仅允许小写字母/数字/'
-                  '连字符（如 my-dashboard），禁止路径分隔符/大写/空格]';
-            }
-
-            final normPluginsDir = pluginsDir.endsWith('/') || pluginsDir.endsWith('\\')
-                ? pluginsDir : '$pluginsDir/';
-            final moduleDir = Directory('${normPluginsDir}$pluginId/module');
 
             try {
-              if (!await moduleDir.exists()) {
-                await moduleDir.create(recursive: true);
-              }
-
               // 读取工作区文件
               final htmlFile = File(p.join(workspaceDir, 'index.html'));
               final cssFile = File(p.join(workspaceDir, 'style.css'));
@@ -242,11 +237,21 @@ class ExportHtmlPluginTool extends SimpleTool {
                 },
               };
 
-              await File('${moduleDir.path}/manifest.json')
-                  .writeAsString(const JsonEncoder.withIndent('  ').convert(manifest));
-              await File('${moduleDir.path}/index.html').writeAsString(fullHtml);
+              // 单目标原子导出（与手动导出共用 writeHtmlPluginModule：
+              // resolvePluginsRoot + path_sandbox 校验 + 临时目录替换）。
+              // ⚠ 闭包内不能访问 this.getter（字段初始化器限制），
+              // 直接由构造参数 pluginsDir ?? resolvePluginsRoot() 解析。
+              final moduleDir = await writeHtmlPluginModule(
+                pluginsRoot: pluginsDir ?? resolvePluginsRoot(),
+                pluginId: pluginId,
+                files: {
+                  'manifest.json':
+                      const JsonEncoder.withIndent('  ').convert(manifest),
+                  'index.html': fullHtml,
+                },
+              );
 
-              debugPrint('[ExportHtmlPlugin] ✅ 导出成功: ${moduleDir.path}');
+              debugPrint('[ExportHtmlPlugin] ✅ 导出成功: $moduleDir');
               onExported(pluginId);
               // 首次导出：绑定画布 ↔ 插件 ID，后续导出均复用
               if (boundId == null || boundId.isEmpty) {
@@ -254,7 +259,7 @@ class ExportHtmlPluginTool extends SimpleTool {
               }
 
               return '✅ 插件 "$pluginName" ($pluginId) 已导出\n'
-                  '📁 ${moduleDir.path}/\n'
+                  '📁 $moduleDir/\n'
                   '  ├── manifest.json\n'
                   '  └── index.html\n'
                   '预览面板已切换到 HTTP 模式加载真实插件。';
@@ -804,7 +809,7 @@ class CheckUiQualityTool extends SimpleTool {
 /// 为 HTML 创作 Agent 构造专用工具集。
 List<Tool> createHtmlCreatorTools({
   required String workspaceDir,
-  required String pluginsDir,
+  String? pluginsDir,
   required void Function(String pluginId) onExported,
   required Future<String> Function() awaitReview,
   String? Function()? resolveBoundPluginId,

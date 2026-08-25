@@ -1,4 +1,4 @@
-# Agent API 接口契约（Sprint 1 冻结）
+﻿# Agent API 接口契约（Sprint 1 冻结）
 
 | 元信息 | 值 |
 | --- | --- |
@@ -15,7 +15,7 @@
 
 ## I1. PluginBridge.discover()
 
-**消费方：** Agent 内部  
+**消费方：** Agent 内部
 **冻结日期：** Sprint 1
 
 ```dart
@@ -23,10 +23,11 @@
 ///
 /// 发现规则：
 ///   1. 遍历 pluginsDir 下每个子目录
-///   2. 在子目录的 agent/ 子目录中查找入口文件（.exe 或 .py，优先匹配与目录同名的，.exe 优先）
-///   3. 读取 agent/manifest.json → 解析为 PluginManifest
-///   4. manifest.isValid（name 非空）→ 构造 PluginTool
-///   5. 执行时按 manifest.runtime（native / python）选择运行方式
+///   2. 读取 agent/manifest.json → 解析为 PluginManifest（isValid 校验）
+///   3. 在 agent/ 子目录中查找入口文件：**`.py` 优先**（同名 `<目录名>.py` 最高优先）；
+///      仅当无任何 `.py` 且 manifest 未声明 `runtime:"python"` 时才回退 `.exe`（legacy）
+///   4. 构造 PluginTool
+///   5. 执行时按 manifest.runtime（python / native）选择运行方式
 static List<Tool> PluginBridge.discover(Directory pluginsDir)
 ```
 
@@ -37,16 +38,20 @@ static List<Tool> PluginBridge.discover(Directory pluginsDir)
 
 **目录规约：**
 ```
-plugins/<name>/agent/<name>.exe    # 可执行文件（native）
-plugins/<name>/agent/<name>.py     # Python 脚本（runtime="python"）
+plugins/<name>/agent/<name>.py     # Python 脚本（统一主路径，runtime="python"）
+plugins/<name>/agent/<name>.exe    # legacy 可执行文件（无 .py 且 runtime≠python 时回退）
 plugins/<name>/agent/manifest.json # 元数据（必写）
 ```
+
+> **t-A2 变更（2026-08-25）**：入口发现从 `.exe` 优先改为 **`.py` 优先**（统一 python
+> 唯一路径）；`PluginTool.entryPath` 暴露实际入口路径；manifest `runtime:"python"`
+> 却只有 `.exe` 的插件跳过（声明错配 fail 可见）。
 
 ---
 
 ## I2. Tool.execute()
 
-**消费方：** Agent 主循环  
+**消费方：** Agent 主循环
 **冻结日期：** Sprint 1
 
 ```dart
@@ -78,7 +83,7 @@ abstract class Tool {
 
 ## I3. AgentEvent 流
 
-**消费方：** 渲染工程师  
+**消费方：** 渲染工程师
 **冻结日期：** Sprint 1
 
 ```dart
@@ -120,7 +125,7 @@ await for (final event in MockEventStream.generate()) { ... }
 
 ## I4. Controller.send()
 
-**消费方：** 渲染 + 全局工程师  
+**消费方：** 渲染 + 全局工程师
 **冻结日期：** Sprint 1
 
 ```dart
@@ -148,7 +153,7 @@ idle → send() → running → turnDone → idle
 
 ## I+. activateSkill / deactivateSkill
 
-**消费方：** 渲染（ModuleDispatch）  
+**消费方：** 渲染（ModuleDispatch）
 **冻结日期：** Sprint 1
 
 ```dart
@@ -168,8 +173,8 @@ List<String> get activeSkillIds
 
 ## I++. AgentHttpServer
 
-**消费方：** 插件 .exe  
-**冻结日期：** Sprint 1  
+**消费方：** 插件 .exe
+**冻结日期：** Sprint 1
 **完整文档：** `docs/agent-http-api.md`
 
 ### 端口发现
@@ -199,7 +204,7 @@ final url = 'http://127.0.0.1:$port';
 
 ## Skill 格式规范（Sprint 1 冻结）
 
-**消费方：** 插件开发者  
+**消费方：** 插件开发者
 **格式：** Markdown + YAML frontmatter
 
 ```markdown
@@ -266,8 +271,8 @@ allowed_tools: ["search", "read_file"]
 
 ## ScriptedAgentHttpServer（集成测试）
 
-**消费方：** Core 工程师（集成测试场景 [3][4]）  
-**冻结日期：** Sprint 2  
+**消费方：** Core 工程师（集成测试场景 [3][4]）
+**冻结日期：** Sprint 2
 **源码：** `tools/scripted_agent_http_server.dart`
 
 无需 AI Provider / API Key 的预编排 HTTP 服务器，纯 `dart run` 可启动。
@@ -292,6 +297,52 @@ server.stop();
 
 ---
 
+## I5. mergeSessions() / mergeMemories()（同步中心合并语义）
+
+**消费方：** 同步中心导入端（t-C3 core-module，经 `agent.dart` barrel）
+**冻结日期：** 2026-08-25
+**源码：** `session_merge.dart` / `memory/memory_merge.dart`
+**契约：** `docs/superpowers/specs/egsync-sync-center-spec-v1.md` §七/§八
+
+```dart
+/// 合并本地会话与导入会话（包含则删小 / 路径分化都保留）。
+SessionMergeResult mergeSessions(List<Session> local, List<Session> imported);
+
+class SessionMergeResult {
+  final List<Session> merged;            // 保留会话（updatedAt 降序）
+  final List<String> deletedSessionIds;  // 删除清单
+  final Map<String, String> keepReasons;   // 保留 id → 原因
+  final Map<String, String> deletedReasons; // 删除 id → 原因
+}
+
+/// 直接拼接本地与导入记忆（同 name 跳过，避免同 id 重复写入）。
+MemoryMergeResult mergeMemories(List<Memory> local, List<Memory> imported);
+MemoryMergeResult mergeMemoriesIntoStore(IMemoryStore store, List<Memory> imported);
+
+class MemoryMergeResult {
+  final List<Memory> merged;             // 拼接后全量
+  final List<Memory> skippedDuplicates;  // 同 id 已存在被跳过的导入记忆
+}
+```
+
+**会话 JSON 结构新增字段**（`.greenix/sessions/{id}.json`，旧文件缺失时回退 null，向后兼容）：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `parent_id` | `string \| null` | 本会话派生的父会话 id；`null` = 根会话 |
+| `fork_turn` | `int \| null` | 分叉点在父会话 messages 中的 0-based 索引；`null` = 未分叉（普通续写） |
+
+**合并判定标准（t-C4 实施版，前缀比较为最终判定、parent 元数据为充分条件）：**
+1. 同 id：内容相等 → 去重保留一份；一方是另一方严格前缀 → 保留更长；内容分化 → 保留本地（同文件不可共存）。
+2. 完全包含：A.messages 是 B.messages 的严格前缀（A 更短且逐条序列化相等）→ 删 A 保留 B。
+3. 路径分化：互不为前缀（fork_turn 分叉 / 独立树 / 同前缀不同尾）→ 两个都保留。
+4. 空会话（messages 为空）不参与删除。
+5. 无元数据旧数据同样按前缀比较判定（启发式兜底）。
+
+**写入方落地：** `session_manager.dart` 新增 `forkSessionProvider`（「从此处继续」分叉入口：`parent_id` = 源会话 id、`fork_turn` = 分叉索引、消息继承 `[0..forkTurn)`）；`createSessionProvider` 重置派生元数据为根会话；`switchSessionProvider` 同步透传 `parent_id`/`fork_turn`。
+
+---
+
 ## 更新记录
 
 | 日期 | 变更 |
@@ -300,3 +351,5 @@ server.stop();
 | 2026-07-03 | Sprint 2 补充：AiUnavailable + OCR 管线 |
 | 2026-07-03 | Sprint 2 补充：ScriptedAgentHttpServer + event_serializers 共享提取 |
 | 2026-08-25 | PluginBridge 支持 `.py` + `runtime` 字段；EventKind 全集表核对；版本号以根 README.md 为准 |
+| 2026-08-25 | 新增 I5：mergeSessions / mergeMemories（同步中心合并语义，t-C4 落地）；会话 JSON 新增 parent_id / fork_turn 字段 |
+| 2026-08-25 | I1 更新（t-A2）：_findEntry `.py` 优先（.exe legacy 回退）、PluginTool.entryPath、runtime:"python"+仅 .exe 跳过 |

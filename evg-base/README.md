@@ -64,6 +64,8 @@ flutter run -d windows
 flutter build windows --release --dart-define=EVERGREEN_ZJU=true --no-tree-shake-icons
 ISCC.exe scripts\installer.iss "/DMyAppSuffix=-Zju" "/DMyBuildMode=Release"
 # 双版：-Zju（浙大专用版）/ -Std（通用版）；输出 build\installer\EvergreenSetup{Zju|Std}-{Release|Debug}-<ver>.exe
+# 注意：assets/plugins_bundle/ 是 plugins/ 的纯镜像，仅由 tool/bundle_plugins.dart 生成；
+# 构建前先跑 dart run tool/bundle_plugins.dart --check（O4 CI 门禁）校验一致性。
 ```
 
 ## 插件接入

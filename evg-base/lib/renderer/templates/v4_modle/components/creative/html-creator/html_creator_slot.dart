@@ -9,13 +9,11 @@ import 'html_creator_view.dart';
 class HtmlCreatorSlot extends ConsumerWidget {
   final ModuleDescriptor? descriptor;
   final ComponentDescriptor? component;
-  final String? pluginsDir;
 
   const HtmlCreatorSlot({
     super.key,
     this.descriptor,
     this.component,
-    this.pluginsDir,
   });
 
   @override
@@ -23,7 +21,6 @@ class HtmlCreatorSlot extends ConsumerWidget {
     return HtmlCreatorView(
       descriptor: descriptor,
       component: component,
-      pluginsDir: pluginsDir,
     );
   }
 }

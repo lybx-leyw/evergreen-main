@@ -36,7 +36,7 @@ Python 管线（OCR / PDF 翻译）、嵌入式运行时、安装包配置。
 ```mermaid
 flowchart LR
     A["flutter pub get"] --> B["tool/gen_template_registry.dart --profile<br/>release_full（浙大版）/ release_std（通用版）"]
-    B --> C["tool/bundle_plugins.dart + tool/bundle_scripts.dart"]
+    B --> C["tool/bundle_plugins.dart --check（O4 门禁）<br/>→ tool/bundle_plugins.dart + tool/bundle_scripts.dart"]
     C --> D{"目标平台"}
     D -->|Windows| E["flutter build windows --release<br/>--dart-define=EVERGREEN_ZJU=true<br/>--no-tree-shake-icons"]
     E --> F["预置嵌入 Python 3.10.11 到<br/>build/greenix_dist/python"]
@@ -48,8 +48,9 @@ flowchart LR
 ### Windows 安装包（CI：`.github/workflows/release.yml`）
 
 ```bash
-# 1. 生成模板注册表（profile 二选一）+ 插件/脚本资产
+# 1. 生成模板注册表（profile 二选一）+ bundle --check 门禁 + 插件/脚本资产
 dart run tool/gen_template_registry.dart --profile release_full   # 浙大专用版；通用版用 release_std
+dart run tool/bundle_plugins.dart --check   # O4 门禁：校验提交态一致性（pubspec 标记块 + 本地镜像），不一致退出非 0
 dart run tool/bundle_plugins.dart
 dart run tool/bundle_scripts.dart
 
@@ -68,7 +69,7 @@ ISCC.exe scripts\installer.iss "/DMyAppName=Evergreen" "/DMyAppSuffix=-Zju" "/DM
 ### Android APK
 
 ```bash
-# 1. 生成模板注册表 + 插件/脚本资产（同 Windows 步骤 1）
+# 1. 生成模板注册表 + bundle --check 门禁 + 插件/脚本资产（同 Windows 步骤 1）
 # 2. 构建 APK（Chaquopy 在构建期把 Python 3.11 与 pip 依赖编译进 APK）
 flutter build apk --debug --dart-define=EVERGREEN_ZJU=true
 # 注意：buildPython 缺失时 chaquopy 会静默跳过 src/main/python 打包，
@@ -78,6 +79,8 @@ flutter build apk --debug --dart-define=EVERGREEN_ZJU=true
 ## 规则
 
 - 嵌入式 Python 已自带，用户无需安装 Python。
+- **`assets/plugins_bundle/` 是 `plugins/` 的纯镜像不变式**：仅由 `tool/bundle_plugins.dart` 生成；运行期代码（renderer 导出等）禁止直写 bundle。校验用 `dart run tool/bundle_plugins.dart --check`（O4 门禁，CI 构建前执行；`assets/plugins_bundle/` 被 .gitignore，CI 首建场景只校验 pubspec 提交态）。修复漂移：重跑 `bundle_plugins.dart` 并把 pubspec.yaml 变更一并提交。
+- 排除规则含任意层级的 `AGENT.md`（OWNER 职责书，非运行期资源）、顶层 `README.md`、`.exe`、点文件、Python 缓存等（详见 `tool/bundle_plugins.dart` 的 `_shouldSkip`）。
 - Windows：OCR / PDF 翻译依赖由 `setup_python.cmd` 预装到嵌入式 Python；Android：依赖由 Chaquopy 构建期安装（`android/app/build.gradle.kts` 的 `chaquopy.pip` 声明）。
 - 修改 `plugins/` 或 `scripts/` 资产后必须重跑 `tool/bundle_plugins.dart` / `tool/bundle_scripts.dart`，否则 APK / 安装包打入旧文件。
 - `pubspec.yaml` 资产声明分两类：`assets/plugins_bundle/`、`assets/scripts_bundle/` 由上述工具写入各自标记块（`>>>PLUGIN_ASSETS_START>>>` / `>>>SCRIPTS_ASSETS_START>>>`，重跑即整体重写）；`docs/plugin-registry/`（registry 清单 + `assets/` 本地资源）为手写声明，须保持标记块外、逐文件显式声明（目录声明不递归子目录），勿放入自动生成块。

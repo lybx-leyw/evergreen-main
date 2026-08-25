@@ -342,6 +342,9 @@ class AppBootstrap {
   /// Greenix 路径初始化（致命：后续所有步骤依赖路径）。
   Future<Result<void>> _stepGreenixPaths() async {
     await initGreenixPaths();
+    // Python 解释器解析收敛：绑定 greenixPythonDir 为单一真理来源
+    // （消除 python_env 内联 cwd 路径与 greenix_path 的双真理）。
+    bindGreenixPythonDir(() => greenixPythonDir);
     // 路径必须在 initGreenixPaths 之后解析（安卓：可写目录；桌面：项目根）
     projectRoot = Platform.isAndroid
         ? p.dirname(androidPluginsDir)
@@ -579,25 +582,25 @@ class AppBootstrap {
     registry.register(RunSkillTool(
         skillToolLoader, skillIndex!, _agentProvider!, registry));
     registry.register(ListSkillsTool(skillToolLoader, skillIndex!));
-    // 注册嵌入式 Python 解释器工具——多级回退发现
+    // 注册嵌入式 Python 解释器工具——统一解析（PythonInterpreter 单例收敛）
     // ① .greenix/python/python.exe（安装包预置/CI 供给的嵌入式 Python，最高优先级）
     // ② 用户配置路径 → 系统 PATH（python3 → python → py -3）
     final bundledCandidate = p.join(greenixPythonDir, 'python.exe');
-    final resolvedPython =
-        await resolvePythonExe(configuredPath: bundledCandidate);
-    if (resolvedPython != null) {
+    final pyRt =
+        await PythonInterpreter.instance.resolve(configuredPath: bundledCandidate);
+    if (pyRt.isAvailable && pyRt.exePath != null) {
       // workDir: 嵌入式 Python 用其所在目录；系统 PATH 命令用 workspace
-      final isBundled =
-          resolvedPython == bundledCandidate || p.isAbsolute(resolvedPython);
-      // 当是完整路径时用父目录，否则（系统 PATH 命令如 python/python3）用 workspace
+      // （与旧 isBundled 判定等价：configured 绝对路径或嵌入式目录命中即 bundled）
+      final isBundled = pyRt.isBundled &&
+          (pyRt.exePath == bundledCandidate || p.isAbsolute(pyRt.exePath!));
       final workDir =
-          isBundled ? Directory(resolvedPython).parent.path : aiWorkspace;
+          isBundled ? Directory(pyRt.exePath!).parent.path : aiWorkspace;
       registry.register(PythonRunnerTool(
-        pythonExePath: resolvedPython,
+        pythonExePath: pyRt.exePath!,
         pythonWorkDir: workDir,
         workspaceDir: aiWorkspace,
       ));
-      Log().info('[BOOT] PythonRunnerTool 已注册 ($resolvedPython, workDir: $workDir)');
+      Log().info('[BOOT] PythonRunnerTool 已注册 (${pyRt.exePath}, workDir: $workDir)');
     } else {
       Log().warn('[BOOT] ⚠ Python 解释器未找到——已尝试 .greenix/python/、系统 PATH。');
       Log().warn('[BOOT]    AI 将无法执行 Python 代码。安装 Python 3.8+ 或放置 python.exe 到 .greenix/python/。');

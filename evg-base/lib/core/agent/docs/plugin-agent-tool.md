@@ -1,4 +1,4 @@
-# Agent 工具 .exe 开发规范
+# Agent 工具 .py 开发规范（.exe 为 legacy）
 
 | 元信息 | 值 |
 | --- | --- |
@@ -6,9 +6,11 @@
 | 版本 | 以根 README.md 为准 |
 | 日期 | 2026-08-25 |
 | 负责人 | core-agent |
-| 适用 | Agent 工具 .exe/.py 作者 |
+| 适用 | Agent 工具 .py 作者（.exe 仅存量兼容） |
 
-> 面向插件开发者：如何编写一个可与 Evergreen Agent 桥接的 `.exe`（或 `.py`）工具。
+> 面向插件开发者：如何编写一个可与 Evergreen Agent 桥接的 `.py` 工具。
+> **统一 python 唯一路径**：新插件一律写 `.py`（纯标准库优先，跨平台
+> 桌面解释器 / 安卓 Chaquopy 同一份脚本），`.exe` 仅作存量 legacy 兼容。
 
 ---
 
@@ -18,15 +20,16 @@
 plugins/<name>/
   agent/
     manifest.json    # 工具元数据（必写）
-    <name>.exe       # 可执行文件（native，优先匹配目录同名 .exe）
-    <name>.py        # Python 脚本（runtime="python" 时直接执行，无需编译）
+    <name>.py        # Python 脚本（统一主路径，runtime="python" 或扩展名推断，无需编译）
+    <name>.exe       # （legacy）仅存量 .exe 插件；新插件不要产出
     README.md        # 插件说明（可选）
 ```
 
 PluginBridge 扫描 `plugins/` 下每个子目录的 `agent/` 子目录：
-- 必须有至少一个入口文件（`.exe` 或 `.py`，优先匹配 `<目录名>.exe`，其次 `<目录名>.py`）
+- 必须有至少一个入口文件（**`.py` 优先**——同名 `<目录名>.py` 最高优先；仅当无任何
+  `.py` 且 manifest 未声明 `"runtime": "python"` 时才回退 `.exe` legacy）
 - 必须有 `manifest.json` 且 `name` 非空
-- `.py` 入口需在 manifest 中声明 `"runtime": "python"`（或由 `.py` 扩展名自动推断）
+- `.py` 入口建议在 manifest 中声明 `"runtime": "python"`（亦可由 `.py` 扩展名自动推断）
 
 ---
 
@@ -42,7 +45,7 @@ PluginBridge 扫描 `plugins/` 下每个子目录的 `agent/` 子目录：
 | `readOnly` | bool | 否 | `false` | `true`=只读（可并行）；`false`=写操作（串行） |
 | `argMode` | string | 否 | `"stdin"` | `"stdin"`：JSON 写入标准输入；`"args"`：命令行参数传递 |
 | `argSpec` | object | 否 | `{"style":"json"}` | 仅 `argMode="args"` 时生效，控制命令行构造方式 |
-| `runtime` | string | 否 | `"native"` | `"native"`=直接执行入口（`.exe`）；`"python"`=用 Python 解释器执行（`.py`） |
+| `runtime` | string | 否 | `"native"` | `"native"`=直接执行入口（legacy `.exe`）；`"python"`=用 Python 解释器执行（`.py`，推荐） |
 
 ### 最小示例（stdin 模式）
 
@@ -60,7 +63,7 @@ PluginBridge 扫描 `plugins/` 下每个子目录的 `agent/` 子目录：
 }
 ```
 
-调用方式：Agent 启动 `date.exe`，将 `{"format":"cn"}` 写入 stdin，读取 stdout。
+调用方式：Agent 启动 `date.py`（`runtime:"python"`），将 `{"format":"cn"}` 写入 stdin，读取 stdout。
 
 ### 完整示例（args + flag 模式）
 
@@ -86,7 +89,7 @@ PluginBridge 扫描 `plugins/` 下每个子目录的 `agent/` 子目录：
 }
 ```
 
-调用方式：Agent 启动 `weather.exe -c 北京 -d 3`。
+调用方式：Agent 启动 `weather.py`（`runtime:"python"`），传参 `-c 北京 -d 3`。
 
 ---
 
@@ -99,7 +102,7 @@ PluginBridge 扫描 `plugins/` 下每个子目录的 `agent/` 子目录：
 - **适用场景**：参数复杂、嵌套深、JSON 原生输入的工具
 
 ```python
-# date.py → PyInstaller → date.exe
+# date.py（统一主路径；legacy 才需 PyInstaller 编译为 date.exe）
 import sys, json
 from datetime import datetime
 
@@ -160,32 +163,31 @@ else:
 
 ## 语言与构建
 
-### Python → .exe（PyInstaller，可选）
+### Python（统一主路径，推荐）
 
-> 当前 PluginBridge 支持 `.py` 入口直接运行（`runtime: "python"`），无需编译。
-> 编译 `.exe` 仅在需要独立可执行文件时使用。
+> **无需编译**：PluginBridge 对 `.py` 入口直接以 Python 解释器运行
+> （`runtime: "python"` 或 `.py` 扩展名自动推断）。**纯标准库优先**——
+> 同一份 `.py` 在 Windows / Linux / macOS / 安卓（Chaquopy 进程内）均可执行，
+> 同步中心导出/导入友好。示例 `example/plugins/` 全部为纯标准库实现。
 
 ```bash
+# 直接用解释器运行（桌面嵌入式 Python 或系统 python 均可）
+python weather.py -c 北京 -d 2
+```
+
+### legacy：编译为 .exe（仅存量插件，新插件不要产出）
+
+> 仅当**存量 .exe 插件**需要继续运行（`runtime` 缺省/`"native"` 时 PluginBridge
+> 回退 .exe）；新插件一律 .py。注意：manifest 声明 `"runtime": "python"` 却只提供
+> `.exe` 属声明错配，插件会被跳过（fail 可见而非误跑）。
+
+```bash
+# Python → .exe（PyInstaller）
 pip install pyinstaller
 pyinstaller --onefile --console --name weather weather.py
-# 输出: dist/weather.exe → 复制到 plugins/weather/agent/
-```
-
-### Go → .exe
-
-```bash
+# Go / C / C# → .exe（同上，仅 Windows 桌面，安卓无法 exec PE 格式）
 GOOS=windows GOARCH=amd64 go build -o weather.exe main.go
-```
-
-### C → .exe（MinGW/MSVC）
-
-```bash
 gcc -o random.exe random.c
-```
-
-### C# → .exe
-
-```bash
 dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true
 ```
 
@@ -193,29 +195,29 @@ dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=
 
 ## 完整示例
 
-参考 `example/plugins/` 下的插件模板：
+参考 `example/plugins/` 下的插件模板（全部为 Python 标准库 + `runtime: "python"`）：
 
 | 插件 | 语言 | argMode | 说明 |
 |------|------|---------|------|
 | `time` | Python | args + flag | 时区偏移 + 格式选择 |
 | `date` | Python | stdin | 日期格式化 |
-| `weather` | Python | args + flag + 短flag | 城市天气查询 |
-| `random` | C | args + flag | 随机数生成 |
+| `weather` | Python | args + flag + 短flag | 城市天气查询（模拟） |
+| `random` | Python | args + flag | 随机数生成（原 C 实现的 python 等价物） |
 
-每个插件的 `example/plugins/<name>/README.md` 包含构建和测试说明。
+每个插件的 `example/plugins/<name>/README.md` 包含运行和测试说明。
 
 ---
 
 ## 调试
 
-### 手动测试 .exe
+### 手动测试 .py
 
 ```bash
 # stdin 模式
-echo '{"format":"cn"}' | ./date.exe
+echo '{"format":"cn"}' | python date/agent/plugin.py
 
 # args 模式
-./weather.exe -c 北京 -d 2
+python weather/agent/plugin.py -c 北京 -d 2
 ```
 
 ### 验证 manifest

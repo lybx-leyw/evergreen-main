@@ -3,7 +3,7 @@
 > 本目录是平台内置插件仓库。插件可以是：
 > - **HTML 插件（用户侧主路径）**：`plugins/<name>/module/index.html` + `manifest.json`（`"template":"html"`），由 `html-creator` 创作/导出
 > - **Dart/JSON 模块插件**：`plugins/<name>/module/manifest.json`，由 `ModuleLoader` 加载
-> - **Agent 工具插件**：`plugins/<name>/agent/manifest.json` + 可执行文件，由 `PluginBridge` 发现
+> - **Agent 工具插件**：`plugins/<name>/agent/manifest.json` + `.py` 入口（统一主路径，`runtime:"python"`；`.exe` 仅存量 legacy），由 `PluginBridge` 发现
 > - **主题插件**：`plugins/<name>/theme/theme.json`，由 `ThemeLoader` 加载
 > - **配置插件**：`plugins/<name>/config/config.json`，由 `SettingsLoader` 加载
 > - **常驻进程**：`plugins/<name>/module/manifest.json` 的 `process` 字段声明长驻 worker，由模块页经 `platform.process` 拉起
@@ -12,7 +12,7 @@
 flowchart LR
     subgraph PLG["plugins/（内置插件，一个插件目录可含多类型子目录）"]
         M["module/ · JSON 声明<br/>（可含 index.html / process 常驻进程）"]
-        A["agent/ · 工具 manifest + .exe"]
+        A["agent/ · 工具 manifest + .py（统一主路径）"]
         T["theme/ · theme.json"]
         C["config/ · config.json"]
     end
@@ -35,15 +35,18 @@ flowchart LR
 | `html-creator` | module | **HTML 插件创作中心**：三栏 IDE + 预览 + AI 辅助生成 + 导出 |
 | `marketplace` | module | 插件市场：浏览、搜索、启用/停用、卸载 |
 | `pdf_translate` | module | PDF 翻译：DeepSeek 驱动、7 语言互译、双语对照 PDF |
-| `python-runner` | agent | Python 运行器：Agent 可调用的本地 Python 3.10 环境 |
+| `python-runner` | agent | Python 运行器：Agent 可调用的本地 Python 3.10 环境（**内置 Dart 工具** `PythonRunnerTool`，本目录 manifest 为声明镜像，含 `runtime:"python"`，无独立入口文件） |
 | `scraper` | module | 所见即所得爬虫：抓包 + AI 生成 Python 爬虫 |
-| `settings` | module + config | 设置面板：API Key、模型、主题、HTTP 设置页面 |
+| `settings` | module + config | 设置面板：API Key、模型、主题等全局配置（v4 Dart 设置页；遗留 exe 形态已清理） |
 | `skill-creator` | module | Skill 创作中心：多 Agent 流水线生成/导出 Skill |
 | `theme-creator` | module | 主题创作中心：8 色语义色板可视化编辑 + 导出 |
 
 > **模板路由**：`dsh`、`html-creator`、`scraper`、`skill-creator`、`theme-creator`
 > 的 manifest 带 `template` 字段（依次为 `dsh` / `html` / `scraper` / `skill-creator` / `theme-creator`），
 > 走专用模板渲染；其余内置模块走 v4 组件式渲染。新增内置插件后请同步登记本清单。
+
+> **插件清单口径**：本目录 11 个内置插件 + `view` / `warm_study` / `zju_autosign` 3 个
+> registry 托管插件（见下）= 全平台 **14 个插件身份**。
 
 > **已移交 registry 的插件**：`view`（我的成绩单）、`warm_study`（温暖学习主题）、`zju_autosign`（学在浙大自动签到）
 > 已移出内置插件目录，改由「发现插件」页经 `docs/plugin-registry/plugins.json` 管理（local 资源条目），
@@ -60,18 +63,20 @@ plugins/<name>/
     └── index.html       ← 用户自写 HTML/JS，可附带 css/js 等资源
 ```
 
-导出时平台同时写入运行期 `plugins/` 与内置资产目录，确保开发/运行一致。
+导出为**单目标**写入运行期插件根 `{resolvePluginsRoot()}/{id}/module/`（与主题插件
+`plugins/<id>/theme/theme.json` 同根，安卓/桌面行为一致）；`assets/plugins_bundle/` 是
+`plugins/` 的纯镜像，仅由 `tool/bundle_plugins.dart` 生成，创作中心不直写。
 
 ## Agent 工具插件（开发者模式）
 
-Agent 工具插件是任意可执行文件，Agent 调用时启动进程，通过 stdin 或命令行参数接收 JSON，stdout 返回结果。
+Agent 工具插件是**纯 Python 脚本（统一主路径）**，Agent 调用时启动进程，通过 stdin 或
+命令行参数接收 JSON，stdout 返回结果。`.exe` 仅作存量 legacy 兼容（新插件一律 `.py`）。
 
 ```
 plugins/<name>/
 └── agent/
-    ├── manifest.json    ← 工具描述 + JSON Schema + 参数模式
-    ├── plugin.py        ← Python 源码（可选）
-    └── <name>.exe       ← PyInstaller --onefile 编译产物
+    ├── manifest.json    ← 工具描述 + JSON Schema + 参数模式 + runtime
+    └── <name>.py        ← Python 脚本（纯标准库优先，跨平台/安卓 Chaquopy 同一份）
 ```
 
 ### manifest.json 模板
@@ -82,10 +87,16 @@ plugins/<name>/
   "description": "工具描述（供 LLM 理解用途）。",
   "schema": { "type": "object", "properties": { ... }, "required": [...] },
   "readOnly": true,
+  "runtime": "python",
   "argMode": "args",
   "argSpec": { "style": "flag", "prefix": "--" }
 }
 ```
+
+> `runtime` 必写：`"python"`（统一主路径）或 `"native"`（仅存量 legacy `.exe`）。
+> PluginBridge 发现入口时 **`.py` 优先**（同名 `<目录名>.py` 最高优先）；仅当无任何 `.py`
+> 且 manifest 未声明 `"runtime":"python"` 时才回退 `.exe`。声明 `"runtime":"python"`
+> 却只提供 `.exe` 属错配，插件会被跳过。
 
 ### 参数模式
 
@@ -97,9 +108,10 @@ plugins/<name>/
 | (argSpec.style=positional) | 按 order 顺序输出 value |
 | (argSpec.style=json) | `--args=<json>` |
 
-### 编译
+### 编译（仅 legacy）
 
 ```bash
+# legacy：.py → .exe（PyInstaller）。新插件不需要——.py 由平台解释器直接运行。
 pyinstaller --onefile --console --distpath plugins/<name>/agent plugin.py
 mv plugins/<name>/agent/plugin.exe plugins/<name>/agent/<name>.exe
 ```

@@ -69,11 +69,11 @@ List<String> registerDataSourcesFromManifest({
     if (script == null || dataTypes.isEmpty) return [];
 
     final dataDir = p.join(pluginDir, 'data');
-    final exePath = p.join(dataDir, script);
-    final exeExists = File(exePath).existsSync();
-    if (!exeExists) {
+    final scriptPath = p.join(dataDir, script);
+    final scriptExists = File(scriptPath).existsSync();
+    if (!scriptExists) {
       Log().warn('DataSource 注册: 数据脚本不存在，仍注册（运行时将失败）',
-          data: {'plugin': p.basename(pluginDir), 'script': script, 'exe': exePath});
+          data: {'plugin': p.basename(pluginDir), 'script': scriptPath});
     }
 
     final pluginId = p.basename(pluginDir);
@@ -116,14 +116,14 @@ List<String> registerDataSourcesFromManifest({
             data: {
               'plugin': pluginId,
               'name': name,
-              'exe': exePath,
+              'script': scriptPath,
               'args': ['--type', typeArg, '--project-root', projectRoot, '--greenix-config', greenixConfigPath]
             });
         final runner = await sharedPluginRunner;
         RunResult res;
         try {
           res = await runner.runOnce(
-            exePath,
+            scriptPath,
             ['--type', typeArg, '--project-root', projectRoot, '--greenix-config', greenixConfigPath],
             workingDirectory: dataDir,
             runtime: runtime,
@@ -206,9 +206,9 @@ List<String> registerDataSourcesFromManifest({
           data: {
             'plugin': pluginId,
             'name': name,
-            'script': script,
+            'script': scriptPath,
             'typeArg': typeArg,
-            'exeExists': exeExists,
+            'scriptExists': scriptExists,
             'ttl': ttlStr,
             'persistentKey': persistentKey
           });

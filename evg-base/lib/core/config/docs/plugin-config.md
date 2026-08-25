@@ -178,3 +178,20 @@ curl http://127.0.0.1:PORT/config/settings
 4. 平台启动时自动加载——设置默认值写入 SharedPreferences
 5. 插件 .exe 启动后通过 ConfigHttpServer 读写设置
 6. 用户可在设置界面中查看和修改
+
+---
+
+## 八、与配置导出 / 同步中心（.egsync）的关系
+
+插件 `config.json` 声明的设置与权限会**自动纳入** `.evgconfig` v2 导出
+（远程同步中心契约见 `docs/superpowers/specs/egsync-sync-center-spec-v1.md`）：
+
+- **设置值**：写入 `settings` 段；`isSecure: true` 的键默认**不导出明文**
+  （同步中心勾选「包含敏感项」才导出，导入端默认跳过）。
+- **权限状态**：写入 `permissions` 段（`pluginId → {permKey: bool}`），导入端仅接受
+  **已注册插件**的**已声明**权限键（fail-closed，`default: false` 的权限不会被
+  导出文件静默放行）。
+- **来源分组**：`initSettings` 记录每个设置项的来源插件 id（`getSettingSources()`），
+  同步中心「配置子集」可按插件勾选；`id` 建议使用目录名以获得稳定的分组标识。
+- **导入过滤**：导入端只写已声明键 + 类型语义校验（bool 必须是 `"true"/"false"`、
+  option 必须在选项列表），未知键静默忽略——插件作者无需额外适配。

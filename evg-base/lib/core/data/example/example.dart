@@ -155,34 +155,30 @@ Future<void> main() async {
 
   // ---- 插件加载 ----
   //
-  // scanAndLoadDataSources(dir, orch) 扫描 plugins/*/data/manifest.json，
-  // 逐个启动 .exe，自动注册。加载后插件数据与内置模块完全一致。
-  // 示例插件：example/plugins/douban/（爬取豆瓣电影 Top250）
+  // 示例插件：example/plugins/douban/（爬取豆瓣电影 Top250，模型 A CLI）。
+  // 模型 A：registerDataSourcesFromManifest 读取 data/manifest.json 注册
+  // CLI fetcher（与运行期 POST /data/register 同一份契约）；每次拉取执行
+  // 一次脚本，stdout 顶层 Map JSON 写入缓存。
+  // 模型 B（legacy）：scanAndLoadDataSources(dir, orch) 扫描 plugins/*/data/
+  // manifest.json 逐个启动 .exe 并自动注册——保留给存量 HTTP 长驻插件。
 
-  print('\n加载插件...');
-  final loaders = await scanAndLoadDataSources(
-    pluginsDir: 'example/plugins/',
-    orchestrator: orch,
+  print('\n加载插件（模型 A CLI）...');
+  final registered = registerDataSourcesFromManifest(
+    orch: orch,
+    pluginDir: 'example/plugins/douban',
     projectRoot: Directory.current.path,
   );
+  print('注册的数据类型: $registered');
 
-  for (final l in loaders) {
-    print('插件: ${l.manifest.id}  running=${l.isRunning}  port=${l.port}');
-
-    // 插件数据与内置模块一样走 orch.get()
-    for (final decl in l.manifest.dataTypes) {
-      final type = decl.toDataType();
-      final data = await orch.refresh(type);
-      print('\n${decl.displayName} (来自 .exe 插件):');
-      for (final item in data ?? []) {
-        final m = item as Map;
-        print('  ${m['rank']}. ${m['title']}  ★${m['rating']}  ${m['quote']}');
-      }
+  for (final typeName in registered) {
+    // 插件数据与内置模块一样走 orch.get() / refresh()
+    final data = await orch.refreshByName(typeName);
+    print('\n$typeName (来自 .py CLI 插件):');
+    final items = (data as Map<String, dynamic>)['items'] as List<dynamic>;
+    for (final item in items) {
+      final m = item as Map;
+      print('  ${m['rank']}. ${m['title']}  ★${m['rating']}  ${m['quote']}');
     }
-
-    // 用完关闭插件进程，否则程序不会退出
-    l.unregisterAll(orch);
-    await l.stop();
   }
 
   // 关闭 HTTP 管理服务器

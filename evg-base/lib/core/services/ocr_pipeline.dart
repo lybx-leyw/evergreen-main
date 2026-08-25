@@ -114,7 +114,7 @@ class OcrPipeline {
   Future<OcrReadinessReport> checkReadiness() async {
     final issues = <String>[];
 
-    final pythonOk = (await resolvePythonExe()) != null;
+    final pythonOk = (await PythonInterpreter.instance.resolve()).isAvailable;
     if (!pythonOk) issues.add('未找到 Python 解释器（配置 PYTHON_EXE 或安装 Python）');
 
     final pdfScriptOk =
@@ -185,9 +185,10 @@ class OcrPipeline {
 
     late ProcessResult imgProc;
     try {
-      imgProc = await runOcrProcess(await resolvePythonExe() ?? 'python', [
-        pdfScript, '--path', pdfPath, '--output_dir', outDir, '--dpi', '150',
-      ]).timeout(const Duration(seconds: 120));
+      imgProc = await runOcrProcess(
+        (await PythonInterpreter.instance.resolve()).legacyExePath ?? 'python',
+        [pdfScript, '--path', pdfPath, '--output_dir', outDir, '--dpi', '150'],
+      ).timeout(const Duration(seconds: 120));
     } catch (e) {
       try { await Directory(outDir).delete(recursive: true); } catch (_) {}
       Log().warn('OcrPipeline: PDF 转图片异常', error: e);
@@ -309,7 +310,8 @@ class OcrPipeline {
       }
 
       final result = await runOcrProcess(
-        await resolvePythonExe() ?? 'python', [script, '--path', filePath],
+        (await PythonInterpreter.instance.resolve()).legacyExePath ?? 'python',
+        [script, '--path', filePath],
       ).timeout(const Duration(seconds: 120));
 
       if (result.exitCode != 0) {
@@ -357,7 +359,7 @@ class OcrPipeline {
       }
 
       final result = await runOcrProcess(
-        ocrExe ?? await resolvePythonExe() ?? 'python',
+        ocrExe ?? (await PythonInterpreter.instance.resolve()).legacyExePath ?? 'python',
         ocrExe != null
             ? ['--urls', imageUrl]
             : [pythonScript!, '--urls', imageUrl],
@@ -411,8 +413,9 @@ class OcrPipeline {
   /// 探测本地 Tesseract（pytesseract 绑定可用性）。
   Future<bool> _probeTesseract() async {
     try {
-      final py = await resolvePythonExe();
-      if (py == null) return false;
+      final rt = await PythonInterpreter.instance.resolve();
+      if (!rt.isAvailable) return false;
+      final py = rt.legacyExePath!;
       final r = await runOcrProcess(py, [
         '-c',
         'import pytesseract; print(pytesseract.get_tesseract_version())',

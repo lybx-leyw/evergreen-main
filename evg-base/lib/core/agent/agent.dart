@@ -29,4 +29,6 @@ export 'guardian/guardian_policy.dart';
 export 'tools/guardian_review_tool.dart';
 export 'agent_runtime.dart';
 export 'session_manager.dart';
+export 'session_merge.dart';
+export 'memory/memory_merge.dart';
 

@@ -719,3 +719,24 @@ ModuleDescriptor
 ```bash
 curl http://127.0.0.1:PORT/module/modules
 ```
+
+---
+
+## 十一、插件打包与同步导入（.egsync / .plugin）
+
+### 11.1 插件目录 = 可导出的最小资产单元
+
+`plugins/<id>/` 下的**能力子目录**即为用户资产，可打包跨平台同步：
+
+| 导出 | 内容 |
+|------|------|
+| ✅ 导出 | `module/`（manifest.json + index.html + 引用的 assets/*）、`agent/`、`data/`、`theme/`、`config/`、`skill/`、根 `manifest.json`（.plugin 信封）、`icon` |
+| ❌ 排除 | `.manifest` / `.signature`（重新生成）、`__pycache__/`、`*.pyc`、`*.dist-info/`、`build/`、`dist/`、`*.spec`、`node_modules/`、`.dart_tool/`、`.git/`、`.temp_export_*`、`.released_manifest.json`、插件目录内嵌套草稿 |
+
+### 11.2 同步导入（SyncImportService，core/services/sync_import_service.dart）
+
+导入端把 `.egsync.zip` 按包级 manifest（`{type:"egsync", version:1, resources:[...]}`）校验后落盘并注册：
+- **fail-closed**：包级 `type`/`version` 非法、ZIP 路径越界（绝对路径 / `..` / 反斜杠 / 盘符）→ **整体拒绝**；插件 `module/manifest.json` 必须可解析、.plugin 信封 `files` 逐文件 SHA-256 校验、`.signature` 常数时间比对（若带）→ 该项 error 不落盘，不阻断其余资源。
+- **冲突策略**（版本感知）：同版本同内容 → no-op；新版 → 覆盖（备份并恢复旧 `config/`）；同版本不同内容 / 版本回退 → 冲突清单（`SyncConflict`），`applyConflicts` 时按开关执行。
+- **注册回放**：插件 `ModuleRegistry.reloadModule`（seal 后可用）、数据源 `registerDataSourcesFromManifest`、主题 `ThemeStore.register`；sessions/memories 原样落盘（合并算法属 t-C4）；config 经 `configImporter` 交接 core-config。
+- 跨平台：目标根 `resolvePluginsRoot()` 运行时解析，**不信任包内绝对路径**；`process` 数组中的 `runtime: "native"`(.exe) 为平台绑定资产，`runtime: "python"`(.py) 与 `template:"html"` 插件可跨 Windows/Android 移植（同步时按平台提示）。

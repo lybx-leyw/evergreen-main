@@ -48,7 +48,7 @@ lib/core/
 ├── utils/                   # 通用工具
 │   ├── safe_parse.dart      #   安全类型转换
 │   ├── token_estimator.dart #   Token 估算
-│   ├── python_env.dart      #   Python 环境管理
+│   ├── python_env.dart      #   Python 环境：统一解释器路径发现（PythonInterpreter 单例）+ 依赖安装
 │   ├── greenix_path.dart    #   运行时路径管理（路径唯一真理来源）
 │   ├── path_sandbox.dart    #   路径沙箱
 │   ├── file_utils.dart      #   文件管理器
@@ -63,6 +63,7 @@ lib/core/
 │   ├── installer_test.dart  #   插件安装/卸载/校验/崩溃/沙箱
 │   ├── ocr_pipeline_test.dart # OCR 管线 + parsePageOutput
 │   ├── path_sandbox_test.dart # 路径沙箱越界防护
+│   ├── python_env_test.dart #   PythonInterpreter 统一解析/哨兵/双真理源合并
 │   ├── signature_test.dart  #   签名计算 + 常数时间比较
 │   ├── update_service_test.dart # 更新检查降级
 │   └── widget_test.dart     #   errors / result 模块验证
@@ -222,6 +223,7 @@ REST 端点（见下表），绑定 `127.0.0.1` 随机端口。端口发现文�
 | `installer_test.dart` | 安装/卸载/签名/校验/崩溃/沙箱/版本比较 |
 | `ocr_pipeline_test.dart` | 文件不存在/空路径/parsePageOutput 多格式 |
 | `path_sandbox_test.dart` | 路径沙箱越界防护（`../../../` 等绕过） |
+| `python_env_test.dart` | PythonInterpreter 统一解析（configuredPath/greenix 绑定/缓存）、哨兵常量、bundledPathSync |
 | `signature_test.dart` | SHA-256 计算/常数时间比较/签名场景 |
 | `update_service_test.dart` | 网络错误降级/自定义 repo |
 | `widget_test.dart` | AppError 工厂方法/Result\<T\> 完整 API |
@@ -287,6 +289,7 @@ CoreHttpServer(PluginInstaller installer, OcrPipeline ocrPipeline, UpdateService
 
 | 日期 | 变更 |
 |------|------|
+| 2026-08-25 | **t9 统一 Python 解释器路径**：python_env.dart 新增 `PythonInterpreter.resolve()` 单例（解析顺序 configuredPath → greenix 目录 → PATH → 安卓 Chaquopy 枚举）、`PythonRuntime`/`PythonRuntimeKind` 结构化结果、`kChaquopySentinel` 哨兵常量、`bindGreenixPythonDir` 双真理源合并（app_bootstrap 绑定 greenixPythonDir）、`bundledPathSync` 同步探测；core 域调用点（ocr_pipeline/pdf_translate/plugin_runner/app_bootstrap）与跨域已知点（agent_runtime/agent_factory/skill_creator/paper_reading/translate_slot）迁移收敛；新增 python_env_test（14 用例） |
 | 2026-08-25 | 文档同步：目录结构补全（services / utils / test 全量文件）、修正端口文件契约（app_bootstrap 统一写）、OCR 脚本名与 Key 环境变量、barrel 导出范围说明；按文档修订三原则去除硬编码数量与版本号 |
 | 2026-08-21 | 对齐 HTML-first 插件创作：补充用户侧 HTML 插件路径、更新目录结构与平台 bridge 说明 |
 | 2026-07-06 | 初始版本：创建 CLAUDE.md，修复 dio stub 路径，全量测试通过，README 审核同步 |

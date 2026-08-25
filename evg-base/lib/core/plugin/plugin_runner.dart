@@ -128,7 +128,7 @@ Future<PluginRunner> _createRunner() async {
     // P1: 安卓走进程内 Chaquopy（MethodChannel 原生桥见 P1b）。
     return const ChaquopyRunner();
   }
-  final pythonExe = await resolvePythonExe();
+  final pythonExe = await PythonInterpreter.instance.resolveExePath();
   return SubprocessRunner(pythonExe);
 }
 

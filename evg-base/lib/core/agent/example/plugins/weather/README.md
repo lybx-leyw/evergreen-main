@@ -5,10 +5,10 @@
 
 ## 快速上手
 
+统一 python 路径：`.py` 入口直接运行（manifest `runtime: "python"`，无需编译）。
+
 ```bash
-pip install pyinstaller
-pyinstaller --onefile plugin.py
-cp dist/plugin.exe ./weather.exe
+python plugin.py -c 北京 -d 3
 ```
 
 ## 通信协议
@@ -18,7 +18,7 @@ args + flag 风格，配合 `flags` 映射将长参数名映射为短 flag。
 manifest.json 中 `flags: {"city":"-c","days":"-d"}`，Agent 调用 `{"city":"北京","days":3}` 时实际命令行：
 
 ```
-./weather.exe -c 北京 -d 3
+python plugin.py -c 北京 -d 3
 ```
 
 stdout 示例：

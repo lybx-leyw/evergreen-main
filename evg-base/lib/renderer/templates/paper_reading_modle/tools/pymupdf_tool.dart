@@ -29,7 +29,7 @@ class PymupdfTool {
   /// 调用 pymupdf 提取 PDF 全文（一次性子进程，独立于调用方生命周期）。
   ///
   /// [filePath] PDF 文件绝对路径。
-  /// [pythonPath] Python 解释器（缺省走 [resolvePythonExe] 探测，兜底 'python'）。
+  /// [pythonPath] Python 解释器（缺省走 [PythonInterpreter] 统一解析，兜底 'python'）。
   /// [scriptPath] paper_reader.py 路径（缺省 `.greenix/scripts/paper_reader.py`）。
   ///
   /// 返回提取的纯文本。失败（脚本缺失 / 扫描版 / 加密 / 超时）抛异常。
@@ -83,7 +83,8 @@ class PymupdfTool {
       throw StateError('PDF 文件不存在: $filePath');
     }
 
-    final py = pythonPath ?? await resolvePythonExe() ?? 'python';
+    final py =
+        pythonPath ?? (await PythonInterpreter.instance.resolve()).legacyExePath ?? 'python';
     final script = scriptPath ?? p.join(greenixScriptsDir, 'paper_reader.py');
     if (!File(script).existsSync()) {
       throw StateError('未找到 paper_reader.py: $script（请先释放脚本资源）');

@@ -21,7 +21,7 @@ parent: core
 |------|------|
 | `utils/greenix_path.dart` | 运行时路径管理（路径唯一真理来源） |
 | `utils/path_sandbox.dart` | 路径沙箱 |
-| `utils/python_env.dart` | Python 环境管理 |
+| `utils/python_env.dart` | **统一 Python 解释器路径发现（PythonInterpreter 单例）+ 依赖安装** |
 | `utils/plugin_asset_releaser.dart` | 插件资产释放 |
 | `utils/file_utils.dart` | 文件管理 |
 | `utils/safe_parse.dart` | 安全类型转换 |

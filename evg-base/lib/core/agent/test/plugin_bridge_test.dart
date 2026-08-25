@@ -147,6 +147,62 @@ void main() {
       expect(tools, isEmpty);
     });
 
+    test('.py preferred over .exe when both present（统一 python 路径）', () {
+      // 目录同时含 <name>.py 与 <name>.exe → 选 .py（即使 .exe 同名）
+      final agentDir = Directory('$tmpBase${Platform.pathSeparator}dual${Platform.pathSeparator}agent');
+      agentDir.createSync(recursive: true);
+      File('${agentDir.path}${Platform.pathSeparator}manifest.json').writeAsStringSync(
+        '{"name":"dual","description":"","schema":{},"runtime":"python"}',
+      );
+      File('${agentDir.path}${Platform.pathSeparator}dual.py').writeAsStringSync('print(1)');
+      File('${agentDir.path}${Platform.pathSeparator}dual.exe').writeAsStringSync('dummy');
+
+      final tools = PluginBridge.discover(pluginsDir);
+      expect(tools.length, 1);
+      final pt = tools.first as PluginTool;
+      expect(pt.name, 'dual');
+      expect(pt.entryPath, endsWith('.py'));
+    });
+
+    test('.py-only plugin discovered（无 .exe）', () {
+      final agentDir = Directory('$tmpBase${Platform.pathSeparator}pyonly${Platform.pathSeparator}agent');
+      agentDir.createSync(recursive: true);
+      File('${agentDir.path}${Platform.pathSeparator}manifest.json').writeAsStringSync(
+        '{"name":"pyonly","description":"","schema":{},"runtime":"python"}',
+      );
+      File('${agentDir.path}${Platform.pathSeparator}pyonly.py').writeAsStringSync('print(1)');
+
+      final tools = PluginBridge.discover(pluginsDir);
+      expect(tools.length, 1);
+      expect((tools.first as PluginTool).entryPath, endsWith('.py'));
+    });
+
+    test('runtime:"python" + only .exe → 跳过（声明错配不误跑）', () {
+      final agentDir = Directory('$tmpBase${Platform.pathSeparator}mis${Platform.pathSeparator}agent');
+      agentDir.createSync(recursive: true);
+      File('${agentDir.path}${Platform.pathSeparator}manifest.json').writeAsStringSync(
+        '{"name":"mis","description":"","schema":{},"runtime":"python"}',
+      );
+      File('${agentDir.path}${Platform.pathSeparator}mis.exe').writeAsStringSync('dummy');
+
+      final tools = PluginBridge.discover(pluginsDir);
+      expect(tools, isEmpty);
+    });
+
+    test('legacy .exe fallback：无 .py 且 runtime 缺省/native → 仍发现', () {
+      // 与 _createPluginDir 相同形态：只有 <name>.exe，runtime 缺省 → legacy 回退
+      final agentDir = Directory('$tmpBase${Platform.pathSeparator}legacy${Platform.pathSeparator}agent');
+      agentDir.createSync(recursive: true);
+      File('${agentDir.path}${Platform.pathSeparator}manifest.json').writeAsStringSync(
+        '{"name":"legacy","description":"","schema":{}}',
+      );
+      File('${agentDir.path}${Platform.pathSeparator}legacy.exe').writeAsStringSync('dummy');
+
+      final tools = PluginBridge.discover(pluginsDir);
+      expect(tools.length, 1);
+      expect((tools.first as PluginTool).entryPath, endsWith('.exe'));
+    });
+
     test('discover skips invalid manifests', () {
       _createPluginDir(tmpBase, 'bad', '''
 {"name": "", "description": "", "schema": {}}''');

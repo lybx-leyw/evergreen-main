@@ -110,6 +110,25 @@ await platform.process.stop('worker.py');
 
 > 特例：`descriptor.id == 'html-creator'` 时短路到 Dart 原生 `HtmlCreatorView`（创作中心三栏 IDE），不启动本地 HTTP / WebView。
 
+### HTML 插件导出（单目标 · 与主题插件同根）
+
+创作中心「导出」= `HtmlExportService`（手动）/ `ExportHtmlPluginTool`（AI），两者共用
+`writeHtmlPluginModule()`（`services/html_export_service.dart`）：
+
+- **单目标落盘**：`{resolvePluginsRoot()}/{id}/module/{manifest.json,index.html}`
+  —— 路径统一走 `core/utils/greenix_path.dart` 的 `resolvePluginsRoot()`，
+  与主题插件（`plugins/<id>/theme/theme.json`）同根；安卓 = 应用私有
+  `.greenix/plugins`（旧版依赖 `pluginsDirProvider` 注入、失败回退 `'plugins/'`
+  在安卓解析到只读 `/plugins/` 的问题已移除）。
+- **不变式**：`assets/plugins_bundle/` = `plugins/` 纯镜像，仅由
+  `tool/bundle_plugins.dart` 生成；导出**禁止直写 bundle**（避免用户画布泄漏进
+  APK 且未注入 pubspec 导致「导出后找不到」）。
+- **加固**：插件 id 共享校验 `htmlPluginIdError()`（小写字母开头 kebab-case，
+  拒绝纯数字/大写/路径分隔符）；落盘经 `PathSandbox` confine；原子导出
+  （临时目录 + rename 替换 + 备份回滚），读取方看不到半成品。
+- **导出即可见**：成功后 `reloadModule`（侧边栏/路由）+ `pluginStateProvider`
+  `registerInstalled`/`touch`（插件中心/最近使用）；失败原因 SnackBar 可见。
+
 ---
 
 ## 共享组件

@@ -109,17 +109,8 @@ flutter:
     # 注意：勿放入下方 >>>PLUGIN_ASSETS_START>>> 标记块（该块由 bundle_plugins.dart 自动生成）。
     - assets/plugins_bundle/ai-assistant/module/manifest.json
     - assets/plugins_bundle/data-dashboard/module/manifest.json
-    - assets/plugins_bundle/data-scraper/config/config.json
-    - assets/plugins_bundle/data-scraper/data/manifest.json
-    - assets/plugins_bundle/data-scraper/data/scraper.py
     - assets/plugins_bundle/dsh/module/manifest.json
     - assets/plugins_bundle/html-creator/module/manifest.json
-    - assets/plugins_bundle/html-creator/my-plugin/module/index.html
-    - assets/plugins_bundle/html-creator/my-plugin/module/manifest.json
-    - assets/plugins_bundle/html-creator/zdbk-transcript-v2/module/index.html
-    - assets/plugins_bundle/html-creator/zdbk-transcript-v2/module/manifest.json
-    - assets/plugins_bundle/html-creator/zdbk-transcript/module/index.html
-    - assets/plugins_bundle/html-creator/zdbk-transcript/module/manifest.json
     - assets/plugins_bundle/marketplace/module/manifest.json
     - assets/plugins_bundle/pdf_translate/module/manifest.json
     - assets/plugins_bundle/python-runner/agent/manifest.json
@@ -127,8 +118,6 @@ flutter:
     - assets/plugins_bundle/settings/README.md
     - assets/plugins_bundle/settings/config/config.json
     - assets/plugins_bundle/settings/module/manifest.json
-    - assets/plugins_bundle/settings/module/settings.py
-    - assets/plugins_bundle/settings/module/settings.spec
     - assets/plugins_bundle/skill-creator/module/manifest.json
     - assets/plugins_bundle/theme-creator/module/manifest.json
 

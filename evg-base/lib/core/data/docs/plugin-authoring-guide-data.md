@@ -9,7 +9,7 @@
 | 适用 | 数据源插件作者 |
 
 > 面向插件开发者——如何编写符合 Evergreen 平台接口的数据源插件。
-> 支持两种模型：**A. CLI 一次性脚本**（推荐，简单直接）与 **B. HTTP 长驻 `.exe` 服务**。
+> 支持两种模型：**A. CLI 一次性脚本（推荐/规范化形态，新数据源一律走 A）** 与 **B. HTTP 长驻 `.exe` 服务（legacy）**。
 > 平台规范见 `docs/plugin-data-source.md`。
 
 ---
@@ -19,9 +19,8 @@
 ```
 plugins/<plugin-name>/data/
 ├── manifest.json      ← 数据源声明（必填）
-├── fetch.py           ← CLI 脚本（模型 A）
-├── plugin.py          ← 源码（模型 B，Python 示例）
-└── plugin.exe         ← 编译产物（模型 B）
+└── fetch.py           ← CLI 脚本（模型 A，推荐；manifest 的 script 相对 data/ 解析）
+# 模型 B（legacy）：plugin.py + 编译产物 plugin.exe（PyInstaller 等，仅同平台）
 ```
 
 ---
@@ -117,7 +116,10 @@ print(json.dumps(data, ensure_ascii=False))
 
 ---
 
-## 四、模型 B：HTTP 长驻服务编写规范
+## 四、模型 B：HTTP 长驻服务编写规范（legacy）
+
+> ⚠️ **legacy**：模型 B 需要编译平台二进制（.exe），仅同平台可用；同步中心导出/导入需 platform 标记。
+> 新数据源优先模型 A（CLI .py）。本节省略仅供存量插件参考。
 
 平台与插件通过 **HTTP** 通信。启动流程：
 
@@ -193,7 +195,9 @@ if __name__ == "__main__":
 
 ---
 
-## 六、编译为 .exe（模型 B）
+## 六、编译为 .exe（模型 B，legacy）
+
+> ⚠️ 模型 B 已标注 legacy。新数据源优先模型 A（.py 纯标准库优先，无需编译）。
 
 | 语言 | 命令 |
 |------|------|
@@ -208,7 +212,14 @@ if __name__ == "__main__":
 
 ## 七、完整示例
 
-以下是一个完整的数据源插件示例——豆瓣电影 Top250 爬虫（模型 B，见 `example/plugins/douban/`）：
+以下是一个完整的数据源插件示例——豆瓣电影 Top250 爬虫（**模型 A CLI**，见 `example/plugins/douban/`，纯 Python 标准库）：
+
+**目录结构**：
+```
+plugins/douban-top250/data/
+├── manifest.json
+└── plugin.py          # CLI 脚本（urllib + html.parser，零第三方依赖）
+```
 
 **manifest.json**：
 ```json
@@ -216,19 +227,27 @@ if __name__ == "__main__":
   "type": "data-source",
   "id": "douban-top250",
   "name": "豆瓣电影 Top250",
-  "process": "plugin.exe",
+  "script": "plugin.py",
+  "runtime": "python",
   "dataTypes": [
     {
       "name": "douban_top250",
+      "typeArg": "douban_top250",
       "category": "影音",
       "displayName": "豆瓣 Top250",
       "ttl": "1h",
-      "persistentKey": "douban_top250",
-      "endpoint": "/api/top250"
+      "persistentKey": "douban_top250"
     }
   ]
 }
 ```
+
+**脚本输出**（stdout 顶层 Map，列表型包 `{"items": [...]}`）：
+```json
+{"items": [{"rank": 1, "title": "肖申克的救赎", "rating": 9.7, "quote": "希望让人自由。"}]}
+```
+
+> 该示例原为模型 B（HTTP 长驻 .exe），已随 python 统一迁移为模型 A；模型 B 的完整示例见本指南第四节（legacy）。
 
 ---
 

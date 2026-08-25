@@ -38,6 +38,16 @@ parent: "-"
 
 - 改完必须：根级文档改动无代码回归；若涉及跨 OWNER 契约，确认相关 OWNER 已登记变更。
 
+## 5.1 跨 OWNER 契约变更登记（2026-08-25 通用插件化工程）
+
+> 依据 `docs/2026-08-25-general-pluginization-plan.md`（用户已确认）。所有实现任务完成后须回写本表状态。
+
+| 日期 | 契约变更 | 涉及 OWNER | 状态 |
+|------|---------|-----------|------|
+| 2026-08-25 | HtmlExportService 单目标化：HTML 插件导出不再双写 `assets/plugins_bundle/`（bundle=plugins/ 纯镜像不变式，仅 `tool/bundle_plugins.dart` 生成）；统一走 `resolvePluginsRoot()`（与主题插件导出路径一致） | renderer（改造）/ platform（bundle/CI）/ plugins（插件清单） | ✅ 已实现（t10/t14） |
+| 2026-08-25 | .egsync 同步中心新契约：`.egsync.zip` 包结构 + `config.evgconfig` v2 格式（向后兼容 v1）+ 会话 `parent_id/fork_turn` 元数据 + 插件/数据源/主题导出导入契约（复用 .plugin 信封 + fail-closed） | core-config（牵头）/ core-agent / core-module / core-data / plugins / renderer | ✅ 已实现（t11/t15/t16/t17），规格 `docs/superpowers/specs/egsync-sync-center-spec-v1.md` v1.3 |
+| 2026-08-25 | Python 解释器唯一路径：`PythonInterpreter.resolve()` 单例收敛（消除 5+ 处重复探测 + `'chaquopy'` 哨兵 + 双真理源）；agent 工具 `.exe` 优先改为 `.py` 优先（runtime 字段） | core（基础设施）/ core-agent / core-data / plugins | ✅ 已实现（t9/t12/t13/t18），plugins 域 .exe 残留=0 |
+
 ## 6. OWNER 索引表
 
 > 本表是 16 个固定 OWNER 的唯一权威索引。新增/删除 OWNER 必须同步更新。

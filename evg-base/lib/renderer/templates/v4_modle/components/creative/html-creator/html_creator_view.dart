@@ -8,11 +8,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:evergreen_base/core/data/data.dart';
-import 'package:evergreen_base/providers.dart';
+import 'package:evergreen_base/core/log.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'package:evergreen_base/core/module/module_registry.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
+import 'package:evergreen_base/providers.dart';
 import 'package:evergreen_base/renderer/app/service/providers/renderer_providers.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/marketplace/plugin_state_provider.dart';
 import 'models/html_project.dart';
 import 'services/html_export_service.dart';
 import 'services/data_preview_service.dart';
@@ -29,13 +31,11 @@ import 'services/html_ai_service.dart';
 class HtmlCreatorView extends ConsumerStatefulWidget {
   final ModuleDescriptor? descriptor;
   final ComponentDescriptor? component;
-  final String? pluginsDir;
 
   const HtmlCreatorView({
     super.key,
     this.descriptor,
     this.component,
-    this.pluginsDir,
   });
 
   @override
@@ -100,8 +100,11 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
 
     final orch = ref.read(dataOrchestratorProvider);
     _dataService = DataPreviewService(orch);
-    // 始终用 pluginsDirProvider 获取正确的 plugins/ 目录（如 d:/evg-workplace/plugins/）
-    _pluginsRoot = (() { try { return ref.read(pluginsDirProvider); } catch (_) { return 'plugins/'; } })();
+    // 插件根目录统一走 resolvePluginsRoot()（与主题插件 ThemeExporter 同源，
+    // 平台正确：桌面=项目 plugins/，安卓=应用私有 .greenix/plugins）。
+    // 不再依赖 pluginsDirProvider 注入（旧实现失败回退 'plugins/'，在安卓
+    // 解析到只读 /plugins/，导致导出后找不到，见 RC-1）。
+    _pluginsRoot = resolvePluginsRoot();
 
     _initAiService(orch);
 
@@ -152,6 +155,13 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
         instanceSessionsPath(boardId, instanceId);
     _aiService.onFileChanged = _syncFilesFromWorkspace;
     _aiService.onPluginExported = (pluginId) {
+      // AI 导出路径同样注册到侧边栏 + 插件中心（RC-3：旧实现只刷新预览，
+      // 侧边栏要等重启才可见）。
+      _project.pluginId = pluginId;
+      final regErr = _registerToSidebar();
+      if (regErr != null) {
+        Log().warn('[HtmlCreator] AI 导出成功但注册失败', data: {'err': regErr});
+      }
       setState(() {
         _useExportedPreview = true;
         // 换新 GlobalKey → 销毁旧 PreviewPanel State → 重载最新导出
@@ -304,57 +314,57 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
     }
   }
 
-  /// 导出插件到 plugins/ + assets/plugins_bundle/，并热注册到侧边栏。
+  /// 导出插件到 resolvePluginsRoot()/<id>/module/（单目标原子导出），
+  /// 并热注册到侧边栏 + 插件中心。
   void _exportPlugin() async {
     _saveCanvasToDisk();
 
     _project.pluginId = _idController.text;
     _project.pluginName = _nameController.text;
 
-    final service = HtmlExportService(_pluginsRoot!, assetsBundleDir: _findAssetsBundle());
+    // 单目标导出：路径统一由 resolvePluginsRoot() 解析（与主题插件一致，
+    // 安卓=应用私有 .greenix/plugins），不再直写 assets/plugins_bundle
+    //（bundle 由 tool/bundle_plugins.dart 独占，见总规划 §2.2 不变式）。
+    final service = const HtmlExportService();
     final result = await service.export(_project);
-    if (mounted) {
+    if (!mounted) return;
+    if (result.success) {
+      Log().info('[HtmlCreator] ✅ 导出成功: plugins/${_project.pluginId}/module/');
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(result.message),
-        backgroundColor: result.success ? null : Colors.red,
+        duration: const Duration(seconds: 2),
       ));
-      if (result.success) {
-        // 绑定画布 ↔ 插件 ID：后续手动/AI 导出均复用同一插件。
-        // 插件 ID 即实例 ID，绑定后同步当前实例身份与会话路径。
-        final cid = _currentCanvasId;
-        if (cid != null) {
-          _canvasMgr.bindPluginId(cid, _project.pluginId);
-          _aiService.rebindInstanceId(_project.pluginId);
-          _currentInstanceId = _project.pluginId;
-          _refreshInstances();
-        }
-        _registerToSidebar();
-        setState(() {
-          _useExportedPreview = true;
-          // 换新 GlobalKey → 强制重载预览（加载最新导出产物）
-          _previewGlobalKey = GlobalKey();
-        });
+      // 绑定画布 ↔ 插件 ID：后续手动/AI 导出均复用同一插件。
+      // 插件 ID 即实例 ID，绑定后同步当前实例身份与会话路径。
+      final cid = _currentCanvasId;
+      if (cid != null) {
+        _canvasMgr.bindPluginId(cid, _project.pluginId);
+        _aiService.rebindInstanceId(_project.pluginId);
+        _currentInstanceId = _project.pluginId;
+        _refreshInstances();
       }
-    }
-  }
-
-  /// 从 _pluginsRoot 向上找到 evg-base 项目根，再拼出 assets/plugins_bundle/。
-  /// 不硬编码路径层级，通过向上查找 pubspec.yaml 定位。
-  String? _findAssetsBundle() {
-    var dir = Directory(_pluginsRoot!).parent; // plugins/ 的父目录
-    while (true) {
-      final pubspec = File(p.join(dir.path, 'pubspec.yaml'));
-      if (pubspec.existsSync()) {
-        final bundle = p.join(dir.path, 'assets', 'plugins_bundle');
-        debugPrint('[HtmlCreator] 📦 assetsBundle: $bundle');
-        return bundle;
+      final regErr = _registerToSidebar();
+      if (regErr != null) {
+        Log().warn('[HtmlCreator] 导出成功但注册到侧边栏失败', data: {'err': regErr});
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('已导出，但注册到侧边栏失败: $regErr'),
+          backgroundColor: Colors.orange,
+        ));
       }
-      final parent = dir.parent;
-      if (parent.path == dir.path) break;
-      dir = parent;
+      setState(() {
+        _useExportedPreview = true;
+        // 换新 GlobalKey → 强制重载预览（加载最新导出产物）
+        _previewGlobalKey = GlobalKey();
+      });
+    } else {
+      // RC-4/O11：失败原因用户可见（不再仅 debugPrint）。
+      Log().error('[HtmlCreator] ❌ 导出失败: ${result.message}');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(result.message),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 4),
+      ));
     }
-    debugPrint('[HtmlCreator] ⚠ 未找到 pubspec.yaml，跳过 assets_bundle');
-    return null;
   }
 
   /// 将刚导出的插件热注册到 moduleRegistryProvider，侧边栏和路由实时可见。
@@ -363,11 +373,15 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
   /// 幂等替换同 id 模块），消除此前「重建 ModuleRegistry」的 workaround——
   /// 重建会丢失 _capabilities 能力维度，且重复导出同 id 时 register 抛
   /// 重复异常被静默吞掉，导致侧边栏不刷新。
-  void _registerToSidebar() {
+  ///
+  /// 返回 `null` = 成功；否则返回用户可展示的失败原因（RC-4 错误可见化）。
+  String? _registerToSidebar() {
     try {
       final manifestPath = p.join(_pluginsRoot!, _project.pluginId, 'module', 'manifest.json');
       final manifestFile = File(manifestPath);
-      if (!manifestFile.existsSync()) return;
+      if (!manifestFile.existsSync()) {
+        return 'manifest 不存在: $manifestPath';
+      }
 
       final manifestJson = jsonDecode(manifestFile.readAsStringSync()) as Map<String, dynamic>;
 
@@ -383,14 +397,24 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
       final descriptor = ModuleDescriptor.fromJson(manifestJson);
       final registry = ref.read(moduleRegistryProvider);
       final ok = registry.reloadModule(descriptor);
-      if (ok) {
-        ref.read(moduleRegistryProvider.notifier).state = registry;
-        debugPrint('[HtmlCreator] 🔗 热注册到侧边栏: ${_project.pluginId} (reloadModule)');
-      } else {
-        debugPrint('[HtmlCreator] ⚠ 热注册被拒绝（依赖缺失）: ${_project.pluginId}');
+      if (!ok) {
+        return '依赖缺失，reloadModule 拒绝（descriptor=${_project.pluginId}）';
       }
+      ref.read(moduleRegistryProvider.notifier).state = registry;
+      Log().info('[HtmlCreator] 🔗 热注册到侧边栏: ${_project.pluginId} (reloadModule)');
+
+      // 3. 插件中心/最近使用可见（RC-3：registerInstalled 补状态记录，
+      //    enabled+sidebarVisible，插件中心排序与「最近使用」立即生效）。
+      try {
+        ref.read(pluginStateProvider.notifier).registerInstalled(_project.pluginId);
+        ref.read(pluginStateProvider.notifier).touch(_project.pluginId);
+      } catch (e) {
+        Log().warn('[HtmlCreator] 插件中心状态登记失败（非致命）', error: e);
+      }
+      return null;
     } catch (e) {
-      debugPrint('[HtmlCreator] ⚠ 热注册失败: $e');
+      Log().error('[HtmlCreator] ⚠ 热注册失败', error: e);
+      return e.toString();
     }
   }
 
