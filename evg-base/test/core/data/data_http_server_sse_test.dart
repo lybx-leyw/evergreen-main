@@ -19,7 +19,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:evergreen_base/core/data/data.dart';
-import 'package:flutter/services.dart' show MethodCall, MethodChannel;
 import 'package:flutter_test/flutter_test.dart';
 
 /// 原始 Socket 发一次 GET，读完整响应（服务器关闭连接后返回）。
@@ -77,14 +76,9 @@ void main() {
   late int port;
 
   setUp(() async {
-    final tmp = Directory.systemTemp.createTempSync('hsrv_sse_cache_test_');
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(
-      const MethodChannel('plugins.flutter.io/path_provider'),
-      (MethodCall call) async => tmp.path,
-    );
-    await Cache.getInstance();
-
+    // 注：SSE/流式测试不落盘（registerStream 不写 Cache），不初始化 Cache——
+    // 避免依赖 path_provider 平台通道（Windows 走 path_provider_windows 原生实现，
+    // MethodChannel mock 不生效，可能在无 app 环境下抛错）。
     orch = DataOrchestrator();
     server = DataHttpServer(orch);
     port = await server.start();
@@ -154,6 +148,9 @@ void main() {
       final socket = await Socket.connect('127.0.0.1', port);
       socket.write(
           'GET /data/events HTTP/1.0\r\nHost: localhost\r\nConnection: close\r\n\r\n');
+
+      // 等待服务器异步处理请求并订阅 dataChangeEvents（避免事件在订阅前发出而漏帧）。
+      await Future<void>.delayed(const Duration(milliseconds: 200));
 
       orch.register(type, () async => {'v': 1});
       await orch.refresh(type, notifyOnChange: true); // 首次：无基线不发
