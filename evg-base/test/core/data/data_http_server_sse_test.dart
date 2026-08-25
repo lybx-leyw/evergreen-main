@@ -47,7 +47,9 @@ Future<(int, String?, String)> _rawSseGet(int port, String path,
   final body = headerEnd < 0 ? '' : all.substring(headerEnd + 4);
   final statusLine = head.split('\r\n').first;
   final status = int.parse(statusLine.split(' ')[1]);
-  final contentType = RegExp(r'(?i)content-type:\s*([^\r\n]+)')
+  // 注：Dart RegExp 不支持 `(?i)` 内联标志（抛 Invalid group），用构造参数。
+  final contentType = RegExp('content-type:\\s*([^\\r\\n]+)',
+          caseSensitive: false)
       .firstMatch(head)
       ?.group(1);
   return (status, contentType, body);
