@@ -50,7 +50,7 @@ evergreen-main/
 │   │   │   ├── module/           #   ModuleDispatch / ModulePage
 │   │   │   ├── multi_agent/      #   多 Agent 并行视图
 │   │   │   ├── page/             #   页面视图
-│   │   │   └── templates/        #   模板注册表（v4/html/scraper/theme-creator/skill-creator/dsh/zju/paper_reading）
+│   │   │   └── templates/        #   模板注册表（v4/html/scraper/theme-creator/skill-creator/dsh/zju）
 │   │   ├── theme/                # 兼容性 stub
 │   │   └── generated/            # 兼容性 stub
 │   ├── plugins/                  # 内置插件仓库（完整清单见 evg-base/plugins/README.md）
@@ -113,7 +113,6 @@ HTML 页面自动获得 `--evg-*` CSS 变量（主题色），主题切换时实
 | `theme-creator` | `ThemeCreatorModleTemplate` | 主题创作中心 |
 | `skill-creator` | `SkillCreatorModleTemplate` | Skill 创作中心 |
 | `dsh` | `DshModleTemplate` | DeepSeek Harness |
-| `paper_reading` | `PaperReadingModleTemplate` | 论文阅读 |
 | `zju` / `classroom` / `zdbk` | `ZjuModleTemplate` | 浙大校园 |
 
 ---

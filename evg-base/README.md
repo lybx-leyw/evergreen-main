@@ -36,13 +36,13 @@ evergreen-base/
 │   │   ├── module/       模块调度（ModuleDispatch / ModulePage）
 │   │   ├── multi_agent/  多 Agent 并行视图
 │   │   ├── page/         页面视图（市场/设置/数据看板/文件/全局记忆）
-│   │   └── templates/    模板路由（v4 / html / scraper / theme-creator / skill-creator / dsh / zju / paper_reading）
+│   │   └── templates/    模板路由（v4 / html / scraper / theme-creator / skill-creator / dsh / zju）
 │   │
 │   ├── theme/                        兼容性 stub → Breakpoints 常量
 │   └── generated/                    兼容性 stub → re-export providers.dart
 │
 ├── windows/                          Flutter Windows runner + CMake（含 media_kit 防复发保护）
-├── scripts/                          Python 管线（OCR / PDF 翻译）+ 嵌入式运行时 + Inno Setup
+├── scripts/                          Python 管线（OCR / PDF 文本提取）+ 嵌入式运行时 + Inno Setup
 ├── android/                          Android 平台壳（Chaquopy Python 3.11，Gradle）
 ├── plugins/                          外部插件（安装后空占位，用户放入即热加载）
 └── pubspec.yaml

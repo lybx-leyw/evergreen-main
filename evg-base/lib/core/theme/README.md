@@ -35,7 +35,7 @@
 
 | 来源 | 路径/方式 | 优先级 |
 |------|-----------|:---:|
-| 代码注册 | `store.register(ThemeDescriptor(...))`，内置见 `builtin_themes.dart`（dark/light/evergreen） | 高 |
+| 代码注册 | `store.register(ThemeDescriptor(...))`，内置见 `builtin_themes.dart`（dark/light） | 高 |
 | 主题插件 | `plugins/<name>/theme/theme.json`（`scanThemes` 自动发现） | 中 |
 | 示例 | `lib/core/theme/example/plugins/my_theme/`（`ocean_blue`，供复制验证） | 低 |
 
@@ -65,7 +65,7 @@
 
 校验清单：
 - [ ] `type` = `"theme"`
-- [ ] `id` 全局唯一（**不要**用 `dark`/`light`/`default`/`evergreen`，与内置冲突）
+- [ ] `id` 全局唯一（**不要**用 `dark`/`light`/`default`，与内置/回退哨兵冲突）
 - [ ] `colors` 8 键全必填、值均为合法 hex
 - [ ] `theme.json` 为有效 UTF-8 JSON
 
@@ -94,7 +94,7 @@ HTTP 通道（供插件 .exe）：`ThemeHttpServer` 端点 ——
 | `scanThemes(dir)` | 扫描 `plugins/<dir>/theme/theme.json` → `List<ThemeDescriptor>` |
 | `scanThemeFile(path)` | 加载单个 theme.json（文件不存在/格式错误抛异常） |
 | `loadThemes(dir, store)` | 扫描 + 注册 |
-| `registerBuiltinThemes(store)` | 注册内置 dark/light/evergreen |
+| `registerBuiltinThemes(store)` | 注册内置 dark/light |
 | `ThemeHttpServer(store)` | HTTP 服务（端点见 §四） |
 
 ## 六、渲染层消费

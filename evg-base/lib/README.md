@@ -41,7 +41,7 @@ lib/
 │   ├── module/               #   模块调度（ModuleDispatch / ModulePage）
 │   ├── multi_agent/          #   多 Agent 并行视图
 │   ├── page/                 #   页面视图（市场/设置/数据看板/文件/全局记忆）
-│   └── templates/            #   模板路由（v4/zju/html/scraper/theme-creator/skill-creator/dsh/paper_reading）+ slot/组件域（v4_modle 内）
+│   └── templates/            #   模板路由（v4/zju/html/scraper/theme-creator/skill-creator/dsh）+ slot/组件域（v4_modle 内）
 │
 ├── theme/                    # 兼容性 stub——renderer 通过旧路径引用
 │   └── breakpoints.dart      #   → Breakpoints，值与 renderer 常量对齐

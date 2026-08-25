@@ -46,7 +46,7 @@ plugins/<name>/theme/theme.json
 | 字段 | 必填 | 含义 |
 |------|:---:|------|
 | `type` | ✓ | 固定 `"theme"` |
-| `id` | ✓ | 全局唯一，建议 `snake_case`；**不要**用 `dark`/`light`/`default`/`evergreen` |
+| `id` | ✓ | 全局唯一，建议 `snake_case`；**不要**用 `dark`/`light`/`default` |
 | `name` | ✓ | 展示名称（设置页主题下拉显示） |
 | `colors` | ✓ | **8 个语义色全必填**（缺一即解析失败） |
 
@@ -80,7 +80,7 @@ plugins/<name>/theme/theme.json
 ## 校验清单
 
 - [ ] `type` = `"theme"`
-- [ ] `id` 全局唯一（不与内置 `dark`/`light`/`default`/`evergreen` 冲突）
+- [ ] `id` 全局唯一（不与内置 `dark`/`light`/`default` 冲突）
 - [ ] `colors` **8 键齐全**：background / surface / border / text / textSecondary / accent / error / others
 - [ ] 颜色值均为 `#RRGGBB` 或 `#AARRGGBB`
 - [ ] `theme.json` 为有效 UTF-8 JSON

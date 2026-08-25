@@ -19,11 +19,13 @@ Evergreen 2.0 建立在大量优秀的开源项目之上。我们在此郑重致
 
 ### pdf2zh（PDF 翻译引擎）
 
+> **2026-08-25 已移除**：PDF 翻译与论文阅读功能撤销（用户决策），`scripts/pdf2zh_next/` 已删除，以下记录仅留档。
+
 | 项目 | 说明 |
 |------|------|
 | **pdf2zh** | 学术 PDF 双语翻译工具，AGPL-3.0 License |
 | 仓库 | https://github.com/Byaidu/PDFMathTranslate |
-| 使用方式 | `scripts/pdf2zh_next/` 为 pdf2zh 的本地化集成模块，作为 Python 管线被 `paper_reader.py` / `pdf_translate.py` 通过 import 调用 |
+| 使用方式 | `scripts/pdf2zh_next/` 曾为 pdf2zh 的本地化集成模块，作为 Python 管线被 `paper_reader.py` / `pdf_translate.py` 通过 import 调用（均已删除） |
 | 合规性 | pdf2zh 为 AGPL-3.0，本项目为 GPL-3.0（兼容性 OK）；本项目仅通过子进程调用，未修改 pdf2zh 核心代码；pdf2zh_next 仅做配置适配与接口封装 |
 
 pdf2zh 使得 Evergreen 能够实现高质量的中英文学术论文翻译，特别感谢其作者 [Byaidu](https://github.com/Byaidu)。

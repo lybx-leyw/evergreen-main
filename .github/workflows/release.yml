@@ -137,6 +137,8 @@ jobs:
           # .gitignore，CI 首建场景由本步生成）。
           dart run tool/bundle_plugins.dart --check
           dart run tool/bundle_plugins.dart
+          # O4 扩展（t27）：脚本资产 bundle 同款门禁。
+          dart run tool/bundle_scripts.dart --check
           dart run tool/bundle_scripts.dart
 
       - name: 预下载 media_kit mpv 原生库 (避免 GitHub 下载断流)
@@ -244,6 +246,8 @@ jobs:
           # .gitignore，CI 首建场景由本步生成）。
           dart run tool/bundle_plugins.dart --check
           dart run tool/bundle_plugins.dart
+          # O4 扩展（t27）：脚本资产 bundle 同款门禁。
+          dart run tool/bundle_scripts.dart --check
           dart run tool/bundle_scripts.dart
 
       - name: 构建 Windows (${{ matrix.mode }}, ${{ matrix.label }})

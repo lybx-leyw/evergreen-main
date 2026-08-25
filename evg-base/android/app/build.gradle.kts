@@ -82,7 +82,7 @@ flutter {
 // 否则回退 PATH 上的 python 命令（Windows: python，Unix: python3）——
 // **不硬编码本机用户路径**（仓库可移植性；本机路径由 PATH 解析）。
 // buildPython 缺失时 chaquopy 只会警告并**静默跳过** src/main/python 打包
-// （2026-08-02 事故：pdf_translate.py 等未进 APK），
+// （2026-08-02 事故：安卓业务脚本未进 APK），
 // 故对**文件路径**形态的值做存在性检查，把静默失败变成构建期硬失败；
 // 命令名形态（python/python3）交给 OS 按 PATH 解析，无法预检。
 val chaquopyBuildPython = System.getenv("CHAQUOPY_BUILD_PYTHON")
@@ -101,24 +101,11 @@ chaquopy {
         // 已手动放入 src/main/python/（纯 Python 源码，构建期由 buildPython 编译打包）。
         // pycryptodome 含 C 扩展（无法手动拷贝源码），必须由 chaquopy 构建期装 wheel 进 APK，
         // 供爬虫脚本 `import Crypto.*`（RSA/AES 加密登录）使用。
-        // 安卓 PDF 翻译（pdf_translate_pure.py，纯 Python 管线）：
-        // pdfminer.six 读布局 + reportlab 写 PDF + pypdf 合并。
-        // 复用 pdf2zh_next 翻译引擎（DeepSeek→OpenAI 兼容）需 openai/httpx/pydantic/
-        // tomlkit/peewee/tenacity/rich/requests；babeldoc 的 AtomicInteger 由
-        // scripts/babeldoc/ shim 提供（babeldoc 本体依赖 pymupdf 无法安装）。
-        // 全部纯 Python，Chaquopy 可装（区别于 babeldoc 的 pymupdf/freetype/cv2 等 C 库）。
+        // 注：PDF 翻译与论文阅读已撤销（2026-08-25），pdf2zh_next 引擎及
+        // openai/httpx/pydantic/tomlkit/peewee/tenacity/rich、pdfminer.six/reportlab/pypdf
+        // 不再打包；src/main/python 仅保留 requests 全家桶（爬虫用）。
         pip {
             install("pycryptodome")
-            install("pdfminer.six")
-            install("reportlab")
-            install("pypdf")
-            install("openai")
-            install("httpx")
-            install("pydantic")
-            install("tomlkit")
-            install("peewee")
-            install("tenacity")
-            install("rich")
         }
     }
     // Python 源目录默认 src/main/python（动态插件由 MethodChannel 从设备路径按需加载，无需打包进 APK）。

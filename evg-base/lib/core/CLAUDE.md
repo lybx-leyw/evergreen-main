@@ -41,8 +41,6 @@ lib/core/
 │   ├── github_stars.dart    #   GitHub star 数据中枢接入（DataType）
 │   ├── github_clone.dart    #   GitHub 源克隆（git clone 子进程）
 │   ├── github_metadata.dart #   GitHub 仓库元数据抓取
-│   ├── pdf_translate_service.dart # PDF 翻译（pdf2zh 子进程）
-│   ├── translate_queue.dart #   并行翻译调度器（槽位 + 队列）
 │   ├── release_downloader.dart # GitHub release 二进制下载
 │   └── ui_operation_log.dart #   UI 操作日志（UIOperationLog）
 ├── utils/                   # 通用工具
@@ -198,7 +196,7 @@ REST 端点（见下表），绑定 `127.0.0.1` 随机端口。端口发现文�
 ### 3.1 新增 Service
 
 1. 在 `services/` 下创建新文件
-2. 若为纯 Dart 服务（无 Flutter 依赖），在 `services/services.dart` 中添加 `export` 语句；含 Flutter 依赖的服务（如 `pdf_translate_service.dart`）保持直接 import，不进 barrel
+2. 若为纯 Dart 服务（无 Flutter 依赖），在 `services/services.dart` 中添加 `export` 语句；含 Flutter 依赖的服务（如 `release_downloader.dart`）保持直接 import，不进 barrel
 3. 公开方法返回 `Result<T>`（不抛异常）
 4. 使用 `Log()` 记录关键操作
 5. 在 `test/` 下添加对应测试
@@ -289,6 +287,7 @@ CoreHttpServer(PluginInstaller installer, OcrPipeline ocrPipeline, UpdateService
 
 | 日期 | 变更 |
 |------|------|
+| 2026-08-25 | **t21 PDF 翻译撤销（core 服务层）**：删除 `services/pdf_translate_service.dart` + `services/translate_queue.dart`（用户决定撤销 PDF 翻译以减少内存；renderer t20 已删 translate_slot、plugins t19 已删 pdf_translate 插件）；barrel `services.dart` 本就未导出两者，无需变更；全仓 grep 无遗留引用（paper_reading `paper_service.dart` 仅注释提及，无 import）；pdf2zh_next/paper_reader.py 属 platform 域保留 |
 | 2026-08-25 | **t9 统一 Python 解释器路径**：python_env.dart 新增 `PythonInterpreter.resolve()` 单例（解析顺序 configuredPath → greenix 目录 → PATH → 安卓 Chaquopy 枚举）、`PythonRuntime`/`PythonRuntimeKind` 结构化结果、`kChaquopySentinel` 哨兵常量、`bindGreenixPythonDir` 双真理源合并（app_bootstrap 绑定 greenixPythonDir）、`bundledPathSync` 同步探测；core 域调用点（ocr_pipeline/pdf_translate/plugin_runner/app_bootstrap）与跨域已知点（agent_runtime/agent_factory/skill_creator/paper_reading/translate_slot）迁移收敛；新增 python_env_test（14 用例） |
 | 2026-08-25 | 文档同步：目录结构补全（services / utils / test 全量文件）、修正端口文件契约（app_bootstrap 统一写）、OCR 脚本名与 Key 环境变量、barrel 导出范围说明；按文档修订三原则去除硬编码数量与版本号 |
 | 2026-08-21 | 对齐 HTML-first 插件创作：补充用户侧 HTML 插件路径、更新目录结构与平台 bridge 说明 |

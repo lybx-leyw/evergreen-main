@@ -47,6 +47,9 @@ parent: "-"
 | 2026-08-25 | HtmlExportService 单目标化：HTML 插件导出不再双写 `assets/plugins_bundle/`（bundle=plugins/ 纯镜像不变式，仅 `tool/bundle_plugins.dart` 生成）；统一走 `resolvePluginsRoot()`（与主题插件导出路径一致） | renderer（改造）/ platform（bundle/CI）/ plugins（插件清单） | ✅ 已实现（t10/t14） |
 | 2026-08-25 | .egsync 同步中心新契约：`.egsync.zip` 包结构 + `config.evgconfig` v2 格式（向后兼容 v1）+ 会话 `parent_id/fork_turn` 元数据 + 插件/数据源/主题导出导入契约（复用 .plugin 信封 + fail-closed） | core-config（牵头）/ core-agent / core-module / core-data / plugins / renderer | ✅ 已实现（t11/t15/t16/t17），规格 `docs/superpowers/specs/egsync-sync-center-spec-v1.md` v1.3 |
 | 2026-08-25 | Python 解释器唯一路径：`PythonInterpreter.resolve()` 单例收敛（消除 5+ 处重复探测 + `'chaquopy'` 哨兵 + 双真理源）；agent 工具 `.exe` 优先改为 `.py` 优先（runtime 字段） | core（基础设施）/ core-agent / core-data / plugins | ✅ 已实现（t9/t12/t13/t18），plugins 域 .exe 残留=0 |
+| 2026-08-25 | PDF 翻译功能撤销：删除 `plugins/pdf_translate/` 插件 + `core/services/pdf_translate_service.dart`/`translate_queue.dart` + renderer `pdf-translate` slot/capability + `scripts/pdf_translate*.py`（用户决策：无内置必要，减少内存） | plugins / core / renderer / platform | ✅ 已实现（t19/t20/t21/t22） |
+| 2026-08-25 | 论文阅读（paper_reading）整体撤销：删除 `renderer/templates/paper_reading_modle/` 模板（24 文件）+ `scripts/pdf2zh_next/` 引擎 + `paper_vision.py`/`verify_pipeline.py` 等脚本资产；`PymupdfTool` 迁移至 `skill_creator_modle/tools/`（skill_creator `pdf_extract_text` 工具保留）；`paper_reader.py` 瘦身为仅 extract；模板注册 10→9 路由；Python 环境瘦身 747.9MB→91.3MB（-87.8%，删 90+ 死重包） | renderer / platform / core / core-agent | ✅ 已实现（t25/t26/t27） |
+| 2026-08-25 | 内置主题删减：删除内置品牌绿主题（`evergreen`），仅保留 dark/light（`builtin_themes.dart`；`active_theme_id` 存量由无效 id 回退链落 dark）；发现插件页分类修复：registry `lattice` 并入能力维度（warm_study 由「界面/面板」改判「主题」，`market_view.dart`） | core-config（theme）/ renderer | ✅ 已实现（t23/t24） |
 
 ## 6. OWNER 索引表
 
@@ -76,5 +79,4 @@ parent: "-"
 | `plugin-dsh` | `plugins/dsh/` + `renderer/templates/dsh_modle/` | `evg-base/plugins/dsh/AGENT.md` |
 | `plugin-marketplace` | `plugins/marketplace/` | `evg-base/plugins/marketplace/AGENT.md` |
 | `plugin-ai-assistant` | `plugins/ai-assistant/` | `evg-base/plugins/ai-assistant/AGENT.md` |
-| `plugin-pdf-translate` | `plugins/pdf_translate/` | `evg-base/plugins/pdf_translate/AGENT.md` |
 | `plugin-zju` | `renderer/templates/zju_modle/` | `evg-base/lib/renderer/templates/zju_modle/AGENT.md` |

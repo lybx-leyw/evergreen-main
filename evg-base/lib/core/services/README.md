@@ -6,17 +6,17 @@
 | 版本 | 以根 `README.md` 为准 |
 | 日期 | 2026-08-02 |
 | 负责人 | 待补充 |
-| 适用 | services（OCR/翻译/安装/更新） |
+| 适用 | services（OCR/更新/安装/同步中心） |
 
 > 源码 `ocr_pipeline.dart` `deepseek_ocr_service.dart` `update_service.dart` `plugin_installer.dart` `core_http_server.dart` `github_stars.dart` `sync_import_service.dart`、测试 `../test/`
 >
 > **HTML-first 事实**：用户 HTML 插件通过 `platform.api.call("core", ...)` 访问 Core 服务；本目录的 OCR/更新/安装服务仍由平台内部与开发者模式插件使用。
 >
-> **barrel 说明**：`services.dart` 导出纯 Dart 服务（OCR/更新/安装/Core HTTP/GitHub stars）；
-> `github_clone.dart` / `github_metadata.dart` / `pdf_translate_service.dart` / `translate_queue.dart` /
-> `release_downloader.dart` / `ui_operation_log.dart` 含 Flutter 依赖或独立契约，按需直接 import 对应文件。
+> **barrel 说明**：`services.dart` 导出纯 Dart 服务（OCR/更新/安装/Core HTTP/GitHub stars/同步导入）；
+> `github_clone.dart` / `github_metadata.dart` / `release_downloader.dart` / `ui_operation_log.dart`
+> 含 Flutter 依赖或独立契约，按需直接 import 对应文件。
 
-平台级基础服务——OCR 文字识别、应用更新、插件安装管理、HTTP API、PDF 翻译、GitHub 集成。外部插件可直接调用。
+平台级基础服务——OCR 文字识别、应用更新、插件安装管理、HTTP API、GitHub 集成、同步中心导入。外部插件可直接调用。
 
 ---
 
@@ -33,8 +33,6 @@
 | `SyncImportService` | `sync_import_service.dart` | .egsync.zip 导入：fail-closed 校验 + 版本感知冲突 + 注册回放（t-C3） | ✅ |
 | `GithubCloner` | `github_clone.dart` | GitHub 源克隆（git clone 子进程） | 直接 import |
 | `GithubMetadata` | `github_metadata.dart` | 仓库元数据抓取（市场卡片实时 star） | 直接 import |
-| `PdfTranslateService` | `pdf_translate_service.dart` | PDF 翻译（pdf2zh 子进程，JSON Lines 事件流） | 直接 import |
-| `TranslateQueue` | `translate_queue.dart` | 并行翻译调度（槽位 + FIFO 队列） | 直接 import |
 | `ReleaseDownloader` | `release_downloader.dart` | GitHub release 二进制下载/解压 | 直接 import |
 | `UIOperationLog` | `ui_operation_log.dart` | UI 操作日志（DebugErrorBar 实时显示） | 直接 import |
 

@@ -27,7 +27,7 @@ Evergreen 平台底层依赖——对外提供统一的模块注册、AI 基建�
 | `data/` | 数据管线——DataType 注册、插件数据源加载、缓存 | [`data/README.md`](data/README.md) |
 | `module/` | 模块注册——manifest.json 驱动、路由生成、导航配置、UI 范式声明 | [`module/README.md`](module/README.md) |
 | `theme/` | 主题注册——theme.json 驱动的全局配色方案 | [`theme/README.md`](theme/README.md) |
-| `services/` | 平台服务——OCR、插件安装、更新、Core HTTP、PDF 翻译、GitHub 集成 | [`services/README.md`](services/README.md) |
+| `services/` | 平台服务——OCR、插件安装、更新、Core HTTP、GitHub 集成、同步中心导入 | [`services/README.md`](services/README.md) |
 | `utils/` | 通用工具——安全解析、Token 估算、Python 环境、运行路径、资产释放、文件管理 | [`utils/README.md`](utils/README.md) |
 | `plugin/` | 插件运行器——桌面子进程 / 安卓 Chaquopy 统一抽象 | — |
 | `feedback/` | 用户反馈——浮窗入口、反馈表单、Issue 发布、截图 | — |
@@ -62,6 +62,6 @@ plugins/<name>/
 
 ## 规则
 
-- 子模块通过 barrel 导出公共 API；含 Flutter 依赖的服务（如 `services/pdf_translate_service.dart`）保持直接 import，不进 barrel。
+- 子模块通过 barrel 导出公共 API；含 Flutter 依赖的服务（如 `services/release_downloader.dart`）保持直接 import，不进 barrel。
 - 子模块间的依赖通过 `package:evergreen_base/core/` 路径引用。
 - agent、config、data、module、theme 五个模块由专门工程师维护，其余模块不可修改。

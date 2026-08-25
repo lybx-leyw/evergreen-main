@@ -20,8 +20,7 @@ parent: renderer
 | 模板 | 目录 | 归属 | 用途 |
 |------|------|------|------|
 | `v4_modle` | `v4_modle/` | **本 OWNER** | 通用组件式模板（最重） |
-| `paper_reading_modle` | `paper_reading_modle/` | **本 OWNER** | 论文阅读 |
-| `skill_creator_modle` | `skill_creator_modle/` | **本 OWNER** | Skill 创作中心 |
+| `skill_creator_modle` | `skill_creator_modle/` | **本 OWNER** | Skill 创作中心（含 tools/pymupdf_tool.dart，自 t25 迁入） |
 | `generated/` | `generated/` | **本 OWNER** | 生成代码 |
 | `theme_creator_modle` | `theme_creator_modle/` | **已让渡 → plugin-theme-creator** | 主题创作中心 |
 | `html_modle` | `html_modle/` | **已让渡 → plugin-html-creator** | HTML 插件（WebView + JS Bridge） |
@@ -31,11 +30,11 @@ parent: renderer
 
 > **让渡说明**：以上独立模板已移交独立 OWNER（见各 `*_modle/AGENT.md` 或 `plugins/<id>/AGENT.md`）。本 OWNER 仍负责「模板注册表」整体（`TemplateRegistry` + `templates_index.json`），但模板内部实现由独立 OWNER 自治。
 >
-> **v4_modle 内组件归属**：`v4_modle/components/` 下的 `marketplace/`、`interaction/chat/`、`translate/` 组件目录**仍归本 OWNER**（不从 v4_modle 剥离），但被独立 OWNER（`plugin-marketplace`/`plugin-ai-assistant`/`plugin-pdf-translate`）通过「对外契约」引用协作。
+> **v4_modle 内组件归属**：`v4_modle/components/` 下的 `marketplace/`、`interaction/chat/` 组件目录**仍归本 OWNER**（不从 v4_modle 剥离），但被独立 OWNER（`plugin-marketplace`/`plugin-ai-assistant`）通过「对外契约」引用协作。`translate/`（PDF 翻译）组件已于 2026-08-25 随功能撤销删除（t20）。
 
 ## 2. 边界与红线
 
-- ✅ 可以：改本 OWNER 保留的模板（`v4_modle`、`paper_reading_modle`、`skill_creator_modle`、`generated/`）及模板注册表整体；新增模板。
+- ✅ 可以：改本 OWNER 保留的模板（`v4_modle`、`skill_creator_modle`、`generated/`）及模板注册表整体；新增模板。
 - ❌ 禁止：写业务逻辑；直调 HTTP；改动 core/ 或其他 renderer 子 OWNER；改动已让渡的独立模板（`theme_creator_modle`/`html_modle`/`scraper_modle`/`dsh_modle`/`zju_modle`）内部实现（应派发给对应独立 OWNER）。
 - ⚠️ 需协调：新增模板必须在 `templates_index.json` 登记 + 重新生成 `template_registry.g.dart`（否则 AOT tree-shaker 无法裁剪）；`template` 字段路由变更需与 `core-module` 对齐；`modle_route` 超参数语义：模板只按 `modle_route` 渲染子视图，不内置 Tab/多 page。独立 OWNER 改其模板的注册/路由时，须通知本 OWNER 同步注册表。
 

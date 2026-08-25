@@ -11,7 +11,7 @@
 /// | `theme_store.dart` | ThemeStore 响应式存储器 |
 /// | `theme_loader.dart` | scanThemes / loadThemes / scanThemeFile |
 /// | `theme_http_server.dart` | ThemeHttpServer 7 端点 |
-/// | `builtin_themes.dart` | 内置主题（dark/light/evergreen，代码注册） |
+/// | `builtin_themes.dart` | 内置主题（dark/light，代码注册） |
 /// | `render_rules.dart` | 像素级设计常量 |
 /// | `src/color.dart` | ThemeColor 颜色值对象 |
 library;

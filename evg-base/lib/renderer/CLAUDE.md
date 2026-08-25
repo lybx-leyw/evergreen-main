@@ -32,7 +32,6 @@ lib/renderer/
 │   ├── theme_creator_modle/ # 主题创作中心
 │   ├── skill_creator_modle/ # Skill 创作中心
 │   ├── dsh_modle/     # DeepSeek Harness
-│   ├── paper_reading_modle/ # 论文阅读
 │   └── zju_modle/     # 浙大校园（zju / classroom / zdbk）
 ├── lib/               # Stub 包（独立 dart analyze，清单见 lib/）
 ├── docs/              # 设计规范 + 渲染常量
@@ -55,7 +54,7 @@ lib/renderer/
 | 条件 | → 视图 | 说明 |
 |------|--------|------|
 | `descriptor.id == 'ai-assistant'` | `ChatControllerView` | 全屏 AI 对话 |
-| `descriptor.template` 非空且非 `v4` | `TemplateRegistry.render` | 按 `html` / `scraper` / `theme-creator` / `skill-creator` / `dsh` / `zju` / `classroom` / `zdbk` / `paper_reading` 路由 |
+| `descriptor.template` 非空且非 `v4` | `TemplateRegistry.render` | 按 `html` / `scraper` / `theme-creator` / `skill-creator` / `dsh` / `zju` / `classroom` / `zdbk` 路由 |
 | `descriptor.pages` 非空 | `TemplateRegistry.render` | 通常走 v4 composite |
 | `descriptor.workspace.enabled` | `EditorView` | 代码/文本编辑器 |
 | 其他 | `DefaultView` | 数据绑定兜底（不崩溃） |
@@ -147,5 +146,13 @@ class MyModleTemplate extends ModleRenderer {
 - ✅ HTML 插件主路径：`html-creator` 三栏 IDE + `html_modle` WebView + JS Bridge（含 `platform.process.*` 进程白名单）+ 导出热注册
 - ✅ 模板注册表：路由清单见 `templates/templates_index.json`（生成物 `generated/template_registry.g.dart`）
 - ✅ 主题色统一：RenderTokens 从扁平 8 色 ThemeDescriptor 动态派生，HTML 引擎使用 CSS 变量
+- ✅ PDF 翻译已撤销（t20）：删除 `v4_modle/components/translate/`（translate_slot/translate_models）与
+  `_registrations.dart` 的 `pdf-translate` slot/capability 注册及对应测试；论文阅读翻译走 paper_reader.py，不受影响
+- ✅ 发现插件分类修复（t24）：`registryPluginToDescriptor`（`page/market_view.dart`）把 registry `lattice`
+  （插件类型权威声明）并入能力维度（去重、声明维度在前）——主题插件（warm_study）在「发现插件」页
+  显示/筛选为「主题」而非仅「界面」，不依赖修改 registry 数据；未知 lattice 保持既有行为
+- ✅ paper_reading_modle 模板已撤销（t25）：删除整个模板目录（24 文件）；`PymupdfTool`（skill_creator
+  的 `pdf_extract_text` 工具在用）迁移至 `skill_creator_modle/tools/pymupdf_tool.dart`；templates_index.json
+  与 build_profiles 移除 paper_reading，`template_registry.g.dart` 已重新生成（10→9 路由）
 - ✅ Stub 包，`dart analyze lib/` 可独立通过
 - ✅ `renderer.dart` barrel 已收敛：slot/ 与组件域随 v4_modle 移入 `templates/v4_modle/`，导出路径同步更新

@@ -28,7 +28,9 @@ parent: root
 
 ### 内置插件清单
 
-`ai-assistant`、`data-dashboard`、`dsh`、`html-creator`、`marketplace`、`pdf_translate`、`python-runner`、`scraper`、`settings`、`skill-creator`、`theme-creator`
+`ai-assistant`、`data-dashboard`、`dsh`、`html-creator`、`marketplace`、`python-runner`、`scraper`、`settings`、`skill-creator`、`theme-creator`
+
+> 2026-08-25（t19）：`pdf_translate` 内置插件已移除（PDF 翻译功能撤销）。
 
 ### 已有独立 OWNER 的插件
 
@@ -40,7 +42,6 @@ parent: root
 | `dsh` | `plugin-dsh` | `plugins/dsh/AGENT.md` |
 | `marketplace` | `plugin-marketplace` | `plugins/marketplace/AGENT.md` |
 | `ai-assistant` | `plugin-ai-assistant` | `plugins/ai-assistant/AGENT.md` |
-| `pdf_translate` | `plugin-pdf-translate` | `plugins/pdf_translate/AGENT.md` |
 | `zju_modle`（纯模板） | `plugin-zju` | `lib/renderer/templates/zju_modle/AGENT.md` |
 
 > 其余插件（`data-dashboard`、`python-runner`、`settings`、`skill-creator`）由本 OWNER 统一托管。

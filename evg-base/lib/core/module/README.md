@@ -46,7 +46,7 @@ ModuleDescriptor.fromJsonString(String)          // JSON 字符串解析
 | `workspace` | | `WorkspaceDescriptor?` | — | 文件工作区 |
 | `pages` | | `List<PageDescriptor>` | `[]` | 多页面 |
 | `theme` | | `Map<String, Map<String, String>>?` | — | 模块级 theme 覆盖 |
-| `template` | | `String` | `"v4"` | 渲染模板：`v4` / `html` / `scraper` / `theme-creator` / `skill-creator` / `dsh` / `zju` / `paper_reading` |
+| `template` | | `String` | `"v4"` | 渲染模板：`v4` / `html` / `scraper` / `theme-creator` / `skill-creator` / `dsh` / `zju` |
 | `dataSource` | | `DataSourceDescriptor?` | — | 模块级数据源（`orch://<type>`） |
 | `modleRoute` | | `String?` | — | 模板内子路由（如 zdbk 的 score/notifications） |
 | `dataSources` | | `Map<String, DataSourceDescriptor>?` | — | 命名多数据源 |

@@ -20,7 +20,7 @@ ThemeDescriptor (扁平 8 色模型) + ThemeColor (值对象)
         │
    ThemeStore (ChangeNotifier)
         │
-   ├── registerBuiltinThemes → 内置 dark/light/evergreen（代码注册）
+   ├── registerBuiltinThemes → 内置 dark/light（代码注册）
    ├── ThemeLoader → plugins/ 下的主题插件（theme.json）
    └── ThemeHttpServer（HTTP 端点，见 §七）
 ```
@@ -31,7 +31,7 @@ ThemeDescriptor (扁平 8 色模型) + ThemeColor (值对象)
 | `theme_descriptor.dart` | 主题数据模型（扁平 8 色，8 键必填），fromJson/toJson |
 | `theme_store.dart` | 响应式容器，ChangeNotifier |
 | `theme_loader.dart` | 扫描目录/文件，加载 theme.json（失败输出 ❌ 日志） |
-| `builtin_themes.dart` | 内置主题（dark/light/evergreen，`registerBuiltinThemes`） |
+| `builtin_themes.dart` | 内置主题（dark/light，`registerBuiltinThemes`） |
 | `theme_http_server.dart` | HTTP API（端点见 §七，含 CORS 预检） |
 | `render_rules.dart` | 像素级设计常量（间距/圆角/字号等） |
 | `theme.dart` | barrel 导出 |
@@ -50,7 +50,7 @@ lib/core/theme/
 ├── theme_descriptor.dart      # ThemeDescriptor 数据模型（扁平 8 色）
 ├── theme_store.dart           # ThemeStore 响应式存储器
 ├── theme_loader.dart          # scanThemes / loadThemes / scanThemeFile
-├── builtin_themes.dart        # 内置主题（dark/light/evergreen）
+├── builtin_themes.dart        # 内置主题（dark/light）
 ├── theme_http_server.dart     # HTTP API（端点见 §七）
 ├── render_rules.dart          # 像素级设计常量
 ├── src/
@@ -138,7 +138,7 @@ JS 侧可用 `platform.theme.getColors()` 获取，并监听 `theme:changed` 实
 1. 在 `example/plugins/my_theme/theme/theme.json` 或 `plugins/<name>/theme/theme.json` 创建 JSON
 2. `type` 必须为 `"theme"`
 3. 8 个语义色全必填，值均为合法 hex（`#RGB` / `#RRGGBB` / `#AARRGGBB`）
-4. 不要用 `dark` / `light` / `default` / `evergreen` 作为 id（与内置冲突）
+4. 不要用 `dark` / `light` / `default` 作为 id（与内置/回退哨兵冲突）
 5. 运行 `dart test` 验证
 
 ### RenderRules 像素常量
@@ -215,5 +215,6 @@ JS 侧可用 `platform.theme.getColors()` 获取，并监听 `theme:changed` 实
 
 | 日期 | 变更 |
 |------|------|
+| 2026-08-25 | **删除内置品牌绿主题（evergreen）**：`builtin_themes.dart` 仅保留 dark/light（用户决策）；同步更新 theme.dart barrel 注释、builtin_themes_test.dart（3→2 断言）、docs/plugin-theme.md 与 README/CLAUDE 中「dark/light/default/evergreen」保留 id 清单（移除 evergreen）；`active_theme_id` 存量 'evergreen' 由 app_bootstrap 无效 id 回退链自动落到 dark（无需改代码） |
 | 2026-08-25 | 文档对齐代码：目录结构补 AGENT.md；确认 ThemeHttpServer 端点表与扁平 8 色模型一致（含 OPTIONS 预检）；按文档修订三原则去除硬编码数量与版本号 |
 | 2026-08-02 | 初始版本：创建 CLAUDE.md（扁平 8 色模型 / 废弃五层 token / HTTP 端点契约） |

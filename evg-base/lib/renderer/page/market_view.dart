@@ -50,6 +50,21 @@ PluginDescriptor registryPluginToDescriptor(
     }
   }
 
+  // 分类维度 = registry `dimensions`（能力标签）∪ `lattice`（插件类型权威声明）。
+  //
+  // 背景（t24）：warm_study 等主题插件的 registry 条目声明 `"lattice":"theme"`
+  // 但能力标签只有 `"dimensions":["ui"]`——旧逻辑只消费 dimensions，导致主题
+  // 插件在「发现插件」页显示/筛选为「界面」而非「主题」。这里把 lattice 也并入
+  // 维度（去重、声明维度在前），保证插件类型与展示/筛选一致，且不依赖修改
+  // registry 数据。未知 lattice 返回 null 保持既有行为。
+  final latticeDim = _latticeDim(p.lattice);
+  final dims = <AbilityDim>[
+    for (final d in p.dimensions) _dim(d),
+    if (latticeDim != null &&
+        !p.dimensions.any((d) => _dim(d) == latticeDim))
+      latticeDim,
+  ];
+
   return PluginDescriptor(
     id: p.id,
     name: p.name,
@@ -57,13 +72,27 @@ PluginDescriptor registryPluginToDescriptor(
     longDescription: p.longDescription ?? '',
     author: p.author ?? '',
     version: p.version,
-    dimensions: p.dimensions.map(_dim).toList(),
+    dimensions: dims,
     installCount: p.installCount,
     rating: p.rating,
     stars: stars,
     installed: installed,
   );
 }
+
+/// registry `lattice`（插件类型声明）→ 能力维度。
+///
+/// 与 [AbilityDim] 六色标签对应；未识别的 lattice 返回 null（保持既有
+/// `dimensions` 不变）。theme 型插件（如 warm_study）由此映射为「主题」。
+AbilityDim? _latticeDim(String? lattice) => switch (lattice) {
+      'theme' => AbilityDim.theme,
+      'module' || 'static-web' || 'web-bridged' => AbilityDim.ui,
+      'data-source' => AbilityDim.data,
+      'agent' || 'agent-tool' => AbilityDim.agent,
+      'config' => AbilityDim.settings,
+      'skill' => AbilityDim.skill,
+      _ => null,
+    };
 
 /// 从 GitHub URL 提取 `owner/repo`（失败返回 null）。
 String? _ownerRepoOf(String url) {

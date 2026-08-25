@@ -40,7 +40,7 @@ class ThemeExporter {
       return const ThemeExportResult(
         success: false,
         message: 'id 不合法：需 snake_case（小写字母/数字/下划线），'
-            '且不能与内置主题（dark/light/default/evergreen）冲突',
+            '且不能与内置主题（dark/light/default）冲突',
       );
     }
     if (!draft.hasAllColors) {

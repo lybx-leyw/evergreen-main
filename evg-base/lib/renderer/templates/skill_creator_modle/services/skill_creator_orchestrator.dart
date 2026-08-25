@@ -24,7 +24,7 @@ import 'package:evergreen_base/core/agent/memory/file_memory_store.dart';
 import 'package:evergreen_base/core/agent/skill/skill.dart';
 import 'package:evergreen_base/core/services/ocr_pipeline.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
-import 'package:evergreen_base/renderer/templates/paper_reading_modle/tools/pymupdf_tool.dart';
+import 'package:evergreen_base/renderer/templates/skill_creator_modle/tools/pymupdf_tool.dart';
 
 import '../models/skill_creator_models.dart';
 import 'skill_creator_agents.dart';

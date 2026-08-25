@@ -13,13 +13,13 @@ parent: root
 ## 1. 职责范围
 
 - 管辖目录：`evg-base/scripts/` + `evg-base/tool/` + `evg-base/windows/` + `evg-base/android/`
-- 一句话定位：Python 管线（含 pdf2zh_next）、打包、Inno Setup、CMake、Chaquopy 安卓壳、CI。
+- 一句话定位：Python 管线（OCR / PDF 提取）、打包、Inno Setup、CMake、Chaquopy 安卓壳、CI。
 
 ### 主要资产
 
 | 资产 | 位置 | 职责 |
 |------|------|------|
-| Python 管线 | `scripts/pdf2zh_next/` + 嵌入式 Python（由 `setup_python.cmd` 预装） | PDF 翻译引擎 + OCR 运行时 |
+| Python 管线 | `scripts/*.py`（ocr_file / ocr_slides / pdf_to_images / paper_reader）+ 嵌入式 Python（由 `setup_python.cmd` 预装） | OCR 运行时 + PDF 文本提取（paper_reader extract，skill_creator 用） |
 | 安装脚本 | `scripts/installer.iss` / `installer_platform.iss` | Inno Setup 打包 |
 | 环境脚本 | `scripts/setup_python.cmd` / `reload.cmd` | Python 环境 |
 | 工具脚本 | `tool/`（bundle_plugins / bundle_scripts / gen_template_registry） | 资产打包 / 注册表生成 |
@@ -38,6 +38,8 @@ parent: root
 |------|------|--------|---------|
 | `templates_index.json` 生成 | `gen_template_registry.dart` | renderer-templates | 登记格式变更需同步 |
 | `assets/plugins_bundle/` 打包 | `bundle_plugins.dart`（含 `--check` 门禁） | plugins | 插件资产变更后必须重跑；`--check` 不一致即失败（CI 门禁，O4） |
+| `assets/scripts_bundle/` 打包 | `bundle_scripts.dart`（含 `--check` 门禁） | core/renderer | 脚本资产变更后必须重跑；`--check` 不一致即失败（O4 扩展，t27） |
+| 嵌入式 Python | `scripts/python/`（本地，.gitignore）+ `requirements.txt`（依赖真源） | 全仓 | 依赖变更须改 `requirements.txt`（非手动 pip install）；撤销功能后 site-packages 已瘦身 ~748MB→~91MB（t27） |
 | Windows 构建 | CMake + Inno Setup | 全仓 | 构建参数变更需广播 |
 | Android 构建 | Gradle + Chaquopy | 全仓 | Chaquopy 版本/abiFilter 变更需广播 |
 | CI 工作流 | `.github/workflows/` | 全仓 | 流程变更需广播 |
@@ -45,7 +47,7 @@ parent: root
 ## 4. 规则（本 OWNER 内必须遵守）
 
 - 工具脚本统一放 `tool/`（非 `tools/`），沿用既有结构，不臆造目录。
-- **红线：`assets/plugins_bundle/` 是 `plugins/` 的纯镜像，仅由 `bundle_plugins.dart` 生成；运行期代码禁止直写 bundle。** 修改 `plugins/` 资产后必须重跑 `bundle_plugins.dart`，并用 `--check` 自检（O4，CI 构建前强制执行，不一致即失败）。
+- **红线：`assets/plugins_bundle/` 是 `plugins/` 的纯镜像，仅由 `bundle_plugins.dart` 生成；`assets/scripts_bundle/` 同理仅由 `bundle_scripts.dart` 生成；运行期代码禁止直写两者。** 修改 `plugins/` 或 `scripts/` 资产后必须重跑对应工具，并用 `--check` 自检（O4，CI 构建前强制执行，不一致即失败）。
 - 安卓构建：Chaquopy 用 `plugins {}` DSL；`abiFilters` 需含 x86_64（模拟器）+ arm64-v8a；`INTERNET` 权限 + `usesCleartextTraffic`。
 - Windows 构建：media_kit 需预置正确 MD5 的 mpv/ANGLE 归档；`CMAKE_INSTALL_PREFIX` 遇 `C:/Program Files` 失败需删 CMakeCache 重配置。
 - 长时构建（>300s）用 `schtasks` 脱离工具进程组。

@@ -77,7 +77,7 @@ class ThemeDraft {
   /// id 是否合法（snake_case 且不与内置主题冲突）。
   bool get idValid =>
       RegExp(r'^[a-z][a-z0-9_]*$').hasMatch(id) &&
-      !const {'dark', 'light', 'default', 'evergreen'}.contains(id);
+      !const {'dark', 'light', 'default'}.contains(id);
 
   /// 是否可导出（id 合法 + 8 色齐全合法）。
   bool get canExport => idValid && allColorsValid;

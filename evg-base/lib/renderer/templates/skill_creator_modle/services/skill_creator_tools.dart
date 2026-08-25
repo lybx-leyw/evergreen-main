@@ -13,7 +13,7 @@ import 'package:dio/dio.dart';
 import 'package:path/path.dart' as p;
 import 'package:evergreen_base/core/agent/tool.dart';
 import 'package:evergreen_base/core/services/ocr_pipeline.dart';
-import 'package:evergreen_base/renderer/templates/paper_reading_modle/tools/pymupdf_tool.dart';
+import 'package:evergreen_base/renderer/templates/skill_creator_modle/tools/pymupdf_tool.dart';
 
 // ═══════ DownloadFileTool ═══════
 
