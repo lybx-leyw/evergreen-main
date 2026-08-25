@@ -327,9 +327,19 @@ class DataHttpServer {
   ///   关闭后客户端可重连（重新 `streamOf` → 流工厂取新流）。
   /// - [doneFrame]（可选）在流正常结束时发送结束帧再关闭。
   ///
-  /// 客户端断开检测：`response.add` 写入失败（同步异常）或 `response.done` 以错误
-  /// 完成（缓冲冲刷到已断开的 socket 时）都会触发 `finish()` → 取消订阅 + 关闭响应，
-  /// 释放订阅资源。
+  /// 用 `await for` 背压感知地逐帧 `add` + `await flush`。**不能** fire-and-forget
+  /// 地并发 flush：dart:io 的 `HttpResponse.flush()` 完成前再 `add()` 会抛
+  /// `Bad state: StreamSink is bound to a stream`——同步流（如 `Stream.fromIterable`）
+  /// 首帧 flush 未完成即同步派发下一帧，帧直接丢失（客户端只见响应头、body 为空）。
+  /// `await for` 保证上一帧冲刷完成才消费下一事件，同步流亦安全。
+  ///
+  /// **必须** `bufferOutput = false`：dart:io 的 `HttpResponse.bufferOutput` 默认
+  /// true，会把 body 数据缓存在内部 `_HttpOutgoing._buffer`，只有 `close()` 才
+  /// 冲刷到 socket——SSE 长连接（不 close）下 `flush()` 根本推不出帧，客户端只
+  /// 见响应头（Windows 实测复现）。关闭输出缓冲后 `add`+`flush` 才即时推送。
+  ///
+  /// 客户端断开检测：写入已断开 socket 时 `response.flush()` 以错误完成 → 退出
+  /// `await for` → finally 取消订阅 + 关闭响应，释放订阅资源。
   Future<void> _pipeSse(
     HttpRequest req,
     Stream<dynamic> stream, {
@@ -339,6 +349,9 @@ class DataHttpServer {
   }) async {
     final response = req.response;
     response.statusCode = 200;
+    // 关闭 dart:io 输出缓冲（默认 true）：SSE 长连接必须逐帧即时推送，
+    // 否则 body 帧被缓存到 close 才发送，长连接期间客户端永远收不到帧。
+    response.bufferOutput = false;
     response.headers.contentType =
         ContentType('text', 'event-stream', charset: 'utf-8');
     response.headers.set('Cache-Control', 'no-cache');
@@ -347,55 +360,33 @@ class DataHttpServer {
     // 默认不带 keep-alive（连接以 close 界定 body）；若显式 keep-alive 且无
     // Content-Length，`response.flush()` 会挂起/抛异常（SSE 帧永远发不出）。
     // HTTP/1.1 客户端默认 keep-alive + chunked，flush 即时发 chunk，不受影响。
+    // 监听 response.done 以吞掉客户端断开时产生的未捕获错误（避免
+    // UnhandledFutureError；长连接期间 done 不完成，正常 close 后完成）。
+    response.done.then((_) {}, onError: (Object _) {});
 
-    final completer = Completer<void>();
-    StreamSubscription<dynamic>? sub;
-
-    void finish() {
-      if (!completer.isCompleted) completer.complete();
-    }
-
-    // 客户端断开 / 冲刷失败 → response.done 以错误完成 → 结束并清理。
-    response.done.then((_) => finish(), onError: (Object _) => finish());
-
-    sub = stream.listen(
-      (data) {
+    try {
+      await for (final data in stream) {
+        response.add(utf8.encode(frame(data)));
+        await response.flush();
+      }
+      // 流正常结束 → done 帧后关闭。
+      if (doneFrame != null) {
         try {
-          response.add(utf8.encode(frame(data)));
-          // 逐帧 flush：SSE 长连接必须即时发送。fire-and-forget + 吞错
-          // （客户端断开时 flush 可能异步失败，避免 unhandled async error）。
-          unawaited(response.flush().catchError((Object _) {}));
-        } catch (_) {
-          finish(); // 客户端已断开（写入失败）
-        }
-      },
-      onError: (Object e) {
-        try {
-          response.add(utf8.encode(errorFrame(e)));
-          unawaited(response.flush().catchError((Object _) {}));
+          response.add(utf8.encode(doneFrame()));
+          await response.flush();
         } catch (_) {
           // 连接已不可写，忽略
         }
-        finish(); // 错误帧后关闭连接（理由见方法注释）
-      },
-      onDone: () {
-        if (doneFrame != null) {
-          try {
-            response.add(utf8.encode(doneFrame()));
-            unawaited(response.flush().catchError((Object _) {}));
-          } catch (_) {
-            // 忽略
-          }
-        }
-        finish();
-      },
-      cancelOnError: false,
-    );
-
-    try {
-      await completer.future;
+      }
+    } catch (e) {
+      // 流错误（errorFrame 后关闭连接，理由见方法注释）或客户端断开（flush 失败）。
+      try {
+        response.add(utf8.encode(errorFrame(e)));
+        await response.flush();
+      } catch (_) {
+        // 连接已不可写（客户端断开），忽略
+      }
     } finally {
-      await sub.cancel();
       try {
         await response.close();
       } catch (_) {
