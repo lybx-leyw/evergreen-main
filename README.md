@@ -1,46 +1,12 @@
-<div align="center" style="background-color:#232326;border:1px solid #3f3f45;border-radius:12px;padding:36px 24px 26px;">
+<div align="center" style="background-color:#232326;border:1px solid #3f3f45;border-radius:12px;padding:32px 24px 24px;">
 
-<!-- 黑白放映：logo 默认墨白单色（去绿相），右侧帧为放映态（彩色） -->
-<table align="center" style="background-color:transparent;border:none;border-collapse:separate;border-spacing:16px;">
-<tr>
-<td align="center" style="background-color:transparent;border:none;padding:0;">
+<img src="evg-base/assets/branding/logo-ink.svg" alt="Evergreen" width="104" height="104"/>
 
-<!-- 墨白帧（默认态：灰度线稿，单色 currentColor） -->
-<svg viewBox="0 0 240 240" width="96" height="96" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Evergreen 墨白 Logo" style="filter:grayscale(1) contrast(1.08);">
-  <rect x="8" y="8" width="224" height="224" rx="56" fill="#2e2e33"/>
-  <path d="M120 40 a80 80 0 1 1 -56.6 23.4" fill="none" stroke="#f4f3f1" stroke-width="14" stroke-linecap="round"/>
-  <path d="M120 40 l-14 -2 l5 14 z" fill="#f4f3f1"/>
-  <g transform="translate(120 138)">
-    <path d="M0 -62 C 40 -44, 52 4, 8 52 C -4 60, -4 60, -8 52 C -48 4, -36 -40, 0 -62 Z" fill="#f4f3f1"/>
-  </g>
-</svg>
-<br/>
-<span style="color:#99999a;font-size:11px;letter-spacing:2px;">墨白帧 · grayscale</span>
-
-</td>
-<td align="center" style="background-color:transparent;border:none;padding:0;">
-
-<!-- 放映帧（彩色态：saturate 绿） -->
-<svg viewBox="0 0 240 240" width="96" height="96" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Evergreen 彩色 Logo" style="filter:saturate(.85);">
-  <rect x="8" y="8" width="224" height="224" rx="56" fill="#b6efd0"/>
-  <path d="M120 40 a80 80 0 1 1 -56.6 23.4" fill="none" stroke="#0f9d58" stroke-width="14" stroke-linecap="round"/>
-  <path d="M120 40 l-14 -2 l5 14 z" fill="#0f9d58"/>
-  <g transform="translate(120 138)">
-    <path d="M0 -62 C 40 -44, 52 4, 8 52 C -4 60, -4 60, -8 52 C -48 4, -36 -40, 0 -62 Z" fill="#2fbf71"/>
-  </g>
-</svg>
-<br/>
-<span style="color:#4dc878;font-size:11px;letter-spacing:2px;">放映帧 · 绿</span>
-
-</td>
-</tr>
-</table>
-
-<span style="font-size:34px;font-weight:700;color:#f4f3f1;letter-spacing:2px;font-family:-apple-system,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;">Evergreen</span>
+<span style="font-size:32px;font-weight:700;color:#f4f3f1;letter-spacing:2px;">Evergreen</span>
 
 <span style="color:#c9c8c5;font-size:15px;">面向 AI4Life 的开源 AI 平台 · 本地优先 · 插件化 · 跨平台</span>
 
-<br/>
+<br/><br/>
 
 ![platform](https://img.shields.io/badge/平台-Windows%20%7C%20Android-2e2e33?style=flat-square&labelColor=232326)
 ![license](https://img.shields.io/badge/许可证-GPLv3-4dc878?style=flat-square&labelColor=232326)
@@ -203,11 +169,7 @@ dart tool/gen_template_registry.dart --profile release_full
 
 <div align="center" style="background-color:#232326;border:1px solid #3f3f45;border-radius:12px;padding:24px 16px;">
 
-<!-- 宠物：默认灰度（hero-pet 同款），悬停放映在静态页以双帧呈现 -->
-<svg viewBox="0 0 24 24" width="40" height="40" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Evergreen 叶" style="filter:grayscale(1) contrast(1.08);">
-  <path d="M12 2 C 18 6, 20 12, 16 18 C 12 20, 8 18, 6 14 C 4 10, 6 4, 12 2 Z" fill="#f4f3f1"/>
-  <path d="M12 6 C 15 8, 16 12, 13 15 C 10 13, 10 9, 12 6 Z" fill="#232326"/>
-</svg>
+<img src="evg-base/assets/branding/pet.svg" alt="Evergreen Pet" width="44" height="44"/>
 
 <br/>
 
