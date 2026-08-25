@@ -16,6 +16,8 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 import 'package:evergreen_base/renderer/templates/v4_modle/components/creative/html-creator/services/canvas_manager.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/creative/html-creator/services/html_export_service.dart'
+    show htmlPluginIdError;
 
 void main() {
   group('CanvasMeta 序列化', () {
@@ -141,6 +143,31 @@ void main() {
         expect(mgr.tryLoadInstanceOf(cid)?.id, first.id);
       } finally {
         mgr.deleteCanvas(cid);
+      }
+    });
+
+    test('ensureInstance 派生的绑定 id 必须通过 htmlPluginIdError（bug-0002：画布 5 → "5" 导出失败）', () {
+      final mgr = CanvasManager();
+      // 纯数字结尾的画布名（用户复现路径）
+      final d1 = mgr.createCanvas(name: '画布 5');
+      // 纯中文画布名（旧逻辑会落到兜底 my-plugin，多画板冲突）
+      final d2 = mgr.createCanvas(name: '我的面板');
+      try {
+        final id1 = mgr.ensureInstance(d1.meta.id).id;
+        final id2 = mgr.ensureInstance(d2.meta.id).id;
+        // 绝对不能出现纯数字/中文开头的非法 id（正是 bug-0002 的报错根因）
+        expect(htmlPluginIdError(id1), isNull,
+            reason: '画布 5 派生的绑定 id($id1) 必须合法，否则导出报 plugin_id 非法: "5"');
+        expect(htmlPluginIdError(id2), isNull,
+            reason: '纯中文画布派生的绑定 id($id2) 必须合法');
+        // 不同画板派生出不同 id（避免 my-plugin 冲突）
+        expect(id1, isNot(equals(id2)));
+        // 回写 meta 的 pluginId 与实例 id 一致且合法
+        expect(mgr.loadCanvas(d1.meta.id)?.meta.pluginId, id1);
+        expect(mgr.loadCanvas(d2.meta.id)?.meta.pluginId, id2);
+      } finally {
+        mgr.deleteCanvas(d1.meta.id);
+        mgr.deleteCanvas(d2.meta.id);
       }
     });
 

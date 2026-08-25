@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:evergreen_base/core/utils/greenix_path.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/creative/html-creator/models/html_project.dart';
+import 'html_export_service.dart' show htmlPluginIdError;
 
 /// 画布元数据（轻量，不含 HTML/CSS/JS 内容）。
 class CanvasMeta {
@@ -185,16 +186,39 @@ String _newCanvasId() => 'canvas_${DateTime.now().millisecondsSinceEpoch}_${_ran
 
 String _random4() => (DateTime.now().microsecondsSinceEpoch % 10000).toString().padLeft(4, '0');
 
-/// 将名称转为安全的 plugin ID（小写+连字符）。
+/// 将名称转为安全的 plugin ID。
+///
+/// ⚠️ 必须与 [htmlPluginIdError] 的 `kHtmlPluginIdPattern`
+/// （`^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$`：小写字母开头、纯字母数字连字符、
+/// 禁止纯数字/中文/大写/空格）保持一致——否则 [ensureInstance] 分配的绑定
+/// ID 会在首次导出时被 [HtmlExportService] 拒绝（见 bug-0002 复现：画布
+/// 「画布 5」派生出 "5" → 导出失败）。
+///
+/// 规则：去中文/非法字符 → 小写 → 连字符折叠 → 若不以小写字母开头或为空，
+/// 强制前缀 `plugin-`（保证小写字母开头、非纯数字）。
 String _sanitizeId(String name) {
-  return name
+  final slug = name
       .toLowerCase()
-      .replaceAll(RegExp(r'[^a-z0-9\u4e00-\u9fff\-]'), '-')
+      .replaceAll(RegExp(r'[^a-z0-9\-]'), '-')
       .replaceAll(RegExp(r'-+'), '-')
-      .replaceAll(RegExp(r'^-|-$'), '')
-      .isEmpty
-      ? 'my-plugin'
-      : name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9\u4e00-\u9fff\-]'), '-').replaceAll(RegExp(r'-+'), '-').replaceAll(RegExp(r'^-|-$'), '');
+      .replaceAll(RegExp(r'^-|-$'), '');
+  if (slug.isEmpty) return 'my-plugin';
+  // 必须以小写字母开头（禁止纯数字/符号开头），否则前插 plugin- 前缀。
+  if (!RegExp(r'^[a-z]').hasMatch(slug)) return 'plugin-$slug';
+  return slug;
+}
+
+/// 将画板 ID（形如 `canvas_1787386469402_2172`）转为唯一且合法的插件 ID
+/// （`canvas-1787386469402-2172`）：小写字母开头、纯字母数字连字符，且同一
+/// 画板幂等（用于纯中文/空画布名无法派生时的兜底，避免 `my-plugin` 冲突）。
+String _canvasIdToPluginId(String canvasId) {
+  final slug = canvasId
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9\-]'), '-')
+      .replaceAll(RegExp(r'-+'), '-')
+      .replaceAll(RegExp(r'^-|-$'), '');
+  // 画板 id 必以 'canvas' 开头，slug 必以小写字母开头，直接合法。
+  return slug.isEmpty ? 'my-plugin' : slug;
 }
 
 class CanvasManager {
@@ -417,7 +441,17 @@ class CanvasManager {
     }
 
     // 未导出过插件时，先用画布名派生稳定的插件 id，并同步作为实例 id。
-    final pluginId = meta.pluginId ?? _sanitizeId(meta.name);
+    // 若 meta.pluginId 已存在但不合法（老数据/旧派生规则产生的纯数字、中文
+    // 等），强制重新派生，避免首次导出被 HtmlExportService 拒绝（bug-0002）。
+    var pluginId = meta.pluginId;
+    if (pluginId == null || pluginId.isEmpty || htmlPluginIdError(pluginId) != null) {
+      pluginId = _sanitizeId(meta.name);
+      // 名称无法派生（纯中文/空 → 兜底 my-plugin）时，改用画板 id 派生
+      // 唯一且合法的 id，避免多个纯中文画板导出时互相覆盖（bug-0002）。
+      if (pluginId == 'my-plugin') {
+        pluginId = _canvasIdToPluginId(boardId);
+      }
+    }
     return _alignInstanceToPluginId(boardId, pluginId);
   }
 

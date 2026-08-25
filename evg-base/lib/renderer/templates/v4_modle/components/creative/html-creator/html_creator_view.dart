@@ -50,7 +50,6 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
   final _htmlController = TextEditingController();
   final _cssController = TextEditingController();
   final _jsController = TextEditingController();
-  final _idController = TextEditingController();
   final _nameController = TextEditingController();
   String? _selectedDataSource;
 
@@ -155,9 +154,16 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
         instanceSessionsPath(boardId, instanceId);
     _aiService.onFileChanged = _syncFilesFromWorkspace;
     _aiService.onPluginExported = (pluginId) {
+      // 插件 ID 随画板绑定、不可更改、也不允许 AI 更改：AI 导出工具已强制
+      // 复用画板绑定 ID（详见 ExportHtmlPluginTool），此处的 pluginId 必等于
+      // 当前画板绑定 ID，故不再覆盖 _project.pluginId，只做防御性校验。
+      if (_project.pluginId != pluginId) {
+        Log().warn('[HtmlCreator] AI 导出返回的 pluginId($pluginId) 与画板绑定 ID'
+            '(${_project.pluginId}) 不一致，以画板绑定 ID 为准');
+        _project.pluginId = _currentBoundPluginId() ?? _project.pluginId;
+      }
       // AI 导出路径同样注册到侧边栏 + 插件中心（RC-3：旧实现只刷新预览，
       // 侧边栏要等重启才可见）。
-      _project.pluginId = pluginId;
       final regErr = _registerToSidebar();
       if (regErr != null) {
         Log().warn('[HtmlCreator] AI 导出成功但注册失败', data: {'err': regErr});
@@ -194,10 +200,9 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
     // dispose 期间禁止 setState / 触碰 context（mounted 此时仍为 true，
     // ScaffoldMessenger.of 会抛 "deactivated widget's ancestor"）
     _saveCanvasToDisk(notify: false, silent: true); // 最后保存一次
-    _htmlController.dispose();
+      _htmlController.dispose();
     _cssController.dispose();
     _jsController.dispose();
-    _idController.dispose();
     _nameController.dispose();
     super.dispose();
   }
@@ -319,7 +324,16 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
   void _exportPlugin() async {
     _saveCanvasToDisk();
 
-    _project.pluginId = _idController.text;
+    // 插件 ID 随画板绑定、不可更改：始终使用当前画板已确定的绑定 ID，
+    // 不读任何可编辑输入框（id 不再对用户/AI 开放编辑权限）。
+    final boundId = _currentBoundPluginId();
+    if (boundId == null || boundId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('画板尚未分配插件 ID，无法导出'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+    _project.pluginId = boundId;
     _project.pluginName = _nameController.text;
 
     // 单目标导出：路径统一由 resolvePluginsRoot() 解析（与主题插件一致，
@@ -508,13 +522,14 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
     _nameController.text = data.meta.name;
     // T1：恢复画布绑定的数据源（切板后 AI 上下文/数据面板随板恢复）
     _selectedDataSource = data.meta.selectedDataSource;
-    // 画布已绑定插件 ID 时复用绑定值，否则由画布名派生
-    _idController.text = data.meta.pluginId ?? _sanitizeId(data.meta.name);
+    // 画布已绑定插件 ID 时复用绑定值，否则由画布名派生（画板 ensureInstance
+    // 后 meta.pluginId 恒非 null，等于画板绑定的固定 ID）。
+    final boundPluginId = data.meta.pluginId ?? _sanitizeId(data.meta.name);
     _htmlController.text = data.htmlContent;
     _cssController.text = data.cssContent;
     _jsController.text = data.jsContent;
     _project = HtmlProject(
-      pluginId: _idController.text,
+      pluginId: boundPluginId,
       pluginName: data.meta.name,
       htmlContent: data.htmlContent,
       navSection: data.meta.navSection,
@@ -528,8 +543,27 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
   }
 
   String _sanitizeId(String name) {
-    final id = name.toLowerCase().replaceAll(RegExp(r'[^a-z0-9\-]'), '-').replaceAll(RegExp(r'-+'), '-').replaceAll(RegExp(r'^-|-$'), '');
-    return id.isEmpty ? 'my-plugin' : id;
+    final slug = name
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9\-]'), '-')
+        .replaceAll(RegExp(r'-+'), '-')
+        .replaceAll(RegExp(r'^-|-$'), '');
+    if (slug.isEmpty) return 'my-plugin';
+    // 必须以小写字母开头（禁止纯数字/中文开头），否则前插 plugin- 前缀，
+    // 与 CanvasManager._sanitizeId 保持同一规则（见 bug-0002）。
+    if (!RegExp(r'^[a-z]').hasMatch(slug)) return 'plugin-$slug';
+    return slug;
+  }
+
+  /// 当前画板绑定的插件 ID（画板 ↔ 实例 1:1，实例 ID == 插件 ID）。
+  ///
+  /// 加载画板后由 [CanvasManager.ensureInstance] 固定分配并写回 meta，
+  /// 之后手动/AI 导出均复用，**不可更改、也不允许 AI 更改**。
+  /// 返回 null 仅当画板状态异常（理论上 ensureInstance 已保证非 null）。
+  String? _currentBoundPluginId() {
+    if (_currentCanvasId == null) return null;
+    final meta = _canvasMgr.loadCanvas(_currentCanvasId!)?.meta;
+    return meta?.pluginId ?? _currentInstanceId ?? _sanitizeId(_nameController.text);
   }
 
   void _loadDataIntoEditor(String sourceName) {
@@ -619,7 +653,8 @@ class _HtmlCreatorViewState extends ConsumerState<HtmlCreatorView> {
             project: _project,
             canvases: _canvases,
             currentCanvasId: _currentCanvasId,
-            onPluginIdChanged: (v) => _project.pluginId = v,
+            // 插件 ID 随画板绑定、不可更改：只读展示当前画板绑定 ID。
+            currentPluginId: _currentBoundPluginId() ?? _project.pluginId,
             onPluginNameChanged: (v) => _project.pluginName = v,
             onNavSectionChanged: (v) {
               _project.navSection = v;

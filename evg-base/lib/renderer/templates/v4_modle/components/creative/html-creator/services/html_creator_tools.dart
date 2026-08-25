@@ -158,8 +158,10 @@ class ExportHtmlPluginTool extends SimpleTool {
           description: '将工作区文件导出为 Evergreen HTML 插件。'
               '生成 plugins/<id>/module/ 目录结构。'
               '导出成功后预览面板自动切换到 HTTP 模式加载真实插件。'
-              '参数：plugin_id（插件 ID，如 my-dashboard）、plugin_name（显示名称）。'
-              '注意：同一画布已导出过时插件 ID 固定，请直接复用画布当前 ID。'
+              '参数：plugin_id（占位，插件 ID 随画板绑定、固定不可更改，'
+              '系统会自动复用当前画板 ID，传入的值会被忽略）、'
+              'plugin_name（显示名称）。'
+              '注意：同一画布插件 ID 固定，请直接复用画布当前 ID，不要尝试更改 ID。'
               '导出完成后检查返回日志中的 ❌ 或 error，若有错误则修改代码后重试。',
           schema: const {
             'type': 'object',
@@ -177,20 +179,19 @@ class ExportHtmlPluginTool extends SimpleTool {
           },
           readOnly: false,
           execute: (args) async {
-            var pluginId = args['plugin_id'] as String? ?? '';
-            var pluginName = args['plugin_name'] as String? ?? pluginId;
+            var pluginName = args['plugin_name'] as String? ?? '';
 
-            // 画布已绑定插件 ID → 强制复用，忽略 AI 传入的新 ID
+            // 插件 ID 随画板绑定、不可更改、也不允许 AI 更改：
+            // 始终以画板绑定 ID 为准，忽略 AI 传入的 plugin_id。
+            // 画板 ensureInstance 后绑定 ID 恒非 null；若为 null 说明画板状态异常，
+            // 直接拒绝导出，绝不允许 AI 任意指定 id（防止生成多个/越界插件）。
             final boundId = resolveBoundPluginId?.call();
-            if (boundId != null && boundId.isNotEmpty) {
-              pluginId = boundId;
+            if (boundId == null || boundId.isEmpty) {
+              return '[error: 当前画板尚未分配插件 ID（画板状态异常），'
+                  '无法导出；请先通过手动「导出插件」按钮初始化画板绑定]';
             }
-            // T3-P3D 守卫：插件 ID 格式校验（共享 htmlPluginIdError：
-            // 小写字母开头 + 小写字母/数字/连字符，防纯数字/大写/路径穿越）。
-            final idErr = htmlPluginIdError(pluginId);
-            if (idErr != null) {
-              return '[error: $idErr]';
-            }
+            final pluginId = boundId;
+            if (pluginName.isEmpty) pluginName = pluginId;
 
             try {
               // 读取工作区文件

@@ -10,7 +10,8 @@ class HtmlToolbar extends StatelessWidget {
   final HtmlProject project;
   final List<CanvasMeta> canvases;
   final String? currentCanvasId;
-  final ValueChanged<String> onPluginIdChanged;
+  /// 当前画板绑定的插件 ID（只读展示，不可更改）。
+  final String currentPluginId;
   final ValueChanged<String> onPluginNameChanged;
   /// 侧边栏分组变更回调（重新导出后覆盖 manifest 的 nav.sidebar.section）。
   final ValueChanged<String> onNavSectionChanged;
@@ -28,7 +29,7 @@ class HtmlToolbar extends StatelessWidget {
     required this.project,
     required this.canvases,
     required this.currentCanvasId,
-    required this.onPluginIdChanged,
+    required this.currentPluginId,
     required this.onPluginNameChanged,
     required this.onNavSectionChanged,
     required this.onSave,
@@ -70,17 +71,25 @@ class HtmlToolbar extends StatelessWidget {
           ),
           const SizedBox(width: 12),
 
-          // ── 插件 ID ──
+          // ── 插件 ID（随画板绑定，只读展示）──
           SizedBox(
-            width: 120,
-            child: TextField(
-              controller: TextEditingController(text: project.pluginId),
-              onChanged: onPluginIdChanged,
-              decoration: const InputDecoration(
-                labelText: '插件 ID', isDense: true, border: OutlineInputBorder(),
-                contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            width: 130,
+            child: Tooltip(
+              message: '插件 ID 随画板绑定，固定不可更改',
+              child: IgnorePointer(
+                child: TextField(
+                  controller: TextEditingController(text: currentPluginId),
+                  readOnly: true,
+                  decoration: InputDecoration(
+                    labelText: '插件 ID', isDense: true, border: const OutlineInputBorder(),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    filled: true,
+                    fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    suffixIcon: const Icon(Icons.lock, size: 12),
+                  ),
+                  style: const TextStyle(fontSize: 12),
+                ),
               ),
-              style: const TextStyle(fontSize: 12),
             ),
           ),
           const SizedBox(width: 8),
