@@ -359,6 +359,10 @@ class DataHttpServer {
       (data) {
         try {
           response.add(utf8.encode(frame(data)));
+          // 关键：SSE 是长连接，必须逐帧 flush。dart:io 对 HTTP/1.0（无 chunked）
+          // 会缓冲 add 的数据直到 close；不 flush 则长连接下客户端收不到任何帧。
+          // HTTP/1.1（chunked）下 flush 也保证即时发送。
+          response.flush();
         } catch (_) {
           finish(); // 客户端已断开（写入失败）
         }
@@ -366,6 +370,7 @@ class DataHttpServer {
       onError: (Object e) {
         try {
           response.add(utf8.encode(errorFrame(e)));
+          response.flush();
         } catch (_) {
           // 连接已不可写，忽略
         }
@@ -375,6 +380,7 @@ class DataHttpServer {
         if (doneFrame != null) {
           try {
             response.add(utf8.encode(doneFrame()));
+            response.flush();
           } catch (_) {
             // 忽略
           }
