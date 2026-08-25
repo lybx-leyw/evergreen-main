@@ -271,7 +271,11 @@ evg-base/lib/core/theme/example/.cache/
 # ──────────────────────────────────────────────────────────
 
 # AgentTeams 团队运行时状态（inbox/会话消息，不入库）
+# 兼容两种命名：技能规范目录 `.agent_team/<task>/`（不带 s）与旧 `.agent-teams/`（带 s）
+.agent_team/
 .agent-teams/
+# MailTeam 技能收件箱（inbox/SKILL.md 等技能资产由用户本地维护，不入库）
+inbox/
 
 # flutter analyze / upgrade 命令日志（含本机绝对路径）
 evg-base/analyze*.txt

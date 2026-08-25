@@ -2,9 +2,10 @@
 ///
 /// JS Bridge API (插件侧)：
 ///   platform.data.get(name)      → 从数据中枢获取数据
+///   platform.data.list()         → 列出可用数据源（[{name, displayName, freshness}]）
 ///   platform.data.refresh(name)  → 强制刷新数据源（POST /data/types/:name/refresh）
 ///   platform.data.testConnectivity() → 测试全部数据源连通性（POST /data/connectivity/test）
-///   platform.data.subscribe(name, fn) → 订阅数据变化（Dart 侧 5s 轮询，变化触发 data:changed）
+///   platform.data.subscribe(name, fn) → 订阅数据变化（事件驱动 + 5s 轮询兜底，变化触发 data:changed）
 ///   platform.ai.chat(prompt, [style]) → AI 对话（接 AgentHttpServer POST /agent/chat）
 ///   platform.api.call(service, path, {method, body}) → 通用 core 服务 HTTP 转发
 ///     - service: agent/config/data/module/theme/core（6 组 core 服务）
@@ -85,7 +86,8 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
   );
   StreamSubscription<SlotEvent>? _eventBusSub;
 
-  /// 数据订阅轮询：dataName → 5s 拉取，值变化推送 data:changed（共享实现）。
+  /// 数据订阅：事件驱动（core dataChangeEvents）+ 5s 轮询兜底，值变化推
+  /// data:changed（共享实现 DataSubscriptionPoller）。
   late final DataSubscriptionPoller _poller;
 
   /// 常驻进程会话（key = exe 名或 id）：`platform.process.start/stop/write/read`。
@@ -106,9 +108,14 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
         final orch = ref.read(dataOrchestratorProvider);
         final dt = orch.typeByName(name);
         if (dt == null) return null; // 未注册：跳过本轮
-        return await orch.fastRead(dt) ?? await orch.get(dt);
+        return await orch.fastRead(dt); // fastRead 内存未命中内部已 fallback get()
       },
       executeJs: _executeJs,
+      // 事件驱动：订阅 core dataChangeEvents（T3 已就绪，广播流）。收到
+      // DataChangeEvent 且 sourceName 在订阅集合中 → 立即拉取并推 data:changed；
+      // 5s 轮询保留为兜底（事件驱动失败/漏帧仍能收敛）。dispose 时 poller
+      // 内部取消该流订阅，防泄漏。
+      dataChangeEvents: ref.read(dataOrchestratorProvider).dataChangeEvents,
     );
     // 主题切换时把新色板推送到页面：更新 CSS 变量 + 触发 'theme:changed' 事件。
     ref.listenManual(themeStoreProvider, (prev, next) {
@@ -312,7 +319,23 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
         final name = args[0] as String;
         final dt = orch.typeByName(name);
         if (dt == null) return null;
-        return await orch.fastRead(dt) ?? await orch.get(dt);
+        // fastRead 内存未命中时内部已 fallback get()（orchestrator.dart），
+        // 无需再补 `?? await orch.get(dt)`（否则空数据路径会二次拉取）。
+        return await orch.fastRead(dt);
+
+      case 'data.list':
+        // 列出可用数据源 —— 与 html-creator 预览面板（preview_panel.dart）一致：
+        // [{name, displayName, freshness}]，freshness 取 DataSourceStatus.freshnessLabel
+        //（"新鲜"/"过期"/"从未"）。
+        return orch.allStatuses
+            .map(
+              (s) => {
+                'name': s.name,
+                'displayName': s.displayName,
+                'freshness': s.freshnessLabel,
+              },
+            )
+            .toList();
 
       case 'data.subscribe':
         // 真正的订阅：Dart 侧 5s 轮询，值变化推 data:changed 事件。
@@ -431,7 +454,9 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
       case 'process.write':
         // 向常驻进程 stdin 写数据。
         return await _writeLongProcess(
-            args[0] as String, (args.length > 1 ? args[1] : '')?.toString() ?? '');
+          args[0] as String,
+          (args.length > 1 ? args[1] : '')?.toString() ?? '',
+        );
 
       case 'process.stop':
         // 终止常驻进程。
@@ -454,14 +479,16 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
   /// 白名单：只允许 [ModuleDescriptor.process] 里声明的进程，杜绝 HTML 插件跑
   /// 任意系统命令（fail-closed）。未声明 → 抛异常。返回 `{stdout, stderr, exitCode}`。
   Future<Map<String, dynamic>> _runPluginProcess(
-      String exe, Map<String, dynamic> opts) async {
+    String exe,
+    Map<String, dynamic> opts,
+  ) async {
     final declared = _findDeclaredProcess(exe);
     if (declared == null) {
-      throw Exception(
-          '进程 "$exe" 未在 manifest 的 process 中声明，拒绝执行（fail-closed）');
+      throw Exception('进程 "$exe" 未在 manifest 的 process 中声明，拒绝执行（fail-closed）');
     }
 
-    final args = (opts['args'] as List?)?.map((e) => e.toString()).toList() ??
+    final args =
+        (opts['args'] as List?)?.map((e) => e.toString()).toList() ??
         <String>[];
 
     // exe 相对插件目录解析（与 ProcessManager 一致），并做跨平台扩展名兜底：
@@ -531,16 +558,18 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
   /// 启动后 stdout/stderr 经 `process:output` 事件实时推送给页面，
   /// 退出经 `process:exit` 事件推送。重复 start 已存在的进程返回 `{ok:true}`（幂等）。
   Future<Map<String, dynamic>> _startLongProcess(
-      String exe, Map<String, dynamic> opts) async {
+    String exe,
+    Map<String, dynamic> opts,
+  ) async {
     final declared = _findDeclaredProcess(exe);
     if (declared == null) {
-      throw Exception(
-          '进程 "$exe" 未在 manifest 的 process 中声明，拒绝执行（fail-closed）');
+      throw Exception('进程 "$exe" 未在 manifest 的 process 中声明，拒绝执行（fail-closed）');
     }
     if (declared.scope != 'long') {
       throw Exception(
-          '进程 "$exe" scope="${declared.scope}"，不是常驻进程（需 scope:"long"）。'
-          '一次性任务请用 platform.process.run');
+        '进程 "$exe" scope="${declared.scope}"，不是常驻进程（需 scope:"long"）。'
+        '一次性任务请用 platform.process.run',
+      );
     }
 
     final key = declared.id ?? declared.exe;
@@ -548,9 +577,8 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
       return {'ok': true}; // 幂等：已在运行
     }
 
-    final args = (opts['args'] as List?)
-            ?.map((e) => e.toString())
-            .toList() ??
+    final args =
+        (opts['args'] as List?)?.map((e) => e.toString()).toList() ??
         <String>[];
 
     final pluginDir = _pluginDir();
@@ -566,8 +594,11 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
       key: key,
       onOutput: (stream, line) {
         if (!mounted || !_initialized) return;
-        final payload = jsonEncode(
-            {'exe': key, 'stream': stream, 'line': line});
+        final payload = jsonEncode({
+          'exe': key,
+          'stream': stream,
+          'line': line,
+        });
         _executeJs('window.__evgFireEvent("process:output", $payload)');
       },
       onExit: (code) {
@@ -592,7 +623,9 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
 
   /// 向常驻进程 stdin 写数据，返回 `{ok:true}`。
   Future<Map<String, dynamic>> _writeLongProcess(
-      String exe, String data) async {
+    String exe,
+    String data,
+  ) async {
     final declared = _findDeclaredProcess(exe);
     final key = declared?.id ?? declared?.exe ?? exe;
     final session = _longProcesses[key];
@@ -662,9 +695,7 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
     // 内置创作工具走 Dart 原生渲染
     if (widget.descriptor.id == 'html-creator') {
       // HtmlCreatorView 不再接收 pluginsDir（导出/读取统一走 resolvePluginsRoot）
-      return HtmlCreatorView(
-        descriptor: widget.descriptor,
-      );
+      return HtmlCreatorView(descriptor: widget.descriptor);
     }
 
     // 安卓：webview_flutter 渲染（bridge 经 evgBridge JS 通道）。
@@ -728,30 +759,32 @@ class _LongProcessSession {
         .transform(utf8.decoder)
         .transform(const LineSplitter())
         .listen((line) {
-      _stdoutBuf.writeln(line);
-      onOutput('stdout', line);
-    });
+          _stdoutBuf.writeln(line);
+          onOutput('stdout', line);
+        });
 
     _stderrSub = process.stderr
         .transform(utf8.decoder)
         .transform(const LineSplitter())
         .listen((line) {
-      onOutput('stderr', line);
-    });
+          onOutput('stderr', line);
+        });
 
     // 进程退出：取消订阅并通知（fire-and-forget，避免未捕获异常）。
-    process.exitCode.then((code) {
-      _stdoutSub?.cancel();
-      _stderrSub?.cancel();
-      _stdoutSub = null;
-      _stderrSub = null;
-      _process = null;
-      _stopped = true;
-      onExit(code);
-    }).catchError((_) {
-      _stopped = true;
-      onExit(-1);
-    });
+    process.exitCode
+        .then((code) {
+          _stdoutSub?.cancel();
+          _stderrSub?.cancel();
+          _stdoutSub = null;
+          _stderrSub = null;
+          _process = null;
+          _stopped = true;
+          onExit(code);
+        })
+        .catchError((_) {
+          _stopped = true;
+          onExit(-1);
+        });
   }
 
   /// 向进程 stdin 写入数据（供交互式终端）。

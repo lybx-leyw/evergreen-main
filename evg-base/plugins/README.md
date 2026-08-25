@@ -132,3 +132,20 @@ plugins/<name>/theme/theme.json
 内置插件通过 `tool/bundle_plugins.dart` 复制到 `assets/plugins_bundle/` 随 APK 发布（跳过 `.exe`、Python 缓存、
 点文件、渲染日志等非功能资源），安卓端启动期由 `lib/core/utils/plugin_asset_releaser.dart` 释放到设备可写目录。
 **修改 `plugins/` 下运行时脚本（.py 等）后必须重跑 `bundle_plugins.dart`**，否则 APK 打包旧文件。
+
+## 数据源插件（开发者模式）
+
+```
+plugins/<name>/data/
+├── manifest.json          ← 数据源清单（type: "data-source"）
+└── fetch.py               ← CLI 一次性脚本（模型 A，推荐；或模型 B HTTP 长驻 legacy）
+```
+
+数据源插件让平台新增可拉取的数据类型（模型 A：每次拉取执行一次脚本，stdout 顶层 JSON Map；
+模型 B legacy：HTTP 长驻服务 + `PORT:` 探测）。manifest 契约、`auth`/`stream`/`file`/`process`
+可选声明字段、脚本 stdout 契约见 `lib/core/data/docs/plugin-data-source.md` 与
+`lib/core/data/docs/plugin-authoring-guide-data.md`（第九节含 `evg_lib` 可选导入与流式声明示例）。
+
+> 本内置插件目录当前无 `data/` 数据源插件；可运行示例与「声明 + 契约」样板见
+> `lib/core/data/example/plugins/douban/`（模型 A CLI 爬虫）与
+> `docs/plugin-registry/examples/example-data-video_stream/`（带登录 + 视频流式声明）。

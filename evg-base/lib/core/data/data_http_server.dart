@@ -20,6 +20,8 @@ import 'orchestrator.dart';
 import 'type.dart';
 import 'exceptions.dart';
 import 'register_data_source.dart';
+import 'data_diff.dart';
+import 'sse_frame.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DataHttpServer
@@ -35,6 +37,8 @@ import 'register_data_source.dart';
 /// - `GET  /data/status`
 /// - `GET  /data/status/:name`
 /// - `POST /data/connectivity/test`
+/// - `GET  /data/stream/:name`（SSE 长连接：订阅流式数据源）
+/// - `GET  /data/events`（SSE 长连接：全局数据变更事件流）
 class DataHttpServer {
   final DataOrchestrator _orchestrator;
   final int _requestedPort;
@@ -178,6 +182,10 @@ class DataHttpServer {
     'POST /data/register': (req, _) async {
       await _handleRegister(req);
     },
+    // 全局数据变更事件 SSE（长连接）：转发 DataOrchestrator.dataChangeEvents。
+    'GET /data/events': (req, _) async {
+      await _handleEventsSse(req);
+    },
   };
 
   /// POST /data/register 处理：读 body → 注册数据源 → 返回结果。
@@ -271,7 +279,122 @@ class DataHttpServer {
         _respond(req.response, 200, _statusToJson(s));
       }
     },
+    // 流式数据源 SSE（长连接）：订阅 streamByName(name) 的 data/error/done 帧。
+    'GET /data/stream/:name': (req, p) async {
+      await _handleStreamSse(req, p['name']!);
+    },
   };
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // SSE 端点（长连接）
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /// `GET /data/stream/:name`：订阅 [DataOrchestrator.streamByName] 的流式数据。
+  ///
+  /// 未注册流式类型 → 404；否则以 `text/event-stream` 长连接转发
+  /// `event: data` / `event: error` / `event: done` 帧（见 [sse_frame.dart]）。
+  Future<void> _handleStreamSse(HttpRequest req, String name) async {
+    final stream = _orchestrator.streamByName(name);
+    if (stream == null) {
+      _respond(req.response, 404, {'error': '流式数据源未注册: $name'});
+      return;
+    }
+    await _pipeSse(
+      req,
+      stream,
+      frame: (data) => dataStreamSseFrame(name, data),
+      errorFrame: (e) => dataStreamErrorSseFrame(name, e),
+      doneFrame: () => dataStreamDoneSseFrame(name),
+    );
+  }
+
+  /// `GET /data/events`：订阅全局数据变更事件流（[DataOrchestrator.dataChangeEvents]）。
+  Future<void> _handleEventsSse(HttpRequest req) async {
+    await _pipeSse(
+      req,
+      _orchestrator.dataChangeEvents,
+      frame: (e) => changeEventSseFrame(e as DataChangeEvent),
+      errorFrame: (e) => 'event: error\ndata: '
+          '${jsonEncode({'error': '$e'})}\n\n',
+    );
+  }
+
+  /// 以 SSE 长连接转发 [stream]，处理客户端断开与清理。
+  ///
+  /// - [frame] 把每个数据项编码为完整 SSE 帧（`event: ...\ndata: ...\n\n`）。
+  /// - [errorFrame] 编码流错误帧；错误帧发送后**关闭连接**（而非保持）——理由：
+  ///   流级错误意味着数据源已损坏，保持半开连接会让客户端误以为仍有数据到来；
+  ///   关闭后客户端可重连（重新 `streamOf` → 流工厂取新流）。
+  /// - [doneFrame]（可选）在流正常结束时发送结束帧再关闭。
+  ///
+  /// 客户端断开检测：`response.add` 写入失败（同步异常）或 `response.done` 以错误
+  /// 完成（缓冲冲刷到已断开的 socket 时）都会触发 `finish()` → 取消订阅 + 关闭响应，
+  /// 释放订阅资源。
+  Future<void> _pipeSse(
+    HttpRequest req,
+    Stream<dynamic> stream, {
+    required String Function(dynamic data) frame,
+    required String Function(Object error) errorFrame,
+    String Function()? doneFrame,
+  }) async {
+    final response = req.response;
+    response.statusCode = 200;
+    response.headers.contentType =
+        ContentType('text', 'event-stream', charset: 'utf-8');
+    response.headers.set('Cache-Control', 'no-cache');
+    response.headers.set('Connection', 'keep-alive');
+    response.headers.set('Access-Control-Allow-Origin', '*');
+
+    final completer = Completer<void>();
+    StreamSubscription<dynamic>? sub;
+
+    void finish() {
+      if (!completer.isCompleted) completer.complete();
+    }
+
+    // 客户端断开 / 冲刷失败 → response.done 以错误完成 → 结束并清理。
+    response.done.then((_) => finish(), onError: (Object _) => finish());
+
+    sub = stream.listen(
+      (data) {
+        try {
+          response.add(utf8.encode(frame(data)));
+        } catch (_) {
+          finish(); // 客户端已断开（写入失败）
+        }
+      },
+      onError: (Object e) {
+        try {
+          response.add(utf8.encode(errorFrame(e)));
+        } catch (_) {
+          // 连接已不可写，忽略
+        }
+        finish(); // 错误帧后关闭连接（理由见方法注释）
+      },
+      onDone: () {
+        if (doneFrame != null) {
+          try {
+            response.add(utf8.encode(doneFrame()));
+          } catch (_) {
+            // 忽略
+          }
+        }
+        finish();
+      },
+      cancelOnError: false,
+    );
+
+    try {
+      await completer.future;
+    } finally {
+      await sub.cancel();
+      try {
+        await response.close();
+      } catch (_) {
+        // 客户端已断开
+      }
+    }
+  }
 
   // ═══════════════════════════════════════════════════════════════════════
   // 内部

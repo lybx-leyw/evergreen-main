@@ -19,6 +19,13 @@ Python 管线（OCR）、嵌入式运行时、安装包配置。
 | `installer.iss` | Inno Setup 安装包脚本（双版 × 双模式，CI 传参区分） |
 | `installer_platform.iss` | 平台参数（include，遗留文件，CI 未引用） |
 | `test_pomodoro.py` | `pomodoro.exe` 模块 server 冒烟测试 |
+| `evg_lib/`（T5 新增） | **平台 Python 库**（可选 import，存量插件零影响）：`config.py`（`_get_config` 三级降级：config.json→ConfigHttpServer→env）、`cas.py`（`cas_login`+`_rsa_encrypt`，ZJU CAS，依赖 requests）、`jsonio.py`（`emit`/`fail`/`validate_and_output` 输出契约 + 声明式 `__json_ops__` 管道）；经 `bundle_scripts.dart` 镜像到 `.greenix/scripts/evg_lib/`，子进程 `PYTHONPATH` 注入后 `import evg_lib` 可用 |
+
+> **2026-08-25 T5 平台 Python 库**：新增 `evg_lib/`（见上表）。用途：把「单 python 从账号到数据」
+> 链路中每插件重复的 `_get_config`/`cas_login`/stdout JSON 封装提取为平台库；插件侧
+> `try: from evg_lib.config import _get_config except ImportError: <内联 fallback>` 优雅降级。
+> Dart 侧常驻会话封装 `PythonSession`（stdio JSON Lines + 阶梯终止）见 `core/plugin/python_session.dart`。
+> 零新第三方依赖（requests 已内置）。
 
 > **2026-08-25 撤销记录**：PDF 翻译（`pdf_translate.py` / `pdf_translate_pure.py`）与论文阅读
 > （`pdf2zh_next/`、`paper_vision.py`、`test_paper_vision.py`、`verify_pipeline.py` 及其测试资产

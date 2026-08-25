@@ -156,3 +156,13 @@ class MyModleTemplate extends ModleRenderer {
   与 build_profiles 移除 paper_reading，`template_registry.g.dart` 已重新生成（10→9 路由）
 - ✅ Stub 包，`dart analyze lib/` 可独立通过
 - ✅ `renderer.dart` barrel 已收敛：slot/ 与组件域随 v4_modle 移入 `templates/v4_modle/`，导出路径同步更新
+- ✅ 流式消费契约（T7a/T7b）：新增 `components/shared/stream_source.dart`（`StreamSource` 描述符：url/protocol
+  （hls/mp4/http-flv/sse/stdio-jsonl，对齐 manifest `stream.protocol`）/mime/credentialed/headers/ttl +
+  `MediaRequestHeadersProvider` 凭证注入抽象 + 默认空实现）、`components/shared/stream_playback.dart`
+  （`buildMedia`：StreamSource → media_kit，`resolveStreamUrl`/`resolveStreamHeaders` 纯函数）；
+  修 `platform.data.list()` 运行期未实现 bug（`html_modle_view.dart` 补 case，与预览面板同构）；
+  `platform.data.subscribe` 事件驱动化（`DataSubscriptionPoller` 注入 core `dataChangeEvents`，命中即推
+  `data:changed`，5s 轮询保留兜底 + `_eventFresh` 跳轮，dispose 取消订阅）
+- ✅ 数据源文件导出（T8b）：新增 `components/shared/file_export_names.dart`（纯函数，零依赖）、
+  `file_export.dart`（选目录 + `exportFileEntry`/`exportFileEntries`，下载走 core `DataFileService`）、
+  `file_export_bar.dart`（`FileExportButton`/`FileExportBar`）；barrel 已导出，README 记录用法；演示页未接

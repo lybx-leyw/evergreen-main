@@ -40,7 +40,9 @@ parent: renderer-templates
 |------|------|--------|---------|
 | `zju` 模板 | `template_registry`（manifest `template` 字段） | app-shell + core-module | 模板名/路由变更需广播 |
 | `zju_builtin_modules` | `zju_builtin_modules.dart` | core-module（内置模块注册） | 内置模块增删需通知 core-module |
-| 数据源类型 | `zju_data_sources.dart` | core-data（DataOrchestrator） | 类型契约变更需通知 core-data |
+| 数据源类型（12 个 `DataType`，`sessionProviderId:'zju'`，T9） | `zju_data_sources.dart` | core-data（DataOrchestrator） | 类型契约变更需通知 core-data |
+| `ZjuSessionProvider`（`sessionProviderId:'zju'`）/ `zjuRefreshSession` / `zjuIsSessionExpiredError` | `zju_auth/zju_session.dart`（T9） | core-data（会话失效重登重拉） | 过期判定/重登语义变更需通知 core-data |
+| `ZjuMediaRequestHeadersProvider` | `zju_auth/zju_session.dart`（T9） | renderer（`buildMedia` 播放接线） | 媒体请求头组装变更需广播 |
 
 ## 4. 规则（本 OWNER 内必须遵守）
 

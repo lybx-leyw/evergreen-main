@@ -35,13 +35,16 @@ import '../../shared/models/zju_zdbk_notification.dart';
 import '../../zju_auth/html_parser.dart';
 import '../../zju_auth/zdbk_patterns.dart';
 
-/// ZDBK 会话异常（内部控制流）——`_withAutoRelogin` 捕获后触发 CAS 重登。
-class _ZdbkAuthError implements Exception {
+/// ZDBK 会话异常——`_withAutoRelogin` 捕获后触发 CAS 重登；耗尽重登后上抛。
+///
+/// T9 起改为公开类型：`zju_session.dart` 的 SessionProvider.isSessionExpired
+/// 需按此类型识别 zdbk fetcher 的「会话过期」错误（统一接入平台会话中心）。
+class ZdbkAuthError implements Exception {
   final String message;
-  const _ZdbkAuthError(this.message);
+  const ZdbkAuthError(this.message);
 
   @override
-  String toString() => '_ZdbkAuthError: $message';
+  String toString() => 'ZdbkAuthError: $message';
 }
 
 /// 教务管理系统数据服务（有状态：持有 ZDBK 会话 cookie）。
@@ -392,7 +395,7 @@ class ZjuZdbkService {
 
   // ── Internal helpers（与参考 `_zdbkPost` / `_zdbkSetHeaders` 一致）──────
 
-  /// POST 到 ZDBK，返回响应体字符串；会话过期抛 [_ZdbkAuthError]。
+  /// POST 到 ZDBK，返回响应体字符串；会话过期抛 [ZdbkAuthError]。
   Future<String> _zdbkPost(HttpClient httpClient, String url) async {
     try {
       final request = await httpClient
@@ -429,16 +432,16 @@ class ZjuZdbkService {
       ..add('X-Requested-With', 'XMLHttpRequest');
   }
 
-  /// 会话过期检测：命中 CAS 登录页 → 抛 [_ZdbkAuthError]（触发自动重登）。
+  /// 会话过期检测：命中 CAS 登录页 → 抛 [ZdbkAuthError]（触发自动重登）。
   void _checkSession(String body) {
     if (HtmlParser.isSessionExpired(body)) {
-      throw const _ZdbkAuthError('ZDBK 会话过期');
+      throw const ZdbkAuthError('ZDBK 会话过期');
     }
   }
 
   /// 带自动重登的执行器（参考 `_withAutoRelogin` 逻辑，去 Result 包装）。
   ///
-  /// `action` 抛 [_ZdbkAuthError]（会话过期）→ CAS 重登后重试；最多
+  /// `action` 抛 [ZdbkAuthError]（会话过期）→ CAS 重登后重试；最多
   /// [_maxReloginAttempts] 次。非会话错误直接上抛。
   Future<T> _withAutoRelogin<T>(Future<T> Function() action) async {
     for (var i = 0; i < _maxReloginAttempts; i++) {
@@ -447,7 +450,7 @@ class ZjuZdbkService {
           await _relogin();
         }
         return await action();
-      } on _ZdbkAuthError {
+      } on ZdbkAuthError {
         if (i == _maxReloginAttempts - 1) {
           Log().warn('[zju-zdbk] 重登后仍会话失效');
           rethrow;
@@ -456,18 +459,18 @@ class ZjuZdbkService {
         await _relogin();
       }
     }
-    throw const _ZdbkAuthError('ZDBK 会话已过期且自动重登失败');
+    throw const ZdbkAuthError('ZDBK 会话已过期且自动重登失败');
   }
 
   Future<void> _relogin() async {
     final sso = _iPlanetDirectoryPro;
     final httpClient = _httpClient;
     if (sso == null || httpClient == null) {
-      throw const _ZdbkAuthError('ZDBK 会话未初始化，请先 login');
+      throw const ZdbkAuthError('ZDBK 会话未初始化，请先 login');
     }
     final ok = await login(httpClient, sso);
     if (!ok) {
-      throw const _ZdbkAuthError('ZDBK 自动重登失败');
+      throw const ZdbkAuthError('ZDBK 自动重登失败');
     }
   }
 

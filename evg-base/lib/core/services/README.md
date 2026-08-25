@@ -31,6 +31,7 @@
 | `CoreHttpServer` | `core_http_server.dart` | REST 端点微服务网格 | ✅ |
 | `GithubStarsFetcher` | `github_stars.dart` | star 数数据中枢接入（DataType） | ✅ |
 | `SyncImportService` | `sync_import_service.dart` | .egsync.zip 导入：fail-closed 校验 + 版本感知冲突 + 注册回放（t-C3） | ✅ |
+| `DataFileService` | `data_file_service.dart` | 文件下载：headers/超时/退避重试 + 路径沙箱（T8a） | ✅ |
 | `GithubCloner` | `github_clone.dart` | GitHub 源克隆（git clone 子进程） | 直接 import |
 | `GithubMetadata` | `github_metadata.dart` | 仓库元数据抓取（市场卡片实时 star） | 直接 import |
 | `ReleaseDownloader` | `release_downloader.dart` | GitHub release 二进制下载/解压 | 直接 import |
@@ -256,6 +257,50 @@ if (result.isErr) {
 - 冲突默认策略：同内容 no-op / 新版覆盖（备份+恢复旧 config/）/ 同版本不同内容与版本回退 → 冲突清单不自动破坏。
 - 注册回放：插件 `ModuleRegistry.reloadModule`；数据源模型 A `registerDataSourcesFromManifest`、模型 B（HTTP .exe）`DataSourceLoader` best-effort 回放（失败降级仅提示，不阻断包）；主题 `ThemeStore.register`；sessions/memories 原样落盘（合并 t-C4）；config 交接 core-config。
 - 冒烟验证：`evg-base/test/sync_import_smoke_test.dart`（8 用例：导入注册 / no-op / 冲突与覆盖 / type 拒绝 / zip-slip 拒绝 / 信封哈希 / 目录缺失隔离 / 模型 B 降级）。
+
+---
+
+## 六、文件下载（DataFileService，T8a）
+
+> 面向验收目标 4（PDF/文件导出到用户自选路径）core 侧：把「数据源声明 file 类型 → 返回文件清单/下载端点
+> → 平台可下载到本地文件」链路落地。T8b 导出 UI（renderer）直接消费本服务。
+
+```dart
+import 'package:evergreen_base/core/services/services.dart';
+
+final svc = DataFileService(
+  sandboxRoot: '/path/to/export-root', // 可选：设置后 targetPath 必须在其内（防目录穿越）
+  timeout: const Duration(seconds: 30), // 默认 30s
+  retryBackoff: const [Duration(seconds: 1), Duration(seconds: 3), Duration(seconds: 5)], // 默认
+);
+
+// 单文件：返回 Result<String>（Ok = 本地绝对路径）
+final result = await svc.downloadFile(
+  url: 'https://…/a.pdf',
+  targetPath: '/path/to/export-root/a.pdf',
+  headers: {'Cookie': 'session=…', 'Referer': '…'}, // 凭据头（T2 会话中心导出注入）
+  maxRetries: 3,
+);
+
+// 批量（串行）：逐项 Result<String>，文件名自 URL 末段派生
+final results = await svc.downloadFiles(
+  urls: ['https://…/a.pdf', 'https://…/b.pdf'],
+  targetDir: '/path/to/export-root',
+  headers: {'Cookie': '…'},
+);
+```
+
+| API | 说明 |
+|------|------|
+| `DataFileService({sandboxRoot?, timeout?, retryBackoff?})` | 构造；`sandboxRoot` 设置后经 `path_sandbox` 校验 `targetPath`，越界拒绝写入 |
+| `.downloadFile({url, targetPath, headers?, timeout?, maxRetries})` → `Future<Result<String>>` | 下载单文件；成功返回本地绝对路径，失败返回 `Err(AppError)` |
+| `.downloadFiles({urls, targetDir, headers?, timeout?, maxRetries})` → `Future<List<Result<String>>>` | 串行批量下载（并发度 = 1：确定性 + 避免并发磁盘写竞争 + 天然限流） |
+
+- **重试语义**（对齐 T4/PluginInstaller「3 次重试 1s/3s/5s」）：网络/连接错误、超时、HTTP `429`/`5xx` 视为
+  瞬态可重试；其它 `4xx`（如 `404`）确定性客户端错误**不重试**（fail-fast）。超时 → `Err(AppError.timeout)`，
+  HTTP 状态 → `Err(AppError.httpStatus)`，其它 → `Err(AppError.downloadFailed)`，非法 URL/越界 → `Err(AppError.validationError)`。
+- **实现**：`dart:io` 的 `HttpClient`（零新依赖，纯 Dart，可独立 `dart test`）；复用 `release_downloader.dart`
+  的 `_download` 模式，但服务化 + `Result` + headers + 沙箱。
 
 ---
 

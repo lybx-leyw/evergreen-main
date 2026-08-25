@@ -26,9 +26,14 @@ parent: core
 | 契约 | 形式 | 消费方 | 变更须知 |
 |------|------|--------|---------|
 | `DataOrchestrator.get/register/refresh` | `orchestrator.dart` | renderer（data_dashboard） | 签名变更需通知 renderer |
-| `DataType<T>` | `type.dart` | renderer + plugins | 类型契约变更需广播 |
-| `DataHttpServer` | HTTP（`.data_port`） | plugins .exe | 端点变更需通知 plugins |
+| `DataOrchestrator.registerStream/streamOf/streamByName` | `orchestrator.dart`（T3） | renderer（html_modle subscribe 事件驱动） | 流式契约变更需通知 renderer |
+| `DataOrchestrator.registerFile/fileOf/fileByName` | `orchestrator.dart`（T8a） | renderer（文件导出） | 文件声明契约变更需通知 renderer |
+| `DataType<T>`（含 `sessionProviderId`/`fallback`） | `type.dart` | renderer + plugins | 类型契约变更需广播 |
+| `SessionProvider`/`SessionCoordinator` | `session_provider.dart`（T2） | renderer（zju 接入）/ 任何需登录数据源 | 登录锁/重登语义变更需广播 |
+| `DataHttpServer`（含 `/data/stream/:name`、`/data/events` SSE） | HTTP（`.data_port`） | plugins .exe / renderer | 端点变更需通知 plugins |
 | `registerDataSourcesFromManifest` | `register_data_source.dart` | plugins（热加载） | stdout Map 契约变更需通知 plugins |
+| `DataSourceManifest`（auth/stream/file/process 增强，T1） | `plugin/data_source_manifest.dart` | plugins（manifest 作者） | 新字段缺省零行为变化；字段变更需通知 plugins |
+| `FileEntry`/`extractFileEntries` | `file_entries.dart`（T8a） | renderer（文件导出） | 解析形态变更需通知 renderer |
 
 ## 4. 规则（本 OWNER 内必须遵守）
 

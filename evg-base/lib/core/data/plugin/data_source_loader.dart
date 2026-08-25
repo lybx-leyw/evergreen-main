@@ -6,7 +6,8 @@
 /// |------|------|
 /// | `DataSourceLoader({manifest, workingDirectory})` | 构造 |
 /// | `.start(orchestrator)` | 启动 → 探测端口 → 健康检查 → 注册 |
-/// | `.stop()` | 终止进程，清理资源 |
+/// | `.stop()` | 终止进程，清理资源（不触发自动重启） |
+/// | `.restart()` | 手动重启长驻进程（复用已注册 DataType，失败抛异常并标记状态） |
 /// | `.unregisterAll(orchestrator)` | 批量注销已注册的所有类型 |
 /// | `isRunning` | 进程是否已启动且健康 |
 /// | `port` | 实际端口号 |
@@ -45,11 +46,28 @@ class DataSourceLoader {
   Completer<int>? _portCompleter;
   final List<DataType<dynamic>> _registeredTypes = [];
 
+  // 进程守护（崩溃自动重启）状态。
+  DataOrchestrator? _orchestrator;
+  Timer? _restartTimer;
+  int _restartAttempts = 0;
+  bool _stopRequested = false;
+
+  /// 崩溃自动重启退避间隔（第 1/2/3 次），第 3 次失败后放弃（不无限重试）。
+  final List<Duration> restartBackoff;
+
+  /// 默认退避：1s / 3s / 9s，最多 3 次。
+  static const List<Duration> kDefaultRestartBackoff = [
+    Duration(seconds: 1),
+    Duration(seconds: 3),
+    Duration(seconds: 9),
+  ];
+
   DataSourceLoader({
     required this.manifest,
     required this.workingDirectory,
     required this.projectRoot,
-  });
+    List<Duration>? restartBackoff,
+  }) : restartBackoff = restartBackoff ?? kDefaultRestartBackoff;
 
   bool get isRunning => _started && _healthy;
   int? get port => _port;
@@ -60,23 +78,33 @@ class DataSourceLoader {
 
   Future<void> start(DataOrchestrator orchestrator) async {
     if (_started) return;
+    _orchestrator = orchestrator;
+    _stopRequested = false;
+    await _startInternal(orchestrator);
+  }
 
+  /// 启动长驻进程（启动 → 探测端口 → 健康检查 → 注册）。供 [start] 与崩溃重启复用。
+  Future<void> _startInternal(DataOrchestrator orchestrator) async {
     final runner = await sharedPluginRunner;
-    Log().info('DataSourceLoader: 启动 ${manifest.process} (${manifest.name})');
+    Log()
+        .info('DataSourceLoader: 启动 ${manifest.processExe} (${manifest.name})');
 
     // preferredPort > 0 时作为 --port 参数传给插件进程。
     // 同时传入 --project-root（用于策略2 HTTP: 找 .config_port）和
     // --greenix-config（用于策略1 本地文件: 直接读 .greenix/config.json）。
     // Android 侧 MainActivity.kt 从 args 提取并注入为 Python os.environ。
     final args = <String>[
-      '--project-root', projectRoot,
-      '--greenix-config', greenixConfigPath,
+      '--project-root',
+      projectRoot,
+      '--greenix-config',
+      greenixConfigPath,
     ];
     if (manifest.preferredPort > 0) {
       args.addAll(['--port', '${manifest.preferredPort}']);
     }
     _process = await runner.startLong(
-      _resolveExePath(), args,
+      _resolveExePath(),
+      args,
       workingDirectory: workingDirectory,
       runtime: manifest.runtime,
     );
@@ -95,12 +123,45 @@ class DataSourceLoader {
     _process!.exitCode.then(_onProcessExit);
 
     _started = true;
+    // 成功启动（含重启成功）后复位退避计数。
+    _restartAttempts = 0;
   }
 
   Future<void> stop() async {
-    if (!_started) return;
+    // 显式停止：置标志使后续进程退出不再触发自动重启。
+    _stopRequested = true;
+    _restartTimer?.cancel();
+    _restartTimer = null;
+    if (!_started && _process == null) return;
     Log().info('DataSourceLoader: 停止 ${manifest.id}');
+    await _teardownProcess();
+  }
 
+  /// 手动重启长驻进程。要求已通过 [start] 启动过（否则抛 [StateError]）。
+  /// 复用已注册的 DataType（重新注册以刷新端口 URL）；重启失败时抛异常并
+  /// 标记 `connected=false` + `lastError`。
+  Future<void> restart() async {
+    final orch = _orchestrator;
+    if (orch == null) {
+      throw StateError('DataSourceLoader 尚未启动，无法重启 ${manifest.id}');
+    }
+    // 拆解期间的旧进程退出回调不应误触发自动重启。
+    _stopRequested = true;
+    _restartTimer?.cancel();
+    _restartTimer = null;
+    _restartAttempts = 0;
+    await _teardownProcess();
+    _stopRequested = false; // 新进程就绪后恢复崩溃自动重启能力
+    try {
+      await _startInternal(orch);
+    } catch (e) {
+      _markUnavailable('手动重启失败: $e');
+      rethrow;
+    }
+  }
+
+  /// 终止进程并清理进程 I/O 资源（不触发自动重启的公共拆解）。
+  Future<void> _teardownProcess() async {
     await _stdoutSub?.cancel();
     _stdoutSub = null;
     await _stderrSub?.cancel();
@@ -126,7 +187,7 @@ class DataSourceLoader {
 
   String _resolveExePath() {
     final sep = Platform.pathSeparator;
-    return '$workingDirectory$sep${manifest.process.replaceAll('/', sep)}';
+    return '$workingDirectory$sep${manifest.processExe.replaceAll('/', sep)}';
   }
 
   void _listenStderr() {
@@ -170,8 +231,8 @@ class DataSourceLoader {
 
   Future<void> _healthCheck() async {
     try {
-      final request = await _client!.getUrl(
-          Uri(scheme: 'http', host: 'localhost', port: _port!, path: '/health'));
+      final request = await _client!.getUrl(Uri(
+          scheme: 'http', host: 'localhost', port: _port!, path: '/health'));
       final response = await request.close();
       if (response.statusCode != 200) {
         throw HttpException('健康检查返回 ${response.statusCode}');
@@ -186,9 +247,70 @@ class DataSourceLoader {
   }
 
   void _onProcessExit(int code) {
+    // 捕获退出前是否已成功启动——初始启动失败（端口/健康检查阶段）不自动重启，
+    // 避免与 scanAndLoadDataSources 的 catch 形成重启风暴。
+    final wasRunning = _started;
     Log().info('DataSourceLoader: 进程退出 ${manifest.id} (code: $code)');
     _healthy = false;
     _started = false;
+    _port = null;
+    _client?.close(force: true);
+    _client = null;
+    if (!wasRunning || _stopRequested) return;
+    _scheduleRestart();
+  }
+
+  /// 崩溃后退避自动重启：1s/3s/9s 最多 3 次；成功恢复 `_healthy`，用尽则
+  /// 标记 `connected=false` + `lastError`（不无限重试）。重启期间已注册 DataType
+  /// 保留，`get` 返回旧缓存或「未就绪」明确错误。
+  void _scheduleRestart() {
+    if (_stopRequested) return;
+    if (_restartAttempts >= restartBackoff.length) {
+      Log().error('DataSourceLoader: 重启次数用尽，放弃 ${manifest.id}',
+          data: {'attempts': _restartAttempts});
+      _markUnavailable('进程崩溃且自动重启次数用尽');
+      return;
+    }
+    final delay = restartBackoff[_restartAttempts];
+    Log().warn('DataSourceLoader: 进程崩溃，${delay.inSeconds}s 后自动重启 '
+        '${manifest.id}（第 ${_restartAttempts + 1}/${restartBackoff.length} 次）');
+    _restartTimer?.cancel();
+    _restartTimer = Timer(delay, () async {
+      _restartAttempts++;
+      final orch = _orchestrator;
+      if (orch == null || _stopRequested) return;
+      try {
+        await _startInternal(orch);
+        Log().info('DataSourceLoader: 自动重启成功 ${manifest.id}');
+        _markAvailable();
+      } catch (e) {
+        Log().error('DataSourceLoader: 自动重启失败 ${manifest.id}', error: e);
+        _scheduleRestart();
+      }
+    });
+  }
+
+  /// 标记所有已注册类型不可用（connected=false + lastError）。
+  void _markUnavailable(String reason) {
+    final orch = _orchestrator;
+    if (orch == null) return;
+    for (final type in _registeredTypes) {
+      final s = orch.status(type.name);
+      if (s != null) {
+        s.connected = false;
+        s.lastError = reason;
+      }
+    }
+  }
+
+  /// 重启成功后清除各已注册类型的 lastError（connected 由下次成功拉取置 true）。
+  void _markAvailable() {
+    final orch = _orchestrator;
+    if (orch == null) return;
+    for (final type in _registeredTypes) {
+      final s = orch.status(type.name);
+      if (s != null) s.lastError = null;
+    }
   }
 
   Future<void> _killProcess() async {
@@ -205,6 +327,8 @@ class DataSourceLoader {
   }
 
   void _registerAllTypes(DataOrchestrator orchestrator) {
+    // 重启时重建注册（端口可能变化，需用新端口刷新 URL），避免重复累积。
+    _registeredTypes.clear();
     for (final decl in manifest.dataTypes) {
       final url = decl.buildUrl(_port!);
       final dataType = decl.toDataType();
@@ -248,15 +372,12 @@ Future<List<DataSourceLoader>> scanAndLoadDataSources({
   await for (final entity in dir.list()) {
     if (entity is! Directory) continue;
     // 新路径：plugins/<name>/data/manifest.json，exe 也放在 data/ 下
-    final dataDir = Directory(
-      '${entity.path}${Platform.pathSeparator}data');
-    final mf = File(
-      '${dataDir.path}${Platform.pathSeparator}manifest.json');
+    final dataDir = Directory('${entity.path}${Platform.pathSeparator}data');
+    final mf = File('${dataDir.path}${Platform.pathSeparator}manifest.json');
     if (!await mf.exists()) continue;
 
     try {
-      final json =
-          jsonDecode(await mf.readAsString()) as Map<String, dynamic>;
+      final json = jsonDecode(await mf.readAsString()) as Map<String, dynamic>;
       if (json['type'] != 'data-source') continue;
 
       final manifest = DataSourceManifest.fromJson(json);

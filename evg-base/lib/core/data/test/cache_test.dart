@@ -110,4 +110,44 @@ void main() {
       expect(result, isNotNull);
     });
   });
+
+  group('Cache 并发写（互斥队列）', () {
+    test('并发写同一 key 串行落盘，最终为最后写入', () async {
+      // 同步依次入队（Future.wait 先求值各 write），互斥队列 FIFO → 最后写入胜出
+      final results = await Future.wait([
+        cache.write('${_k}cc_same', 'v1'),
+        cache.write('${_k}cc_same', 'v2'),
+        cache.write('${_k}cc_same', 'v3'),
+      ]);
+      expect(results, everyElement(isTrue));
+      final result = cache.read('${_k}cc_same');
+      expect(result, isNotNull);
+      expect(result!.$1, 'v3');
+    });
+
+    test('并发写不同 key 全部成功且各自可读（无交叉覆写）', () async {
+      final results = await Future.wait([
+        cache.write('${_k}cc_a', 'a'),
+        cache.write('${_k}cc_b', 'b'),
+        cache.write('${_k}cc_c', 'c'),
+        cache.write('${_k}cc_d', 'd'),
+      ]);
+      expect(results, everyElement(isTrue));
+      expect(cache.read('${_k}cc_a')!.$1, 'a');
+      expect(cache.read('${_k}cc_b')!.$1, 'b');
+      expect(cache.read('${_k}cc_c')!.$1, 'c');
+      expect(cache.read('${_k}cc_d')!.$1, 'd');
+    });
+
+    test('并发写与删除混排不抛异常且最终一致', () async {
+      await cache.write('${_k}cc_mix', 'keep');
+      await Future.wait([
+        cache.write('${_k}cc_mix', 'x'),
+        cache.write('${_k}cc_mix', 'y'),
+        cache.evict('${_k}cc_none'),
+      ]);
+      // 删除的是不存在的 key，不影响已写 key
+      expect(cache.read('${_k}cc_mix'), isNotNull);
+    });
+  });
 }

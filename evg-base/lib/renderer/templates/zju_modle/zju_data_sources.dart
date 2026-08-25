@@ -18,6 +18,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:evergreen_base/core/config/settings.dart';
 import 'package:evergreen_base/core/data/orchestrator.dart';
+import 'package:evergreen_base/core/data/session_provider.dart';
 import 'package:evergreen_base/core/data/type.dart';
 import 'package:evergreen_base/core/log.dart';
 
@@ -43,6 +44,16 @@ import 'zju_auth/zju_session.dart';
 void registerZjuDataSources(DataOrchestrator orch, SharedPreferences prefs) {
   _zjuPrefs = prefs; // fetcher 懒加载共享会话时读取凭证
 
+  // T9：注册 zju 会话 provider + 接入数据中枢会话协调器。
+  // 拉取失败且错误被判「会话失效」时，DataOrchestrator 经 SessionCoordinator
+  // 单点重登后重拉（登录锁防「登录挤占」）。注册点放在数据源注册处（而非
+  // app_bootstrap），使 zju 会话中心与 12 类型同生命周期、不越 renderer 管辖。
+  SessionCoordinator.instance.registerSessionProvider(
+    'zju',
+    ZjuSessionProvider(prefs: prefs),
+  );
+  orch.sessionCoordinator = SessionCoordinator.instance;
+
   // ── courses（教务，B3 首接入真实 fetcher）────────────────────────────
   orch.register(
     const DataType<Map<String, dynamic>>(
@@ -51,6 +62,7 @@ void registerZjuDataSources(DataOrchestrator orch, SharedPreferences prefs) {
       displayName: '我的课程',
       ttl: Duration(minutes: 10),
       persistentKey: 'zju_courses',
+      sessionProviderId: 'zju',
     ),
     _fetchZjuCourses,
   );
@@ -63,6 +75,7 @@ void registerZjuDataSources(DataOrchestrator orch, SharedPreferences prefs) {
       displayName: '成绩与 GPA',
       ttl: Duration(minutes: 10),
       persistentKey: 'zju_scores',
+      sessionProviderId: 'zju',
     ),
     _fetchZjuScores,
   );
@@ -75,6 +88,7 @@ void registerZjuDataSources(DataOrchestrator orch, SharedPreferences prefs) {
       displayName: '考试安排',
       ttl: Duration(minutes: 10),
       persistentKey: 'zju_exams',
+      sessionProviderId: 'zju',
     ),
     _fetchZjuExams,
   );
@@ -87,6 +101,7 @@ void registerZjuDataSources(DataOrchestrator orch, SharedPreferences prefs) {
       displayName: '成绩单',
       ttl: Duration(minutes: 10),
       persistentKey: 'zju_zdbk_transcript',
+      sessionProviderId: 'zju',
     ),
     _fetchZjuZdbkTranscript,
   );
@@ -97,6 +112,7 @@ void registerZjuDataSources(DataOrchestrator orch, SharedPreferences prefs) {
       displayName: '主修成绩',
       ttl: Duration(minutes: 10),
       persistentKey: 'zju_zdbk_major_grade',
+      sessionProviderId: 'zju',
     ),
     _fetchZjuZdbkMajorGrade,
   );
@@ -107,6 +123,7 @@ void registerZjuDataSources(DataOrchestrator orch, SharedPreferences prefs) {
       displayName: '实践成绩',
       ttl: Duration(minutes: 10),
       persistentKey: 'zju_zdbk_practice_scores',
+      sessionProviderId: 'zju',
     ),
     _fetchZjuZdbkPracticeScores,
   );
@@ -117,6 +134,7 @@ void registerZjuDataSources(DataOrchestrator orch, SharedPreferences prefs) {
       displayName: '开课情况',
       ttl: Duration(hours: 6),
       persistentKey: 'zju_course_offerings',
+      sessionProviderId: 'zju',
     ),
     _fetchZjuCourseOfferings,
   );
@@ -127,6 +145,7 @@ void registerZjuDataSources(DataOrchestrator orch, SharedPreferences prefs) {
       displayName: '培养方案',
       ttl: Duration(hours: 6),
       persistentKey: 'zju_training_plans',
+      sessionProviderId: 'zju',
     ),
     _fetchZjuTrainingPlans,
   );
@@ -137,6 +156,7 @@ void registerZjuDataSources(DataOrchestrator orch, SharedPreferences prefs) {
       displayName: '教务通知',
       ttl: Duration(minutes: 30),
       persistentKey: 'zju_notifications',
+      sessionProviderId: 'zju',
     ),
     _fetchZjuNotifications,
   );
@@ -151,6 +171,7 @@ void registerZjuDataSources(DataOrchestrator orch, SharedPreferences prefs) {
       displayName: '课表',
       ttl: Duration(hours: 6),
       persistentKey: 'zju_timetable',
+      sessionProviderId: 'zju',
     ),
     _fetchZjuTimetable,
   );
@@ -165,6 +186,7 @@ void registerZjuDataSources(DataOrchestrator orch, SharedPreferences prefs) {
       displayName: '智云课堂',
       ttl: Duration(minutes: 30),
       persistentKey: 'zju_classroom_courses',
+      sessionProviderId: 'zju',
     ),
     _fetchZjuClassroomCourses,
   );
@@ -180,6 +202,7 @@ void registerZjuDataSources(DataOrchestrator orch, SharedPreferences prefs) {
       displayName: '查老师',
       ttl: Duration(hours: 24),
       persistentKey: 'zju_teachers',
+      sessionProviderId: 'zju',
     ),
     _fetchZjuTeachers,
   );

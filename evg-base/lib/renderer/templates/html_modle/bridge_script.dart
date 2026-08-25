@@ -10,8 +10,9 @@
 ///   `platform.theme.getColors` / `platform.emit` / `platform.on`）。
 /// - [forwardCoreHttp]：按 [CoreApiDiscovery] 发现的端口转发 HTTP 请求到
 ///   对应 core 服务（Agent/Config/Data/Module/Theme/Core）。
-/// - [DataSubscriptionPoller]：`data.subscribe` 的 5s 轮询 + JSON 快照比对，
-///   值变化推送 `data:changed` 事件给页面。
+/// - [DataSubscriptionPoller]：`data.subscribe` 的**事件驱动 + 轮询兜底**
+///   （订阅 core `dataChangeEvents`，命中订阅源即拉取推 `data:changed`；
+///   5s 轮询兜底、事件命中后跳过当轮），值变化判定为 JSON 快照比对。
 ///
 /// 纯 Dart（仅依赖 dart:io / dart:convert / dart:async / core data），
 /// 可独立单测。
@@ -22,6 +23,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:evergreen_base/core/data/data_diff.dart' show DataChangeEvent;
 import 'core_api_discovery.dart';
 
 // ═══════════════════════════ JS bridge 生成 ═══════════════════════════
@@ -212,14 +214,19 @@ Future<dynamic> forwardCoreHttp(
   final client = HttpClient()..connectionTimeout = const Duration(seconds: 5);
   try {
     final uri = Uri.parse('http://127.0.0.1:$port$path');
-    final req = await (method == 'GET' ? client.getUrl(uri) : client.postUrl(uri))
-        .timeout(const Duration(seconds: 5));
+    final req =
+        await (method == 'GET' ? client.getUrl(uri) : client.postUrl(uri))
+            .timeout(const Duration(seconds: 5));
     req.headers.contentType = ContentType.json;
     if (body != null) req.write(jsonEncode(body));
     final res = await req.close().timeout(const Duration(seconds: 10));
-    final raw =
-        await res.transform(utf8.decoder).join().timeout(const Duration(seconds: 10));
-    debugPrint('[Bridge] api.$method $path → ${res.statusCode} (${raw.length}B)');
+    final raw = await res
+        .transform(utf8.decoder)
+        .join()
+        .timeout(const Duration(seconds: 10));
+    debugPrint(
+      '[Bridge] api.$method $path → ${res.statusCode} (${raw.length}B)',
+    );
     if (res.statusCode >= 400) {
       final snippet = raw.length > 300 ? '${raw.substring(0, 300)}…' : raw;
       throw Exception('HTTP ${res.statusCode}: $snippet');
@@ -233,17 +240,27 @@ Future<dynamic> forwardCoreHttp(
 
 // ═══════════════════════════ 数据订阅轮询 ═══════════════════════════
 
-/// `platform.data.subscribe` 的 Dart 侧实现：5s 轮询拉取 + JSON 快照比对，
-/// 值变化时通过 [executeJs] 推送 `data:changed` 事件给页面。
+/// `platform.data.subscribe` 的 Dart 侧实现：**事件驱动为主 + 轮询兜底**。
 ///
-/// 与 widget 解耦：拉取与执行 JS 均为注入回调，纯 Dart 可单测。
+/// - 事件驱动：订阅 core [DataChangeEvent] 流（[DataChangeEvent.sourceName] 命中
+///   已订阅集合时立即拉取并推 `data:changed`），由调用方注入 [dataChangeEvents]；
+/// - 轮询兜底：事件驱动失效/漏帧时，周期轮询仍能收敛到最新值；事件命中后
+///   下一轮轮询跳过（避免重复拉取）；
+/// - 值变化判定仍为 JSON 快照比对，`data:changed` 事件载荷结构与既有轮询一致。
+///
+/// 与 widget 解耦：拉取 / 执行 JS / 事件流均为注入回调，可独立单测。
 class DataSubscriptionPoller {
   DataSubscriptionPoller({
     required Future<dynamic> Function(String name) fetch,
     required Future<void> Function(String js) executeJs,
     this.interval = const Duration(seconds: 5),
-  })  : _fetch = fetch,
-        _executeJs = executeJs;
+    Stream<DataChangeEvent>? dataChangeEvents,
+  }) : _fetch = fetch,
+       _executeJs = executeJs {
+    if (dataChangeEvents != null) {
+      _changeEventsSub = dataChangeEvents.listen(_onDataChange);
+    }
+  }
 
   /// 拉取指定数据源（返回 null 表示未注册/暂无数据，跳过本轮）。
   final Future<dynamic> Function(String name) _fetch;
@@ -251,11 +268,16 @@ class DataSubscriptionPoller {
   /// 向页面执行 JS（Windows executeScript / Android runJavaScript）。
   final Future<void> Function(String js) _executeJs;
 
-  /// 轮询间隔（测试可缩短）。
+  /// 轮询间隔（可调；测试可缩短）。
   final Duration interval;
 
   final Map<String, Timer> _subscriptions = {};
   final Map<String, String> _subscribedValues = {};
+
+  /// 事件驱动已刷新过的源：命中后下一轮轮询跳过（避免重复拉取）。
+  final Set<String> _eventFresh = {};
+
+  StreamSubscription<DataChangeEvent>? _changeEventsSub;
 
   /// 当前已订阅的数据源名。
   Set<String> get subscribedNames => _subscriptions.keys.toSet();
@@ -263,14 +285,27 @@ class DataSubscriptionPoller {
   /// 订阅 [name] 数据源（幂等：已订阅则忽略）。
   void subscribe(String name) {
     if (_subscriptions.containsKey(name)) return;
-    _poll(name);
-    _subscriptions[name] =
-        Timer.periodic(interval, (_) => _poll(name));
-    debugPrint('[Bridge] 数据订阅已启动: $name (每 ${interval.inSeconds}s)');
+    _fetchAndPush(name); // 立即拉取一次（不等首个周期）
+    _subscriptions[name] = Timer.periodic(interval, (_) => _poll(name));
+    debugPrint('[Bridge] 数据订阅已启动: $name (事件驱动 + ${interval.inSeconds}s 轮询兜底)');
+  }
+
+  /// core 变更事件命中已订阅源 → 立即拉取并推 `data:changed`（事件驱动路径）。
+  void _onDataChange(DataChangeEvent event) {
+    final name = event.sourceName;
+    if (!_subscriptions.containsKey(name)) return; // 未订阅该源：忽略
+    _eventFresh.add(name);
+    _fetchAndPush(name);
+  }
+
+  /// 周期轮询兜底：事件驱动刚命中过则跳过本轮（值已最新，避免重复拉取）。
+  Future<void> _poll(String name) async {
+    if (_eventFresh.remove(name)) return;
+    await _fetchAndPush(name);
   }
 
   /// 拉取 [name] 并与上次快照比对；变化则推 `data:changed` 事件给页面。
-  Future<void> _poll(String name) async {
+  Future<void> _fetchAndPush(String name) async {
     try {
       final data = await _fetch(name);
       if (data == null) return; // 未注册/暂无数据：保留上次快照，下轮重试
@@ -282,16 +317,19 @@ class DataSubscriptionPoller {
       debugPrint('[Bridge] 数据变化推送: $name');
       await _executeJs('window.__evgFireEvent("data:changed", $payload)');
     } catch (e) {
-      debugPrint('[Bridge] 订阅轮询 $name 失败: $e');
+      debugPrint('[Bridge] 订阅拉取 $name 失败: $e');
     }
   }
 
-  /// 取消全部订阅并清理快照。
+  /// 取消 core 事件流订阅、全部轮询订阅并清理快照（防泄漏）。
   void dispose() {
+    _changeEventsSub?.cancel();
+    _changeEventsSub = null;
     for (final t in _subscriptions.values) {
       t.cancel();
     }
     _subscriptions.clear();
     _subscribedValues.clear();
+    _eventFresh.clear();
   }
 }

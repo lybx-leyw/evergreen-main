@@ -72,6 +72,7 @@ class MainActivity : FlutterActivity() {
                                 args = call.argument<List<String>>("args") ?: emptyList(),
                                 stdinJson = call.argument<Map<String, Any>>("stdinJson"),
                                 workingDirectory = call.argument<String>("workingDirectory"),
+                                pythonPath = call.argument<String>("pythonPath"),
                             )
                             runOnUiThread { result.success(resp) }
                         } catch (e: Exception) {
@@ -93,6 +94,7 @@ class MainActivity : FlutterActivity() {
                                 args = call.argument<List<String>>("args") ?: emptyList(),
                                 workingDirectory = call.argument<String>("workingDirectory"),
                                 preferredPort = call.argument<Int>("preferredPort") ?: 0,
+                                pythonPath = call.argument<String>("pythonPath"),
                             )
                         } catch (e: Exception) {
                             emit("stderr", "startLongServer error: ${e.message}")
@@ -219,6 +221,7 @@ class MainActivity : FlutterActivity() {
         args: List<String>,
         stdinJson: Map<String, Any>?,
         workingDirectory: String?,
+        pythonPath: String?,
     ): Map<String, Any> {
         if (!Python.isStarted()) {
             Python.start(AndroidPlatform(this))
@@ -257,6 +260,13 @@ class MainActivity : FlutterActivity() {
             File(entry).parent ?: "."
         }
         sys.get("path")!!.callAttr("insert", 0, searchDir)
+
+        // 平台 Python 库目录（`.greenix/scripts/`，含 evg_lib）：加入 sys.path，
+        // 使 `import evg_lib` 在安卓进程内可用（对应桌面 SubprocessRunner 的
+        // PYTHONPATH 注入）。
+        if (!pythonPath.isNullOrEmpty()) {
+            sys.get("path")!!.callAttr("insert", 0, pythonPath)
+        }
 
         // 读取源码并执行（exec，等价于 python entry arg1 arg2）。
         // 以二进制读取源码并显式按 utf-8 解码（等价 open(entry, "r", encoding="utf-8")，
@@ -350,6 +360,7 @@ class MainActivity : FlutterActivity() {
         args: List<String>,
         workingDirectory: String?,
         @Suppress("UNUSED_PARAMETER") preferredPort: Int,
+        pythonPath: String?,
     ) {
         if (!Python.isStarted()) {
             Python.start(AndroidPlatform(this))
@@ -452,6 +463,12 @@ class _CbIn:
             File(entry).parent ?: "."
         }
         sys.get("path")!!.callAttr("insert", 0, searchDir)
+
+        // 平台 Python 库目录（`.greenix/scripts/`，含 evg_lib）：加入 sys.path，
+        // 使 `import evg_lib` 在安卓长驻进程内可用（对应桌面 PYTHONPATH 注入）。
+        if (!pythonPath.isNullOrEmpty()) {
+            sys.get("path")!!.callAttr("insert", 0, pythonPath)
+        }
 
         // 读取源码并 exec（serve_forever 会一直阻塞，直到被 stopLongServer 中断）。
         val io = py.getModule("io")

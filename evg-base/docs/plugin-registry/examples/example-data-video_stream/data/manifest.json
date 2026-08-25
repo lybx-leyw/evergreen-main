@@ -1,0 +1,28 @@
+{
+  "type": "data-source",
+  "id": "example-data-video_stream",
+  "name": "示例：带登录 + 视频流式数据源",
+  "script": "fetch.py",
+  "runtime": "python",
+  "androidSupport": true,
+  "auth": {
+    "sessionProvider": "zju",
+    "credentialKeys": ["ZJU_USERNAME", "ZJU_PASSWORD"]
+  },
+  "dataTypes": [
+    {
+      "name": "video_stream",
+      "typeArg": "video_stream",
+      "category": "视频",
+      "displayName": "可播放视频流",
+      "ttl": "30s",
+      "persistentKey": "video_stream",
+      "stream": {
+        "enabled": true,
+        "protocol": "hls",
+        "mime": "application/vnd.apple.mpegurl",
+        "credentialed": true
+      }
+    }
+  ]
+}

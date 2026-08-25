@@ -13,8 +13,10 @@ import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:evergreen_base/core/config/settings.dart';
+import 'package:evergreen_base/core/data/session_provider.dart';
 import 'package:evergreen_base/core/log.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
+import 'package:evergreen_base/renderer/components/shared/stream_source.dart';
 
 import 'auth_interceptor.dart';
 import 'auth_service.dart';
@@ -316,4 +318,125 @@ Future<Map<String, String>> zjuVideoHttpHeaders({PersistCookieJar? jar}) async {
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
             '(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
   };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// T9：SessionProvider 封装 + 媒体凭据头 provider（平台会话中心接入）
+// ═══════════════════════════════════════════════════════════════════════
+
+/// 判定某错误是否为「登录态失效」（供 [SessionProvider.isSessionExpired] 复用）。
+///
+/// 覆盖两类 fetcher 抛错形态（探索报告 C.3 + T9 §2）：
+/// - Dio 路径（courses / classroom）：[DioException] 的 301/302/303（CAS 重定向）、
+///   401/403（智云课堂）、901（zdbk 专属）、响应体 CAS 页特征——与
+///   [AuthInterceptor] 的过期判定逐条对齐（AuthInterceptor 重登失败后透传该错误）。
+/// - zdbk 路径：[ZdbkAuthError]（zdbk_service 的 `_withAutoRelogin` 耗尽重登后上抛）。
+bool zjuIsSessionExpiredError(Object error) {
+  if (error is DioException) {
+    final code = error.response?.statusCode;
+    if (code == 301 || code == 302 || code == 303) return true;
+    if (code == 401 || code == 403 || code == 901) return true;
+    final data = error.response?.data;
+    if (data is String) {
+      return data.contains('login_ssologin') ||
+          data.contains('cas/login') ||
+          data.contains('统一身份认证');
+    }
+    return false;
+  }
+  if (error is ZdbkAuthError) return true;
+  // 兜底：非本层包装的会话过期异常（按类型名识别，避免误判普通 StateError）。
+  return error.toString().contains('ZdbkAuthError');
+}
+
+/// 会话失效后的强制重登（[SessionProvider.refreshSession] 复用 [_zjuRelogin]）。
+///
+/// 相对 [_zjuRelogin]：允许注入 [prefs]（provider 持有）；成功后复位 zdbk 会话
+/// 缓存，使下一次 zdbk 拉取用新 SSO cookie 重建教务会话；并兜底处理「jar 未建立」
+/// 的纯 zdbk 路径（此时无共享 jar 可注入，仅做完整 SSO 重登 + 落盘）。
+Future<bool> zjuRefreshSession({SharedPreferences? prefs}) async {
+  if (prefs != null) _zjuPrefs = prefs;
+  final jar = _zjuCookieJar;
+  if (jar == null) {
+    // 纯 zdbk 路径：尚未构建 courses/classroom 共享 jar。仍执行完整 SSO 重登
+    // （SSO cookie 落盘 CookieStore），zdbk 会话缓存复位后下次拉取重建。
+    try {
+      await _ssoLogin(prefs ?? _zjuPrefs!);
+      _zdbkSessionFuture = null;
+      return true;
+    } catch (e) {
+      Log().warn('[zju] refreshSession（无 jar）SSO 重登失败',
+          data: {'error': e.toString()});
+      return false;
+    }
+  }
+  final ok = await _zjuRelogin();
+  if (ok) {
+    // zdbk 教务会话持旧 SSO cookie（其内部 _relogin 复用 login 时的
+    // iPlanetDirectoryPro），SSO 重登后必须丢弃旧会话缓存，下次
+    // ensureZdbkSession 用新 cookie 重建。
+    _zdbkSessionFuture = null;
+  }
+  return ok;
+}
+
+/// ZJU 会话提供者——把 [ensureZjuSession]/[zjuRefreshSession] 封装为平台
+/// [SessionProvider]（core `session_provider.dart` 抽象）。
+///
+/// 由 `zju_data_sources.registerZjuDataSources` 在数据源注册期经
+/// `SessionCoordinator.instance.registerSessionProvider('zju', ...)` 注册；
+/// 数据层（DataOrchestrator）拉取失败且错误被判「会话失效」时经
+/// [SessionCoordinator] 单点重登后重拉（登录锁防「登录挤占」，见 core）。
+class ZjuSessionProvider implements SessionProvider {
+  ZjuSessionProvider({required this.prefs});
+
+  final SharedPreferences prefs;
+
+  @override
+  String get sessionProviderId => 'zju';
+
+  @override
+  Future<bool> ensureSession() async {
+    // 共享 jar 已建立（fetcher 懒加载路径已初始化）→ 直接复用；重建 jar 会使
+    // `_zjuCookieJar` 指向新实例、与 zju_data_sources 缓存的 Dio 脱节，故避免。
+    if (_zjuCookieJar != null) return true;
+    try {
+      await ensureZjuSession(prefs: prefs);
+      return true;
+    } catch (e) {
+      Log().warn('[zju] SessionProvider.ensureSession 失败',
+          data: {'error': e.toString()});
+      return false;
+    }
+  }
+
+  @override
+  bool isSessionExpired(Object error) => zjuIsSessionExpiredError(error);
+
+  @override
+  Future<bool> refreshSession() => zjuRefreshSession(prefs: prefs);
+
+  @override
+  Future<void> invalidate() async {
+    try {
+      final store = await CookieStore.getInstance();
+      await store.clearAll();
+    } catch (e) {
+      Log().warn('[zju] SessionProvider.invalidate 清 CookieStore 失败',
+          data: {'error': e.toString()});
+    }
+    _zdbkSessionFuture = null;
+  }
+}
+
+/// 智云课堂媒体凭据头 provider——把 [zjuVideoHttpHeaders] 接入平台抽象
+/// [MediaRequestHeadersProvider]，供 `buildMedia`/`resolveStreamHeaders`
+/// （`components/shared/stream_playback.dart`）为 media_kit `Media` 注入
+/// Cookie/Referer/UA（media_kit 独立进程不带 Dio jar，缺头会 401/403 黑屏）。
+class ZjuMediaRequestHeadersProvider implements MediaRequestHeadersProvider {
+  const ZjuMediaRequestHeadersProvider();
+
+  @override
+  Future<Map<String, String>> headersFor(Uri url, {String? sessionProvider}) =>
+      zjuVideoHttpHeaders();
 }
