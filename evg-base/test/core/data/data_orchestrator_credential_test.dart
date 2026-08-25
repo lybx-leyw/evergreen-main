@@ -197,7 +197,8 @@ void main() {
       final s = orch.status('courses')!;
       expect(s.connected, isFalse,
           reason: '_fetchAndCache: data==null → 无效数据 → connected=false');
-      expect(s.lastError, '拉取返回无效或空数据');
+      // T4 起空数据门控区分「源可达但语义空」：lastError 用 kDataEmptyReachableError
+      expect(s.lastError, kDataEmptyReachableError);
     });
 
     test('refresh 前未拉取过 → freshnessLabel 为 "从未"', () {

@@ -47,7 +47,7 @@ void main() {
       final m = DataSourceManifest.fromJson(_fullManifestJson);
       expect(m.id, 'data-courses');
       expect(m.name, 'Courses');
-      expect(m.process, 'server.py');
+      expect(m.processExe, 'server.py');
       expect(m.runtime, 'python');
       expect(m.preferredPort, 8765);
       expect(m.androidSupport, false);
