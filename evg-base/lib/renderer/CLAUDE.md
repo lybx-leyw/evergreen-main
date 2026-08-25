@@ -90,6 +90,11 @@ lib/renderer/
 - 加固：插件 id 经共享 `htmlPluginIdError()` 校验（小写字母开头 kebab-case，
   拒绝纯数字/路径穿越）；落盘路径经 `PathSandbox` confine；写入为**原子导出**
   （临时目录复制旧 module/ → 写新文件 → rename 替换 + 备份回滚）。
+- 绑定不可改：插件 id 在画板创建/加载时由 `CanvasManager.ensureInstance`
+  固定分配（实例 id == 插件 id，写回 `meta.json`），**随画板绑定、用户与 AI
+  均不可更改**。工具栏 id 输入框为只读锁定展示；AI 导出 `ExportHtmlPluginTool`
+  始终复用画板绑定 id，传入的 `plugin_id` 被忽略（未绑定则拒绝导出）。派生规则
+  见 `canvas_manager._sanitizeId`（强制小写字母开头，保证通过 `htmlPluginIdError`）。
 - 导出成功即热注册：`reloadModule`（侧边栏/路由）+ `pluginStateProvider`
   `registerInstalled`/`touch`（插件中心/最近使用）；失败原因经 `Log()` +
   SnackBar 用户可见（不静默）。
