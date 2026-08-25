@@ -201,36 +201,45 @@ void main() {
       await plugins.delete(recursive: true);
     });
 
-    test('非法 plugin_id（路径穿越）拒绝且不落盘', () async {
+    test('画板未绑定 ID 时拒绝导出（防止 AI 任意指定 id）', () async {
+      // 未注入 resolveBoundPluginId → boundId 为 null，必须拒绝，
+      // 绝不允许 AI 用传入的 plugin_id 自行生成插件。
       final tool = ExportHtmlPluginTool(
         workspaceDir: ws.path,
         pluginsDir: plugins.path,
         onExported: (_) {},
       );
       final res = await tool.execute(
-          {'plugin_id': '../../escape', 'plugin_name': 'x'});
-      expect(res, contains('plugin_id 非法'));
-      expect(Directory('${plugins.path}/../../escape').existsSync(), isFalse);
+          {'plugin_id': 'my-dashboard', 'plugin_name': 'x'});
+      expect(res, contains('尚未分配插件 ID'));
+      expect(
+          File('${plugins.path}/my-dashboard/module/manifest.json').existsSync(),
+          isFalse);
     });
 
-    test('合法 plugin_id 导出成功并回调', () async {
+    test('AI 传入任意 plugin_id 被忽略，始终用画板绑定 id 导出', () async {
       var exportedId = '';
+      var boundId = 'bound-id';
       final tool = ExportHtmlPluginTool(
         workspaceDir: ws.path,
         pluginsDir: plugins.path,
         onExported: (id) => exportedId = id,
-        onBound: (_) {},
+        resolveBoundPluginId: () => boundId,
       );
+      // AI 故意传另一个 id，应被忽略；落盘目录以绑定 id 为准。
       final res = await tool.execute(
           {'plugin_id': 'my-dashboard', 'plugin_name': '我的面板'});
       expect(res, contains('已导出'));
-      expect(exportedId, 'my-dashboard');
+      expect(exportedId, 'bound-id');
+      expect(
+          File('${plugins.path}/bound-id/module/manifest.json').existsSync(),
+          isTrue);
+      expect(
+          File('${plugins.path}/bound-id/module/index.html').existsSync(),
+          isTrue);
       expect(
           File('${plugins.path}/my-dashboard/module/manifest.json').existsSync(),
-          isTrue);
-      expect(
-          File('${plugins.path}/my-dashboard/module/index.html').existsSync(),
-          isTrue);
+          isFalse);
     });
   });
 
