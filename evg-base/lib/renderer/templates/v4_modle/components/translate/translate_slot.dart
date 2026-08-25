@@ -159,7 +159,10 @@ class _TranslateSlotState extends ConsumerState<TranslateSlot> {
       final provider = agent.DeepSeekProvider(dio: Dio(), apiKey: apiKey);
       final workspace = greenixWorkspaceDir('ai-assistant');
       final translateDir = await _resolveTranslateDir();
-      final bundledPython = p.join(greenixPythonDir, 'python.exe');
+      // 统一解析嵌入式 Python（PythonInterpreter 单例收敛；未命中回退原路径串，
+      // 与旧 File.existsSync 探测行为一致）
+      final bundledPython = PythonInterpreter.bundledPathSync() ??
+          p.join(greenixPythonDir, 'python.exe');
 
       final seedTools = <agent.Tool>[
         PythonRunnerTool(

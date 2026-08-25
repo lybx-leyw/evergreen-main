@@ -126,12 +126,16 @@ jobs:
           INSTALLED=$(find_gradle_home) || { echo "::error::Gradle 预下载三次均失败"; exit 1; }
           "$INSTALLED/bin/gradle" --version | head -3
 
-      - name: 生成模板注册表 (profile) + 插件/脚本资产 + pub get
+      - name: 生成模板注册表 + bundle --check 门禁 + 插件/脚本资产 + pub get
         env:
           EVERGREEN_WORKSPACE: ${{ github.workspace }}/evg-base
         run: |
           flutter pub get
           dart run tool/gen_template_registry.dart --profile ${{ matrix.profile }}
+          # O4 门禁：校验提交态 bundle 一致性（pubspec 标记块 + 本地镜像，若存在）。
+          # 不一致立即失败，阻止带漂移的产物发布；随后正常重建（bundle 目录被
+          # .gitignore，CI 首建场景由本步生成）。
+          dart run tool/bundle_plugins.dart --check
           dart run tool/bundle_plugins.dart
           dart run tool/bundle_scripts.dart
 
@@ -229,12 +233,16 @@ jobs:
           channel: stable
           cache: true
 
-      - name: 生成模板注册表 (profile) + 插件/脚本资产 + pub get
+      - name: 生成模板注册表 + bundle --check 门禁 + 插件/脚本资产 + pub get
         env:
           EVERGREEN_WORKSPACE: ${{ github.workspace }}/evg-base
         run: |
           flutter pub get
           dart run tool/gen_template_registry.dart --profile ${{ matrix.profile }}
+          # O4 门禁：校验提交态 bundle 一致性（pubspec 标记块 + 本地镜像，若存在）。
+          # 不一致立即失败，阻止带漂移的产物发布；随后正常重建（bundle 目录被
+          # .gitignore，CI 首建场景由本步生成）。
+          dart run tool/bundle_plugins.dart --check
           dart run tool/bundle_plugins.dart
           dart run tool/bundle_scripts.dart
 

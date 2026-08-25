@@ -28,16 +28,19 @@ class PdfTranslateService {
   })  : _scriptPath = scriptPath,
         _configuredPython = pythonExe;
 
-  /// 解析 Python 可执行文件路径，优先使用 Greenix 嵌入版 Python。
+  /// 统一解析 Python 可执行文件路径（PythonInterpreter 单例收敛）。
+  ///
+  /// 顺序：configuredPath → Greenix 嵌入式目录 → 系统 PATH → 安卓 Chaquopy 哨兵。
+  /// 桌面返回 exePath；安卓返回哨兵常量（调用方已按 [Platform.isAndroid]
+  /// 先行分流到进程内执行，不会把哨兵当命令）。
   Future<String?> _resolvePython() async {
-    // ① 优先 Greenix 嵌入版（.greenix/python/python.exe）
-    final greenixPy = p.join(greenixPythonDir, 'python.exe');
-    if (await File(greenixPy).exists()) {
-      Log().info('PdfTranslate: using greenix Python', data: {'path': greenixPy});
-      return greenixPy;
+    final rt = await PythonInterpreter.instance
+        .resolve(configuredPath: _configuredPython);
+    if (rt.isAvailable) {
+      Log().info('PdfTranslate: using ${rt.kind.name} Python',
+          data: {'path': rt.exePath});
     }
-    // ② 回退到通用发现
-    return resolvePythonExe(configuredPath: _configuredPython);
+    return rt.legacyExePath;
   }
 
   /// .greenix/scripts/translate/ 目录（pdf2zh_next 所在位置）。

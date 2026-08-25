@@ -1,4 +1,4 @@
-/// Plugin Bridge — 自动扫描 plugins/<name>/agent/ 下的 .exe 或 .py 并包装为 Tool。
+/// Plugin Bridge — 自动扫描 plugins/<name>/agent/ 下的 .py（统一主路径）或 .exe（legacy）并包装为 Tool。
 ///
 /// ## API
 /// | 方法 | 说明 |
@@ -125,6 +125,9 @@ class PluginTool extends Tool {
   @override
   bool get readOnly => _manifest.readOnly;
 
+  /// 入口文件路径（`.py` 统一主路径；`.exe` 为 legacy 回退）。
+  String get entryPath => _exePath;
+
   Future<PluginRunner> _ensureRunner() async {
     return _runner ??= await sharedPluginRunner;
   }
@@ -208,7 +211,7 @@ class PluginTool extends Tool {
 
 // ═══════ PluginBridge ═══════
 
-/// 扫描 plugins/<name>/agent/ 目录，发现 .exe 或 .py 并注册为 Tool。
+/// 扫描 plugins/<name>/agent/ 目录，发现 .py（统一主路径）或 .exe（legacy）并注册为 Tool。
 class PluginBridge {
   /// 扫描目录，返回发现的所有 PluginTool。
   static List<Tool> discover(Directory pluginsDir) {
@@ -216,11 +219,11 @@ class PluginBridge {
     final tools = <Tool>[];
     for (final entry in pluginsDir.listSync()) {
       if (entry is! Directory) continue;
-      final exeFile = _findEntry(entry);
-      if (exeFile == null) continue;
-      final manifest = _readManifest(entry, exeFile);
+      final manifest = _readManifest(entry);
       if (!manifest.isValid) continue;
-      tools.add(PluginTool(exePath: exeFile.path, manifest: manifest));
+      final entryFile = _findEntry(entry, manifest);
+      if (entryFile == null) continue;
+      tools.add(PluginTool(exePath: entryFile.path, manifest: manifest));
     }
     return tools;
   }
@@ -244,29 +247,39 @@ class PluginBridge {
     }
   }
 
-  /// 在 agent/ 子目录中找入口文件：优先同名 .exe，其次同名 .py，否则首个。
-  static File? _findEntry(Directory dir) {
+  /// 在 agent/ 子目录中找入口文件：**`.py` 优先**（统一 python 唯一路径，
+  /// 同名 `<目录名>.py` 最高优先），仅当**无任何 `.py`** 且 manifest **未显式
+  /// 声明 `runtime: "python"`**（即 native/缺省）时才回退 `.exe`（legacy 向后
+  /// 兼容——存量 .exe 插件仍可运行）。
+  static File? _findEntry(Directory dir, PluginManifest manifest) {
     final agentDir = Directory('${dir.path}/agent');
     if (!agentDir.existsSync()) return null;
     final dirName = dir.uri.pathSegments.last;
-    File? firstExe;
     File? firstPy;
+    File? firstExe;
     for (final f in agentDir.listSync()) {
       if (f is! File) continue;
       final name = f.uri.pathSegments.last;
-      if (name.endsWith('.exe')) {
-        if (name == '$dirName.exe') return f;
-        firstExe ??= f;
-      } else if (name.endsWith('.py')) {
-        if (name == '$dirName.py') return f;
+      if (name.endsWith('.py')) {
+        if (name == '$dirName.py') return f; // 同名 .py 最高优先
         firstPy ??= f;
+      } else if (name.endsWith('.exe')) {
+        if (name == '$dirName.exe') {
+          firstExe ??= f; // 同名 .exe 是候选但不再提前返回（.py 优先）
+        } else {
+          firstExe ??= f;
+        }
       }
     }
-    return firstExe ?? firstPy; // .exe 优先于 .py
+    if (firstPy != null) return firstPy;
+    // 无 .py：仅 manifest 未声明 runtime:"python"（native/缺省）时回退 .exe。
+    // runtime:"python" 却只有 .exe 属声明错配，跳过该插件（fail 可见而非误跑）。
+    if (firstExe != null && manifest.runtime != 'python') return firstExe;
+    return null;
   }
 
   /// 读取 manifest.json（必写），不存在或无效返回空 name。
-  static PluginManifest _readManifest(Directory dir, File exeFile) {
+  static PluginManifest _readManifest(Directory dir) {
     final mf = File('${dir.path}/agent/manifest.json');
     if (!mf.existsSync()) {
       return const PluginManifest(name: '', description: '', schema: {});

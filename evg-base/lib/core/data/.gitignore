@@ -8,6 +8,7 @@ test/.cache
 
 # example 运行时产物
 example/.cache
+# douban 已迁移模型 A(.py)，无 PyInstaller 产物；如本地手动打包 .exe 请勿提交：
 example/plugins/douban/build
 example/plugins/douban/dist
 example/plugins/douban/*.spec

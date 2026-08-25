@@ -31,8 +31,8 @@
 ├── icon.png            # 插件图标（可选，建议 256×256）
 │
 ├── agent/              # Agent 工具（可选）
-│   ├── manifest.json   #   工具声明
-│   └── <name>.exe      #   可执行文件
+│   ├── manifest.json   #   工具声明（含 runtime）
+│   └── <name>.py       #   Python 脚本（统一主路径，runtime:"python"；.exe 仅存量 legacy）
 │
 ├── module/             # UI 模块（可选）
 │   └── manifest.json   #   模块声明

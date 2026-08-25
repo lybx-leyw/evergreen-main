@@ -1,4 +1,4 @@
-# Agent 工具插件撰写指南
+﻿# Agent 工具插件撰写指南
 
 | 元信息 | 值 |
 | --- | --- |
@@ -8,7 +8,8 @@
 | 负责人 | core-agent |
 | 适用 | Agent 工具插件作者 |
 
-> **面向**：插件开发者（编写 `.exe` / `.py` 工具供 Agent 调用）  
+> **面向**：插件开发者（编写 `.py` 工具供 Agent 调用；`.exe` 为存量 legacy）
+> **统一 python 唯一路径**：新插件一律 `.py` 纯标准库优先（桌面解释器 / 安卓 Chaquopy 同一份脚本）。
 > **完整示例**：见本文档 §6（包含 date、weather 等可运行的完整示例）
 
 ---
@@ -18,7 +19,7 @@
 1. [插件目录结构规范](#1-插件目录结构规范)
 2. [manifest.json 完整字段说明](#2-manifestjson-完整字段说明)
 3. [plugin.py 编写规范](#3-pluginpy-编写规范)
-4. [编译为 .exe 指南](#4-编译为-exe-指南)
+4. [编译为 .exe（legacy，仅存量）](#4-编译为-exelegacy仅存量)
 5. [测试与调试](#5-测试与调试)
 6. [完整示例](#6-完整示例)
 
@@ -30,8 +31,8 @@
 plugins/<name>/                     ← 插件根目录，name 为蛇形命名
 └── agent/                          ← Agent 工具子目录（必写）
     ├── manifest.json               ← 工具声明（必写，PluginBridge 扫描入口）
-    ├── <name>.exe                  ← native 入口（.exe 优先匹配）
-    ├── <name>.py                   ← Python 入口（runtime="python" 直接执行，可选）
+    ├── <name>.py                   ← Python 入口（统一主路径，runtime="python"，无需编译）
+    ├── <name>.exe                  ← legacy 入口（仅存量 .exe 插件；新插件不要产出）
     ├── plugin.py                   ← 源码（可选，推荐保留用于调试）
     └── README.md                   ← 插件说明（可选）
 ```
@@ -39,14 +40,14 @@ plugins/<name>/                     ← 插件根目录，name 为蛇形命名
 **发现规则**（PluginBridge 扫描逻辑）：
 
 1. 遍历 `plugins/` 下所有子目录
-2. 检查 `<子目录>/agent/` 是否存在
-3. 在 `agent/` 中查找入口文件，**优先匹配 `<目录名>.exe`**，其次 `<目录名>.py`（.exe 优先于 .py）
-4. 读取 `manifest.json`，`name` 非空即为有效插件
-5. 构造 `PluginTool` 并注册到 `Registry`
+2. 读取 `agent/manifest.json`，`name` 非空即为有效插件
+3. 在 `agent/` 中查找入口文件，**`.py` 优先**（同名 `<目录名>.py` 最高优先）；
+   仅当无任何 `.py` 且 manifest 未声明 `runtime:"python"` 时才回退 `.exe`（legacy）
+4. 构造 `PluginTool` 并注册到 `Registry`
 
-> **注意**：`.py` 入口当前**直接支持**——`PluginRunner` 按
-> `manifest.runtime`（`"python"`）或 `.py` 扩展名自动拼出 `python <entry>` 执行，
-> 无需先编译为 `.exe`（Windows 桌面；安卓走 Chaquopy 进程内执行）。
+> **注意**：`.py` 入口直接执行——`PluginRunner` 按 `manifest.runtime`（`"python"`）
+> 或 `.py` 扩展名自动拼出 `python <entry>`，无需编译（Windows 桌面；安卓走 Chaquopy
+> 进程内执行）。manifest 声明 `runtime:"python"` 却只有 `.exe` 属声明错配，插件被跳过。
 
 ---
 
@@ -86,7 +87,9 @@ plugins/<name>/                     ← 插件根目录，name 为蛇形命名
 | `timeout_ms` | `int` | 超时毫秒数（默认 30000） |
 | `env` | `object` | 环境变量键值对 |
 
-> **实现状态**：当前 PluginBridge 使用 `_findEntry` 发现 `.exe` / `.py`（同名优先）+ `PluginManifest`（含 `runtime` 字段）。扩展方向中 `runtime` 已落地；其余字段（`type`/`version`/`entry`/`permissions`/`timeout_ms`/`env`）仍需 Agent 工程师后续实现。
+> **实现状态**：当前 PluginBridge 使用 `_findEntry` 发现入口（**`.py` 优先**，同名优先；
+> 仅无 `.py` 且 runtime≠python 时回退 `.exe`）+ `PluginManifest`（含 `runtime` 字段）。
+> 扩展方向中 `runtime` 已落地；其余字段（`type`/`version`/`entry`/`permissions`/`timeout_ms`/`env`）仍需 Agent 工程师后续实现。
 
 ### 2.3 三种 argMode 对比
 
@@ -245,10 +248,12 @@ if __name__ == "__main__":
 
 ---
 
-## 4. 编译为 .exe 指南
+## 4. 编译为 .exe（legacy，仅存量）
 
-PluginBridge 支持 `.py` 入口直接运行（`runtime: "python"`），**Python 插件无需先编译**；
-仅在需要独立可执行文件（无 Python 环境目标机）时才编译 `.exe`。
+> **新插件不要编译 .exe**——`.py` 入口直接运行（`runtime: "python"`），无需编译；
+> 同一份 `.py` 跨平台（Windows / Linux / macOS / 安卓 Chaquopy）。本节约定的
+> `.exe` 路径仅用于**存量 .exe 插件**的维护（PluginBridge 在无 `.py` 且 manifest
+> 未声明 `runtime:"python"` 时回退 .exe 执行，向后兼容）。
 
 ### 4.1 PyInstaller（Python）
 
@@ -267,8 +272,9 @@ pyinstaller --onefile --console --name weather plugin.py
 - `--console`：必须，Agent 通过 stdin/stdout 通信
 - `--name`：产物名应与插件目录名一致
 - 编译后保留 `plugin.py` 源码在 `agent/` 目录下便于调试
+- ⚠️ `.exe` 仅 Windows 桌面可执行；安卓无法 exec PE 格式（统一 .py 的核心动机）
 
-### 4.2 各语言编译命令
+### 4.2 各语言编译命令（legacy 参考）
 
 | 语言 | 命令 | 产物 |
 |------|------|------|
@@ -281,9 +287,8 @@ pyinstaller --onefile --console --name weather plugin.py
 
 ### 4.3 部署检查清单
 
-- [ ] `.exe` 文件放置在 `plugins/<name>/agent/` 目录
-- [ ] `manifest.json` 与 `.exe` 在同一目录
-- [ ] `.exe` 文件名与目录名一致（如 `plugins/time/agent/time.exe`）
+- [ ] 新插件：`<name>.py` + `manifest.json`（`"runtime":"python"`）在 `plugins/<name>/agent/` 目录
+- [ ] 存量 .exe 插件：`<name>.exe` 与 `manifest.json` 同目录，manifest 未声明 `runtime:"python"`
 - [ ] 手动测试通过（见 [§5](#5-测试与调试)）
 
 ---
@@ -298,17 +303,13 @@ echo '{"format":"cn"}' | python plugin.py
 
 # args + flag 模式 — 模拟 Agent 命令行
 python plugin.py --offset 8 --format 12h
-
-# 编译后测试 .exe
-echo '{"city":"北京","days":2}' | ./weather.exe
-./weather.exe -c 北京 -d 2
 ```
 
 ### 5.2 平台内集成测试
 
 插件放入 `plugins/<name>/agent/` 后，启动 Evergreen 平台即可自动发现。验证方法：
 
-1. 确认 `manifest.json` 和 `.exe` 在 `plugins/<name>/agent/` 目录
+1. 确认 `manifest.json` 和入口文件（`.py` 优先）在 `plugins/<name>/agent/` 目录
 2. 启动平台，Agent 自动扫描并注册工具
 3. 在 Agent 对话中直接调用工具名（如 `date`、`weather`）
 4. 观察 Agent 是否成功调用并返回结果
@@ -329,9 +330,10 @@ curl -X POST http://127.0.0.1:PORT/agent/tool/call \
 | 问题 | 可能原因 | 解决方案 |
 |------|---------|---------|
 | 插件未被发现 | 缺 `manifest.json` 或 `name` 为空 | 检查 `plugins/<name>/agent/manifest.json` 存在且 `name` 非空 |
-| 插件未被发现 | `.exe` 不在 `agent/` 子目录 | 确认 `.exe` 路径为 `plugins/<name>/agent/<name>.exe` |
+| 插件未被发现 | 无 `.py`/`.exe` 入口文件 | 确认 `plugins/<name>/agent/<name>.py`（优先）或 legacy `<name>.exe` 存在 |
+| 插件未被发现 | manifest `runtime:"python"` 却只有 `.exe` | 声明错配被跳过（fail 可见）；提供 `.py` 或去掉 runtime 声明 |
 | 进程无响应/挂起 | 未读取 stdin 或未 flush stdout | stdin 模式必须 `sys.stdin.read()`；确保 `print()` 后 stdout 已刷新 |
-| 乱码 | 编码不是 UTF-8 | Python: `sys.stdout.reconfigure(encoding='utf-8')`；C: `SetConsoleOutputCP(CP_UTF8)` |
+| 乱码 | 编码不是 UTF-8 | Python: `sys.stdout.reconfigure(encoding='utf-8')`；Windows 管道输入带 BOM 时先剥离 `\ufeff` |
 | 超时 | 进程执行时间过长 | Agent 默认 30s 超时，优化逻辑或考虑异步返回 |
 | `argMode="args"` 参数不匹配 | `argSpec` 与 `argparse` 定义不一致 | `argSpec.flags` 中的短 flag 映射需与 argparse 一致 |
 | stderr 混入输出 | 错误写入 stdout | 调试信息使用 `print(..., file=sys.stderr)` |
@@ -346,8 +348,8 @@ curl -X POST http://127.0.0.1:PORT/agent/tool/call \
 ```
 plugins/date/agent/
 ├── manifest.json
-├── date.exe          ← PyInstaller 编译产物
-└── plugin.py         ← 源码
+├── date.py           ← 统一主路径（无需编译，runtime:"python"）
+└── plugin.py         ← 源码（可选，便于调试）
 ```
 
 **manifest.json**：
@@ -363,6 +365,7 @@ plugins/date/agent/
     "required": []
   },
   "readOnly": true,
+  "runtime": "python",
   "argMode": "stdin"
 }
 ```
@@ -397,15 +400,14 @@ if __name__ == "__main__":
     main()
 ```
 
-**构建**：
+**运行**（无需构建）：
 ```bash
-pyinstaller --onefile --console --name date plugin.py
-cp dist/date.exe plugins/date/agent/
+echo '{"format":"cn"}' | python plugin.py
 ```
 
 **测试**：
 ```bash
-echo '{"format":"cn"}' | ./date.exe
+echo '{"format":"cn"}' | python plugin.py
 # 输出：2026年07月06日
 ```
 
@@ -459,15 +461,14 @@ if __name__ == "__main__":
     main()
 ```
 
-**构建**：
+**运行**（无需构建）：
 ```bash
-pyinstaller --onefile --console --name weather plugin.py
-cp dist/weather.exe plugins/weather/agent/
+python plugin.py -c 北京 -d 2
 ```
 
 **测试**：
 ```bash
-./weather.exe -c 北京 -d 2
+python plugin.py -c 北京 -d 2
 # 输出：
 # 北京未来2天：
 #   第1天：晴，12°C ~ 28°C
@@ -484,23 +485,23 @@ cp dist/weather.exe plugins/weather/agent/
 | `date` | Python | stdin | JSON → stdin，空输入容错，多格式日期输出 |
 | `weather` | Python | args + flag + 短flag | `--city` / `-c` 短长 flag 映射，模拟天气 |
 | `time` | Python | args + flag | `--offset` 时区偏移，12h/24h 格式切换 |
-| `random` | C | args + flag | 编译型语言示例，`--min` / `--max` 范围 |
+| `random` | Python | args + flag | `--min` / `--max` 范围随机整数（原 C 实现的 python 等价物） |
 
-> 以上插件对应 `example/plugins/` 下完整模板（manifest + 源码 + README）。
+> 以上插件对应 `example/plugins/` 下完整模板（manifest + 源码 + README），全部为
+> 纯标准库 + `runtime: "python"`，同一份 `.py` 跨平台执行。
 > 写操作示例（`readOnly: false`）可参考 `random` 的 manifest 结构，将 `readOnly` 置为 `false` 并实现目录创建逻辑。
 
 **通用模板**：
 1. 选择 argMode（stdin 适合复杂参数，args+flag 适合 CLI 工具）
 2. 编写 manifest.json（字段：name/description/schema/readOnly/argMode/argSpec/runtime）
 3. 编写 plugin.py（见 §3 三种模式的代码模板；`.py` 入口声明 `runtime: "python"` 即可直接运行）
-4. 按需编译 `.exe`（见 §4 各语言编译命令）
-5. 独立测试（见 §5.1 `echo '...' | ./name.exe` 或 `python plugin.py`）
+4. 独立测试（见 §5.1 `python plugin.py`）
 
 ---
 
 ## 附录：PluginBridge 工作原理
 
-**发现**：扫描 `plugins/<name>/agent/` → 优先匹配 `<name>.exe` / `<name>.py` → 解析 `manifest.json` → 注册 `PluginTool`。
+**发现**：扫描 `plugins/<name>/agent/` → 读 manifest → **`.py` 优先**（同名 `<目录名>.py` 最高优先；无 `.py` 且 runtime≠python 才回退 `.exe`）→ 注册 `PluginTool`。
 
 **调用**：`registry.call(name, json)` → `PluginRunner.runOnce`（桌面 `SubprocessRunner` 子进程 / 安卓 `ChaquopyRunner` 进程内）→ stdin/args 传入参数 → 收集 stdout + stderr → 返回结果。
 

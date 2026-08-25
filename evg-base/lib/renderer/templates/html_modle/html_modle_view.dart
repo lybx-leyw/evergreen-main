@@ -661,9 +661,9 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
   Widget build(BuildContext context) {
     // 内置创作工具走 Dart 原生渲染
     if (widget.descriptor.id == 'html-creator') {
+      // HtmlCreatorView 不再接收 pluginsDir（导出/读取统一走 resolvePluginsRoot）
       return HtmlCreatorView(
         descriptor: widget.descriptor,
-        pluginsDir: widget.workingDirectory,
       );
     }
 

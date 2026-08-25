@@ -78,6 +78,23 @@ lib/renderer/
 - 当前主题色板自动注入为 `--evg-*` CSS 变量（background/surface/border/text/textSecondary/accent/accentBg/accentBorder/error/others），主题切换时实时推送。
 - 特例：`descriptor.id == 'html-creator'` 时短路到 Dart 原生 `HtmlCreatorView`（创作中心），不启动本地 HTTP / WebView。
 
+### HTML 插件导出链路（单目标）
+
+- 创作中心导出 = `HtmlExportService`（手动）/ `ExportHtmlPluginTool`（AI），两者共用
+  `writeHtmlPluginModule()`：**单目标**写入 `{resolvePluginsRoot()}/{id}/module/`
+  （`manifest.json` + `index.html`，`"template":"html"`）——路径解析统一走
+  `core/utils/greenix_path.dart` 的 `resolvePluginsRoot()`，与主题插件
+  `ThemeExporter`（`plugins/<id>/theme/theme.json`）同根，**安卓/桌面行为一致**
+  （安卓 = 应用私有 `.greenix/plugins`，不再依赖 `pluginsDirProvider` 注入）。
+- **不变式**：`assets/plugins_bundle/` 是 `plugins/` 的纯镜像，仅由
+  `tool/bundle_plugins.dart` 生成；renderer 导出**禁止直写 bundle**。
+- 加固：插件 id 经共享 `htmlPluginIdError()` 校验（小写字母开头 kebab-case，
+  拒绝纯数字/路径穿越）；落盘路径经 `PathSandbox` confine；写入为**原子导出**
+  （临时目录复制旧 module/ → 写新文件 → rename 替换 + 备份回滚）。
+- 导出成功即热注册：`reloadModule`（侧边栏/路由）+ `pluginStateProvider`
+  `registerInstalled`/`touch`（插件中心/最近使用）；失败原因经 `Log()` +
+  SnackBar 用户可见（不静默）。
+
 ---
 
 ## 代码模式

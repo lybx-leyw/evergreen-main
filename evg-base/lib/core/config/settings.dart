@@ -10,8 +10,9 @@
 /// | `getSetting(prefs, key)` | 读值，回退声明默认值 |
 /// | `setSetting(prefs, key, value)` | 写值到 SP |
 /// | `getAllSettings(prefs)` | 返回全部 (SettingDecl, 当前值) |
-/// | `exportConfig(prefs, {extraKeys})` | 导出 .evgconfig 格式 |
-/// | `importConfig(prefs, config)` | 导入 .evgconfig 格式 |
+/// | `getSettingSources()` | 返回全部已声明设置项的来源插件 id（按插件分组用） |
+/// | `exportConfig(prefs, {aiMemory, extraKeys, dynamicKeys, includePermissions, appPrefs, includeSecure})` | 导出 .evgconfig v2 格式 |
+/// | `importConfig(prefs, config, {allowedDynamicKeys, allowedAppPrefs, overwrite, allowSecure, onChanged})` | 导入 .evgconfig v2（含 v1 兼容） |
 library settings;
 
 import 'dart:convert';
@@ -21,6 +22,21 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'exceptions.dart';
 import 'permissions.dart';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// .evgconfig 格式版本
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// 当前 .evgconfig 导出格式版本。
+///
+/// v1：`{format, version:1, exportedAt, settings, sources?, aiMemory?, extra?}`
+/// v2：v1 + 三个**可选新增段** `dynamicSettings` / `permissions` / `appPrefs`，
+///     以及 isSecure 默认跳过、导入端 version 校验与白名单过滤。
+///     旧导入器可忽略新段（向后兼容）；v1 文件可被 v2 导入器直接读取。
+const int kEvgConfigVersion = 2;
+
+/// 支持的导入最低版本（v1 向后兼容）。
+const int kEvgConfigMinVersion = 1;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 值类型
@@ -108,6 +124,11 @@ class SettingDecl {
 // ═══════════════════════════════════════════════════════════════════════════
 
 Map<String, SettingDecl> _decls = {};
+
+/// 已声明设置项的来源映射：key → 来源插件 id（`builtins` / 插件目录名 / config.json `id` 字段）。
+///
+/// 供导出按插件分组、同步中心「配置子集按插件勾选」与 UI 分组展示使用。
+final Map<String, String> _declSources = {};
 
 /// 解析建议值列表：兼容两种写法——
 /// 1) 纯字符串 `["deepseek-chat", "gpt-4o"]`
@@ -204,10 +225,12 @@ void _tryLoad(Directory dir, Map<String, SettingDecl> decls) {
   try {
     final json = jsonDecode(configFile.readAsStringSync()) as Map<String, dynamic>;
     final settingsList = json['settings'] as List<dynamic>? ?? [];
+    final pluginId = json['id'] as String? ?? dir.path.split(Platform.pathSeparator).last;
     final keys = <String>[];
     for (final item in settingsList) {
       final sd = _parseSetting(item as Map<String, dynamic>);
       decls[sd.key] = sd;
+      _declSources[sd.key] = pluginId;
       keys.add(sd.key);
     }
     // 诊断日志：帮助追踪 Android 上 config.json 扫描是否完整
@@ -216,7 +239,6 @@ void _tryLoad(Directory dir, Map<String, SettingDecl> decls) {
     // 自动解析 permissions 字段并注册
     final permissionsList = json['permissions'] as List<dynamic>?;
     if (permissionsList != null && permissionsList.isNotEmpty) {
-      final pluginId = json['id'] as String? ?? dir.path.split(Platform.pathSeparator).last;
       final perms = <PermissionDecl>[];
       for (final p in permissionsList) {
         final pm = p as Map<String, dynamic>;
@@ -246,6 +268,7 @@ Future<void> initSettings(
   List<String> pluginDirs = const [],
 }) async {
   _decls = {};
+  _declSources.clear();
   for (final dir in pluginDirs) {
     _decls.addAll(_loadPlugins([dir]));
   }
@@ -305,33 +328,64 @@ List<({SettingDecl decl, String value})> getAllSettings(SharedPreferences prefs)
   }).toList();
 }
 
+/// 全部已声明设置项的来源插件 id（key → `builtins` / 插件目录名 / config.json `id`）。
+///
+/// 供同步中心「配置子集按插件勾选」、设置界面分组展示与导出分组使用。
+/// 动态注册项（ConfigHttpServer）不在其中，请用 `ConfigHttpServer.dynamicSettingKeys`。
+Map<String, String> getSettingSources() => Map.unmodifiable(_declSources);
+
 // ═══════════════════════════════════════════════════════════════════════════
 // 导出 / 导入
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// 导出全部配置为 `.evgconfig` 格式。
+/// 导出配置为 `.evgconfig` v2 格式。
 ///
 /// 返回的 Map 可直接 `jsonEncode` 写入 `.evgconfig` 文件。
+///
+/// v2 相对 v1 的扩展（全部可选段，旧导入器可忽略）：
+/// - [dynamicKeys]：动态注册设置项 key 列表（来源 `ConfigHttpServer.dynamicSettingKeys`），
+///   导出为 `dynamicSettings` 段——修复 O1「动态项 _dynamicSettings 私有无法导出」。
+/// - [includePermissions]：导出 `permissions` 段（`perm.*` 按 **bool** 正确类型读写），
+///   修复 O1「权限导出类型错误（getString 读 bool 键）」。
+/// - [appPrefs]：未声明应用偏好白名单（key → 忽略值，仅 key 有意义），导出为 `appPrefs` 段。
+/// - [includeSecure]：默认 `false` 跳过 `isSecure` 声明项的明文值（防 API Key 泄漏）；
+///   显式 `true` 才包含明文。
+///
 /// [aiMemory] 可选，用于导出 AI 记忆数据（由 Agent 模块提供）。
-/// [extraKeys] 可选，用于导出 `perm.*` 等非设置项 SP 键。
+/// [extraKeys] 保留 v1 兼容（非设置项 SP 键；`perm.*` 请改用 [includePermissions]）。
 Future<Map<String, dynamic>> exportConfig(
   SharedPreferences prefs, {
   Map<String, dynamic>? aiMemory,
   List<String> extraKeys = const [],
+  List<String> dynamicKeys = const [],
+  bool includePermissions = false,
+  Map<String, String>? appPrefs,
+  bool includeSecure = false,
 }) async {
   final result = <String, dynamic>{
     'format': 'evgconfig',
-    'version': 1,
+    'version': kEvgConfigVersion,
     'exportedAt': DateTime.now().toIso8601String(),
     'settings': <String, dynamic>{},
   };
 
-  // 全部已知设置项
+  // 全部已知设置项（isSecure 默认跳过，防明文泄漏）
   for (final d in _decls.values) {
+    if (d.isSecure && !includeSecure) continue;
     final v = prefs.getString(d.key) ?? d.defaultValue ?? '';
     if (v.isNotEmpty) {
       result['settings'][d.key] = v;
     }
+  }
+
+  // 动态注册设置项（v2 新增段）
+  if (dynamicKeys.isNotEmpty) {
+    final dyn = <String, dynamic>{};
+    for (final k in dynamicKeys) {
+      final v = prefs.getString(k);
+      if (v != null && v.isNotEmpty) dyn[k] = v;
+    }
+    if (dyn.isNotEmpty) result['dynamicSettings'] = dyn;
   }
 
   // 插件源
@@ -345,12 +399,28 @@ Future<Map<String, dynamic>> exportConfig(
     }
   }
 
+  // 权限（v2 新增段，bool 正确类型）
+  if (includePermissions) {
+    final perms = getAllPermissions(prefs);
+    if (perms.isNotEmpty) result['permissions'] = perms;
+  }
+
+  // 未声明应用偏好（v2 新增段，调用方白名单）
+  if (appPrefs != null && appPrefs.isNotEmpty) {
+    final app = <String, dynamic>{};
+    for (final k in appPrefs.keys) {
+      final v = prefs.getString(k);
+      if (v != null && v.isNotEmpty) app[k] = v;
+    }
+    if (app.isNotEmpty) result['appPrefs'] = app;
+  }
+
   // AI 记忆（专用参数）
   if (aiMemory != null && aiMemory.isNotEmpty) {
     result['aiMemory'] = aiMemory;
   }
 
-  // 额外 key（perm.* 等）
+  // 额外 key（v1 兼容；perm.* 请用 permissions 段）
   if (extraKeys.isNotEmpty) {
     final extra = <String, dynamic>{};
     for (final k in extraKeys) {
@@ -363,42 +433,156 @@ Future<Map<String, dynamic>> exportConfig(
   return result;
 }
 
-/// 从 `.evgconfig` 格式导入配置。
+/// 从 `.evgconfig` 格式导入配置（v2，兼容 v1）。
 ///
-/// 仅导入 settings 中已声明的键（安全过滤），不会覆盖无关 SP 数据。
+/// 安全模型（修复 O1 三缺陷 + 加固）：
+/// - **version 校验**：format 必须为 `evgconfig`（或缺失），version 必须在
+///   [kEvgConfigMinVersion..kEvgConfigVersion]；更高版本拒绝导入（提示升级应用）。
+/// - **settings 白名单**：仅写入已声明的键，且按声明做类型语义校验
+///   （bool_ 必须 "true"/"false"，option 必须在选项列表），非法值跳过。
+/// - **dynamicSettings 白名单**：仅写入 [allowedDynamicKeys]（调用方=ConfigHttpServer
+///   枚举）中的键——修复 O1「动态项无法导入」且不引入任意 key 写入风险。
+/// - **permissions 正确类型**：经 `importPermissions` 以 bool 读写并仅接受已注册
+///   插件的已声明权限键（走 `setPermission` 语义，非裸 SP 写）。
+/// - **appPrefs 白名单**：仅写入 [allowedAppPrefs] 中的键。
+/// - **extra（v1 兼容）**：白名单 = 已声明设置 ∪ [allowedDynamicKeys] ∪ [allowedAppPrefs]；
+///   `perm.*` 键跳过并提示改用 permissions 段——修复 O1「extra 无过滤」。
+/// - **isSecure**：默认不导入已声明 isSecure 键（防覆盖现有密钥），[allowSecure] 可放行。
+/// - **非空值保护（可选）**：[overwrite] 默认 `true`（保持 v1 导入语义：写入即覆盖）；
+///   同步中心做合并导入时传 `overwrite: false` 启用非空值保护
+///   （已有非空值不被导入值覆盖，沿用 `.greenix/config.json` 同步的保护哲学）。
+/// - **导入后回调**：[onChanged] 在发生任何实际写入后触发（如
+///   `configServer.syncConfigToGreenix`）——修复 O1「导入后不触发 greenix 同步」。
+///
 /// 返回 `aiMemory` 数据供 Agent 模块自行导入（Config 不直接操作 MemoryStore）。
 Future<Map<String, dynamic>?> importConfig(
   SharedPreferences prefs,
-  Map<String, dynamic> config,
-) async {
+  Map<String, dynamic> config, {
+  List<String> allowedDynamicKeys = const [],
+  Map<String, String>? allowedAppPrefs,
+  bool overwrite = true,
+  bool allowSecure = false,
+  void Function()? onChanged,
+}) async {
+  // ── format / version 校验 ──
+  final format = config['format'];
+  if (format != null && format != 'evgconfig') {
+    throw ConfigValidationException(
+      key: 'format', value: '$format', reason: '仅支持 evgconfig 格式的配置导出文件',
+    );
+  }
+  final version = config['version'];
+  if (version is int && (version < kEvgConfigMinVersion || version > kEvgConfigVersion)) {
+    throw ConfigValidationException(
+      key: 'version',
+      value: '$version',
+      reason: '导出版本 $version 超出支持范围 [$kEvgConfigMinVersion..$kEvgConfigVersion]，请升级应用后导入',
+    );
+  }
+
+  var changed = false;
+
+  // ── settings（仅已声明键 + 类型语义校验）──
   final settings = config['settings'] as Map<String, dynamic>?;
   if (settings != null) {
     for (final entry in settings.entries) {
-      // 仅导入已声明的设置项，忽略未知 key
       if (!_decls.containsKey(entry.key)) continue;
+      final decl = _decls[entry.key]!;
+      if (decl.isSecure && !allowSecure) continue; // isSecure 默认不导入
+      final raw = entry.value;
+      if (raw is! String || raw.isEmpty) continue;
+      if (decl.type == SettingType.bool_ && raw != 'true' && raw != 'false') {
+        stderr.writeln('[Config] ⚠ 导入跳过非法 bool 值: ${entry.key}="$raw"');
+        continue;
+      }
+      if (decl.type == SettingType.option &&
+          decl.options != null &&
+          !decl.options!.any((o) => o.value == raw)) {
+        stderr.writeln('[Config] ⚠ 导入跳过非法 option 值: ${entry.key}="$raw"');
+        continue;
+      }
+      if (await _writeIfAllowed(prefs, entry.key, raw, overwrite)) changed = true;
+    }
+  }
+
+  // ── dynamicSettings（白名单 key）──
+  final dynamicSettings = config['dynamicSettings'] as Map<String, dynamic>?;
+  if (dynamicSettings != null) {
+    for (final entry in dynamicSettings.entries) {
+      if (!allowedDynamicKeys.contains(entry.key)) continue; // 白名单过滤
       if (entry.value is String && (entry.value as String).isNotEmpty) {
-        await prefs.setString(entry.key, entry.value as String);
+        if (await _writeIfAllowed(prefs, entry.key, entry.value as String, overwrite)) {
+          changed = true;
+        }
       }
     }
   }
 
-  // 插件源
+  // ── sources ──
   final sources = config['sources'];
   if (sources != null) {
     await prefs.setString('_plugin_sources', jsonEncode(sources));
+    changed = true;
   }
 
-  // 额外数据（权限等）
-  final extra = config['extra'] as Map<String, dynamic>?;
-  if (extra != null) {
-    for (final entry in extra.entries) {
+  // ── permissions（v2 段，bool 正确类型 + 声明校验）──
+  final permissions = config['permissions'] as Map<String, dynamic>?;
+  if (permissions != null) {
+    final written = await importPermissions(prefs, permissions, overwrite: overwrite);
+    if (written > 0) changed = true;
+  }
+
+  // ── appPrefs（白名单）──
+  final appPrefs = config['appPrefs'] as Map<String, dynamic>?;
+  if (appPrefs != null) {
+    for (final entry in appPrefs.entries) {
+      if (!(allowedAppPrefs?.containsKey(entry.key) ?? false)) continue; // 白名单
       if (entry.value is String && (entry.value as String).isNotEmpty) {
-        await prefs.setString(entry.key, entry.value as String);
+        if (await _writeIfAllowed(prefs, entry.key, entry.value as String, overwrite)) {
+          changed = true;
+        }
       }
     }
   }
 
+  // ── extra（v1 兼容；白名单过滤；perm.* 走 permissions 段）──
+  final extra = config['extra'] as Map<String, dynamic>?;
+  if (extra != null) {
+    for (final entry in extra.entries) {
+      final k = entry.key;
+      if (k.startsWith('perm.')) {
+        stderr.writeln('[Config] ⚠ extra 中的 perm.* 键请改用 permissions 段（跳过: $k）');
+        continue;
+      }
+      final isDeclared = _decls.containsKey(k);
+      final isAllowedDynamic = allowedDynamicKeys.contains(k);
+      final isAllowedAppPref = allowedAppPrefs?.containsKey(k) ?? false;
+      if (!isDeclared && !isAllowedDynamic && !isAllowedAppPref) continue; // 白名单
+      if (entry.value is String && (entry.value as String).isNotEmpty) {
+        if (await _writeIfAllowed(prefs, k, entry.value as String, overwrite)) changed = true;
+      }
+    }
+  }
+
+  // 导入后回调（如 syncConfigToGreenix）——仅在发生实际写入时触发
+  if (changed && onChanged != null) onChanged();
+
   // 返回 AI 记忆数据供调用方自行导入
   return config['aiMemory'] as Map<String, dynamic>?;
+}
+
+/// 写入单个 String 值；非覆盖模式下已有非空值保留（非空值保护）。
+Future<bool> _writeIfAllowed(
+  SharedPreferences prefs,
+  String key,
+  String value,
+  bool overwrite,
+) async {
+  if (!overwrite) {
+    final existing = prefs.getString(key);
+    if (existing != null && existing.isNotEmpty) return false;
+  }
+  await prefs.setString(key, value);
+  return true;
 }
 

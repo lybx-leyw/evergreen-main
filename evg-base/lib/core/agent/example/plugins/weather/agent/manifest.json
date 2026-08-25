@@ -10,6 +10,7 @@
     "required": ["city"]
   },
   "readOnly": true,
+  "runtime": "python",
   "argMode": "args",
   "argSpec": {
     "style": "flag",

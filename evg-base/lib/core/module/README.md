@@ -87,6 +87,21 @@ ModuleDescriptor.fromJsonString(String)          // JSON 字符串解析
 
 **ModuleLoader 实例**: `start()` / `stop()` / `isRunning` / `port` / `sidecarMeta`（仅 sidecar 格）
 
+### SyncImportService — 同步中心导入端（t-C3）
+
+> 实现位于 `core/services/sync_import_service.dart`（barrel 经 `services.dart` 导出）；
+> 契约：`docs/superpowers/specs/egsync-sync-center-spec-v1.md`。
+
+| API | 说明 |
+|------|------|
+| `SyncImportService({registry, themeStore, orch, projectRoot, pluginsRoot, sessionsRoot, memoriesRoot, configImporter})` | 构造；插件/数据源/主题目标根缺省 `resolvePluginsRoot()`（跨平台） |
+| `.importZip(path, {policy})` → `Future<Result<SyncImportResult>>` | 导入 .egsync.zip：fail-closed 校验 → 冲突决策 → 落盘 → 注册回放 |
+| `SyncImportPolicy` | `overwriteNewer`（默认 true）/ `overwriteSameVersion` / `allowDowngrade` / `applyConflicts` / `overwriteThemes` / `overwriteRuntimeData` |
+| `SyncImportResult` | `items`（imported/noop/skipped/conflict/error）、`conflicts`（`SyncConflict` 清单）、`counts` |
+
+- 注册回放：插件 `ModuleRegistry.reloadModule`；数据源模型 A `registerDataSourcesFromManifest`（模型 B .exe 交接 core-data）；主题 `ThemeStore.register`；config 经 `configImporter` 交接 core-config；sessions/memories 原样落盘（合并算法 t-C4/core-agent）。
+- 冒烟验证：`evg-base/test/sync_import_smoke_test.dart`。
+
 ---
 
 ## 子描述符参考

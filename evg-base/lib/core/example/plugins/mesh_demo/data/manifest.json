@@ -3,6 +3,7 @@
   "id": "mesh_demo_data",
   "name": "微服务网格演示数据",
   "process": { "exe": "mesh_server.py" },
+  "runtime": "python",
   "preferredPort": 0,
   "dataTypes": [
     {

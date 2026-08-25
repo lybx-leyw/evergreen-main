@@ -5,10 +5,10 @@
 
 ## 快速上手
 
+统一 python 路径：`.py` 入口直接运行（manifest `runtime: "python"`，无需编译）。
+
 ```bash
-pip install pyinstaller
-pyinstaller --onefile plugin.py
-cp dist/plugin.exe ./time.exe
+python plugin.py --offset 8 --format 24h
 ```
 
 ## 通信协议
@@ -16,7 +16,7 @@ cp dist/plugin.exe ./time.exe
 args + flag 风格。Agent 调用 `{"offset":8,"format":"24h"}` 时实际命令行：
 
 ```
-./time.exe --offset 8 --format 24h
+python plugin.py --offset 8 --format 24h
 ```
 
 stdout 示例：`14:30:00`

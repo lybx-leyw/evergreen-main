@@ -372,7 +372,8 @@ class _BookPagesViewState extends ConsumerState<BookPagesView> {
     return '';
   }
 
-  Future<String> _resolvePythonPath() async => await resolvePythonExe() ?? 'python';
+  Future<String> _resolvePythonPath() async =>
+      (await PythonInterpreter.instance.resolve()).legacyExePath ?? 'python';
 
   void _showTechniqueChoiceDialog(BuildContext context, PaperRecord paper) {
     final notebook = ref.read(innovationNotebookProvider);

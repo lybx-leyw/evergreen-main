@@ -37,7 +37,7 @@
    │   Process.run script --type <t>          │
    │   stdout 顶层 JSON Map → 注册 fetcher    │
    ├────────────────────────────────────────┤
-   │ 模型 B：HTTP 长驻服务（.exe，开发者模式）  │
+   │ 模型 B：HTTP 长驻服务（.exe，legacy）    │
    │   DataSourceLoader：PORT: / health 探测  │
    │   orch.get(type) → HTTP {port}/endpoint  │
    └────────────────────────────────────────┘
@@ -45,7 +45,7 @@
 
 **数据流（模型 A / CLI）**：`registerDataSourcesFromManifest` 读取 `data/manifest.json` → 为每个 `dataType` 注册「`Process.run <script> --type <typeArg> --project-root <root> --greenix-config <cfg>` + stdout JSON Map 解析」的 fetcher → 消费者 `orch.get(type)` 时一次性执行脚本拿数据 → `Cache` 持久化缓存 → 后台自动刷新时经 `data_diff` 计算变化并发出 `DataChangeEvent` → `DataHttpServer` 暴露 REST 端点（含运行期热注册 `POST /data/register`）供外部调用。
 
-**数据流（模型 B / HTTP）**：`DataSourceLoader` 启动外部 `.exe`（长驻 HTTP 服务）→ 探测 `PORT:` 行 → `GET /health` 健康检查 → 注册 fetcher（每次 `orch.get` 转为 HTTP 拉取 `{port}/endpoint`）。
+**数据流（模型 B / HTTP，legacy）**：`DataSourceLoader` 启动外部 `.exe`（长驻 HTTP 服务）→ 探测 `PORT:` 行 → `GET /health` 健康检查 → 注册 fetcher（每次 `orch.get` 转为 HTTP 拉取 `{port}/endpoint`）。
 
 ---
 
@@ -76,7 +76,7 @@ lib/core/data/
 │   └── plugin-authoring-guide-data.md  # Data 数据源插件撰写指南
 ├── example/
 │   ├── example.dart             # 完整 API 使用示例
-│   └── plugins/douban/          # 豆瓣 Top250 爬虫插件（HTTP 模型，真实可运行示例）
+│   └── plugins/douban/          # 豆瓣 Top250 爬虫插件（模型 A CLI，真实可运行示例）
 ├── test/
 │   ├── orchestrator_test.dart   # 用例：注册/获取/刷新/空数据/变更事件/状态/连通性/自动刷新
 │   ├── cache_test.dart          # 用例：读写/删除/清空/编码/批量
@@ -169,7 +169,7 @@ null / 空白字符串 / 空 List / 空 Map / 空 Set。**注意**：`{'courses'
 4. `exitCode != 0` 或 stdout JSON 含 `error` key → 拉取失败（旧缓存保留）
 5. 脚本缺失时仍注册（运行时拉取失败并记录日志）
 
-**模型 B — HTTP 长驻服务（.exe）**：通过 `DataSourceLoader` 管理进程生命周期：
+**模型 B — HTTP 长驻服务（.exe，legacy）**：通过 `DataSourceLoader` 管理进程生命周期：
 1. 启动 `.exe`（以 `data/` 为工作目录，`preferredPort > 0` 时传 `--port N`）
 2. 等待 stdout 输出 `PORT:<数字>`（10 秒超时）
 3. 请求 `GET /health` 确认就绪
@@ -220,9 +220,11 @@ registerDataSourcesFromManifest(
 );
 ```
 
-### 新增 HTTP 数据源插件（模型 B）
+### 新增 HTTP 数据源插件（模型 B，legacy）
 
 `plugins/<name>/data/manifest.json` → HTTP 服务（`/health` + 数据端点）→ 编译 `.exe` → `scanAndLoadDataSources`。详见 `docs/plugin-authoring-guide-data.md`。
+> 新数据源优先走模型 A（CLI .py）：跨平台（桌面解释器 / 安卓 Chaquopy 同一份 .py）、无 PyInstaller 产物、
+> 同步中心导出/导入友好。模型 B 仅保留给有状态长驻服务场景。
 
 ---
 
@@ -382,3 +384,11 @@ data 模块（pubspec.yaml，name: evergreen_base）
 ├── HTML 插件 → platform.data.* JS Bridge（get/refresh/subscribe/testConnectivity）
 └── 外部消费者 → DataHttpServer REST 端点
 ```
+
+---
+
+## 变更记录
+
+| 日期 | 变更 |
+|------|------|
+| 2026-08-25 | **t13 阶段1·主题1**：douban 示例从模型 B（.exe/PyInstaller）迁移为模型 A（CLI .py 纯标准库），清理 25.71MB 构建产物；`register_data_source.dart` 变量名 `exePath`/`exeExists` → `scriptPath`/`scriptExists`；模型 B 全文档标注 legacy，模型 A(.py) 为数据源规范化形态（同步中心导出基准） |

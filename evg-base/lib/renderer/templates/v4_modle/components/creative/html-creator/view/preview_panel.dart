@@ -17,6 +17,7 @@ import 'package:evergreen_base/providers.dart';
 import 'package:evergreen_base/renderer/app/service/theme/render_tokens.dart';
 import 'package:evergreen_base/renderer/templates/html_modle/bridge_script.dart';
 import 'package:evergreen_base/renderer/templates/html_modle/core_api_discovery.dart';
+import 'package:path/path.dart' as p;
 
 /// 预览模式（B5：新增 tablet 档）。
 enum PreviewMode { desktop, tablet, mobile }
@@ -157,7 +158,8 @@ class _PreviewPanelState extends ConsumerState<PreviewPanel> {
   }
 
   Future<void> _startHttpServer() async {
-    final pluginDir = '${widget.pluginsDir!}/${widget.pluginId!}';
+    // p.join 规范化拼接（旧字符串拼接在路径含分隔符时易错）。
+    final pluginDir = p.join(widget.pluginsDir!, widget.pluginId!);
     _httpServer = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     _httpPort = _httpServer!.port;
     _httpServer!.listen((req) {

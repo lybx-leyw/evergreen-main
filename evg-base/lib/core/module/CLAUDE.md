@@ -137,6 +137,15 @@ registry（`registerResolved`）/ loader（`ModuleLoader.fromResolved`）/ 权�
 - 信任：`ReviewQueue`（pending/approved/rejected，fail-closed 默认拒绝曝光）+ `ReviewStore`（用户评价聚合）。
 - 全部为纯 Dart 可单测层；网络克隆/抓取在主包 `core/services/` 完成，经 `GithubCloner` 注入。
 
+### 13. 同步中心导入端（t-C3，落地于 core/services/sync_import_service.dart）
+`.egsync.zip` 导入由 `SyncImportService` 承担（契约：`docs/superpowers/specs/egsync-sync-center-spec-v1.md`）：
+- **fail-closed**：包级（`type=="egsync"` / `version∈[1..kEgsyncCurrentVersion]` / ZIP 路径越界**整体拒绝**）→ 返回 `Err`；
+  资源级（插件 manifest 可解析、.plugin 信封 `files` 哈希 + `.signature`、数据源/主题 manifest 校验）→ 该项 error，不阻断其余资源。
+- **冲突策略**（`SyncImportPolicy`，版本感知）：同内容 no-op / 新版覆盖（先备份旧 `config/` 再恢复）/ 同版本不同内容与版本回退 → 冲突清单（`SyncConflict`）默认不自动破坏；`applyConflicts: true` 时按 `overwriteSameVersion` / `allowDowngrade` 开关执行。
+- **注册回放**：插件 `ModuleRegistry.reloadModule`（seal 后可用）、数据源模型 A `registerDataSourcesFromManifest`、模型 B（HTTP .exe）`DataSourceLoader` best-effort 回放（失败降级仅提示）、主题 `ThemeStore.register`；sessions/memories 原样落盘（合并算法属 t-C4/core-agent）；config 经 `configImporter` 回调交接 core-config。
+- 插件/数据源/主题目标根统一 `resolvePluginsRoot()`（跨平台运行时解析，不信任包内绝对路径）。
+- 冒烟验证：`evg-base/test/sync_import_smoke_test.dart`（8 用例，flutter test 单文件）。
+
 ## 开发流程
 
 ### 新增 UI 范式

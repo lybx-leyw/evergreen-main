@@ -1,17 +1,28 @@
 """
-豆瓣电影 Top250 抓取插件 —— 真实爬虫示例。
+豆瓣电影 Top250 抓取插件 —— 模型 A（CLI 一次性脚本）示例。
 
-==== 构建方法 ====
-  pip install pyinstaller
-  pyinstaller --onefile plugin.py
-  cp dist/plugin.exe .
+==== 平台契约 ====
+  平台执行: python plugin.py --type <typeArg> --project-root <projectRoot> --greenix-config <greenixConfigPath>
+  工作目录: <plugin>/data/
+  stdout : 单个 JSON 对象（UTF-8），顶层必须是 Map —— 列表型数据包 {"items": [...]}
+  失败   : 非零退出码，或 stdout JSON 含 "error" 字段（平台保留旧缓存）
+
+==== 网络库选择 ====
+  仅用 Python 标准库（urllib + html.parser），零第三方依赖：
+  - 跨平台一致（桌面解释器 / 安卓 Chaquopy 均可直接运行，无需 PyInstaller 打包 .exe）
+  - 同步中心导出/导入友好：迁移单元只有 manifest.json + 本脚本，无平台二进制
+  - 豆瓣 Top250 抓取无需 requests 的会话/代理能力，urllib 足够
+
+==== 独立测试 ====
+  python plugin.py --type douban_top250 --project-root . --greenix-config .greenix/config.json
+  # stdout 应输出 {"items": [...]}（或 {"error": "..."}）
 """
 
+import argparse
 import json
 import ssl
 import sys
 from html.parser import HTMLParser
-from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.request import Request, urlopen
 
 DOUBAN_URL = "https://movie.douban.com/top250"
@@ -117,31 +128,33 @@ def fetch_douban():
         return []
 
 
-class Handler(BaseHTTPRequestHandler):
-    def log_message(self, format, *args):
-        pass
+def main():
+    """模型 A 入口：解析平台参数 → 抓取 → stdout 输出顶层 Map JSON。
 
-    def do_GET(self):
-        if self.path == "/health":
-            self.send_response(200)
-            self.end_headers()
-        elif self.path == "/api/top250":
-            try:
-                items = fetch_douban()
-                body = json.dumps(items, ensure_ascii=False).encode("utf-8")
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                self.end_headers()
-                self.wfile.write(body)
-            except Exception as e:
-                self.send_response(500)
-                self.end_headers()
-        else:
-            self.send_response(404)
-            self.end_headers()
+    失败约定（任一即视为拉取失败，平台保留旧缓存）：
+      - 非零退出码
+      - stdout JSON 含 "error" 字段
+    """
+    parser = argparse.ArgumentParser(description="豆瓣电影 Top250 数据源（模型 A CLI）")
+    parser.add_argument("--type", default="douban_top250",
+                        help="平台 dataType 的 typeArg（当前固定抓取 douban_top250）")
+    parser.add_argument("--project-root", default=".",
+                        help="平台项目根目录（本示例未使用，按契约接收）")
+    parser.add_argument("--greenix-config", default=None,
+                        help=".greenix/config.json 路径（本示例无凭证需求，按契约接收）")
+    args = parser.parse_args()
+
+    items = fetch_douban()
+    if not items:
+        # 空数据视为失败（平台空数据门控也不覆写缓存），显式 error 便于排查
+        print(json.dumps(
+            {"error": "豆瓣 Top250 抓取失败（网络不可达或页面结构变化），请查看 stderr"},
+            ensure_ascii=False))
+        sys.exit(1)
+
+    # 平台统一契约：stdout 顶层必须是 Map（列表型包 {"items": [...]}）
+    print(json.dumps({"items": items}, ensure_ascii=False))
 
 
 if __name__ == "__main__":
-    server = HTTPServer(("127.0.0.1", 0), Handler)
-    print(f"PORT:{server.server_port}", flush=True)
-    server.serve_forever()
+    main()

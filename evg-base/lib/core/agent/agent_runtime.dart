@@ -3,7 +3,6 @@ library;
 
 import 'dart:io';
 
-import 'package:path/path.dart' as p;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:dio/dio.dart';
@@ -102,13 +101,14 @@ final agentRuntimeProvider = Provider<AgentRuntime>((ref) {
     if (!registry.has(t.name)) registry.register(t);
   }
 
-  // 注册 Python Runner — 同步检测 Greenix 嵌入版 Python
-  final bundledPython = p.join(greenixPythonDir, 'python.exe');
-  if (File(bundledPython).existsSync()) {
+  // 注册 Python Runner — 统一解析（PythonInterpreter 同步探测嵌入式 Python，
+  // 与 resolvePythonExe 的 greenix 目录优先级一致：未找到嵌入式则不注册）。
+  final bundledPython = PythonInterpreter.bundledPathSync();
+  if (bundledPython != null) {
     if (!registry.has('python_runner')) {
       registry.register(PythonRunnerTool(
         pythonExePath: bundledPython,
-        pythonWorkDir: greenixPythonDir,
+        pythonWorkDir: Directory(bundledPython).parent.path,
         workspaceDir: greenixWorkspaceDir('ai-assistant'),
       ));
     }

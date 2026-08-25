@@ -7,6 +7,12 @@ environment:
 dependencies:
   shared_preferences:
     path: lib/shared_preferences_stub
+  archive:
+    path: lib/archive_stub
+  path: ^1.8.0
 
 dev_dependencies:
   test: ^1.24.0
+
+dependency_overrides:
+  archive: ^3.4.0

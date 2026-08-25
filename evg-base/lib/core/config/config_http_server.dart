@@ -73,6 +73,35 @@ class ConfigHttpServer {
     stderr.writeln('[ConfigHttp] 🗑 取消注册: $key');
   }
 
+  /// 动态注册设置项的 key 枚举（供 `.evgconfig` v2 导出与按插件分组）。
+  ///
+  /// 修复 O1「动态项 _dynamicSettings 私有无法导出」——导出端可：
+  /// `exportConfig(prefs, dynamicKeys: configServer.dynamicSettingKeys)`。
+  List<String> get dynamicSettingKeys => _dynamicSettings.keys.toList();
+
+  /// 导入 `.evgconfig` 配置并在发生实际写入后自动同步到 `.greenix/config.json`。
+  ///
+  /// 修复 O1「导入后不触发 greenix 同步」：等价于调用
+  /// `importConfig(..., onChanged: syncConfigToGreenix)`。
+  /// 参数语义见 [settings.importConfig]（白名单 / 非空保护 / isSecure 默认跳过）。
+  Future<Map<String, dynamic>?> importConfigAndSync(
+    Map<String, dynamic> config, {
+    List<String> allowedDynamicKeys = const [],
+    Map<String, String>? allowedAppPrefs,
+    bool overwrite = false,
+    bool allowSecure = false,
+  }) {
+    return importConfig(
+      _prefs,
+      config,
+      allowedDynamicKeys: allowedDynamicKeys,
+      allowedAppPrefs: allowedAppPrefs,
+      overwrite: overwrite,
+      allowSecure: allowSecure,
+      onChanged: syncConfigToGreenix,
+    );
+  }
+
   /// 启动监听。返回实际绑定的端口号。
   Future<int> start() async {
     if (_running) return _server!.port;

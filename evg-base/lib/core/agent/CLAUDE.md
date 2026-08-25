@@ -54,7 +54,8 @@
 
 ┌──────────────────────────────────────────────────────────┐
 │                   PluginBridge                            │
-│  plugins/<name>/agent/{<name>.exe|<name>.py} + manifest   │
+│  plugins/<name>/agent/{<name>.py|<name>.exe} + manifest   │
+│  （.py 统一主路径；.exe 为 legacy 回退）                   │
 │  → 自动发现 → PluginTool → Registry.register()           │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -85,7 +86,8 @@ lib/core/agent/
 ├── session_manager.dart / file_session_store.dart          ← 会话持久化
 ├── agent/          ← 主循环 (agent/session/compose/gate/hooks)
 ├── controller/     ← 状态机 (send/cancel/approve/reject)
-├── memory/         ← 三 scope 记忆 (facade/router/agent + stores)
+├── memory/         ← 三 scope 记忆 (facade/router/agent + stores + memory_merge 拼接)
+├── session_merge.dart ← 会话合并（同步中心：包含删小 / 分化都保留）
 ├── skill/          ← Skill 加载/索引/生成/改写 (skill_generator/skill_rewriter)
 ├── compact/        ← AI 上下文压实
 ├── evidence/       ← 审计收据与账本
@@ -161,8 +163,11 @@ MemoryFacade (统一入口)
 
 ### 6. PluginBridge 设计
 
-- **扫描路径**：`plugins/<name>/agent/` → 找入口文件（`.exe` 或 `.py`，同名优先）+ `manifest.json`
-- **执行抽象**：`PluginRunner`（桌面子进程 / 安卓 Chaquopy 进程内），`manifest.runtime` 决定解释器（`native` 默认直跑 `.exe`；`python` 用 Python 解释器跑 `.py`）
+- **扫描路径**：`plugins/<name>/agent/` → 找入口文件（**`.py` 优先**——统一 python 唯一路径，
+  同名 `<目录名>.py` 最高优先；仅当无任何 `.py` 且 manifest 未声明 `runtime:"python"`
+  时才回退 `.exe` legacy）+ `manifest.json`
+- **执行抽象**：`PluginRunner`（桌面子进程 / 安卓 Chaquopy 进程内），`manifest.runtime` 决定解释器
+  （`native` 直跑 legacy `.exe`；`python` 用 Python 解释器跑 `.py`，`.py` 扩展名亦可自动推断）
 - **不管理进程生命周期**——只负责发现和注册到 Registry
 - **三种 arg 风格**：`stdin` (JSON→stdin)、`args+flag` (`--key value`)、`args+positional` (按序传值)
 - **manifest.json 必写**：name + description + schema + readOnly + argMode + argSpec + runtime
@@ -194,6 +199,22 @@ stub 包位于 `lib/` 下，隔离外部 Flutter 依赖：
 - `core/` — 子包测试用辅助（log/python_env/plugin_runner 副本）
 
 这使得 Agent 核心逻辑可在纯 Dart 环境测试，不依赖 Flutter Widget。
+
+### 11. 会话派生元数据与合并语义（同步中心 t-C4）
+
+- **Session 模型**（`agent/session.dart`）：新增 `parentId` / `forkTurn`，序列化为
+  `parent_id` / `fork_turn`（缺失回退 null，旧文件向后兼容，未知字段静默忽略）。
+- **写入方**（`session_manager.dart`）：`forkSessionProvider`（「从此处继续」分叉入口——
+  `parent_id` = 源会话 id、`fork_turn` = 分叉索引、消息继承 `[0..forkTurn)`）；
+  `createSessionProvider` 重置为根会话；`switchSessionProvider` 同步透传派生元数据。
+- **合并语义**（`session_merge.dart` / `memory/memory_merge.dart`，契约见
+  `docs/superpowers/specs/egsync-sync-center-spec-v1.md` §七/§八）：
+  - 全局记忆：**直接拼接**，同 name（id）跳过避免重复写入，索引自动重建；
+  - 对话历史：**包含则删小 / 分化都保留**——A.messages 是 B.messages 的严格前缀 → 删 A
+    留 B；fork 分叉 / 独立树 / 同前缀不同尾 → 都保留；空会话不删除；无元数据旧数据按
+    前缀比较兜底。前缀比较为最终判定、parent 元数据为充分条件。
+- **消费方**：同步中心导入端（t-C3 core-module）经 `agent.dart` barrel 调用
+  `mergeSessions` / `mergeMemories(IntoStore)`；导出端（t-C2）不参与合并。
 
 ---
 
@@ -243,8 +264,10 @@ stub 包位于 `lib/` 下，隔离外部 Flutter 依赖：
 |------|------|
 | `tool_test.dart` | Tool 接口、Registry、BuiltinRegistry、Previewer |
 | `registry_test.dart` | 跨插件调度、并行工具、边界条件 |
-| `session_test.dart` | Session CRUD、token 统计、序列化 |
+| `session_test.dart` | Session CRUD、token 统计、序列化（含 parent_id/fork_turn 往返） |
 | `memory_test.dart` | Memory 模型、InMemoryStore、FileMemoryStore、Router |
+| `session_merge_test.dart` | 会话合并：前缀包含删小、fork 分化都保留、同 id 冲突、空会话保护、链式包含 |
+| `memory_merge_test.dart` | 记忆直接拼接、同 name 跳过、落盘 + MEMORY.md 索引重建 |
 | `plugin_bridge_test.dart` | PluginManifest 解析、ArgSpec、discover/registerAll/refresh |
 | `provider_test.dart` | AiUnavailableException、MockEventStream、OCR |
 | `compact_test.dart` | Context Compaction、sanitizeToolPairing |
@@ -290,4 +313,6 @@ cd lib/core/agent && dart pub get && dart test
 
 ---
 
-_更新：2026-08-25（资产清点对齐：EventKind 全集、内置工具清单、测试文件清单、PluginBridge .py/runtime 支持、docs/ 新增插件指南与 migration；版本号以根 README.md 为准）_
+_更新：2026-08-25（t-A2 python 统一：_findEntry 改 .py 优先（.exe legacy 回退）、8 个示例插件全 .py 标准库化
+（random 补 plugin.py）并删 .exe/.spec 产物、manifest 全标 runtime:"python"、PluginTool 增 entryPath；
+上一轮 t-C4 会话合并落地；版本号以根 README.md 为准）_

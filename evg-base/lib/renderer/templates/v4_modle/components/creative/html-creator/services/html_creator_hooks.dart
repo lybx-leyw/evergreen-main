@@ -11,6 +11,7 @@ library html_creator_hooks;
 
 import 'package:evergreen_base/core/agent/agent.dart' as agent;
 import 'html_creator_tools.dart' show validateCredentialKey;
+import 'html_export_service.dart' show htmlPluginIdError;
 
 /// HTML 创作 Agent 工具钩子。
 class HtmlCreatorHooks implements agent.ToolHooks {
@@ -48,16 +49,12 @@ class HtmlCreatorHooks implements agent.ToolHooks {
         return (false, '');
 
       case 'export_html_plugin':
+        // 共享 htmlPluginIdError（与手动导出/AI 工具同一规则）：
+        // 小写字母开头 + 小写字母/数字/连字符，防纯数字/路径穿越。
         final pluginId = args['plugin_id'] as String? ?? '';
-        if (pluginId.isEmpty) {
-          return (true, '[error: plugin_id 参数为空]');
-        }
-        if (pluginId.length > 64) {
-          return (true, '[error: plugin_id 过长（≤64 字符）]');
-        }
-        if (!RegExp(r'^[a-z0-9]+(?:-[a-z0-9]+)*$').hasMatch(pluginId)) {
-          return (true, '[error: plugin_id 非法: "$pluginId"——仅允许小写字母/'
-              '数字/连字符（如 my-dashboard），禁止路径分隔符/大写/空格]');
+        final idErr = htmlPluginIdError(pluginId);
+        if (idErr != null) {
+          return (true, '[error: $idErr]');
         }
         return (false, '');
 

@@ -1,19 +1,15 @@
-# Random 插件（C 语言示例）
+# Random 插件（Python 标准库示例）
 
-> 生成指定范围内的随机整数。用纯 C99 编写，零依赖，跨平台。
-> 插件可用**任意语言**——Python / Go / Rust / C / C# / Node.js 均可。
+> 生成指定范围内的随机整数。用**纯 Python 标准库**（`argparse` + `random`）编写，
+> 统一 python 唯一路径，manifest `runtime: "python"`，无需编译。
+> 原 C 源码（`plugin.c`）保留作 legacy 参考——曾用 MSVC/GCC/Clang 编译为 `random.exe`。
 
 ## 快速上手
 
+统一 python 路径：`.py` 入口直接运行（无需编译）。
+
 ```bash
-# GCC
-gcc -o random.exe plugin.c
-
-# MSVC
-cl /Fe:random.exe plugin.c
-
-# Clang
-clang -o random.exe plugin.c
+python plugin.py --min 1 --max 100
 ```
 
 ## 通信协议
@@ -21,7 +17,7 @@ clang -o random.exe plugin.c
 args + flag 风格。Agent 调用 `{"min":1,"max":100}` 时实际命令行：
 
 ```
-./random.exe --min 1 --max 100
+python plugin.py --min 1 --max 100
 ```
 
 stdout 示例：`42`
@@ -35,7 +31,6 @@ stdout 示例：`42`
 
 ## 技术要点
 
-- **纯 C99**：无第三方库依赖，仅用 `stdio.h` `stdlib.h` `string.h` `time.h`。
-- **手动参数解析**：遍历 `argv`，匹配 `--key value` 对，无需 `getopt`。
-- **边界保护**：`min > max` 时自动交换，不会因错误输入崩溃。
-- **跨平台**：`rand()` + `srand(time(NULL))` 在 Windows / Linux / macOS 均可编译。
+- **纯标准库**：`argparse` 解析参数，`random.randint` 生成闭区间随机整数。
+- **边界保护**：`min > max` 时自动交换（与原 C 实现行为一致），不会因错误输入崩溃。
+- **跨平台**：同一份 `.py` 在 Windows / Linux / macOS / 安卓（Chaquopy）均可执行。

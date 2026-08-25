@@ -10,5 +10,6 @@
     }
   },
   "readOnly": true,
+  "runtime": "python",
   "argMode": "args"
 }

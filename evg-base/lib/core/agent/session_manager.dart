@@ -37,6 +37,9 @@ final createSessionProvider = Provider<void Function(String? title)>((ref) {
     ctrl.session.messages.clear();
     ctrl.session.id = session.id;
     ctrl.session.title = title ?? '新对话';
+    // 新会话为根会话：重置派生元数据（防上次会话残留的 parent_id/fork_turn）
+    ctrl.session.parentId = null;
+    ctrl.session.forkTurn = null;
     ref.read(chatMessagesProvider.notifier).clear();
     // 最后才更新 activeSessionId，确保 listener 看到已清空的状态
     ref.read(activeSessionIdProvider.notifier).state = session.id;
@@ -70,6 +73,9 @@ final switchSessionProvider = Provider<void Function(String id)>((ref) {
       ctrl.session.messages.addAll(target.messages);
       ctrl.session.id = target.id;
       ctrl.session.title = target.title;
+      // 同步派生元数据（防 ctrl.session 残留上一会话的 parent_id/fork_turn）
+      ctrl.session.parentId = target.parentId;
+      ctrl.session.forkTurn = target.forkTurn;
       for (final m in target.messages) {
         if (m.content.trim().isEmpty) continue;
         if (m.role == agent.Role.user) msgs.addUser(m.content);
@@ -80,6 +86,60 @@ final switchSessionProvider = Provider<void Function(String id)>((ref) {
     // 最后才更新 activeSessionId，触发 UI 同步
     ref.read(activeSessionIdProvider.notifier).state = id;
     debugPrint('[SESSION:SWITCH] done. activeId=$id');
+  };
+});
+
+/// 从已有会话在指定消息索引处分叉出一个新会话（「从此处继续」/ 多 Agent fork）。
+///
+/// - 新会话 id 重新生成；`parent_id` = 源会话 id；`fork_turn` = 分叉点索引
+///   （0-based，clamp 到 [0, 源消息数]）。
+/// - 消息继承源会话 `messages[0..forkTurn)`，之后由用户/模型走新路径（分化）。
+/// - 语义见 `docs/superpowers/specs/egsync-sync-center-spec-v1.md` §七：fork_turn 非空
+///   且分叉点后消息不同 → 合并时父子**都保留**（路径分化都保留）。
+final forkSessionProvider =
+    Provider<void Function(String sourceId, int forkTurn, {String? title})>((ref) {
+  return (String sourceId, int forkTurn, {String? title}) async {
+    debugPrint('[SESSION:FORK] sourceId=$sourceId forkTurn=$forkTurn START');
+    final currentId = ref.read(activeSessionIdProvider);
+    if (currentId != null) await ref.read(saveCurrentSessionProvider)(currentId);
+    final store = ref.read(sessionStoreProvider);
+    final source = store?.load(sourceId);
+    if (source == null) {
+      debugPrint('[SESSION:FORK] 源会话不存在: $sourceId');
+      return;
+    }
+    final clampTurn = forkTurn.clamp(0, source.messages.length);
+    final child = agent.Session(
+      title: title ??
+          (source.title.isNotEmpty ? source.title : '新对话'),
+      parentId: sourceId,
+      forkTurn: clampTurn,
+    );
+    child.messages.addAll(source.messages.take(clampTurn));
+    final ctrl = ref.read(agentControllerProvider);
+    ctrl.session.messages.clear();
+    ctrl.session.id = child.id;
+    ctrl.session.title = child.title;
+    ctrl.session.parentId = sourceId;
+    ctrl.session.forkTurn = clampTurn;
+    ref.read(chatMessagesProvider.notifier).clear();
+    for (final m in child.messages) {
+      if (m.content.trim().isEmpty) continue;
+      if (m.role == agent.Role.user) {
+        ref.read(chatMessagesProvider.notifier).addUser(m.content);
+      } else if (m.role == agent.Role.assistant) {
+        ref.read(chatMessagesProvider.notifier)
+            .addAssistant(m.content, reasoning: m.reasoningContent);
+      }
+    }
+    // 最后才更新 activeSessionId，确保 listener 看到已切到子会话
+    ref.read(activeSessionIdProvider.notifier).state = child.id;
+    if (store != null) {
+      await store.save(child);
+      ref.invalidate(sessionListProvider);
+    }
+    debugPrint('[SESSION:FORK] done. childId=${child.id} '
+        'msgs=${child.messages.length} forkTurn=$clampTurn');
   };
 });
 

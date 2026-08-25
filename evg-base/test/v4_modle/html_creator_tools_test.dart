@@ -14,8 +14,10 @@ library;
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:evergreen_base/core/utils/path_sandbox.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/creative/html-creator/services/html_creator_hooks.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/creative/html-creator/services/html_creator_tools.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/creative/html-creator/services/html_export_service.dart';
 
 void main() {
   group('CheckUiQualityTool.checkThemeTokens', () {
@@ -245,6 +247,82 @@ void main() {
       final res =
           await tool.execute({'service': 'nope', 'path': '/x'});
       expect(res, contains('未知服务'));
+    });
+  });
+
+  group('htmlPluginIdError（O5：id 校验过松）', () {
+    test('纯数字 id 被拒（如 "5"——曾泄漏进 bundle 的画布 id）', () {
+      expect(htmlPluginIdError('5'), isNotNull);
+      expect(htmlPluginIdError('123'), isNotNull);
+      expect(htmlPluginIdError('5')!, contains('plugin_id 非法'));
+    });
+    test('大写/空格/路径分隔符/空 id 被拒', () {
+      expect(htmlPluginIdError('My-Plugin'), isNotNull);
+      expect(htmlPluginIdError('my plugin'), isNotNull);
+      expect(htmlPluginIdError('../../escape'), isNotNull);
+      expect(htmlPluginIdError('my/plugin'), isNotNull);
+      expect(htmlPluginIdError(''), isNotNull);
+      expect(htmlPluginIdError('a' * 65), isNotNull);
+    });
+    test('合法 kebab-case 通过', () {
+      expect(htmlPluginIdError('my-dashboard'), isNull);
+      expect(htmlPluginIdError('a'), isNull);
+      expect(htmlPluginIdError('my2-plugin-3'), isNull);
+    });
+  });
+
+  group('writeHtmlPluginModule（单目标原子导出）', () {
+    late Directory plugins;
+
+    setUp(() async {
+      plugins = await Directory.systemTemp.createTemp('evg_export_');
+    });
+
+    tearDown(() async {
+      await plugins.delete(recursive: true);
+    });
+
+    test('非法 id 抛 PathSandboxException 且不落盘', () async {
+      await expectLater(
+        writeHtmlPluginModule(
+            pluginsRoot: plugins.path,
+            pluginId: '../../escape',
+            files: {'index.html': 'x'}),
+        throwsA(isA<PathSandboxException>()),
+      );
+      expect(Directory('${plugins.path}/../../escape').existsSync(), isFalse);
+    });
+
+    test('导出落盘 manifest+index，且保留旧 module 的附加资产', () async {
+      final root = plugins.path;
+      // 预置旧 module 与附加资产（如 icon/）
+      final oldModule = Directory('$root/quiz/module');
+      oldModule.createSync(recursive: true);
+      File('$root/quiz/module/icon.png').writeAsStringSync('old-icon');
+      File('$root/quiz/module/index.html').writeAsStringSync('old');
+
+      final moduleDir = await writeHtmlPluginModule(
+        pluginsRoot: root,
+        pluginId: 'quiz',
+        files: {
+          'manifest.json': '{"type":"module","id":"quiz"}',
+          'index.html': '<html>new</html>',
+        },
+      );
+
+      expect(moduleDir, endsWith('${Platform.pathSeparator}quiz${Platform.pathSeparator}module'));
+      expect(File('$root/quiz/module/manifest.json').readAsStringSync(),
+          contains('"id":"quiz"'));
+      expect(File('$root/quiz/module/index.html').readAsStringSync(),
+          contains('new'));
+      // 附加资产保留（原子导出基于旧目录复制而非整体覆盖）
+      expect(File('$root/quiz/module/icon.png').readAsStringSync(), 'old-icon');
+      // 无临时/备份残留
+      final leftovers = Directory('$root/quiz')
+          .listSync()
+          .where((e) => e.path.contains('.module_tmp_') || e.path.contains('.module_bak_'))
+          .toList();
+      expect(leftovers, isEmpty);
     });
   });
 }

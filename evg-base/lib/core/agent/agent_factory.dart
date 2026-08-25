@@ -28,7 +28,6 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'package:path/path.dart' as p;
 
 import 'package:evergreen_base/core/agent/agent.dart' as agent;
 import 'package:evergreen_base/core/agent/memory/facade.dart';
@@ -53,6 +52,7 @@ import 'package:evergreen_base/core/agent/tools/head_tail.dart';
 import 'package:evergreen_base/core/agent/tools/file_info.dart';
 import 'package:evergreen_base/core/data/orchestrator.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
+import 'package:evergreen_base/core/utils/python_env.dart';
 
 /// AgentAssembly —— 为特定模块创建的隔离 Agent 实例。
 ///
@@ -219,13 +219,14 @@ class AgentAssembly {
       if (!registry.has(t.name)) registry.register(t);
     }
 
-    // 注册 Python Runner —— 同步检测 Greenix 嵌入版 Python
-    final bundledPython = p.join(greenixPythonDir, 'python.exe');
-    if (File(bundledPython).existsSync()) {
+    // 注册 Python Runner — 统一解析（PythonInterpreter 同步探测嵌入式 Python，
+    // 与 resolvePythonExe 的 greenix 目录优先级一致：未找到嵌入式则不注册）。
+    final bundledPython = PythonInterpreter.bundledPathSync();
+    if (bundledPython != null) {
       if (!registry.has('python_runner')) {
         registry.register(PythonRunnerTool(
           pythonExePath: bundledPython,
-          pythonWorkDir: greenixPythonDir,
+          pythonWorkDir: Directory(bundledPython).parent.path,
           workspaceDir: greenixWorkspaceDir('ai-assistant'),
         ));
       }

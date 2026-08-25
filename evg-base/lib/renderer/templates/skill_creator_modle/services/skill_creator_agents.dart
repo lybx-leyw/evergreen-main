@@ -28,6 +28,7 @@ import 'package:evergreen_base/core/agent/tools/research_search.dart';
 import 'package:evergreen_base/core/agent/tools/write_file.dart';
 import 'package:evergreen_base/core/services/ocr_pipeline.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
+import 'package:evergreen_base/core/utils/python_env.dart';
 
 import '../models/skill_creator_models.dart';
 import 'skill_creator_tools.dart';
@@ -220,10 +221,15 @@ class DeepSearchRunner {
     ];
 
     // 注册嵌入式 Python runner（若存在），供 agent 执行辅助脚本
-    final pythonCandidates = Platform.isWindows
-        ? [p.join(greenixPythonDir, 'python.exe')]
-        : [p.join(greenixPythonDir, 'bin', 'python3'), p.join(greenixPythonDir, 'python3'), p.join(greenixPythonDir, 'python')];
-    final bundledPython = pythonCandidates.firstWhere((path) => File(path).existsSync(), orElse: () => '');
+    // Windows：统一走 PythonInterpreter 同步探测（单一真理来源，
+    // 与 resolvePythonExe 的 greenix 目录优先级一致）；Unix：保持历史多候选
+    // （greenix 目录内 python3 形态，未随统一解析迁移——遗留点见 t9 报告）。
+    final bundledPython = Platform.isWindows
+        ? (PythonInterpreter.bundledPathSync() ?? '')
+        : [p.join(greenixPythonDir, 'bin', 'python3'),
+           p.join(greenixPythonDir, 'python3'),
+           p.join(greenixPythonDir, 'python')]
+            .firstWhere((path) => File(path).existsSync(), orElse: () => '');
     if (bundledPython.isNotEmpty) {
       seedTools.add(PythonRunnerTool(
         pythonExePath: bundledPython,

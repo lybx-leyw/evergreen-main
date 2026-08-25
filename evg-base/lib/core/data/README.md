@@ -10,7 +10,7 @@
 
 > **快速导航**
 > - 平台开发者 → `example/example.dart` | 测试：`test/orchestrator_test.dart` + `test/cache_test.dart` + `test/data_diff_test.dart`
-> - 数据源插件开发者（开发者模式）→ `docs/plugin-authoring-guide-data.md` | 示例：`example/plugins/douban/`
+> - 数据源插件开发者（开发者模式）→ `docs/plugin-authoring-guide-data.md` | 示例：`example/plugins/douban/`（模型 A CLI）
 > - HTML 插件作者 → 使用 `platform.data.*` JS Bridge 读取数据中枢，无需自建数据源
 > - 核心源码 → `type.dart` `cache.dart` `orchestrator.dart` `data_diff.dart` `data_http_server.dart` `register_data_source.dart` `plugin/`
 
@@ -126,15 +126,15 @@
 
 ## 插件开发说明
 
-> 完整示例：`example/plugins/douban/`（豆瓣 Top250 爬虫，HTTP 长驻模型，Python 标准库）。
+> 完整示例：`example/plugins/douban/`（豆瓣 Top250 爬虫，模型 A CLI，Python 标准库）。
 > 详细指南见 `docs/plugin-authoring-guide-data.md` 与规范 `docs/plugin-data-source.md`。
 
-数据源插件支持**两种模型**，manifest 中二选一：
+数据源插件支持**两种模型**，manifest 中二选一（**模型 A 为规范化形态，新数据源优先走 A**；模型 B 为 legacy）：
 
 | 模型 | manifest 关键字段 | 执行方式 | 适用场景 |
 |------|------------------|----------|----------|
-| **A. CLI 一次性脚本** | `script`（+`runtime`/`typeArg`/`androidSupport`） | 每次拉取执行脚本，stdout 输出 JSON Map | 爬虫/一次性抓取、设计器"一键生成数据源"、运行期热注册 |
-| **B. HTTP 长驻服务** | `process` + `dataTypes[].endpoint` | 常驻进程，`PORT:` 行 + `/health` 探测 | 有状态服务、多端点复用 |
+| **A. CLI 一次性脚本**（推荐） | `script`（+`runtime`/`typeArg`/`androidSupport`） | 每次拉取执行脚本，stdout 输出 JSON Map | 爬虫/一次性抓取、设计器"一键生成数据源"、运行期热注册、同步中心跨平台导入 |
+| **B. HTTP 长驻服务**（legacy） | `process` + `dataTypes[].endpoint` | 常驻进程，`PORT:` 行 + `/health` 探测 | 有状态服务、多端点复用（平台二进制，仅同平台回放） |
 
 ### 模型 A：CLI 一次性脚本
 
@@ -170,7 +170,10 @@ print(json.dumps({"items": [{"title": "示例", "rating": 9.7}]}, ensure_ascii=F
 }
 ```
 
-### 模型 B：HTTP 长驻服务
+### 模型 B：HTTP 长驻服务（legacy）
+
+> ⚠️ **legacy**：新数据源优先使用模型 A（CLI .py）。模型 B 需要编译平台二进制（PyInstaller .exe 等），
+> 仅同平台可用，同步中心导出/导入受限（需 platform 标记）。本节省略仅供存量插件参考。
 
 #### 第一步：写一个 HTTP 服务
 
@@ -306,4 +309,5 @@ registerDataSourcesFromManifest(
 | `scanAndLoadDataSources` 插件退出后 Dart event loop 不退出 | `stop()` 已加 `force:true` + `exit(0)` 兜底 |
 | `Cache` 单例缺少并发安全 | 当前单线程访问，后续可加锁 |
 | barrel `data.dart` 依赖根包 core（greenix_path 等） | 子包独立 `dart test` 需精确 import 纯数据文件（`../orchestrator.dart` 等），见测试文件头注释 |
-| `example/plugins/douban/` 提交了 PyInstaller 构建产物（`build/`、`dist/`） | 仓库卫生问题，建议后续清理 |
+| ~~`example/plugins/douban/` 提交了 PyInstaller 构建产物（`build/`、`dist/`）~~ | ✅ t13 已迁移模型 A(.py) 并清理（25.71MB → 7.08KB），`.gitignore` 保留防误提交 |
+| 模型 B（.exe）为 legacy，跨平台导出受限 | 新数据源一律模型 A（CLI .py）；同步中心导出以模型 A 为规范化形态 |

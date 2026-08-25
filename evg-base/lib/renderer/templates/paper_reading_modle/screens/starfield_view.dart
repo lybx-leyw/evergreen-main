@@ -240,7 +240,8 @@ class _StarfieldViewState extends ConsumerState<StarfieldView>
               debugPrint('[Starfield] workDir=$workDir');
 
               final service = PaperVisionService(
-                pythonPath: await resolvePythonExe() ?? 'python',
+                pythonPath:
+                    (await PythonInterpreter.instance.resolve()).legacyExePath ?? 'python',
                 scriptPath: path_pkg.join(greenixScriptsDir, 'paper_vision.py'),
                 apiKey: apiKey,
               );

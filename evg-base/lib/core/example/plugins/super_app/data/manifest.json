@@ -2,7 +2,8 @@
   "type": "data-source",
   "id": "super_app_data",
   "name": "Super App 成绩数据",
-  "process": { "exe": "plugin.exe" },
+  "process": { "exe": "plugin.py" },
+  "runtime": "python",
   "preferredPort": 0,
   "dataTypes": [
     { "name": "super_grades", "category": "成绩", "displayName": "Super App 成绩", "ttl": "5m", "endpoint": "/data" }

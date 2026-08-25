@@ -8,22 +8,25 @@
 | 负责人 | core-data |
 | 适用 | 数据源插件作者 |
 
-> 面向插件开发者——编写符合平台接口的数据源插件（两种模型：CLI 一次性脚本 / HTTP 长驻 .exe）。
+> 面向插件开发者——编写符合平台接口的数据源插件（两种模型：**模型 A CLI 一次性脚本（推荐/规范化形态）** / 模型 B HTTP 长驻 .exe（legacy））。
 > 平台侧实现见 `register_data_source.dart`（模型 A）与 `plugin/data_source_loader.dart`（模型 B）。
 
 ---
 
 ## 零、两种插件模型
 
-| | 模型 A：CLI 一次性脚本 | 模型 B：HTTP 长驻服务 |
+| | 模型 A：CLI 一次性脚本（推荐） | 模型 B：HTTP 长驻服务（legacy） |
 |--|------------------------|----------------------|
 | manifest 关键字段 | `script`（+`runtime`/`typeArg`） | `process` + `dataTypes[].endpoint` |
 | 运行方式 | 每次拉取执行一次脚本，stdout 输出 JSON | 长驻进程，`PORT:` 行 + `/health` 探测 |
 | 数据返回 | stdout 顶层 JSON Map | HTTP 响应 JSON body |
-| 典型场景 | 爬虫、设计器"一键生成数据源"、运行期热注册 | 有状态服务、多端点复用 |
+| 跨平台 | ✅ 桌面解释器 / 安卓 Chaquopy 同一份 .py | ❌ 平台二进制（.exe 仅 Windows，需 platform 标记） |
+| 典型场景 | 爬虫、设计器"一键生成数据源"、运行期热注册、同步中心导入 | 有状态服务、多端点复用 |
 | 注册入口 | `registerDataSourcesFromManifest` | `scanAndLoadDataSources` |
 
 > 两种模型互斥：manifest 含 `script` 走 CLI，含 `process` 走 HTTP。
+> **新数据源一律优先模型 A（.py 纯标准库优先）**：无 PyInstaller 产物、跨平台一致、
+> 同步中心导出/导入友好（迁移单元 = manifest + 脚本，无平台二进制）。
 
 ---
 
@@ -164,7 +167,8 @@ plugins/
 
 ## 五、完整示例
 
-> 参考 `example/plugins/douban/`——豆瓣电影 Top250 爬虫（模型 B，HTTP 长驻），真实可运行。
+> 参考 `example/plugins/douban/`——豆瓣电影 Top250 爬虫（**模型 A，CLI 一次性脚本**，纯标准库），真实可运行。
+> 该示例原为模型 B（HTTP 长驻 .exe），已随 python 统一迁移为模型 A（见其 README「从模型 B 迁移到模型 A 的改动」）。
 
 ### 模型 A：Python CLI 脚本最小实现
 
@@ -204,7 +208,9 @@ print(f"PORT:{server.server_port}", flush=True)  # 必须！
 server.serve_forever()
 ```
 
-### 构建命令（模型 B）
+### 构建命令（模型 B，legacy）
+
+> ⚠️ 模型 B 已标注 legacy——平台二进制仅同平台可用，同步中心导出受限。新数据源优先模型 A（.py）。
 
 | 语言 | 命令 |
 |------|------|
@@ -219,6 +225,7 @@ server.serve_forever()
 
 | 日期 | 变更 |
 |------|------|
+| 2026-08-25 | **t13 阶段1·主题1**：douban 示例迁移模型 A(.py)（原模型 B .exe），清理 PyInstaller 产物；模型 A 标注为推荐/规范化形态，模型 B 标注 legacy；同步中心数据源导出以模型 A 为基准 |
 | 2026-08 | 新增模型 A（CLI 一次性脚本）：`script`/`runtime`/`typeArg`/`androidSupport` 字段与 stdout JSON Map 契约；DataHttpServer 新增 `POST /data/register` 运行期热注册；补充 502 语义与空数据门控 |
 | 2026-07 | manifest 路径改为 `data/manifest.json`；新增 `preferredPort` 字段；新增远程 manifest 拉取；新增 DataHttpServer 回调端点 |
 | — | 初始版本 |

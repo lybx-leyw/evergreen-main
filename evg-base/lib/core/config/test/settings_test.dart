@@ -432,7 +432,7 @@ void main() {
   });
 
   // ───────────────────────────────────────────────────────────────────────
-  // exportConfig / importConfig
+  // exportConfig / importConfig（.evgconfig v2）
   // ───────────────────────────────────────────────────────────────────────
 
   group('exportConfig / importConfig', () {
@@ -451,7 +451,7 @@ void main() {
       }
     });
 
-    test('导出包含 settings', () async {
+    test('导出包含 settings，version 为当前版本', () async {
       final dir = _tmpConfigDir({
         'id': 'exp',
         'name': 'Export',
@@ -461,11 +461,56 @@ void main() {
         await initSettings(prefs, pluginDirs: [dir.path]);
         final exported = await exportConfig(prefs);
         expect(exported['format'], 'evgconfig');
-        expect(exported['version'], 1);
+        expect(exported['version'], kEvgConfigVersion);
         expect(exported['settings']['EXP_KEY'], 'exp_val');
       } finally {
         dir.deleteSync(recursive: true);
       }
+    });
+
+    test('导出包含 dynamicSettings（动态注册项枚举）', () async {
+      // 模拟运行期动态注册写入（未声明 key）
+      await prefs.setString('DYN_A', 'dyn_val');
+      final exported = await exportConfig(prefs, dynamicKeys: ['DYN_A', 'DYN_MISSING']);
+      expect(exported['dynamicSettings'], {'DYN_A': 'dyn_val'});
+    });
+
+    test('导出包含 permissions（bool 正确类型）', () async {
+      registerPermissions('exp_perm', [
+        const PermissionDecl(key: 'NET', label: '网络', description: '...'),
+        const PermissionDecl(key: 'FS', label: '文件', description: '...'),
+      ]);
+      await setPermission(prefs, 'exp_perm', 'NET', false);
+      final exported = await exportConfig(prefs, includePermissions: true);
+      final perms = exported['permissions'] as Map<String, dynamic>;
+      expect(perms['exp_perm'], {'NET': false, 'FS': true});
+    });
+
+    test('导出默认跳过 isSecure 明文，includeSecure 时包含', () async {
+      final dir = _tmpConfigDir({
+        'id': 'exp_sec',
+        'name': 'ExportSec',
+        'settings': [
+          {'key': 'SEC_KEY', 'label': 'K', 'isSecure': true, 'default': 'secret'},
+          {'key': 'PLAIN_KEY', 'label': 'P', 'default': 'plain'},
+        ],
+      });
+      try {
+        await initSettings(prefs, pluginDirs: [dir.path]);
+        final exported = await exportConfig(prefs);
+        expect(exported['settings'], isNot(contains('SEC_KEY')));
+        expect(exported['settings']['PLAIN_KEY'], 'plain');
+        final withSecure = await exportConfig(prefs, includeSecure: true);
+        expect(withSecure['settings']['SEC_KEY'], 'secret');
+      } finally {
+        dir.deleteSync(recursive: true);
+      }
+    });
+
+    test('导出包含 appPrefs（白名单）', () async {
+      await prefs.setString('active_theme_id', 'ocean');
+      final exported = await exportConfig(prefs, appPrefs: {'active_theme_id': ''});
+      expect(exported['appPrefs'], {'active_theme_id': 'ocean'});
     });
 
     test('导入恢复设置值并返回 aiMemory', () async {
@@ -493,6 +538,211 @@ void main() {
         'settings': {'UNKNOWN_KEY_XYZ': 'should_be_ignored'},
       });
       expect(prefs.getString('UNKNOWN_KEY_XYZ'), isNull);
+    });
+
+    test('导入 version 超出支持范围被拒绝', () async {
+      expect(
+        () => importConfig(prefs, {'format': 'evgconfig', 'version': 99, 'settings': {}}),
+        throwsA(isA<ConfigValidationException>()),
+      );
+    });
+
+    test('导入 format 非法被拒绝', () async {
+      expect(
+        () => importConfig(prefs, {'format': 'other', 'version': 1, 'settings': {}}),
+        throwsA(isA<ConfigValidationException>()),
+      );
+    });
+
+    test('v1 文件向后兼容导入（version 1 正常读 settings）', () async {
+      final dir = _tmpConfigDir({
+        'id': 'imp_v1',
+        'name': 'ImportV1',
+        'settings': [{'key': 'V1_KEY', 'label': 'V1', 'default': 'old'}],
+      });
+      try {
+        await initSettings(prefs, pluginDirs: [dir.path]);
+        await importConfig(prefs, {
+          'format': 'evgconfig',
+          'version': 1,
+          'settings': {'V1_KEY': 'v1_value'},
+        });
+        expect(prefs.getString('V1_KEY'), 'v1_value');
+      } finally {
+        dir.deleteSync(recursive: true);
+      }
+    });
+
+    test('导入 dynamicSettings 仅接受白名单 key', () async {
+      await importConfig(prefs, {
+        'dynamicSettings': {'DYN_OK': 'a', 'DYN_BAD': 'b'},
+      }, allowedDynamicKeys: ['DYN_OK']);
+      expect(prefs.getString('DYN_OK'), 'a');
+      expect(prefs.getString('DYN_BAD'), isNull);
+    });
+
+    test('导入 appPrefs 仅接受白名单 key', () async {
+      await importConfig(prefs, {
+        'appPrefs': {'active_theme_id': 'ocean', 'sidebar_collapsed': 'true'},
+      }, allowedAppPrefs: {'active_theme_id': '应用主题'});
+      expect(prefs.getString('active_theme_id'), 'ocean');
+      expect(prefs.getString('sidebar_collapsed'), isNull);
+    });
+
+    test('导入 permissions 仅接受已注册插件已声明键（bool 正确类型）', () async {
+      registerPermissions('imp_perm', [
+        const PermissionDecl(key: 'NET', label: '网络', description: '...'),
+      ]);
+      await importConfig(prefs, {
+        'permissions': {
+          'imp_perm': {'NET': false, 'HACK': true},
+          'unknown_plugin': {'X': false},
+        },
+      });
+      expect(getPermissions(prefs, 'imp_perm')['NET'], false);
+      expect(prefs.containsKey('perm.imp_perm.HACK'), false);
+      expect(prefs.containsKey('perm.unknown_plugin.X'), false);
+    });
+
+    test('导入 permissions overwrite:false 保留已有显式设置，默认覆盖', () async {
+      registerPermissions('imp_perm2', [
+        const PermissionDecl(key: 'NET', label: '网络', description: '...'),
+      ]);
+      await setPermission(prefs, 'imp_perm2', 'NET', false);
+      await importConfig(prefs, {
+        'permissions': {'imp_perm2': {'NET': true}},
+      }, overwrite: false);
+      expect(getPermissions(prefs, 'imp_perm2')['NET'], false); // 非覆盖保护
+      await importConfig(prefs, {
+        'permissions': {'imp_perm2': {'NET': true}},
+      });
+      expect(getPermissions(prefs, 'imp_perm2')['NET'], true); // 默认覆盖
+    });
+
+    test('导入 extra 白名单过滤 + perm.* 键跳过', () async {
+      final dir = _tmpConfigDir({
+        'id': 'imp_extra',
+        'name': 'ImportExtra',
+        'settings': [{'key': 'EXT_DECL', 'label': 'D', 'default': 'd'}],
+      });
+      try {
+        await initSettings(prefs, pluginDirs: [dir.path]);
+        await importConfig(prefs, {
+          'extra': {
+            'EXT_DECL': 'declared_value',
+            'HACK_KEY': 'hack',
+            'perm.whatever.X': 'true',
+          },
+        });
+        expect(prefs.getString('EXT_DECL'), 'declared_value');
+        expect(prefs.getString('HACK_KEY'), isNull);
+        expect(prefs.containsKey('perm.whatever.X'), false);
+      } finally {
+        dir.deleteSync(recursive: true);
+      }
+    });
+
+    test('导入默认覆盖（v1 语义），overwrite:false 启用非空值保护', () async {
+      final dir = _tmpConfigDir({
+        'id': 'imp_prot',
+        'name': 'ImportProt',
+        'settings': [{'key': 'PROT_KEY', 'label': 'P', 'default': 'old'}],
+      });
+      try {
+        await initSettings(prefs, pluginDirs: [dir.path]);
+        await prefs.setString('PROT_KEY', 'existing');
+        await importConfig(prefs, {'settings': {'PROT_KEY': 'incoming'}});
+        expect(prefs.getString('PROT_KEY'), 'incoming'); // 默认覆盖（v1 语义）
+        await importConfig(prefs, {'settings': {'PROT_KEY': 'incoming2'}}, overwrite: false);
+        expect(prefs.getString('PROT_KEY'), 'incoming'); // 非空保护
+      } finally {
+        dir.deleteSync(recursive: true);
+      }
+    });
+
+    test('onChanged 仅在发生实际写入时触发', () async {
+      final dir = _tmpConfigDir({
+        'id': 'imp_cb',
+        'name': 'ImportCb',
+        'settings': [{'key': 'CB_KEY', 'label': 'C', 'default': 'c'}],
+      });
+      try {
+        await initSettings(prefs, pluginDirs: [dir.path]);
+        var calls = 0;
+        await importConfig(prefs, {'settings': {'CB_KEY': 'v1'}}, onChanged: () => calls++);
+        expect(calls, 1);
+        await importConfig(prefs, {'settings': {'UNKNOWN': 'x'}}, onChanged: () => calls++);
+        expect(calls, 1); // 未写入不触发
+      } finally {
+        dir.deleteSync(recursive: true);
+      }
+    });
+
+    test('导入 bool_/option 非法值跳过', () async {
+      final dir = _tmpConfigDir({
+        'id': 'imp_typed',
+        'name': 'ImportTyped',
+        'settings': [
+          {'key': 'TYPED_FLAG', 'label': 'F', 'type': 'bool', 'default': ''},
+          {
+            'key': 'TYPED_MODE', 'label': 'M', 'type': 'option',
+            'options': [
+              {'value': 'a', 'label': 'A'},
+              {'value': 'b', 'label': 'B'},
+            ],
+            'default': '',
+          },
+        ],
+      });
+      try {
+        await initSettings(prefs, pluginDirs: [dir.path]);
+        await importConfig(prefs, {
+          'settings': {'TYPED_FLAG': 'maybe', 'TYPED_MODE': 'zzz'},
+        });
+        expect(prefs.getString('TYPED_FLAG'), isNull); // 非法 bool 跳过
+        expect(prefs.getString('TYPED_MODE'), isNull); // 非法 option 跳过
+        await importConfig(prefs, {
+          'settings': {'TYPED_FLAG': 'true', 'TYPED_MODE': 'b'},
+        });
+        expect(prefs.getString('TYPED_FLAG'), 'true');
+        expect(prefs.getString('TYPED_MODE'), 'b');
+      } finally {
+        dir.deleteSync(recursive: true);
+      }
+    });
+
+    test('导入 isSecure 默认跳过，allowSecure 时导入', () async {
+      final dir = _tmpConfigDir({
+        'id': 'imp_sec',
+        'name': 'ImportSec',
+        'settings': [
+          {'key': 'SEC_IMP', 'label': 'K', 'isSecure': true, 'default': ''},
+        ],
+      });
+      try {
+        await initSettings(prefs, pluginDirs: [dir.path]);
+        await importConfig(prefs, {'settings': {'SEC_IMP': 'new_secret'}});
+        expect(prefs.getString('SEC_IMP'), isNull); // 默认跳过
+        await importConfig(prefs, {'settings': {'SEC_IMP': 'new_secret'}}, allowSecure: true);
+        expect(prefs.getString('SEC_IMP'), 'new_secret');
+      } finally {
+        dir.deleteSync(recursive: true);
+      }
+    });
+
+    test('getSettingSources 返回来源插件 id', () async {
+      final dir = _tmpConfigDir({
+        'id': 'src_plugin',
+        'name': 'SrcPlugin',
+        'settings': [{'key': 'SRC_KEY', 'label': 'S', 'default': 'v'}],
+      });
+      try {
+        await initSettings(prefs, pluginDirs: [dir.path]);
+        final sources = getSettingSources();
+        expect(sources['SRC_KEY'], 'src_plugin');
+      } finally {
+        dir.deleteSync(recursive: true);
+      }
     });
   });
 

@@ -76,7 +76,8 @@ class _CenterPanelState extends ConsumerState<CenterPanel> {
 
     try {
       final svc = PaperVisionService(
-          pythonPath: await resolvePythonExe() ?? 'python',
+          pythonPath:
+              (await PythonInterpreter.instance.resolve()).legacyExePath ?? 'python',
           scriptPath: path.join(greenixScriptsDir, 'paper_vision.py'),
           apiKey: apiKey);
       final result = await svc.translateText(p.content);

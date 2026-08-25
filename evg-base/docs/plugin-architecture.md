@@ -79,6 +79,7 @@ flowchart TB
 - **冷插件（Cold）**：编译期静态导入（`plugin_imports.g.dart`）+ 启动时 `scanAndLoadModules(plugins/)` 批量注册并 `seal()`；随宿主构建发布。
 - **热插件（Hot）**：运行时 `PluginInstaller.install()` 下载 `.plugin`（ZIP）→ SHA-256 签名校验 → 解压至 `plugins/<id>/` → `ModuleRegistry.reloadModule()` 热重载；`ModuleLifecycle` 支持 install/uninstall/disable/enable/upgrade。
 - **后端进程**：`ProcessDescriptor` 声明 `.exe`/`.py`，`ModuleLoader` 启动子进程后通过 stdout 的 `PORT:<port>` 行发现端口并做 `/health` 检查。
+- **Agent 工具插件（统一 python 主路径）**：`plugins/<id>/agent/` 由 `PluginBridge` 发现，入口 **`.py` 优先**（同名 `<目录名>.py` 最高优先），manifest 声明 `runtime:"python"`；`.exe` 仅存量 legacy 回退（无 `.py` 且未声明 `runtime:"python"` 时）。执行经 `PluginRunner`（桌面 SubprocessRunner / 安卓 Chaquopy 进程内）统一解释。2026-08-25：Agent 域示例插件与 `settings` 遗留 `.exe` 已全部清理，`python-runner` 为内置 Dart 工具（manifest 声明镜像）。
 
 ### 下流 · Renderer / HTML（lib/renderer/）
 

@@ -8,7 +8,7 @@
 | 负责人 | 待补充 |
 | 适用 | services（OCR/翻译/安装/更新） |
 
-> 源码 `ocr_pipeline.dart` `deepseek_ocr_service.dart` `update_service.dart` `plugin_installer.dart` `core_http_server.dart` `github_stars.dart`、测试 `../test/`
+> 源码 `ocr_pipeline.dart` `deepseek_ocr_service.dart` `update_service.dart` `plugin_installer.dart` `core_http_server.dart` `github_stars.dart` `sync_import_service.dart`、测试 `../test/`
 >
 > **HTML-first 事实**：用户 HTML 插件通过 `platform.api.call("core", ...)` 访问 Core 服务；本目录的 OCR/更新/安装服务仍由平台内部与开发者模式插件使用。
 >
@@ -30,6 +30,7 @@
 | `PluginInstaller` | `plugin_installer.dart` | 插件安装/卸载/校验/崩溃监控 | ✅ |
 | `CoreHttpServer` | `core_http_server.dart` | REST 端点微服务网格 | ✅ |
 | `GithubStarsFetcher` | `github_stars.dart` | star 数数据中枢接入（DataType） | ✅ |
+| `SyncImportService` | `sync_import_service.dart` | .egsync.zip 导入：fail-closed 校验 + 版本感知冲突 + 注册回放（t-C3） | ✅ |
 | `GithubCloner` | `github_clone.dart` | GitHub 源克隆（git clone 子进程） | 直接 import |
 | `GithubMetadata` | `github_metadata.dart` | 仓库元数据抓取（市场卡片实时 star） | 直接 import |
 | `PdfTranslateService` | `pdf_translate_service.dart` | PDF 翻译（pdf2zh 子进程，JSON Lines 事件流） | 直接 import |
@@ -219,6 +220,44 @@ print(server.isRunning);              // 运行状态
 | `GET` | `/core/update/check` | 检查宿主更新 |
 | `POST` | `/core/ocr` | Body `{path}` → OCR 识别 |
 | `GET` | `/core/ocr/status` | `{deepseekAvailable, tesseractAvailable}` |
+
+---
+
+## 五、同步中心导入（SyncImportService，t-C3）
+
+> 契约：`docs/superpowers/specs/egsync-sync-center-spec-v1.md`（§十二 导入端）。
+> 把 `.egsync.zip` fail-closed 校验后落盘并注册（插件 / 数据源 / 主题）。
+
+```dart
+import 'package:evergreen_base/core/services/services.dart';
+
+final service = SyncImportService(
+  registry: moduleRegistry,            // 插件注册回放（reloadModule）
+  themeStore: themeStore,              // 主题热注册
+  orch: dataOrchestrator,              // 数据源（模型 A）热注册
+  configImporter: importConfigAndSync, // core-config 配置导入回调
+);
+final result = await service.importZip('sync.egsync.zip');
+if (result.isErr) {
+  // 包级 fail-closed 拒绝（type/version 非法、zip-slip 越界）
+} else if (result.value.hasConflicts) {
+  // 冲突清单（SyncConflict）→ UI 展示，用户确认后以 applyConflicts 重导
+} else {
+  // result.value.items：imported / noop / skipped / error
+}
+```
+
+| API | 说明 |
+|------|------|
+| `SyncImportService({registry, themeStore, orch, projectRoot, pluginsRoot, sessionsRoot, memoriesRoot, configImporter})` | 构造；缺省根走 `resolvePluginsRoot()`（跨平台） |
+| `.importZip(path, {policy})` → `Future<Result<SyncImportResult>>` | 包级违规整体拒绝（Err）；资源级问题记 item error/conflict |
+| `SyncImportPolicy` | `overwriteNewer`（默认 true，备份旧 config）/ `overwriteSameVersion` / `allowDowngrade` / `applyConflicts` / `overwriteThemes` / `overwriteRuntimeData` |
+| `SyncImportResult` | `items` / `conflicts`（`SyncConflict`）/ `counts`；`hasConflicts` / `hasErrors` |
+| `SyncResourceType` | `config` / `sessions` / `memories` / `plugins` / `data` / `themes` |
+
+- 冲突默认策略：同内容 no-op / 新版覆盖（备份+恢复旧 config/）/ 同版本不同内容与版本回退 → 冲突清单不自动破坏。
+- 注册回放：插件 `ModuleRegistry.reloadModule`；数据源模型 A `registerDataSourcesFromManifest`、模型 B（HTTP .exe）`DataSourceLoader` best-effort 回放（失败降级仅提示，不阻断包）；主题 `ThemeStore.register`；sessions/memories 原样落盘（合并 t-C4）；config 交接 core-config。
+- 冒烟验证：`evg-base/test/sync_import_smoke_test.dart`（8 用例：导入注册 / no-op / 冲突与覆盖 / type 拒绝 / zip-slip 拒绝 / 信封哈希 / 目录缺失隔离 / 模型 B 降级）。
 
 ---
 

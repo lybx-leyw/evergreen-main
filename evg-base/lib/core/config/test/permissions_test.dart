@@ -231,6 +231,63 @@ void main() {
   });
 
   // ───────────────────────────────────────────────────────────────────────
+  // getAllPermissions / importPermissions（.evgconfig v2 支持）
+  // ───────────────────────────────────────────────────────────────────────
+
+  group('getAllPermissions / importPermissions', () {
+    test('getAllPermissions 枚举全部已注册插件权限（bool 类型）', () async {
+      registerPermissions('exp_all', [
+        const PermissionDecl(key: 'A', label: 'A', description: '...'),
+        const PermissionDecl(key: 'B', label: 'B', description: '...'),
+      ]);
+      await setPermission(prefs, 'exp_all', 'A', false);
+      final all = getAllPermissions(prefs);
+      expect(all['exp_all'], {'A': false, 'B': true});
+    });
+
+    test('getAllPermissions 无注册插件返回空 map', () {
+      // 每个测试实例的 _permDecls 为模块级共享，这里只断言类型与形状
+      final all = getAllPermissions(prefs);
+      expect(all, isA<Map<String, Map<String, bool>>>());
+    });
+
+    test('importPermissions 仅导入已注册插件已声明键', () async {
+      registerPermissions('imp_all', [
+        const PermissionDecl(key: 'NET', label: '网络', description: '...'),
+      ]);
+      final written = await importPermissions(prefs, {
+        'imp_all': {'NET': false, 'HACK': true},
+        'ghost': {'X': false},
+      });
+      expect(written, 1);
+      expect(getPermissions(prefs, 'imp_all')['NET'], false);
+      expect(prefs.containsKey('perm.imp_all.HACK'), false);
+      expect(prefs.containsKey('perm.ghost.X'), false);
+    });
+
+    test('importPermissions 非 bool 值跳过（类型校验）', () async {
+      registerPermissions('imp_typed', [
+        const PermissionDecl(key: 'NET', label: '网络', description: '...'),
+      ]);
+      final written = await importPermissions(prefs, {
+        'imp_typed': {'NET': 'false'}, // 字符串非法
+      });
+      expect(written, 0);
+    });
+
+    test('importPermissions 默认覆盖，overwrite:false 保留已有显式设置', () async {
+      registerPermissions('imp_prot', [
+        const PermissionDecl(key: 'NET', label: '网络', description: '...'),
+      ]);
+      await setPermission(prefs, 'imp_prot', 'NET', false);
+      await importPermissions(prefs, {'imp_prot': {'NET': true}}, overwrite: false);
+      expect(getPermissions(prefs, 'imp_prot')['NET'], false); // 非覆盖保护
+      await importPermissions(prefs, {'imp_prot': {'NET': true}});
+      expect(getPermissions(prefs, 'imp_prot')['NET'], true); // 默认覆盖
+    });
+  });
+
+  // ───────────────────────────────────────────────────────────────────────
   // 异常 toString
   // ───────────────────────────────────────────────────────────────────────
 
