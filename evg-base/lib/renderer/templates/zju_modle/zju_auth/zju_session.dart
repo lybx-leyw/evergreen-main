@@ -209,9 +209,28 @@ Future<ZjuZdbkService>? _zdbkSessionFuture;
 ///
 /// SSO cookie 优先级：持久化 cookie（CookieStore）→ 完整 SSO 登录（[_ssoLogin]）。
 /// 会话过期由 service 内部 `_withAutoRelogin` 自动重登，无需重建。
+///
+/// **失败不缓存**：`_createZdbkSession` 抛错时经 [_guardedZdbkSession] 复位
+/// `_zdbkSessionFuture`——否则失败的 future 被 `??=` 永久缓存，之后所有 zdbk
+/// fetcher 都 await 同一个失败 future，错误持续复现（只有重登成功/清登录态
+/// 才能恢复）。
 Future<ZjuZdbkService> ensureZdbkSession({required SharedPreferences prefs}) {
   _zjuPrefs = prefs;
-  return _zdbkSessionFuture ??= _createZdbkSession(prefs);
+  return _zdbkSessionFuture ??= _guardedZdbkSession(prefs);
+}
+
+/// [_createZdbkSession] 失败防护包装：抛错时复位共享缓存并原样重抛。
+///
+/// 注意：async 函数返回的 future 被 `??=` 立即缓存，内部失败发生在缓存建立
+/// **之后**，此时复位 `_zdbkSessionFuture = null` 才真正生效（若在
+/// `_createZdbkSession` 内复位会被 `??=` 的赋值覆盖回去）。
+Future<ZjuZdbkService> _guardedZdbkSession(SharedPreferences prefs) async {
+  try {
+    return await _createZdbkSession(prefs);
+  } catch (_) {
+    _zdbkSessionFuture = null;
+    rethrow;
+  }
 }
 
 Future<ZjuZdbkService> _createZdbkSession(SharedPreferences prefs) async {
@@ -226,12 +245,27 @@ Future<ZjuZdbkService> _createZdbkSession(SharedPreferences prefs) async {
     ..userAgent =
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
   final service = ZjuZdbkService();
-  final ok = await service.login(
+  var ok = await service.login(
     httpClient,
     Cookie('iPlanetDirectoryPro', sso)..domain = '.zju.edu.cn',
   );
+  if (!ok && (store.ssoCookie?.isNotEmpty ?? false)) {
+    // 持久 SSO cookie 已过期/被服务端踢下线（CAS 无重定向）——读凭证完整
+    // SSO 重登一次再重建教务会话，对齐 Dio 路径 AuthInterceptor →
+    // [_zjuRelogin] 的「cookie 失效 → 凭证重登」兜底，避免直接报错让用户
+    // 手动重登。仍失败才抛错。
+    Log().info('[zju] ensureZdbkSession: 持久 SSO cookie 登录失败，凭证重登…');
+    sso = (await _ssoLogin(prefs)).value;
+    ok = await service.login(
+      httpClient,
+      Cookie('iPlanetDirectoryPro', sso)..domain = '.zju.edu.cn',
+    );
+  }
   if (!ok) {
-    throw StateError('ZDBK 教务登录失败——SSO 会话无效或已过期，请重新登录');
+    // 抛 ZdbkAuthError（而非裸 StateError）：zjuIsSessionExpiredError 识别
+    // ZdbkAuthError 为会话失效 → DataOrchestrator 经 SessionCoordinator
+    // 单点重登（登录锁防挤占）后重拉，而非直接把错误展示给用户。
+    throw const ZdbkAuthError('ZDBK 教务登录失败——SSO 会话无效或已过期，请重新登录');
   }
   return service;
 }
