@@ -150,7 +150,7 @@
 | O2 | HtmlExportService 双写致用户画布泄漏进 APK bundle | plugins/platform | 🔴 高（主题2前置） |
 | O3 | releaseBundledAssets 每启动覆盖 plugins/<id>，覆盖用户改动 | core-module/platform | 🔴 高 |
 | O4 | `bundle_plugins.dart --check` CI 门禁（防本地构建漂移） | platform | 🔴 高 |
-| O5 | 插件 id 校验过松（纯数字 "5" 通过） | plugins | 🟡 中 |
+| O5 | 插件 id 校验过松（纯数字 "5" 通过） | plugins | ✅ 已修复（2026-08-26：canvas_manager._sanitizeId 强制小写字母开头、ensureInstance 派生唯一合法 id；绑定 id 由 htmlPluginIdError 把关，画布「画布 5」不再派生 "5"） |
 | O6 | douban 25.71MB 构建产物清理 + README cp 目录错位 + exePath 命名过时 | core-data | 🟡 中 |
 | O7 | PluginExporter.exportAsZip 无排除清单且 shell 出 PowerShell | core-module | 🟡 中 |
 | O8 | verifyAll 误判创作中心直导插件损坏 | core-module | 🟡 中 |
