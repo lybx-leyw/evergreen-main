@@ -21,17 +21,46 @@ import 'dart:io';
 import 'package:evergreen_base/core/data/data.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// 原始 Socket 发一次 GET，读完整响应（服务器关闭连接后返回）。
+/// 解码 HTTP/1.1 chunked transfer-encoding body。
 ///
-/// 返回 `(status, contentType, body)`。适合有限流（`Stream.fromIterable`）——
-/// 服务器写完 data/done 帧后主动关闭，客户端读满即结束。
+/// SSE 流式多帧依赖 HTTP/1.1 的 chunked 分块（HTTP/1.0 无分块编码，
+/// `flush()` 后不能再 add——见 DataHttpServer._pipeSse 注释）。本函数剥离
+/// chunk 大小行，还原纯 SSE 帧文本。对不完整 body（长连接短读）尽力解码。
+String _decodeChunked(String raw) {
+  final headerEnd = raw.indexOf('\r\n\r\n');
+  if (headerEnd < 0) return '';
+  final head = raw.substring(0, headerEnd);
+  var rest = raw.substring(headerEnd + 4);
+  final isChunked = head.toLowerCase().contains('transfer-encoding: chunked');
+  if (!isChunked) return rest;
+  final out = StringBuffer();
+  while (rest.isNotEmpty) {
+    final lineEnd = rest.indexOf('\r\n');
+    if (lineEnd < 0) break;
+    final size = int.tryParse(rest.substring(0, lineEnd).trim(), radix: 16);
+    if (size == null || size == 0) break;
+    rest = rest.substring(lineEnd + 2);
+    if (rest.length < size) {
+      // 长连接短读：chunk 未完整到达，剩余归入输出（宽松容错）。
+      out.write(rest);
+      break;
+    }
+    out.write(rest.substring(0, size));
+    rest = rest.substring(size);
+    if (rest.startsWith('\r\n')) rest = rest.substring(2);
+  }
+  return out.toString();
+}
+
+/// 原始 Socket 发一次 GET（HTTP/1.1，服务器按 chunked 响应），读完整响应后
+/// 解码 chunked，返回 `(status, contentType, body)`。
 Future<(int, String?, String)> _rawSseGet(int port, String path,
     {Duration timeout = const Duration(seconds: 10)}) async {
   final socket = await Socket.connect('127.0.0.1', port);
-  // HTTP/1.0 + Connection: close：服务器以纯文本 body 发送（无 chunked 分块），
-  // 便于原始 Socket 直接解析 SSE 帧。
+  // HTTP/1.1：SSE 流式多帧依赖 chunked 分块（HTTP/1.0 无法多帧流式）。
+  // Connection: close 让服务器在响应完成后关闭连接，客户端读满即结束。
   socket.write(
-      'GET $path HTTP/1.0\r\nHost: localhost\r\nConnection: close\r\n\r\n');
+      'GET $path HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n');
   final bytes = <int>[];
   final done = Completer<void>();
   socket.listen(bytes.addAll, onDone: () {
@@ -44,7 +73,7 @@ Future<(int, String?, String)> _rawSseGet(int port, String path,
   final all = utf8.decode(bytes, allowMalformed: true);
   final headerEnd = all.indexOf('\r\n\r\n');
   final head = headerEnd < 0 ? all : all.substring(0, headerEnd);
-  final body = headerEnd < 0 ? '' : all.substring(headerEnd + 4);
+  final body = headerEnd < 0 ? '' : _decodeChunked(all);
   final statusLine = head.split('\r\n').first;
   final status = int.parse(statusLine.split(' ')[1]);
   // 注：Dart RegExp 不支持 `(?i)` 内联标志（抛 Invalid group），用构造参数。
@@ -149,7 +178,7 @@ void main() {
       // 先建立 SSE 连接（后台），再触发变更。
       final socket = await Socket.connect('127.0.0.1', port);
       socket.write(
-          'GET /data/events HTTP/1.0\r\nHost: localhost\r\nConnection: close\r\n\r\n');
+          'GET /data/events HTTP/1.1\r\nHost: localhost\r\n\r\n');
 
       // 等待服务器异步处理请求并订阅 dataChangeEvents（避免事件在订阅前发出而漏帧）。
       await Future<void>.delayed(const Duration(milliseconds: 200));
@@ -163,13 +192,15 @@ void main() {
       final bytes = <int>[];
       await for (final chunk in socket.timeout(const Duration(seconds: 3))) {
         bytes.addAll(chunk);
-        if (utf8.decode(bytes, allowMalformed: true).contains('event: change')) {
+        // chunked 分块可能跨越帧边界，先解码再检查 change 帧。
+        if (_decodeChunked(utf8.decode(bytes, allowMalformed: true))
+            .contains('event: change')) {
           break;
         }
       }
       socket.destroy();
 
-      final body = utf8.decode(bytes, allowMalformed: true);
+      final body = _decodeChunked(utf8.decode(bytes, allowMalformed: true));
       final frames = _parseSse(body);
       final changeFrames = frames.where((f) => f.$1 == 'change').toList();
       expect(changeFrames, isNotEmpty);

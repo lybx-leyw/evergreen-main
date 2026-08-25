@@ -342,8 +342,11 @@ class DataHttpServer {
     response.headers.contentType =
         ContentType('text', 'event-stream', charset: 'utf-8');
     response.headers.set('Cache-Control', 'no-cache');
-    response.headers.set('Connection', 'keep-alive');
     response.headers.set('Access-Control-Allow-Origin', '*');
+    // 注意：不显式设置 `Connection: keep-alive`。dart:io 对 HTTP/1.0 请求的响应
+    // 默认不带 keep-alive（连接以 close 界定 body）；若显式 keep-alive 且无
+    // Content-Length，`response.flush()` 会挂起/抛异常（SSE 帧永远发不出）。
+    // HTTP/1.1 客户端默认 keep-alive + chunked，flush 即时发 chunk，不受影响。
 
     final completer = Completer<void>();
     StreamSubscription<dynamic>? sub;
@@ -359,10 +362,9 @@ class DataHttpServer {
       (data) {
         try {
           response.add(utf8.encode(frame(data)));
-          // 关键：SSE 是长连接，必须逐帧 flush。dart:io 对 HTTP/1.0（无 chunked）
-          // 会缓冲 add 的数据直到 close；不 flush 则长连接下客户端收不到任何帧。
-          // HTTP/1.1（chunked）下 flush 也保证即时发送。
-          response.flush();
+          // 逐帧 flush：SSE 长连接必须即时发送。fire-and-forget + 吞错
+          // （客户端断开时 flush 可能异步失败，避免 unhandled async error）。
+          unawaited(response.flush().catchError((Object _) {}));
         } catch (_) {
           finish(); // 客户端已断开（写入失败）
         }
@@ -370,7 +372,7 @@ class DataHttpServer {
       onError: (Object e) {
         try {
           response.add(utf8.encode(errorFrame(e)));
-          response.flush();
+          unawaited(response.flush().catchError((Object _) {}));
         } catch (_) {
           // 连接已不可写，忽略
         }
@@ -380,7 +382,7 @@ class DataHttpServer {
         if (doneFrame != null) {
           try {
             response.add(utf8.encode(doneFrame()));
-            response.flush();
+            unawaited(response.flush().catchError((Object _) {}));
           } catch (_) {
             // 忽略
           }
