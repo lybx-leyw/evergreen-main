@@ -1,20 +1,53 @@
-<div align="center">
+<div align="center" style="background-color:#232326;border:1px solid #3f3f45;border-radius:12px;padding:36px 24px 26px;">
 
-<img src="evg-base/assets/branding/logo.svg" alt="Evergreen Logo" width="120" height="120"/>
+<!-- 黑白放映：logo 默认墨白单色（去绿相），右侧帧为放映态（彩色） -->
+<table align="center" style="background-color:transparent;border:none;border-collapse:separate;border-spacing:16px;">
+<tr>
+<td align="center" style="background-color:transparent;border:none;padding:0;">
 
-# Evergreen
+<!-- 墨白帧（默认态：灰度线稿，单色 currentColor） -->
+<svg viewBox="0 0 240 240" width="96" height="96" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Evergreen 墨白 Logo" style="filter:grayscale(1) contrast(1.08);">
+  <rect x="8" y="8" width="224" height="224" rx="56" fill="#2e2e33"/>
+  <path d="M120 40 a80 80 0 1 1 -56.6 23.4" fill="none" stroke="#f4f3f1" stroke-width="14" stroke-linecap="round"/>
+  <path d="M120 40 l-14 -2 l5 14 z" fill="#f4f3f1"/>
+  <g transform="translate(120 138)">
+    <path d="M0 -62 C 40 -44, 52 4, 8 52 C -4 60, -4 60, -8 52 C -48 4, -36 -40, 0 -62 Z" fill="#f4f3f1"/>
+  </g>
+</svg>
+<br/>
+<span style="color:#99999a;font-size:11px;letter-spacing:2px;">墨白帧 · grayscale</span>
 
-**面向 AI4Life 的开源 AI 平台** · 本地优先 · 插件化 · 跨平台（Windows / Android）
+</td>
+<td align="center" style="background-color:transparent;border:none;padding:0;">
+
+<!-- 放映帧（彩色态：saturate 绿） -->
+<svg viewBox="0 0 240 240" width="96" height="96" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Evergreen 彩色 Logo" style="filter:saturate(.85);">
+  <rect x="8" y="8" width="224" height="224" rx="56" fill="#b6efd0"/>
+  <path d="M120 40 a80 80 0 1 1 -56.6 23.4" fill="none" stroke="#0f9d58" stroke-width="14" stroke-linecap="round"/>
+  <path d="M120 40 l-14 -2 l5 14 z" fill="#0f9d58"/>
+  <g transform="translate(120 138)">
+    <path d="M0 -62 C 40 -44, 52 4, 8 52 C -4 60, -4 60, -8 52 C -48 4, -36 -40, 0 -62 Z" fill="#2fbf71"/>
+  </g>
+</svg>
+<br/>
+<span style="color:#4dc878;font-size:11px;letter-spacing:2px;">放映帧 · 绿</span>
+
+</td>
+</tr>
+</table>
+
+<span style="font-size:34px;font-weight:700;color:#f4f3f1;letter-spacing:2px;font-family:-apple-system,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;">Evergreen</span>
+
+<span style="color:#c9c8c5;font-size:15px;">面向 AI4Life 的开源 AI 平台 · 本地优先 · 插件化 · 跨平台</span>
 
 <br/>
 
-![platform](https://img.shields.io/badge/平台-Windows%20%7C%20Android-17181a?style=flat-square&labelColor=fafafa)
-![license](https://img.shields.io/badge/许可证-GPLv3-0f9d58?style=flat-square&labelColor=fafafa)
-![version](https://img.shields.io/badge/版本-v2.0--rc.4-17181a?style=flat-square&labelColor=fafafa)
-![flutter](https://img.shields.io/badge/Flutter-本地优先-0f9d58?style=flat-square&labelColor=fafafa)
-![ai](https://img.shields.io/badge/AI4Life-开源-17181a?style=flat-square&labelColor=fafafa)
+![platform](https://img.shields.io/badge/平台-Windows%20%7C%20Android-2e2e33?style=flat-square&labelColor=232326)
+![license](https://img.shields.io/badge/许可证-GPLv3-4dc878?style=flat-square&labelColor=232326)
+![version](https://img.shields.io/badge/版本-v2.0--rc.4-2e2e33?style=flat-square&labelColor=232326)
+![flutter](https://img.shields.io/badge/Flutter-本地优先-4dc878?style=flat-square&labelColor=232326)
 
-> 当前版本 **v2.0-rc 系列**（最新 tag：`v2.0-rc.4`） · 本项目以 **GPLv3** 许可证发布，详见 [LICENSE](./LICENSE)
+<span style="color:#99999a;font-size:13px;">当前版本 v2.0-rc 系列（最新 tag：`v2.0-rc.4`）· 本项目以 **GPLv3** 许可证发布，详见 [LICENSE](./LICENSE)</span>
 
 </div>
 
@@ -22,56 +55,50 @@
 
 ## ✨ 核心能力
 
-<table align="center">
+<table align="center" style="background-color:#232326;border:1px solid #3f3f45;border-radius:12px;">
 <tr>
-<td width="33%" align="center">
+<td width="33%" align="center" style="background-color:#2e2e33;border:1px solid #3f3f45;border-radius:8px;padding:16px 12px;">
 
-### 🤖 AI 助手
+<span style="font-size:15px;font-weight:600;color:#f4f3f1;">🤖 AI 助手</span>
 
-本地优先的 Agent 运行时
-对话 / 工具 / 记忆 / Skill / 守护
-
-</td>
-<td width="33%" align="center">
-
-### 🎨 HTML 插件创作
-
-三栏 IDE · 实时预览
-AI 辅助生成 / 改稿 · 一键导出
+<span style="color:#99999a;font-size:13px;">本地优先的 Agent 运行时<br/>对话 / 工具 / 记忆 / Skill / 守护</span>
 
 </td>
-<td width="33%" align="center">
+<td width="33%" align="center" style="background-color:#2e2e33;border:1px solid #3f3f45;border-radius:8px;padding:16px 12px;">
 
-### 🧩 插件市场
+<span style="font-size:15px;font-weight:600;color:#f4f3f1;">🎨 HTML 插件创作</span>
 
-内置插件仓库
-外部插件放入即热加载
+<span style="color:#99999a;font-size:13px;">三栏 IDE · 实时预览<br/>AI 辅助生成 / 改稿 · 一键导出</span>
+
+</td>
+<td width="33%" align="center" style="background-color:#2e2e33;border:1px solid #3f3f45;border-radius:8px;padding:16px 12px;">
+
+<span style="font-size:15px;font-weight:600;color:#f4f3f1;">🧩 插件市场</span>
+
+<span style="color:#99999a;font-size:13px;">内置插件仓库<br/>外部插件放入即热加载</span>
 
 </td>
 </tr>
 <tr>
-<td width="33%" align="center">
+<td width="33%" align="center" style="background-color:#2e2e33;border:1px solid #3f3f45;border-radius:8px;padding:16px 12px;">
 
-### 📊 数据采集
+<span style="font-size:15px;font-weight:600;color:#f4f3f1;">📊 数据采集</span>
 
-所见即所得爬虫
-+ 数据谱仪器
-
-</td>
-<td width="33%" align="center">
-
-### 🎭 主题创作
-
-扁平 8 色语义色板
-可视化创作中心
+<span style="color:#99999a;font-size:13px;">所见即所得爬虫<br/>+ 数据谱仪器</span>
 
 </td>
-<td width="33%" align="center">
+<td width="33%" align="center" style="background-color:#2e2e33;border:1px solid #3f3f45;border-radius:8px;padding:16px 12px;">
 
-### 🛠️ Skill 创作
+<span style="font-size:15px;font-weight:600;color:#f4f3f1;">🎭 主题创作</span>
 
-Skill 生成 / 改写
-多 Agent 流水线
+<span style="color:#99999a;font-size:13px;">扁平 8 色语义色板<br/>可视化创作中心</span>
+
+</td>
+<td width="33%" align="center" style="background-color:#2e2e33;border:1px solid #3f3f45;border-radius:8px;padding:16px 12px;">
+
+<span style="font-size:15px;font-weight:600;color:#f4f3f1;">🛠️ Skill 创作</span>
+
+<span style="color:#99999a;font-size:13px;">Skill 生成 / 改写<br/>多 Agent 流水线</span>
 
 </td>
 </tr>
@@ -103,15 +130,31 @@ dart tool/gen_template_registry.dart --profile release_full
 
 ## 🧩 插件开发
 
-<div align="center">
+<table align="center" style="background-color:#232326;border:1px solid #3f3f45;border-radius:12px;">
+<tr>
+<td align="center" style="background-color:#2e2e33;border:1px solid #3f3f45;border-radius:8px;padding:12px 16px;">
 
-| 入口 | 说明 |
-|------|------|
-| 📖 [**上架协议规范**](evg-base/docs/plugin-registry/plugin-registry-spec-v1.md) | 外部插件如何被市场发现、下载、加载 |
-| 📚 [**互动开发指南**](plugin_guide.html) | 分步讲解 HTML / Dart / 数据源 / 主题四类插件的写法 |
-| 🖼️ [**示例插件**](evg-base/docs/plugin-registry/examples/) | 主题 / HTML 模块 / 数据源 三类开箱示例 |
+<span style="font-size:13px;font-weight:600;color:#4dc878;">📖 上架协议规范</span>
 
-</div>
+<span style="color:#99999a;font-size:12.5px;"><br/>[`plugin-registry-spec-v1.md`](evg-base/docs/plugin-registry/plugin-registry-spec-v1.md)<br/>外部插件如何被市场发现、下载、加载</span>
+
+</td>
+<td align="center" style="background-color:#2e2e33;border:1px solid #3f3f45;border-radius:8px;padding:12px 16px;">
+
+<span style="font-size:13px;font-weight:600;color:#4dc878;">📚 互动开发指南</span>
+
+<span style="color:#99999a;font-size:12.5px;"><br/>[`plugin_guide.html`](plugin_guide.html)<br/>HTML / Dart / 数据源 / 主题四类插件写法</span>
+
+</td>
+<td align="center" style="background-color:#2e2e33;border:1px solid #3f3f45;border-radius:8px;padding:12px 16px;">
+
+<span style="font-size:13px;font-weight:600;color:#4dc878;">🖼️ 示例插件</span>
+
+<span style="color:#99999a;font-size:12.5px;"><br/>[`examples/`](evg-base/docs/plugin-registry/examples/)<br/>主题 / HTML 模块 / 数据源 三类开箱示例</span>
+
+</td>
+</tr>
+</table>
 
 > 💡 **用户侧插件以 HTML 为主**：`html-creator` 导出 `plugins/<id>/module/index.html + manifest.json`（`"template":"html"`），运行时由 WebView + `platform.*` JS Bridge 加载。
 
@@ -158,14 +201,20 @@ dart tool/gen_template_registry.dart --profile release_full
 
 ---
 
-<div align="center">
+<div align="center" style="background-color:#232326;border:1px solid #3f3f45;border-radius:12px;padding:24px 16px;">
 
-<img src="evg-base/assets/branding/pet.svg" alt="Evergreen Pet" width="64" height="64"/>
+<!-- 宠物：默认灰度（hero-pet 同款），悬停放映在静态页以双帧呈现 -->
+<svg viewBox="0 0 24 24" width="40" height="40" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Evergreen 叶" style="filter:grayscale(1) contrast(1.08);">
+  <path d="M12 2 C 18 6, 20 12, 16 18 C 12 20, 8 18, 6 14 C 4 10, 6 4, 12 2 Z" fill="#f4f3f1"/>
+  <path d="M12 6 C 15 8, 16 12, 13 15 C 10 13, 10 9, 12 6 Z" fill="#232326"/>
+</svg>
 
 <br/>
 
-**Evergreen** — 让 AI 与生活共生长
+<span style="color:#f4f3f1;font-size:14px;font-weight:600;">Evergreen</span> <span style="color:#99999a;font-size:13px;">— 让 AI 与生活共生长</span>
 
-[GPLv3](./LICENSE) · Made with 🍃 for AI4Life
+<br/>
+
+<span style="color:#99999a;font-size:12px;">[GPLv3](./LICENSE) · Made with 🍃 for AI4Life</span>
 
 </div>
