@@ -70,7 +70,7 @@ void main() {
     final groups = <(SidebarSection, List<NavEntry>)>[
       (
         const SidebarSection('主功能', order: 10),
-        _entries(['ai-assistant', 'theme-creator', 'pdf_translate']),
+        _entries(['ai-assistant', 'theme-creator', 'demo-plugin']),
       ),
       (
         const SidebarSection('系统', order: 20),
@@ -85,7 +85,7 @@ void main() {
     test('4 个特殊插件被排除，空 section 整体移除', () {
       final out = filterNavByAppMode(groups);
       final flat = out.expand((g) => g.$2).map((e) => e.moduleId).toList();
-      expect(flat, ['pdf_translate', 'settings']);
+      expect(flat, ['demo-plugin', 'settings']);
       expect(out.length, 2, reason: '「仅特殊」section 应被移除');
     });
 
@@ -93,7 +93,7 @@ void main() {
       final flat = filterNavFlatByAppMode(
           groups.expand((g) => g.$2).toList());
       expect(flat.map((e) => e.moduleId).toList(),
-          ['pdf_translate', 'settings']);
+          ['demo-plugin', 'settings']);
     });
   });
 
@@ -115,7 +115,7 @@ void main() {
         '/ai-assistant',
       );
       final withoutAi = _sealed([
-        _mod('pdf_translate', 'PDF 翻译', '/pdf-translate', '主功能'),
+        _mod('demo-plugin', '演示插件', '/demo-plugin', '主功能'),
       ]);
       expect(
         defaultRouteForMode(
@@ -139,21 +139,21 @@ void main() {
             order: 1, sectionOrder: 10),
         _mod('theme-creator', '主题创作中心', '/theme-creator', '主功能',
             order: 2, sectionOrder: 10),
-        _mod('pdf_translate', 'PDF 翻译', '/pdf-translate', '主功能',
+        _mod('demo-plugin', '演示插件', '/demo-plugin', '主功能',
             order: 3, sectionOrder: 10),
         _mod('settings', '设置', '/settings', '系统',
             order: 10, sectionOrder: 20),
       ]);
       expect(
         defaultRouteForMode(mode: AppMode.plugins, registry: r),
-        '/pdf-translate',
-        reason: '主功能 section 中特殊插件被排除后，第一个可见项是 pdf-translate',
+        '/demo-plugin',
+        reason: '主功能 section 中特殊插件被排除后，第一个可见项是 demo-plugin',
       );
     });
 
     test('plugins 模式 + 插件状态过滤：停用插件被跳过', () {
       final r = _sealed([
-        _mod('pdf_translate', 'PDF 翻译', '/pdf-translate', '主功能',
+        _mod('demo-plugin', '演示插件', '/demo-plugin', '主功能',
             sectionOrder: 10),
         _mod('settings', '设置', '/settings', '系统', sectionOrder: 20),
       ]);
@@ -161,7 +161,7 @@ void main() {
         defaultRouteForMode(
           mode: AppMode.plugins,
           registry: r,
-          pluginStates: {'pdf_translate': _rec('pdf_translate', enabled: false)},
+          pluginStates: {'demo-plugin': _rec('demo-plugin', enabled: false)},
         ),
         '/settings',
       );
@@ -170,7 +170,7 @@ void main() {
           mode: AppMode.plugins,
           registry: r,
           pluginStates: {
-            'pdf_translate': _rec('pdf_translate', enabled: false),
+            'demo-plugin': _rec('demo-plugin', enabled: false),
             'settings': _rec('settings', enabled: false),
           },
         ),

@@ -44,7 +44,7 @@ import 'package:evergreen_base/renderer/page/file_viewer.dart';
 import 'package:evergreen_base/renderer/page/global_memory_view.dart';
 import 'package:evergreen_base/renderer/page/skill_management_view.dart';
 
-/// AI 助手工作区的统一模块 id——Agent 写入端（agent_factory / translate_slot / main 等）
+/// AI 助手工作区的统一模块 id——Agent 写入端（agent_factory / main 等）
 /// 与 UI 读取端（工作区抽屉 [WorkspaceDrawer]）都通过 [greenixWorkspaceDir] 指向同一目录。
 ///
 /// 之所以抽出为公开常量：当 AI 助手以 slot 形式嵌入其它宿主模块（如 `showcase-v4`）时，

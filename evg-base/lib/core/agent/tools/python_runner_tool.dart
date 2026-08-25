@@ -48,7 +48,7 @@ class PythonRunnerTool extends Tool {
       '1. mode="run"（默认）：执行 Python 代码段，可使用所有标准库+已安装第三方包。print() 输出返回给模型。\n'
       '2. mode="pip"：管理 pip 包（install/uninstall/list/show）。\n'
       '3. mode="sys"：查看 Python 版本、已安装包列表、环境信息。\n'
-      '已安装的第三方包：requests, Pillow, PyInstaller, pytesseract, pdf2image, packaging 等。';
+      '已安装的第三方包（以嵌入式 Python 环境 requirements.txt 为准）：requests, Pillow, pytesseract, pdf2image, pymupdf, pycryptodome 等。';
 
   @override
   Map<String, dynamic> get schema => {

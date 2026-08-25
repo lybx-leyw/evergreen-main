@@ -71,7 +71,7 @@ plugins/<name>/module/manifest.json
 | `icon` | `string\|int` | — | 图标名（如 `"smart_toy"`）或 Material Icons codePoint |
 | `version` | `string` | `"0.0.0"` | 语义版本号 |
 | `dependencies` | `string[]` | `[]` | 依赖的其他模块 id |
-| `template` | `string` | `"v4"` | 渲染模板：`v4` / `html` / `scraper` / `theme-creator` / `skill-creator` / `dsh` / `zju` / `paper_reading` |
+| `template` | `string` | `"v4"` | 渲染模板：`v4` / `html` / `scraper` / `theme-creator` / `skill-creator` / `dsh` / `zju` |
 | `lattice` | `string` | 推断 | 六格契约：`static-web` / `web-bridged` / `data-source` / `sidecar` / `agent-tool` / `external-app`（缺省按信号推断；非法值抛错） |
 | `runtime` | `object` | — | sidecar 运行时描述符（仅 `lattice:"sidecar"` 非空，见「四、」） |
 | `modle_route` | `string` | — | 模板内子路由（如 zdbk 的 score/notifications） |

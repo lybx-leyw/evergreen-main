@@ -11,6 +11,18 @@
 > 纯渲染层：读 `ModuleDescriptor`，按声明/模板画 UI。不解析 manifest、不管理进程、不写业务逻辑。
 > **用户侧插件创作主路径为 HTML**：`html-creator` 编写 HTML/CSS/JS → 导出 HTML 插件 → `html_modle` WebView 渲染。
 > 最后更新：2026-08-25。
+>
+> **2026-08-25（t20）**：PDF 翻译功能撤销——删除 `v4_modle/components/translate/`（`translate_slot.dart` + `translate_models.dart`）、
+> `_registrations.dart` 中 `pdf-translate` 的 slot/capability 注册、`test/renderer/slots/pdf_translate_route_test.dart`、
+> `test/integration/translate_test.dart`。论文阅读的翻译走 `paper_reader.py`（platform 域），不受影响。
+>
+> **2026-08-25（t24）**：发现插件分类修复——`registryPluginToDescriptor`（`page/market_view.dart`）将 registry
+> `lattice`（插件类型权威声明）并入能力维度（去重、声明维度在前）：主题插件（warm_study）在「发现插件」页
+> 显示/筛选为「主题」而非仅「界面」；不修改 registry 数据，未知 lattice 保持既有行为。
+>
+> **2026-08-25（t25）**：paper_reading_modle 模板撤销（项目未开放论文阅读）——删除整个模板目录（24 文件）；
+> `PymupdfTool`（skill_creator `pdf_extract_text` 工具在用）迁移至 `skill_creator_modle/tools/pymupdf_tool.dart`；
+> templates_index.json 与 build_profiles 移除 paper_reading，`template_registry.g.dart` 重新生成（10→9 路由）。
 
 ---
 
@@ -53,7 +65,7 @@ lib/renderer/
 | 条件 | 视图 | 说明 |
 |------|------|------|
 | `descriptor.id == 'ai-assistant'` | `ChatControllerView` | AI 助手专用全屏对话 |
-| `descriptor.template` 非空且非 `v4` | `TemplateRegistry.render` | 自定义模板：html / scraper / theme-creator / skill-creator / dsh / zju / classroom / zdbk / paper_reading |
+| `descriptor.template` 非空且非 `v4` | `TemplateRegistry.render` | 自定义模板：html / scraper / theme-creator / skill-creator / dsh / zju / classroom / zdbk |
 | `descriptor.pages` 非空 | `TemplateRegistry.render` | 有 pages 时按模板路由（默认 v4 composite） |
 | `descriptor.workspace.enabled` | `EditorView` | 文件工作区 / 代码编辑 |
 | 其他 | `DefaultView` | 通用数据绑定兜底 |
@@ -70,7 +82,6 @@ lib/renderer/
 | `theme-creator` | `ThemeCreatorModleTemplate` | 主题创作中心 |
 | `skill-creator` | `SkillCreatorModleTemplate` | Skill 创作中心 |
 | `dsh` | `DshModleTemplate` | DeepSeek Harness |
-| `paper_reading` | `PaperReadingModleTemplate` | 论文阅读 |
 | `zju` / `classroom` / `zdbk` | `ZjuModleTemplate` | 浙大校园 |
 
 ---

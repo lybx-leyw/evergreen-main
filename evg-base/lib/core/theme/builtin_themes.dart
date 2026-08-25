@@ -2,7 +2,7 @@
 ///
 /// 优先级设计（与 theme_loader 注释一致）：`store.register()`（本文件）
 /// 最高，插件主题（plugins/<name>/theme/theme.json）与示例主题次之；
-/// 同 id 后者覆盖。内置 id 使用 `dark` / `light` / `evergreen`，
+/// 同 id 后者覆盖。内置 id 使用 `dark` / `light`，
 /// 插件不应与之冲突（见 docs/plugin-theme.md 校验清单）。
 library;
 
@@ -14,8 +14,7 @@ import 'theme_store.dart';
 /// 色板来源：
 /// - `dark`：GitHub Dark 色板——与组件层既有硬编码色（终端/气泡/日志面板）
 ///   同源，作为默认主题时观感最一致；
-/// - `light`：GitHub Light 色板；
-/// - `evergreen`：品牌绿（深色系，呼应产品名）。
+/// - `light`：GitHub Light 色板。
 const List<ThemeDescriptor> builtinThemes = [
   ThemeDescriptor(
     id: 'dark',
@@ -43,20 +42,6 @@ const List<ThemeDescriptor> builtinThemes = [
       'accent': '#0969DA',
       'error': '#CF222E',
       'others': '#57606A',
-    },
-  ),
-  ThemeDescriptor(
-    id: 'evergreen',
-    name: 'Evergreen 品牌绿',
-    colors: {
-      'background': '#0E1713',
-      'surface': '#15231D',
-      'border': '#2C4238',
-      'text': '#DCE8E1',
-      'textSecondary': '#8FA99C',
-      'accent': '#3FB950',
-      'error': '#F85149',
-      'others': '#56D364',
     },
   ),
 ];

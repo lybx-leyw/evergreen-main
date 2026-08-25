@@ -34,7 +34,6 @@ flowchart LR
 | `dsh` | module | DeepSeek Harness：平台级常驻 Agent Web UI |
 | `html-creator` | module | **HTML 插件创作中心**：三栏 IDE + 预览 + AI 辅助生成 + 导出 |
 | `marketplace` | module | 插件市场：浏览、搜索、启用/停用、卸载 |
-| `pdf_translate` | module | PDF 翻译：DeepSeek 驱动、7 语言互译、双语对照 PDF |
 | `python-runner` | agent | Python 运行器：Agent 可调用的本地 Python 3.10 环境（**内置 Dart 工具** `PythonRunnerTool`，本目录 manifest 为声明镜像，含 `runtime:"python"`，无独立入口文件） |
 | `scraper` | module | 所见即所得爬虫：抓包 + AI 生成 Python 爬虫 |
 | `settings` | module + config | 设置面板：API Key、模型、主题等全局配置（v4 Dart 设置页；遗留 exe 形态已清理） |
@@ -45,8 +44,12 @@ flowchart LR
 > 的 manifest 带 `template` 字段（依次为 `dsh` / `html` / `scraper` / `skill-creator` / `theme-creator`），
 > 走专用模板渲染；其余内置模块走 v4 组件式渲染。新增内置插件后请同步登记本清单。
 
-> **插件清单口径**：本目录 11 个内置插件 + `view` / `warm_study` / `zju_autosign` 3 个
-> registry 托管插件（见下）= 全平台 **14 个插件身份**。
+> **插件清单口径**：本目录 10 个内置插件 + `view` / `warm_study` / `zju_autosign` 3 个
+> registry 托管插件（见下）= 全平台 **13 个插件身份**。
+>
+> **2026-08-25（t19）**：`pdf_translate` 内置插件已移除（PDF 翻译功能撤销，用户决定无内置
+> 必要；渲染层 `translate` 组件与 core 翻译服务由对应 OWNER 同步下线，`pdf2zh_next` 引擎
+> 与 `pdf_reader.py` 因论文阅读依赖**保留**）。
 
 > **已移交 registry 的插件**：`view`（我的成绩单）、`warm_study`（温暖学习主题）、`zju_autosign`（学在浙大自动签到）
 > 已移出内置插件目录，改由「发现插件」页经 `docs/plugin-registry/plugins.json` 管理（local 资源条目），

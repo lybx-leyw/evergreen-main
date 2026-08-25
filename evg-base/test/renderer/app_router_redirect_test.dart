@@ -52,7 +52,7 @@ void main() {
     final r = ModuleRegistry();
     r.registerAll([
       _mod('settings', '设置', '/settings'),
-      _mod('pdf_translate', 'PDF 翻译', '/pdf-translate'),
+      _mod('demo-plugin', '演示插件', '/demo-plugin'),
     ]);
     r.seal();
     expect(

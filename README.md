@@ -1,6 +1,6 @@
 # Evergreen
 
-Evergreen 是一个面向 AI4Life 的开源 AI 平台，v2.0-rc 系列（最新 tag：`v2.0-rc.3`）。
+Evergreen 是一个面向 AI4Life 的开源 AI 平台，v2.0-rc 系列（最新 tag：`v2.0-rc.4`）。
 
 本项目以 GPLv3 许可证发布，详见 [LICENSE](./LICENSE)。
 
@@ -54,7 +54,6 @@ dart tool/gen_template_registry.dart --profile release_full
 | `scraper` | 模板 `scraper` | 所见即所得爬虫 |
 | `dsh` | 模板 `dsh` | DeepSeek Harness |
 | `marketplace` | 模块（dart 渲染） | 插件市场——浏览/启停/卸载 |
-| `pdf_translate` | 模块（JSON pages） | PDF 翻译（DeepSeek API，7 语言互译） |
 | `data-dashboard` | 模块（dart 渲染） | 数据中枢——数据源状态总览 |
 | `python-runner` | Agent 工具 | Python 运行器 |
 | `settings` | 模块（dart 渲染） | 设置——API Key/模型/主题 |

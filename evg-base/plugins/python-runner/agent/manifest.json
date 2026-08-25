@@ -1,6 +1,6 @@
 {
   "name": "python_runner",
-  "description": "Python 3.10 解释器 + pip 包管理。三种模式：run（执行代码）、pip（install/uninstall/list/show/freeze）、sys（系统信息）。已安装第三方包：requests, Pillow, PyInstaller, pytesseract, pdf2image 等。",
+  "description": "Python 3.10 解释器 + pip 包管理。三种模式：run（执行代码）、pip（install/uninstall/list/show/freeze）、sys（系统信息）。已安装第三方包（以嵌入式 Python 环境 requirements.txt 为准）：requests, Pillow, pytesseract, pdf2image, pymupdf, pycryptodome 等。",
   "schema": {
     "type": "object",
     "properties": {

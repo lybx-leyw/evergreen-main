@@ -64,9 +64,6 @@ import 'slot/slot_widgets.dart';
 // ═══════ marketplace/ ═══════
 import 'components/marketplace/marketplace_slot.dart';
 
-// ═══════ translate/ ═══════
-import 'components/translate/translate_slot.dart';
-
 // ═══════ placeholder/ ═══════
 import 'components/placeholder/unknown_slot.dart';
 
@@ -190,11 +187,6 @@ void initV4ModleRegistrations() {
       slotKey: ctx.slotKey, pageEventBus: ctx.pageEventBus));
   SlotRegistry.register('plugin-designer', (ctx) => PluginDesignerSlot(
       slotKey: ctx.slotKey, moduleId: ctx.moduleDescriptor.id));
-  SlotRegistry.register('pdf-translate', (ctx) => TranslateSlot(
-      slotKey: ctx.slotKey, config: ctx.config,
-      moduleId: ctx.moduleDescriptor.id,
-      moduleDescriptor: ctx.moduleDescriptor,
-      pageEventBus: ctx.pageEventBus));
 
   // ═══════ marketplace ═══════
   SlotRegistry.register('marketplace', (ctx) => MarketplaceSlot(
@@ -283,9 +275,6 @@ void _registerCapabilities() {
       tags: ['code', 'diff'], minWidth: 300, minHeight: 200));
   ComponentCapability.register(const ComponentCapability(type: 'scanner', displayName: '扫码器', category: '文档与媒体',
       description: '二维码/条码扫描。', tags: ['utility', 'scan'], minWidth: 200, minHeight: 200));
-  ComponentCapability.register(const ComponentCapability(type: 'pdf-translate', displayName: 'PDF 翻译', category: '文档与媒体',
-      description: 'PDF 文档翻译工作区（Dock 布局）。',
-      tags: ['translate', 'pdf'], minWidth: 400, minHeight: 300));
 
   // ── 创作工具 ──
   ComponentCapability.register(const ComponentCapability(type: 'spreadsheet', displayName: '电子表格', category: '创作工具',

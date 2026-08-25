@@ -1,6 +1,6 @@
 /// 内置主题完整性测试——扁平 8 色模型。
 ///
-/// 覆盖：3 个内置主题齐全 / 8 个必填语义色齐全 / hex 合法 /
+/// 覆盖：2 个内置主题（dark / light）齐全 / 8 个必填语义色齐全 / hex 合法 /
 /// 可经 ThemeDescriptor.fromJson 往返 / registerBuiltinThemes 幂等注册。
 library;
 
@@ -22,10 +22,10 @@ const _requiredKeys = <String>[
 
 void main() {
   group('builtinThemes', () {
-    test('包含 3 个内置主题：dark / light / evergreen', () {
-      expect(builtinThemes.length, 3);
+    test('包含 2 个内置主题：dark / light', () {
+      expect(builtinThemes.length, 2);
       final ids = builtinThemes.map((t) => t.id).toSet();
-      expect(ids, containsAll(['dark', 'light', 'evergreen']));
+      expect(ids, containsAll(['dark', 'light']));
     });
 
     test('每个主题 8 个必填语义色齐全且无多余键', () {
@@ -58,20 +58,19 @@ void main() {
   });
 
   group('registerBuiltinThemes', () {
-    test('注册 3 个内置主题到 store', () {
+    test('注册 2 个内置主题到 store', () {
       final store = ThemeStore();
       registerBuiltinThemes(store);
-      expect(store.all.length, 3);
+      expect(store.all.length, 2);
       expect(store.findById('dark'), isNotNull);
       expect(store.findById('light'), isNotNull);
-      expect(store.findById('evergreen'), isNotNull);
     });
 
     test('幂等：重复注册不增加数量（同 id 覆盖）', () {
       final store = ThemeStore();
       registerBuiltinThemes(store);
       registerBuiltinThemes(store);
-      expect(store.all.length, 3);
+      expect(store.all.length, 2);
     });
 
     test('默认激活：dark 在未设置时为首选（activeOrFirst）', () {
