@@ -2,8 +2,10 @@
 library;
 
 
+import 'package:dio/dio.dart';
 import 'package:test/test.dart';
 
+import '../message.dart';
 import '../provider.dart';
 import '../event.dart';
 import '../tools/mock_event_stream.dart';
@@ -257,4 +259,172 @@ void main() {
           reason: 'txt should not be detected as image or pdf');
     });
   });
+
+  // ═══════ DeepSeekProvider chat() 协议路由（Task 五 A5） ═══════
+  //
+  // 通过覆写 dio stub 的 post() 捕获请求体，验证 thinking / reasoning_effort
+  // 按「模型支持矩阵」路由：
+  //   - deepseek 系列 → 顶层 thinking:{type}，不嵌套 reasoning_effort；
+  //   - OpenAI o 系列（o1/o3/o4 或 gpt-* 且思考开启）→ 顶层 reasoning_effort；
+  //   - 其他模型 → 不发送任何 thinking/effort。
+
+  group('DeepSeekProvider chat() 协议路由', () {
+    Future<Map<String, dynamic>> captureBody({
+      required String model,
+      String thinking = 'enabled',
+      String effort = '',
+      List<Map<String, dynamic>> tools = const [],
+    }) async {
+      final dio = _CapturingDio();
+      final provider = DeepSeekProvider(
+        dio: dio,
+        apiKey: 'test-key',
+        model: model,
+        thinking: thinking,
+      );
+      provider.setReasoningEffort(effort);
+      await provider
+          .chat(messages: [Message.user('hi')], tools: tools)
+          .toList();
+      expect(dio.lastBody, isNotNull,
+          reason: 'chat() 应已发起 POST 并捕获请求体（模型=$model）');
+      return dio.lastBody!;
+    }
+
+    test('deepseek 模型: 顶层 thinking:{type:enabled}，不嵌套 reasoning_effort', () async {
+      final body = await captureBody(model: 'deepseek-v4-flash', effort: 'high');
+      expect(body['thinking'], {'type': 'enabled'});
+      expect(body.containsKey('reasoning_effort'), isFalse);
+    });
+
+    test('deepseek 系列全前缀生效（deepseek-chat / deepseek-reasoner / deepseek-v4-pro）', () async {
+      for (final model in ['deepseek-chat', 'deepseek-reasoner', 'deepseek-v4-pro']) {
+        final body = await captureBody(model: model);
+        expect(body['thinking'], {'type': 'enabled'}, reason: model);
+        expect(body.containsKey('reasoning_effort'), isFalse, reason: model);
+      }
+    });
+
+    test('deepseek + thinking=disabled → thinking:{type:disabled}', () async {
+      final body = await captureBody(model: 'deepseek-v4-flash', thinking: 'disabled');
+      expect(body['thinking'], {'type': 'disabled'});
+      expect(body.containsKey('reasoning_effort'), isFalse);
+    });
+
+    test('deepseek + off → thinking:{type:disabled}', () async {
+      final body = await captureBody(model: 'deepseek-v4-flash', effort: 'off');
+      expect(body['thinking'], {'type': 'disabled'});
+      expect(body.containsKey('reasoning_effort'), isFalse);
+    });
+
+    test('deepseek 模型不发送 reasoning_effort（即使 max）', () async {
+      final body = await captureBody(model: 'deepseek-v4-flash', effort: 'max');
+      expect(body['thinking'], {'type': 'enabled'});
+      expect(body.containsKey('reasoning_effort'), isFalse);
+      // 且 thinking 对象内也无嵌套
+      expect((body['thinking'] as Map).containsKey('reasoning_effort'), isFalse);
+    });
+
+    test('o1 模型 + low → 顶层 reasoning_effort:low，无 thinking 对象', () async {
+      final body = await captureBody(model: 'o1-preview', effort: 'low');
+      expect(body['reasoning_effort'], 'low');
+      expect(body.containsKey('thinking'), isFalse);
+    });
+
+    test('o3/o4 模型名命中 o 系列路由', () async {
+      for (final model in ['o3-mini', 'o4-mini']) {
+        final body = await captureBody(model: model, effort: 'medium');
+        expect(body['reasoning_effort'], 'medium', reason: model);
+        expect(body.containsKey('thinking'), isFalse, reason: model);
+      }
+    });
+
+    test('max → 映射为 reasoning_effort:high', () async {
+      final body = await captureBody(model: 'o1-preview', effort: 'max');
+      expect(body['reasoning_effort'], 'high');
+      expect(body.containsKey('thinking'), isFalse);
+    });
+
+    test('o1 + off → 不发送 reasoning_effort', () async {
+      final body = await captureBody(model: 'o1-preview', effort: 'off');
+      expect(body.containsKey('reasoning_effort'), isFalse);
+      expect(body.containsKey('thinking'), isFalse);
+    });
+
+    test('o1 + 空 effort（缺省）→ 不发送 reasoning_effort', () async {
+      final body = await captureBody(model: 'o1-preview');
+      expect(body.containsKey('reasoning_effort'), isFalse);
+      expect(body.containsKey('thinking'), isFalse);
+    });
+
+    test('o1 + 非法 effort → 不发送 reasoning_effort（未知值静默忽略）', () async {
+      final body = await captureBody(model: 'o1-preview', effort: 'ultra');
+      expect(body.containsKey('reasoning_effort'), isFalse);
+    });
+
+    test('gpt-* + thinking 开启 → 顶层 reasoning_effort', () async {
+      final body = await captureBody(model: 'gpt-4o', thinking: 'enabled', effort: 'high');
+      expect(body['reasoning_effort'], 'high');
+      expect(body.containsKey('thinking'), isFalse);
+    });
+
+    test('gpt-* + thinking 关闭 → 不发送任何 thinking/effort', () async {
+      final body = await captureBody(model: 'gpt-4o', thinking: 'disabled', effort: 'high');
+      expect(body.containsKey('thinking'), isFalse);
+      expect(body.containsKey('reasoning_effort'), isFalse);
+    });
+
+    test('其他 OpenAI 兼容模型 → 不发送任何 thinking/effort', () async {
+      // 注：gpt-* 模型在 thinking 开启时属 o 系列路由（见上），此处只测非 gpt/deepseek 模型。
+      for (final model in ['moonshot-v1-8k', 'qwen-max', 'claude-3-5-sonnet']) {
+        final body = await captureBody(model: model, effort: 'high');
+        expect(body.containsKey('thinking'), isFalse, reason: model);
+        expect(body.containsKey('reasoning_effort'), isFalse, reason: model);
+      }
+    });
+
+    test('tools 附加不受路由影响（o 系列 + tools）', () async {
+      final body = await captureBody(
+        model: 'o1-preview',
+        effort: 'high',
+        tools: [
+          {
+            'type': 'function',
+            'function': {
+              'name': 'web_search',
+              'description': 'search',
+              'parameters': <String, dynamic>{},
+            },
+          },
+        ],
+      );
+      expect(body['reasoning_effort'], 'high');
+      expect(body['tools'], isA<List>());
+      expect(body['tool_choice'], 'auto');
+      expect((body['tools'] as List).length, 1);
+    });
+  });
+}
+
+/// 捕获请求体的 Dio 替身（覆写 dio stub 的 post，返回空 SSE 流）。
+class _CapturingDio extends Dio {
+  _CapturingDio();
+
+  Map<String, dynamic>? lastBody;
+
+  @override
+  Future<Response> post(String path, {dynamic data, Options? options}) async {
+    lastBody = data as Map<String, dynamic>?;
+    // ResponseType.stream 下 chat() 读取 response.data.stream
+    return Response(
+      statusCode: 200,
+      data: _EmptyStreamBody(Stream<List<int>>.fromIterable(const [])),
+    );
+  }
+}
+
+/// 模拟 Dio ResponseType.stream 的响应体（含 .stream getter）。
+class _EmptyStreamBody {
+  final Stream<List<int>> stream;
+  _EmptyStreamBody(this.stream);
 }

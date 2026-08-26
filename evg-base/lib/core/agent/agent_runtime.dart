@@ -156,6 +156,13 @@ final agentRuntimeProvider = Provider<AgentRuntime>((ref) {
   });
 
   // ── 深度思考档位（主要入口） ──
+  // ⚠️ 主路径接线说明（Task 五 A5 断链①修复）：
+  //   本监听作用于本 provider（agentRuntimeProvider 自建的 DeepSeekProvider 实例）。
+  //   但全局 agentRuntimeProvider 在运行时无消费者（历史并行实现）——
+  //   主 AI 助手实际使用 app_bootstrap._agentProvider，其 thinking/effort
+  //   由 app_bootstrap 从设置读取初始值，运行期由渲染层经 agentProviderProvider
+  //   直接调用 setThinking/setReasoningEffort 同步（见 providers.dart 注释）。
+  //   本监听保留：服务于任何确实消费 agentRuntimeProvider 的路径（如 AgentAssembly 复用）。
   ref.listen<String>(reasoningEffortProvider, (prev, effort) {
     // 同步到旧的 bool provider
     ref.read(deepThinkingEnabledProvider.notifier).state = (effort != 'off');
@@ -207,6 +214,10 @@ final webSearchEnabledProvider = StateProvider<bool>((ref) => false);
 final reasoningEffortProvider = StateProvider<String>((ref) => 'off');
 
 /// 有效的 reasoning_effort 值列表。
+///
+/// 这是 UI 档位语义（off/low/medium/high/max），不是协议枚举：
+/// 发送时由 provider 按模型支持矩阵归一化——OpenAI o 系列仅 low/medium/high，
+/// 'max' 发送时映射为 'high'；DeepSeek 系列不发送该参数（只发 thinking:{type}）。
 const validReasoningEfforts = ['off', 'low', 'medium', 'high', 'max'];
 
 /// 深度思考开关（向后兼容）。

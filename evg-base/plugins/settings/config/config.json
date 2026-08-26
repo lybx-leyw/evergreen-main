@@ -15,6 +15,15 @@
     },
     {"key":"DEEPSEEK_BASE_URL",    "label":"API 地址",          "type":"string", "default":"https://api.deepseek.com/v1", "hint":"自定义 API 代理地址（兼容 OpenAI 格式）"},
     {"key":"DEEPSEEK_THINKING",    "label":"深度思考",           "type":"bool",   "default":"true",  "hint":"启用后 AI 会展示详细推理过程（消耗更多 token）"},
+    {"key":"DEEPSEEK_REASONING_EFFORT", "label":"推理强度",      "type":"option", "default":"off",
+      "options":[
+        {"value":"off",    "label":"关闭"},
+        {"value":"low",    "label":"低"},
+        {"value":"medium", "label":"中"},
+        {"value":"high",   "label":"高"},
+        {"value":"max",    "label":"最强"}
+      ],
+      "hint":"AI 推理深度档位。OpenAI o 系列映射为顶层 reasoning_effort（low/medium/high，max 发送时映射为 high）；DeepSeek 系列不发送该参数（仅 thinking:{type}）；面板调整即时生效，此为初始默认值"},
     {"key":"OUTPUT_STYLE",         "label":"输出风格",           "type":"option", "default":"explanatory",
       "options":[
         {"value":"explanatory","label":"解释型"},

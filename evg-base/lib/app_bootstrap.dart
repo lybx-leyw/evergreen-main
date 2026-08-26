@@ -558,6 +558,22 @@ class AppBootstrap {
     toolRegistry = registry;
     // provider 暂存供 controller 步骤使用
     _agentProvider = provider;
+
+    // ── 接线：主 AI 助手初始 thinking/effort（Task 五 A5，断链①③修复）──
+    // DEEPSEEK_THINKING 设置项此前无人读取（断链③）；缺省 true = 现状
+    // thinking enabled，行为不变。
+    final thinkingSetting = getSetting(p, 'DEEPSEEK_THINKING');
+    final thinkingEnabled = thinkingSetting.toLowerCase() != 'false';
+    provider.setThinking(thinkingEnabled ? 'enabled' : 'disabled');
+    // DEEPSEEK_REASONING_EFFORT（新增可选设置，Task 五 A5）：读取失败/非法值
+    // 回退 'off' = 现状不发 effort，行为不变。off/low/medium/high/max 为 UI 档位语义，
+    // 发送时由 provider 按模型支持矩阵归一化（max → high）。
+    const validEfforts = ['off', 'low', 'medium', 'high', 'max'];
+    final effortSetting = getSetting(p, 'DEEPSEEK_REASONING_EFFORT');
+    final effort = validEfforts.contains(effortSetting) ? effortSetting : 'off';
+    provider.setReasoningEffort(effort);
+    Log().info('[BOOT] Agent Provider 初始: thinking=${thinkingEnabled ? 'enabled' : 'disabled'}'
+        ' effort=$effort model=$model');
     return _ok();
   }
 
@@ -850,6 +866,12 @@ class AppBootstrap {
 
           // Agent Controller——Chat 视图通过此 provider 发送消息
           agentControllerProvider.overrideWith((ref) => controller!),
+
+          // Agent Provider——主 AI 助手实际使用的 DeepSeekProvider。
+          // AI 面板调整 effort/thinking 时，渲染层经此 provider 直接调用
+          // setThinking/setReasoningEffort，避免 effort 落入无人消费的
+          // agentRuntimeProvider（Task 五 A5 断链①修复）。
+          agentProviderProvider.overrideWith((ref) => _agentProvider!),
 
           // Agent 工具注册表——供工具管理面板读取/控制
           toolRegistryProvider.overrideWith((ref) => toolRegistry!),

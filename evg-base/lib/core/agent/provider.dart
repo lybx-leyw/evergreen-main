@@ -228,9 +228,33 @@ class DeepSeekProvider implements Provider {
     _thinking = thinking;
   }
 
-  /// 设置推理深度（'low' / 'medium' / 'high' / 'max' / '' 默认）。
+  /// 设置推理深度（'off' / 'low' / 'medium' / 'high' / 'max' / '' 默认）。
+  ///
   /// 由 [reasoningEffortProvider] 驱动，参见 agent_runtime.dart。
+  /// 发送前经 [_normalizeReasoningEffort] 归一化：
+  ///   - 'off' / '' / 非法值 → 不发送；
+  ///   - 'max' 无官方依据 → 发送时映射为 'high'（配合系统提示词强化深度）；
+  ///   - 'low' / 'medium' / 'high' → 原样。
   void setReasoningEffort(String effort) => _reasoningEffort = effort;
+
+  /// 归一化 [reasoningEffortProvider] 档位为协议发送值。
+  ///
+  /// OpenAI 标准枚举仅 low/medium/high（无 off/max）：
+  ///   - 'off' / '' / 非法值 → ''（不发送，行为 = 现状缺省不发）；
+  ///   - 'max' → 'high'（无官方依据，映射到最高合法档位）；
+  ///   - 'low' / 'medium' / 'high' → 原样。
+  String _normalizeReasoningEffort(String effort) {
+    switch (effort) {
+      case 'low':
+      case 'medium':
+      case 'high':
+        return effort;
+      case 'max':
+        return 'high';
+      default:
+        return '';
+    }
+  }
 
   @override
   Stream<ProviderEvent> chat({
@@ -249,20 +273,39 @@ class DeepSeekProvider implements Provider {
       'max_tokens': 16384,
     };
 
-    if (_model.startsWith('deepseek-v4') || _model == 'deepseek-reasoner') {
-      // API 文档：thinking 是顶层参数，type="enabled"/"disabled"
-      if (_thinking == 'disabled') {
-        body['thinking'] = <String, dynamic>{'type': 'disabled'};
-        print('[Provider:D] thinking disabled — thinking.type=disabled');
-      } else {
-        final thinkingObj = <String, dynamic>{'type': 'enabled'};
-        if (_reasoningEffort.isNotEmpty) {
-          thinkingObj['reasoning_effort'] = _reasoningEffort;
-        }
-        body['thinking'] = thinkingObj;
+    // ── thinking / reasoning_effort 路由（模型支持矩阵，Task 五 A5 协议修复）──
+    //
+    // DeepSeek 系列（deepseek-v4*/deepseek-chat/deepseek-reasoner 等）：
+    //   只发顶层 thinking:{type:'enabled'|'disabled'}（DeepSeek V3.2+ 官方格式）；
+    //   不在 thinking 内嵌套 reasoning_effort（DeepSeek 未官方支持，发了也是被忽略的假效果）。
+    // OpenAI o 系列（模型名含 o1/o3/o4，或 gpt-* 且思考开启）：
+    //   发顶层 reasoning_effort（OpenAI 标准，low/medium/high），不发 thinking 对象。
+    // 其他 OpenAI 兼容模型：不发送任何 thinking/effort 参数（未知参数可能被某些端点 400）。
+    final isDeepSeekModel = _model.startsWith('deepseek');
+    final isOpenAIReasoningModel = _model.contains('o1') ||
+        _model.contains('o3') ||
+        _model.contains('o4') ||
+        (_model.startsWith('gpt-') && _thinking != 'disabled');
+
+    if (isDeepSeekModel) {
+      // API 文档：thinking 是顶层参数，type="enabled"/"disabled"（V3.2+ 官方格式）。
+      // 档位映射（Task 五 A5）：effort 为 'off' → thinking disabled；
+      // 其余档位不影响 thinking（DeepSeek 不发送 reasoning_effort）。
+      final thinkingDisabled = _thinking == 'disabled' || _reasoningEffort == 'off';
+      body['thinking'] = <String, dynamic>{
+        'type': thinkingDisabled ? 'disabled' : 'enabled',
+      };
+    } else if (isOpenAIReasoningModel) {
+      // OpenAI 标准：reasoning_effort 是顶层参数，枚举 low/medium/high。
+      // off/空/非法值 → 不发送；max → 映射为 high（见 [_normalizeReasoningEffort]）。
+      final effort = _normalizeReasoningEffort(_reasoningEffort);
+      if (effort.isNotEmpty) {
+        body['reasoning_effort'] = effort;
       }
-      print('[Provider:D] thinking=$_thinking reasoning_effort=$_reasoningEffort');
     }
+    print('[Provider:D] thinking=$_thinking reasoning_effort=$_reasoningEffort'
+        ' route=${isDeepSeekModel ? 'deepseek' : (isOpenAIReasoningModel ? 'openai-reasoning' : 'none')}'
+        ' body=${body.containsKey('thinking') ? 'thinking:${body['thinking']}' : (body.containsKey('reasoning_effort') ? 'reasoning_effort:${body['reasoning_effort']}' : 'none')}');
 
     if (tools.isNotEmpty) {
       body['tools'] = tools;

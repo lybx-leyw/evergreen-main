@@ -9,6 +9,7 @@ import 'package:evergreen_base/core/agent/controller/controller.dart' as agent;
 import 'package:evergreen_base/core/agent/controller/controller.dart' show ControllerState;
 import 'package:evergreen_base/core/agent/event.dart' as agent;
 import 'package:evergreen_base/core/agent/memory/file_memory_store.dart';
+import 'package:evergreen_base/core/agent/provider.dart' as agent;
 import 'package:evergreen_base/core/agent/skill/skill.dart';
 import 'package:evergreen_base/core/agent/tool.dart' show Registry;
 import 'package:evergreen_base/core/config/config_http_server.dart' show ConfigHttpServer;
@@ -91,6 +92,21 @@ final agentControllerProvider = Provider<agent.Controller>((ref) {
 final agentEventStreamProvider = Provider<Stream<agent.AgentEvent>>((ref) {
   throw UnimplementedError(
     'agentEventStreamProvider 未注入——请在 main() 的 ProviderScope.overrides 中提供事件流。',
+  );
+});
+
+/// 主 AI 助手实际使用的 DeepSeekProvider——由 app_bootstrap 注入。
+///
+/// 主全屏 AI 面板的 effort/thinking 调整，写入 `reasoningEffortProvider`
+/// （状态源）后必须再调用本 provider 的 `setThinking` / `setReasoningEffort`，
+/// 才能真实作用于请求参数（Task 五 A5 断链①修复）。
+///
+/// 注意：不要依赖 core/agent/agent_runtime.dart 的 `reasoningEffortProvider`
+/// 监听——它只服务于 `agentRuntimeProvider` 自建 provider 实例（全局单例
+/// 运行时无人消费，属于历史并行实现）；主路径的接线点在 app_bootstrap。
+final agentProviderProvider = Provider<agent.DeepSeekProvider>((ref) {
+  throw UnimplementedError(
+    'agentProviderProvider 未注入——请在 main() 的 ProviderScope.overrides 中提供主 DeepSeekProvider 实例。',
   );
 });
 
