@@ -42,6 +42,7 @@ void main() {
   testWidgets('窄轨壳层：ModeRail 收到有界宽度，首帧无 viewport 无界宽度异常',
       (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    final prefs = await SharedPreferences.getInstance();
 
     final registry = ModuleRegistry();
     registry.registerAll([
@@ -60,6 +61,65 @@ void main() {
         overrides: [
           moduleRegistryProvider.overrideWith((ref) => registry),
           pluginsDirProvider.overrideWith((ref) => 'test-plugins'),
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          // 开发者模式：窄轨（ModeRail）仍保留，用于验证「窄轨宽度约束」。
+          appModeProvider.overrideWith((ref) => AppMode.developer),
+        ],
+        child: MaterialApp.router(
+          routerConfig: GoRouter(
+            initialLocation: '/dev-hub',
+            routes: [
+              ShellRoute(
+                builder: (context, state, child) => AppShell(child: child),
+                routes: [
+                  GoRoute(
+                    path: '/dev-hub',
+                    builder: (c, s) => const Scaffold(body: SizedBox()),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    FlutterError.onError = oldHandler;
+
+    // 开发者模式：ModeRail 正常挂载即证明布局未中断。
+    expect(find.byType(ModeRail), findsOneWidget);
+    // 无框架错误（尤其无 "Vertical viewport was given unbounded width"）。
+    expect(
+      errors.where((e) => e.toString().contains('unbounded')),
+      isEmpty,
+      reason: '窄轨 Row 未约束 ModeRail 宽度会触发 viewport 无界宽度异常',
+    );
+
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('AI 视图：窄轨整体隐藏（按钮已收进 AI 助手抽屉）', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    final prefs = await SharedPreferences.getInstance();
+
+    final registry = ModuleRegistry();
+    registry.registerAll([
+      _mod('ai-assistant', 'AI 助手', '/ai-assistant'),
+    ]);
+    registry.seal();
+
+    final errors = <FlutterErrorDetails>[];
+    final oldHandler = FlutterError.onError;
+    FlutterError.onError = (details) => errors.add(details);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          moduleRegistryProvider.overrideWith((ref) => registry),
+          pluginsDirProvider.overrideWith((ref) => 'test-plugins'),
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          appModeProvider.overrideWith((ref) => AppMode.ai),
         ],
         child: MaterialApp.router(
           routerConfig: GoRouter(
@@ -83,13 +143,11 @@ void main() {
 
     FlutterError.onError = oldHandler;
 
-    // ModeRail 正常挂载即证明布局未中断。
-    expect(find.byType(ModeRail), findsOneWidget);
-    // 无框架错误（尤其无 "Vertical viewport was given unbounded width"）。
+    // AI 视图不再渲染窄轨（ModeRail）。
+    expect(find.byType(ModeRail), findsNothing);
     expect(
       errors.where((e) => e.toString().contains('unbounded')),
       isEmpty,
-      reason: '窄轨 Row 未约束 ModeRail 宽度会触发 viewport 无界宽度异常',
     );
 
     debugDefaultTargetPlatformOverride = null;

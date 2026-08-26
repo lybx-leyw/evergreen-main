@@ -39,6 +39,7 @@ import 'package:evergreen_base/core/agent/session_manager.dart';
 import 'package:evergreen_base/renderer/components/shared/widgets/models.dart';
 import 'package:evergreen_base/renderer/components/shared/widgets/mindmap_widget.dart';
 import 'package:evergreen_base/renderer/components/shared/widgets/workspace_drawer.dart';
+import 'package:evergreen_base/renderer/components/shared/widgets/system_drawer_section.dart';
 
 import 'package:evergreen_base/renderer/page/file_viewer.dart';
 import 'package:evergreen_base/renderer/page/global_memory_view.dart';
@@ -1167,10 +1168,10 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
       decoration: BoxDecoration(
-        color: isDark ? Colors.grey.shade900 : Colors.grey.shade100,
+        color: theme.colorScheme.surfaceContainerLowest,
         border: Border(
           bottom: BorderSide(
-            color: isDark ? Colors.grey.shade800 : Colors.grey.shade300,
+            color: theme.colorScheme.outlineVariant,
             width: 0.5,
           ),
         ),
@@ -1273,7 +1274,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
               children: [
                 const SizedBox(height: 8),
                 Container(width: 40, height: 4,
-                  decoration: BoxDecoration(color: Colors.grey.shade400, borderRadius: BorderRadius.circular(2)),
+                  decoration: BoxDecoration(color: theme.colorScheme.outlineVariant, borderRadius: BorderRadius.circular(2)),
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(20, 12, 8, 8),
@@ -1295,7 +1296,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                     loading: () => const Center(child: CircularProgressIndicator(strokeWidth: 2)),
                     error: (e, _) => Center(child: Text('加载失败: $e')),
                     data: (sessions) {
-                      if (sessions.isEmpty) return const Center(child: Text('暂无对话', style: TextStyle(color: Colors.grey)));
+                      if (sessions.isEmpty) return Center(child: Text('暂无对话', style: TextStyle(color: theme.colorScheme.onSurfaceVariant)));
                       return ListView.builder(
                         controller: scrollCtrl,
                         itemCount: sessions.length,
@@ -1363,7 +1364,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
               children: [
                 // 拖动条
                 Container(width: 40, height: 4,
-                  decoration: BoxDecoration(color: Colors.grey.shade400, borderRadius: BorderRadius.circular(2)),
+                  decoration: BoxDecoration(color: theme.colorScheme.outlineVariant, borderRadius: BorderRadius.circular(2)),
                 ),
                 const SizedBox(height: 16),
                 Icon(Icons.chat_bubble_outline, size: 32, color: theme.colorScheme.primary),
@@ -1519,7 +1520,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      color: isDark ? Colors.blueGrey.shade900 : Colors.blue.shade50,
+      color: theme.colorScheme.primaryContainer,
       child: Row(
         children: [
           const SizedBox(
@@ -1532,13 +1533,13 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
               _currentTool.isNotEmpty ? _statusText : _statusText,
               style: TextStyle(
                 fontSize: 11,
-                color: isDark ? Colors.blue.shade200 : Colors.blue.shade700,
+                color: theme.colorScheme.onPrimaryContainer,
               ),
             ),
           ),
           if (_elapsedSeconds > 0)
             Text('${_elapsedSeconds}s',
-                style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                style: TextStyle(fontSize: 10, color: theme.colorScheme.onPrimaryContainer)),
         ],
       ),
     );
@@ -1552,7 +1553,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
         color: theme.colorScheme.surfaceContainerLow,
         border: Border(
           top: BorderSide(
-            color: isDark ? Colors.grey.shade800 : Colors.grey.shade300,
+            color: theme.colorScheme.outlineVariant,
             width: 0.5,
           ),
         ),
@@ -1562,8 +1563,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
           IconButton(
             icon: Icon(Icons.handyman_outlined,
                 size: 16,
-                color:
-                    isDark ? Colors.grey.shade400 : Colors.grey.shade600),
+                color: theme.colorScheme.onSurfaceVariant),
             tooltip: '工具选项',
             onPressed: () => _showToolsPopup(context),
             visualDensity: VisualDensity.compact,
@@ -1574,11 +1574,11 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
               enabled: !_isRunning,
               style: TextStyle(
                   fontSize: 12,
-                  color: isDark ? Colors.white : Colors.black87),
+                  color: theme.colorScheme.onSurface),
               decoration: InputDecoration(
                 hintText: _isRunning ? '回复中...' : '输入消息...',
                 hintStyle:
-                    const TextStyle(fontSize: 12, color: Colors.grey),
+                    TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant),
                 contentPadding: const EdgeInsets.symmetric(
                     horizontal: 10, vertical: 6),
                 border: OutlineInputBorder(
@@ -1586,8 +1586,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                   borderSide: BorderSide.none,
                 ),
                 filled: true,
-                fillColor:
-                    isDark ? Colors.grey.shade800 : Colors.grey.shade100,
+                fillColor: theme.colorScheme.surfaceContainerHighest,
               ),
               maxLines: 2,
               minLines: 1,
@@ -1600,8 +1599,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
             icon: Icon(
               _isRunning ? Icons.stop : Icons.send,
               size: 18,
-              color:
-                  isDark ? Colors.blue.shade300 : Colors.blue.shade600,
+              color: theme.colorScheme.primary,
             ),
             onPressed: _isRunning
                 ? () => _embeddedCtrl?.cancel()
@@ -1636,7 +1634,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                 const SizedBox(height: 8),
                 Text(_embeddedError,
                     style:
-                        const TextStyle(fontSize: 12, color: Colors.grey)),
+                        TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant)),
               ],
             ),
           ),
@@ -1663,6 +1661,9 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     return Scaffold(
       key: _scaffoldKey,
       appBar: AppBar(
+        backgroundColor: theme.colorScheme.surfaceContainerLowest,
+        surfaceTintColor: Colors.transparent,
+        scrolledUnderElevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.menu),
           tooltip: '会话历史',
@@ -1759,6 +1760,9 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     return Scaffold(
       key: _scaffoldKey,
       appBar: AppBar(
+        backgroundColor: theme.colorScheme.surfaceContainerLowest,
+        surfaceTintColor: Colors.transparent,
+        scrolledUnderElevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.menu),
           tooltip: '会话历史',
@@ -2003,6 +2007,8 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
               textAlign: TextAlign.center,
             ),
           ),
+          // 系统功能分区：原 AI 视图窄轨（ModeRail）按钮收进此抽屉。
+          const SystemDrawerSection(),
         ],
       ),
     );
@@ -2365,7 +2371,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red.shade600,
-              foregroundColor: Colors.white,
+              foregroundColor: Theme.of(dialogCtx).colorScheme.onError,
             ),
             child: const Text('仍然禁用'),
           ),
@@ -2437,7 +2443,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
               horizontal: compact ? 10 : 12,
               vertical: compact ? 4 : 6),
           decoration: BoxDecoration(
-            color: Colors.blue.withValues(alpha: opacity * 0.15),
+            color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: opacity * 0.15),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
@@ -2453,8 +2459,8 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                   _currentTool.isNotEmpty
                       ? '$_statusText (${_elapsedSeconds}s)'
                       : '$_statusText (${_elapsedSeconds}s)',
-                  style: const TextStyle(
-                      fontSize: 12, color: Colors.blue),
+                  style: TextStyle(
+                      fontSize: 12, color: Theme.of(context).colorScheme.primary),
                 ),
               ),
             ],
@@ -2664,20 +2670,20 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.auto_awesome, size: 64, color: Colors.grey[400]),
+          Icon(Icons.auto_awesome, size: 64, color: Theme.of(context).colorScheme.onSurfaceVariant),
           const SizedBox(height: 16),
           Text(
             '我是你的 AI 教学助手',
             style: Theme.of(context)
                 .textTheme
                 .titleMedium
-                ?.copyWith(color: Colors.grey[600]),
+                ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
           ),
           const SizedBox(height: 8),
           Text(
             '我可以帮你查课程、成绩、待办、考试...\n也可以陪你讨论学习问题',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey[500]),
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
           ),
           const SizedBox(height: 24),
           Wrap(
@@ -2710,16 +2716,24 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
   Widget _buildHistoryDrawer(BuildContext context, ThemeData theme) {
     return Drawer(
       width: 300,
-      child: _ConversationHistoryPanel(
-        moduleId: widget.descriptor.id,
-        onSessionTap: () => _scaffoldKey.currentState?.closeDrawer(),
-        onGlobalMemory: () {
-          _scaffoldKey.currentState?.closeDrawer();
-          Navigator.of(context).push(
-            MaterialPageRoute(
-                builder: (_) => const GlobalMemoryView()),
-          );
-        },
+      child: Column(
+        children: [
+          Expanded(
+            child: _ConversationHistoryPanel(
+              moduleId: widget.descriptor.id,
+              onSessionTap: () => _scaffoldKey.currentState?.closeDrawer(),
+              onGlobalMemory: () {
+                _scaffoldKey.currentState?.closeDrawer();
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                      builder: (_) => const GlobalMemoryView()),
+                );
+              },
+            ),
+          ),
+          // 系统功能分区：原 AI 视图窄轨（ModeRail）按钮收进此抽屉。
+          const SystemDrawerSection(),
+        ],
       ),
     );
   }
@@ -2876,7 +2890,7 @@ class _MessageBubbleState extends State<_MessageBubble> {
                     Text('思考中...',
                         style: TextStyle(
                             fontSize: 13 * s,
-                            color: Colors.grey)),
+                            color: Theme.of(context).colorScheme.onSurfaceVariant)),
                   ],
                 ),
               ),
@@ -2945,7 +2959,9 @@ class _MessageBubbleState extends State<_MessageBubble> {
                           children: [
                             Icon(Icons.insert_drive_file,
                                 size: 16,
-                                color: Colors.white
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onPrimary
                                     .withValues(alpha: 0.9)),
                             const SizedBox(width: 4),
                             Flexible(
@@ -2953,7 +2969,9 @@ class _MessageBubbleState extends State<_MessageBubble> {
                                 attachedFile!,
                                 style: TextStyle(
                                     fontSize: 12,
-                                    color: Colors.white
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onPrimary
                                         .withValues(alpha: 0.9)),
                               ),
                             ),
@@ -2969,7 +2987,7 @@ class _MessageBubbleState extends State<_MessageBubble> {
                               mainContent,
                               style: TextStyle(
                                   fontSize: 14 * s,
-                                  color: Colors.white),
+                                  color: Theme.of(context).colorScheme.onPrimary),
                             )
                           : MarkdownBody(
                               data: mainContent
@@ -3034,7 +3052,7 @@ class _MessageBubbleState extends State<_MessageBubble> {
                   .primary
                   .withValues(alpha: 0.7),
               child: Icon(Icons.person,
-                  size: 16 * s, color: Colors.white),
+                  size: 16 * s, color: Theme.of(context).colorScheme.onPrimary),
             ),
           ],
         ],
@@ -3719,14 +3737,14 @@ class _EffortSelector extends StatelessWidget {
       avatar: Icon(
         _icons[effort] ?? Icons.auto_awesome,
         size: 16,
-        color: isOn ? Colors.white : color,
+        color: isOn ? Theme.of(context).colorScheme.onPrimary : color,
       ),
       label: Text(label,
           style: TextStyle(
-              fontSize: 12, color: isOn ? Colors.white : null)),
+              fontSize: 12, color: isOn ? Theme.of(context).colorScheme.onPrimary : null)),
       selected: isOn,
       selectedColor: _levelColor,
-      checkmarkColor: Colors.white,
+      checkmarkColor: Theme.of(context).colorScheme.onPrimary,
       showCheckmark: false,
       onSelected: (_) => _showMenu(context),
       visualDensity: VisualDensity.compact,
@@ -3741,6 +3759,7 @@ class _EffortSelector extends StatelessWidget {
 
     showMenu<String>(
       context: context,
+      color: Theme.of(context).colorScheme.surfaceContainerLowest,
       position: RelativeRect.fromLTRB(
         offset.dx,
         offset.dy + size.height + 4,
@@ -3819,13 +3838,13 @@ class _ToggleChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return FilterChip(
       avatar:
-          Icon(icon, size: 16, color: value ? Colors.white : activeColor),
+          Icon(icon, size: 16, color: value ? Theme.of(context).colorScheme.onPrimary : activeColor),
       label: Text(label,
           style: TextStyle(
-              fontSize: 12, color: value ? Colors.white : null)),
+              fontSize: 12, color: value ? Theme.of(context).colorScheme.onPrimary : null)),
       selected: value,
       selectedColor: activeColor,
-      checkmarkColor: Colors.white,
+      checkmarkColor: Theme.of(context).colorScheme.onPrimary,
       showCheckmark: false,
       onSelected: onChanged,
       visualDensity: VisualDensity.compact,

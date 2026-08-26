@@ -402,13 +402,13 @@ class _CompositeViewState extends ConsumerState<CompositeView>
     final isDark = theme.brightness == Brightness.dark;
     return Material(
       elevation: 1,
-      shadowColor: Colors.black.withValues(alpha: 0.08),
-      color: theme.colorScheme.surfaceContainerLow,
+      shadowColor: theme.colorScheme.shadow.withValues(alpha: 0.08),
+      color: theme.colorScheme.surfaceContainerLowest,
       child: Container(
         decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(
-              color: isDark ? Colors.grey.shade800 : Colors.grey.shade300,
+              color: theme.colorScheme.outlineVariant,
               width: 0.5,
             ),
           ),
@@ -1220,13 +1220,14 @@ class SlotDispatch extends StatelessWidget {
         }
         return Container(
           margin: margin,
-          child: Card(
+          child:           Card(
             elevation: sp.cardElevation,
-            shadowColor: Colors.black.withValues(alpha: isDark ? 0.12 : 0.04),
+            color: theme.colorScheme.surfaceContainerLowest,
+            shadowColor: theme.colorScheme.shadow.withValues(alpha: isDark ? 0.12 : 0.04),
             surfaceTintColor: theme.colorScheme.surface,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(sp.cardRadius * s),
-              side: BorderSide(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200, width: 1),
+              side: BorderSide(color: theme.colorScheme.outlineVariant, width: 1),
             ),
             clipBehavior: Clip.antiAlias,
             margin: EdgeInsets.zero,
@@ -1244,9 +1245,9 @@ class SlotDispatch extends StatelessWidget {
       padding: EdgeInsets.symmetric(
           horizontal: sp.titlePaddingH * s, vertical: sp.titlePaddingV * s),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest,
+        color: theme.colorScheme.surfaceContainerLowest,
         border: Border(bottom: BorderSide(
-            color: isDark ? Colors.grey.shade800 : Colors.grey.shade200)),
+            color: theme.colorScheme.outlineVariant)),
       ),
       child: Row(children: [
         Flexible(

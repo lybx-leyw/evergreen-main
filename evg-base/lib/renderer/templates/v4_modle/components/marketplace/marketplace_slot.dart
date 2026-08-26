@@ -1,10 +1,14 @@
 /// 插件市场主槽位 —— 本地插件管理视图。
 ///
+/// 入口组织：本槽位（插件中心）是唯一入口，「发现插件」不再单列入口，
+/// 而是在本槽位头部提供一个按钮跳转至独立视图
+/// [DiscoveredPluginsView]（路由 `/discover`）。两者管理层次不同，
+/// 故发现插件作为插件中心内的一个动作而非并列的导航入口。
+///
 /// 功能：
 /// - 扫描 `plugins/` 目录下所有插件清单（module/agent/data 的 manifest.json、config.json、theme.json 等）
-/// - 展示为 LocalPluginCard 列表
+/// - 展示为 LocalPluginCard 列表（本地已装插件管理：启用/停用、侧栏可见性、卸载、排序）
 /// - 支持搜索/过滤
-/// - 启用/停用、侧边栏可见性、卸载操作
 /// - 多种排序策略（持久化到 `_config.sortMode`）：
 ///   1. 分组排序（默认）：按侧边栏分组（manifest `nav.sidebar.section`）分组展示，
 ///      组间/组内可拖拽调整顺序（像文件夹），组头可折叠、可控制「侧边栏是否显示组名」；
@@ -24,6 +28,7 @@ import 'package:evergreen_base/renderer/components/shared/widgets/permission_dia
 import 'package:evergreen_base/renderer/templates/v4_modle/components/document/plugin-designer/services/plugin_state_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:path/path.dart' as p;
 import 'local_plugin_card.dart';
 import 'marketplace_plugin_info.dart';
@@ -411,11 +416,51 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // 顶部：标题 + 「发现插件」跳转按钮
+        _buildTopBar(theme),
         // 顶部搜索栏 + 排序策略 + 计数
         _buildHeader(theme),
-        // 内容区
+        // 内容区（本地插件管理，核心）
         Expanded(child: _buildContent(theme)),
       ],
+    );
+  }
+
+  /// 顶部标题条：左为「插件中心」标题，右为「发现插件」入口按钮。
+  /// 「发现插件」不再单列导航入口，统一从这里跳转（路由 `/discover`）。
+  Widget _buildTopBar(ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        border: Border(
+          bottom: BorderSide(color: theme.dividerColor),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.store, size: 20, color: theme.colorScheme.primary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '插件中心',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: theme.colorScheme.onSurface,
+              ),
+            ),
+          ),
+          FilledButton.tonalIcon(
+            onPressed: () => context.push('/discover'),
+            icon: const Icon(Icons.explore_outlined, size: 16),
+            label: const Text('发现插件'),
+            style: FilledButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -434,8 +479,7 @@ class _MarketplaceSlotState extends ConsumerState<MarketplaceSlot> {
         children: [
           Row(
             children: [
-              Icon(Icons.store, size: 20, color: theme.colorScheme.primary),
-              const SizedBox(width: 8),
+              const SizedBox(width: 28),
               Expanded(
                 child: TextField(
                   decoration: InputDecoration(

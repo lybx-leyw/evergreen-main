@@ -124,6 +124,8 @@ class _SettingsViewState extends ConsumerState<SettingsView> {
         const SizedBox(height: 16),
         _buildThemeSection(theme),
         const SizedBox(height: 16),
+        _buildInterfaceSection(theme),
+        const SizedBox(height: 16),
         for (final e in items) _buildTile(e, theme.colorScheme),
       ],
     );
@@ -175,6 +177,51 @@ class _SettingsViewState extends ConsumerState<SettingsView> {
                       debugPrint('[SettingsView] 主题切换 → $id');
                     },
                   ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 界面 · 反馈浮珠——开关控制全局 🐛 FeedbackFab 的显示/隐藏。
+  ///
+  /// 单一真相源为 [showFeedbackFabProvider]，SharedPreferences 键
+  /// `SHOW_FEEDBACK_FAB`（bool）仅作持久化，改值即实时同步 app_shell。
+  Widget _buildInterfaceSection(ThemeData theme) {
+    final show = ref.watch(showFeedbackFabProvider);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 180,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('界面 · 反馈浮珠',
+                    style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500)),
+                Text('显示右下角 🐛 反馈入口浮珠',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant, fontSize: 11)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Switch(
+              value: show,
+              onChanged: (v) async {
+                final prefs = ref.read(sharedPreferencesProvider);
+                await prefs.setBool('SHOW_FEEDBACK_FAB', v);
+                ref.read(showFeedbackFabProvider.notifier).state = v;
+                setState(() {});
+              },
+            ),
           ),
         ],
       ),

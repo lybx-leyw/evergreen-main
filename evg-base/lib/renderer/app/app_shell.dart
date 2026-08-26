@@ -135,7 +135,7 @@ class _DesktopShellState extends ConsumerState<_DesktopShell>
                   Expanded(child: widget.child),
                 ],
               ),
-              const FeedbackFab(),
+              ref.watch(showFeedbackFabProvider) ? const FeedbackFab() : const SizedBox.shrink(),
             ],
           ),
         );
@@ -147,7 +147,7 @@ class _DesktopShellState extends ConsumerState<_DesktopShell>
 // ═══════ _RailShell（模式 1/2 窄轨壳层） ═══════
 
 /// 模式 1/2（AI 视图 / 开发者模式）窄轨壳层：
-/// ModeRail + 主内容 + 浮动返回按钮（推入页出现）+ FeedbackFab。
+/// ModeRail + 主内容 + FeedbackFab（浮动返回按钮已移除）。
 class _RailShell extends ConsumerWidget {
   final Widget child;
   final AppMode mode;
@@ -156,8 +156,22 @@ class _RailShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 路由变化时重建（GoRouter.of 注册继承依赖），使返回按钮随导航栈显隐。
-    final canPop = GoRouter.of(context).canPop();
+    // AI 视图：窄轨（ModeRail）整体隐藏，内容区占满；
+    // 原窄轨按钮（模式切换/系统按钮）已收进 AI 助手左侧抽屉（SystemDrawerSection）。
+    // 开发者模式：仍保留窄轨（开发者入口逻辑在窄轨内）。
+    if (mode == AppMode.ai) {
+      return Scaffold(
+        body: Stack(
+          children: [
+            child,
+            ref.watch(showFeedbackFabProvider)
+                ? const FeedbackFab()
+                : const SizedBox.shrink(),
+          ],
+        ),
+      );
+    }
+
     return Scaffold(
       body: Stack(
         children: [
@@ -171,37 +185,8 @@ class _RailShell extends ConsumerWidget {
               Expanded(child: child),
             ],
           ),
-          // 推入页返回：全屏推入 显示设置/插件中心/数据中心 后出现，
-          // 返回后 AI 会话在 provider 中后台继续。
-          if (canPop)
-            const Positioned(
-              left: kModeRailWidth + 12,
-              top: 12,
-              child: _FloatingBackButton(),
-            ),
-          const FeedbackFab(),
+          ref.watch(showFeedbackFabProvider) ? const FeedbackFab() : const SizedBox.shrink(),
         ],
-      ),
-    );
-  }
-}
-
-/// 浮动返回按钮——主区左上角，颜色从 colorScheme 派生。
-class _FloatingBackButton extends StatelessWidget {
-  const _FloatingBackButton();
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Material(
-      color: scheme.surfaceContainerHigh.withValues(alpha: 0.92),
-      elevation: 2,
-      shape: const CircleBorder(),
-      child: IconButton(
-        icon: const Icon(Icons.arrow_back),
-        tooltip: '返回',
-        color: scheme.onSurfaceVariant,
-        onPressed: () => context.pop(),
       ),
     );
   }

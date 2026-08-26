@@ -210,12 +210,12 @@ class _ChatViewState extends ConsumerState<ChatView> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.chat_bubble_outline,
-                          size: 48, color: Colors.grey[400]),
+                          size: 48, color: theme.colorScheme.onSurfaceVariant),
                       const SizedBox(height: 8),
                       Text('AI 助手', style: theme.textTheme.titleSmall),
                       const SizedBox(height: 4),
                       Text('输入消息开始对话',
-                          style: TextStyle(color: Colors.grey[500])),
+                          style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
                     ],
                   ),
                 )
@@ -232,14 +232,14 @@ class _ChatViewState extends ConsumerState<ChatView> {
         if (_isRunning)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            color: Colors.blue.withValues(alpha: 0.05),
+            color: theme.colorScheme.primaryContainer.withValues(alpha: 0.15),
             child: Row(
               children: [
                 const SizedBox(width: 10, height: 10,
                     child: CircularProgressIndicator(strokeWidth: 2)),
                 const SizedBox(width: 8),
                 Text(_statusText,
-                    style: const TextStyle(fontSize: 11, color: Colors.blue)),
+                    style: TextStyle(fontSize: 11, color: theme.colorScheme.onPrimaryContainer)),
               ],
             ),
           ),
@@ -336,7 +336,7 @@ class _ChatBubbleState extends State<_ChatBubble> {
                 child: CircularProgressIndicator(strokeWidth: 2)),
             const SizedBox(width: 8),
             const Text('思考中...',
-                style: TextStyle(fontSize: 12, color: Colors.grey)),
+                style: TextStyle(fontSize: 12, color: theme.colorScheme.onSurfaceVariant)),
           ],
         ),
       );
@@ -424,8 +424,8 @@ class _ChatBubbleState extends State<_ChatBubble> {
                   ],
                   isUser
                       ? SelectableText(mainContent,
-                          style: const TextStyle(
-                              fontSize: 13, color: Colors.white))
+                          style: TextStyle(
+                              fontSize: 13, color: Theme.of(context).colorScheme.onPrimary))
                       : MarkdownRenderer(
                           text: mainContent,
                           useCard: false,
@@ -466,17 +466,17 @@ class _MiniEffortSelector extends StatelessWidget {
           color: isOn ? _levelColor.withValues(alpha: 0.12) : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: isOn ? _levelColor.withValues(alpha: 0.4) : Colors.grey.shade400,
+            color: isOn ? _levelColor.withValues(alpha: 0.4) : theme.colorScheme.outlineVariant,
           ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.auto_awesome, size: 14, color: isOn ? _levelColor : Colors.grey),
+            Icon(Icons.auto_awesome, size: 14, color: isOn ? _levelColor : theme.colorScheme.onSurfaceVariant),
             const SizedBox(width: 4),
             Text(
               _labels[effort] ?? '关',
-              style: TextStyle(fontSize: 11, color: isOn ? _levelColor : Colors.grey, fontWeight: FontWeight.w500),
+              style: TextStyle(fontSize: 11, color: isOn ? _levelColor : theme.colorScheme.onSurfaceVariant, fontWeight: FontWeight.w500),
             ),
           ],
         ),
@@ -493,6 +493,7 @@ class _MiniEffortSelector extends StatelessWidget {
     };
     showMenu<String>(
       context: context,
+      color: Theme.of(context).colorScheme.surfaceContainerLowest,
       position: RelativeRect.fromLTRB(
         offset.dx, offset.dy + renderBox.size.height + 4,
         offset.dx + renderBox.size.width, offset.dy + renderBox.size.height + 4,
@@ -541,12 +542,12 @@ class _MiniToggle extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(icon, size: 14,
-                  color: value ? activeColor : Colors.grey),
+                  color: value ? activeColor : theme.colorScheme.onSurfaceVariant),
               const SizedBox(width: 2),
               Text(label,
                   style: TextStyle(
                       fontSize: 10,
-                      color: value ? activeColor : Colors.grey,
+                      color: value ? activeColor : theme.colorScheme.onSurfaceVariant,
                       fontWeight: value ? FontWeight.w600 : FontWeight.normal)),
             ],
           ),

@@ -1,5 +1,5 @@
 /// 模式窄轨 widget 测试——系统按钮、远程同步占位、开发者插件入口、
-/// 扇形模式切换菜单、安卓爬取占位。
+/// 循环模式切换（点击视图图标循环切下一视图，扇形菜单已移除）、安卓爬取占位。
 ///
 /// 不实例化 App 级服务：只注入 moduleRegistryProvider + pluginsDirProvider，
 /// 用最小 GoRouter 验证导航；SharedPreferences 用 mock。
@@ -74,11 +74,12 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
-  testWidgets('AI 视图窄轨：4 系统按钮 + 视图模式，无开发者入口', (tester) async {
+  testWidgets('AI 视图窄轨：4 系统按钮 + 模式切换圆钮，无开发者入口', (tester) async {
     await tester.pumpWidget(_wrap(AppMode.ai, _sealedRegistry()));
     await tester.pump();
 
-    expect(find.byTooltip('视图模式'), findsOneWidget);
+    // 顶部视图图标（点击循环切换视图，扇形菜单已移除）。
+    expect(find.byType(ModeSwitchButton), findsOneWidget);
     expect(find.byTooltip('显示设置'), findsOneWidget);
     expect(find.byTooltip('插件中心'), findsOneWidget);
     expect(find.byTooltip('数据中心'), findsOneWidget);
@@ -126,20 +127,15 @@ void main() {
     expect(container.read(devHubIndexProvider), 0);
   });
 
-  testWidgets('扇形菜单：点击视图图标 → 3 选项；选开发者模式即切换', (tester) async {
+  testWidgets('循环切换：点击视图图标 → AI 视图切到开发者模式并导航', (tester) async {
     await tester.pumpWidget(_wrap(AppMode.ai, _sealedRegistry()));
     await tester.pump();
 
-    await tester.tap(find.byTooltip('视图模式'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('AI 视图'), findsOneWidget);
-    expect(find.text('开发者模式'), findsOneWidget);
-    expect(find.text('插件视图'), findsOneWidget);
-
     final container =
         ProviderScope.containerOf(tester.element(find.byType(ModeRail)));
-    await tester.tap(find.text('开发者模式'));
+
+    // 点击顶部视图图标（循环切换：AI → 开发者 → 插件 → AI …）。
+    await tester.tap(find.byType(ModeSwitchButton));
     await tester.pumpAndSettle();
 
     expect(container.read(appModeProvider), AppMode.developer);

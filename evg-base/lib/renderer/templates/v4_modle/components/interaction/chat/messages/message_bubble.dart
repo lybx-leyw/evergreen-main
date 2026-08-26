@@ -147,7 +147,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                           child: CircleAvatar(
                             radius: 16,
                             backgroundColor: Theme.of(context).colorScheme.primary,
-                            child: const Icon(Icons.eco, size: 16, color: Colors.white),
+                            child: Icon(Icons.eco, size: 16, color: Theme.of(context).colorScheme.onPrimary),
                           ),
                         ),
 
@@ -200,7 +200,7 @@ class _MessageBubbleState extends State<MessageBubble> {
                             radius: 16,
                             backgroundColor:
                                 Theme.of(context).colorScheme.primary.withValues(alpha: 0.7),
-                            child: const Icon(Icons.person, size: 16, color: Colors.white),
+                            child: Icon(Icons.person, size: 16, color: Theme.of(context).colorScheme.onPrimary),
                           ),
                         ),
                     ],
