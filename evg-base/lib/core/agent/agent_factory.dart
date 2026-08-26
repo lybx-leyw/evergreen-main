@@ -39,6 +39,7 @@ import 'package:evergreen_base/core/agent/provider.dart';
 import 'package:evergreen_base/core/agent/tool.dart';
 import 'package:evergreen_base/core/agent/skill/skill.dart';
 import 'package:evergreen_base/core/agent/tools/data_query.dart';
+import 'package:evergreen_base/core/agent/tools/agent_process_tools.dart';
 import 'package:evergreen_base/core/agent/tools/plugin_bridge.dart';
 import 'package:evergreen_base/core/agent/tools/python_runner_tool.dart';
 import 'package:evergreen_base/core/agent/tools/read_file.dart';
@@ -215,6 +216,10 @@ class AgentAssembly {
       WebSearchTool(Dio()),
       WebFetchTool(Dio()),
       DataQueryTool(orchestrator: orchestrator),
+      // 后台常驻进程管理工具（Task 三决策 3.2）——与 app_bootstrap /
+      // agent_runtime 同步注册；共享全局单例 agentProcessRegistry。
+      ListProcessesTool(),
+      KillProcessTool(),
     ]) {
       if (!registry.has(t.name)) registry.register(t);
     }

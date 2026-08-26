@@ -5,14 +5,18 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 
+import 'package:evergreen_base/core/plugin/plugin_runner.dart';
+
 import '../tools/plugin_bridge.dart';
+import '../tools/agent_process_registry.dart';
 import '../tool.dart';
 
 // ═══════ helpers ═══════
 
 /// 创建临时插件目录结构：`tmp/plugins/<name>/agent/<name>.exe` + `manifest.json`。
 Directory _createPluginDir(String base, String name, String manifestJson) {
-  final agentDir = Directory('$base${Platform.pathSeparator}$name${Platform.pathSeparator}agent');
+  final agentDir = Directory(
+      '$base${Platform.pathSeparator}$name${Platform.pathSeparator}agent');
   agentDir.createSync(recursive: true);
 
   // 写入 manifest.json
@@ -64,9 +68,41 @@ void main() {
     });
 
     test('missing argSpec → defaults', () {
-      const json = '{"name": "t", "description": "d", "schema": {}, "argMode": "args"}';
+      const json =
+          '{"name": "t", "description": "d", "schema": {}, "argMode": "args"}';
       final m = PluginManifest.fromJson(json);
       expect(m.argSpec.style, 'json'); // default when no argSpec
+    });
+
+    // ═══════ lifetime（Task 三决策 3.1） ═══════
+
+    test('lifetime 缺省 → once（向后兼容：旧插件无字段行为不变）', () {
+      const json = '{"name": "t", "description": "d", "schema": {}}';
+      expect(PluginManifest.fromJson(json).lifetime, 'once');
+    });
+
+    test('lifetime "once" 显式声明 → once', () {
+      const json =
+          '{"name": "t", "description": "d", "schema": {}, "lifetime": "once"}';
+      expect(PluginManifest.fromJson(json).lifetime, 'once');
+    });
+
+    test('lifetime "resident" 显式声明 → resident', () {
+      const json =
+          '{"name": "t", "description": "d", "schema": {}, "lifetime": "resident"}';
+      expect(PluginManifest.fromJson(json).lifetime, 'resident');
+    });
+
+    test('lifetime 未知值 → 静默回退 once（项目铁律「未知静默忽略」）', () {
+      const json =
+          '{"name": "t", "description": "d", "schema": {}, "lifetime": "forever"}';
+      expect(PluginManifest.fromJson(json).lifetime, 'once');
+    });
+
+    test('lifetime 非字符串（如数字）→ 静默回退 once', () {
+      const json =
+          '{"name": "t", "description": "d", "schema": {}, "lifetime": 123}';
+      expect(PluginManifest.fromJson(json).lifetime, 'once');
     });
   });
 
@@ -114,7 +150,8 @@ void main() {
     late Directory pluginsDir;
 
     setUp(() {
-      tmpBase = '${Directory.systemTemp.path}${Platform.pathSeparator}agent_pb_test_${DateTime.now().millisecondsSinceEpoch}';
+      tmpBase =
+          '${Directory.systemTemp.path}${Platform.pathSeparator}agent_pb_test_${DateTime.now().millisecondsSinceEpoch}';
       pluginsDir = Directory(tmpBase);
       pluginsDir.createSync(recursive: true);
     });
@@ -137,7 +174,8 @@ void main() {
 
     test('discover skips dirs without .exe', () {
       // 创建只有 manifest 没有 exe 的目录
-      final d = Directory('$tmpBase${Platform.pathSeparator}noexe${Platform.pathSeparator}agent');
+      final d = Directory(
+          '$tmpBase${Platform.pathSeparator}noexe${Platform.pathSeparator}agent');
       d.createSync(recursive: true);
       File('${d.path}${Platform.pathSeparator}manifest.json').writeAsStringSync(
         '{"name":"noexe","description":"","schema":{}}',
@@ -149,13 +187,17 @@ void main() {
 
     test('.py preferred over .exe when both present（统一 python 路径）', () {
       // 目录同时含 <name>.py 与 <name>.exe → 选 .py（即使 .exe 同名）
-      final agentDir = Directory('$tmpBase${Platform.pathSeparator}dual${Platform.pathSeparator}agent');
+      final agentDir = Directory(
+          '$tmpBase${Platform.pathSeparator}dual${Platform.pathSeparator}agent');
       agentDir.createSync(recursive: true);
-      File('${agentDir.path}${Platform.pathSeparator}manifest.json').writeAsStringSync(
+      File('${agentDir.path}${Platform.pathSeparator}manifest.json')
+          .writeAsStringSync(
         '{"name":"dual","description":"","schema":{},"runtime":"python"}',
       );
-      File('${agentDir.path}${Platform.pathSeparator}dual.py').writeAsStringSync('print(1)');
-      File('${agentDir.path}${Platform.pathSeparator}dual.exe').writeAsStringSync('dummy');
+      File('${agentDir.path}${Platform.pathSeparator}dual.py')
+          .writeAsStringSync('print(1)');
+      File('${agentDir.path}${Platform.pathSeparator}dual.exe')
+          .writeAsStringSync('dummy');
 
       final tools = PluginBridge.discover(pluginsDir);
       expect(tools.length, 1);
@@ -165,12 +207,15 @@ void main() {
     });
 
     test('.py-only plugin discovered（无 .exe）', () {
-      final agentDir = Directory('$tmpBase${Platform.pathSeparator}pyonly${Platform.pathSeparator}agent');
+      final agentDir = Directory(
+          '$tmpBase${Platform.pathSeparator}pyonly${Platform.pathSeparator}agent');
       agentDir.createSync(recursive: true);
-      File('${agentDir.path}${Platform.pathSeparator}manifest.json').writeAsStringSync(
+      File('${agentDir.path}${Platform.pathSeparator}manifest.json')
+          .writeAsStringSync(
         '{"name":"pyonly","description":"","schema":{},"runtime":"python"}',
       );
-      File('${agentDir.path}${Platform.pathSeparator}pyonly.py').writeAsStringSync('print(1)');
+      File('${agentDir.path}${Platform.pathSeparator}pyonly.py')
+          .writeAsStringSync('print(1)');
 
       final tools = PluginBridge.discover(pluginsDir);
       expect(tools.length, 1);
@@ -178,12 +223,15 @@ void main() {
     });
 
     test('runtime:"python" + only .exe → 跳过（声明错配不误跑）', () {
-      final agentDir = Directory('$tmpBase${Platform.pathSeparator}mis${Platform.pathSeparator}agent');
+      final agentDir = Directory(
+          '$tmpBase${Platform.pathSeparator}mis${Platform.pathSeparator}agent');
       agentDir.createSync(recursive: true);
-      File('${agentDir.path}${Platform.pathSeparator}manifest.json').writeAsStringSync(
+      File('${agentDir.path}${Platform.pathSeparator}manifest.json')
+          .writeAsStringSync(
         '{"name":"mis","description":"","schema":{},"runtime":"python"}',
       );
-      File('${agentDir.path}${Platform.pathSeparator}mis.exe').writeAsStringSync('dummy');
+      File('${agentDir.path}${Platform.pathSeparator}mis.exe')
+          .writeAsStringSync('dummy');
 
       final tools = PluginBridge.discover(pluginsDir);
       expect(tools, isEmpty);
@@ -191,12 +239,15 @@ void main() {
 
     test('legacy .exe fallback：无 .py 且 runtime 缺省/native → 仍发现', () {
       // 与 _createPluginDir 相同形态：只有 <name>.exe，runtime 缺省 → legacy 回退
-      final agentDir = Directory('$tmpBase${Platform.pathSeparator}legacy${Platform.pathSeparator}agent');
+      final agentDir = Directory(
+          '$tmpBase${Platform.pathSeparator}legacy${Platform.pathSeparator}agent');
       agentDir.createSync(recursive: true);
-      File('${agentDir.path}${Platform.pathSeparator}manifest.json').writeAsStringSync(
+      File('${agentDir.path}${Platform.pathSeparator}manifest.json')
+          .writeAsStringSync(
         '{"name":"legacy","description":"","schema":{}}',
       );
-      File('${agentDir.path}${Platform.pathSeparator}legacy.exe').writeAsStringSync('dummy');
+      File('${agentDir.path}${Platform.pathSeparator}legacy.exe')
+          .writeAsStringSync('dummy');
 
       final tools = PluginBridge.discover(pluginsDir);
       expect(tools.length, 1);
@@ -246,7 +297,8 @@ void main() {
       expect(registry.has('time'), isTrue);
 
       // 删除 time 插件目录，新增 date
-      Directory('$tmpBase${Platform.pathSeparator}time').deleteSync(recursive: true);
+      Directory('$tmpBase${Platform.pathSeparator}time')
+          .deleteSync(recursive: true);
       _createPluginDir(tmpBase, 'date', '''
 {"name": "date", "description": "date", "schema": {"type":"object","properties":{}}, "readOnly": true}''');
 
@@ -302,6 +354,74 @@ void main() {
       final pt = PluginTool(exePath: '/fake/t.exe', manifest: m);
       final props = pt.schema['properties'] as Map<String, dynamic>;
       expect(props.containsKey('x'), isTrue);
+    });
+
+    test('lifetime 缺省/once → execute 走一次性路径（占位结果不出现）', () async {
+      // 用不会真正运行的 exe 路径 + once manifest：若走了 runOnce，启动会失败
+      // 并返回 error 文本；绝不出现「后台已启动」占位。
+      final m = PluginManifest.fromJson(
+        '{"name":"t","description":"d","schema":{}}',
+      );
+      expect(m.lifetime, 'once');
+      final pt = PluginTool(exePath: '/fake/never_run.exe', manifest: m);
+      final res = await pt.execute({});
+      expect(res, isNot(contains('后台已启动')));
+    });
+
+    test('lifetime resident → execute 后台启动占位 + 登记注册表 + 输出回填', () async {
+      // 真实 python 子进程（读 stdin JSON 后挂起模拟常驻）。
+      final py = Platform.isWindows ? 'python' : 'python3';
+      final scriptPath =
+          '${Directory.systemTemp.path}${Platform.pathSeparator}resident_plugin_test.py';
+      File(scriptPath).writeAsStringSync(
+        'import sys, time\n'
+        "data = sys.stdin.read()\n"
+        "print('got:' + data.strip(), flush=True)\n"
+        'time.sleep(5)\n',
+      );
+
+      final m = PluginManifest.fromJson('''
+{
+  "name": "current_time_res",
+  "description": "常驻时间工具（测试）",
+  "schema": {"type": "object", "properties": {"tz": {"type": "integer"}}},
+  "readOnly": true,
+  "runtime": "python",
+  "argMode": "stdin",
+  "lifetime": "resident"
+}''');
+      expect(m.lifetime, 'resident');
+
+      // 注入显式 runner（python 解释器），不依赖 sharedPluginRunner 探测。
+      final pt = PluginTool(
+        exePath: scriptPath,
+        manifest: m,
+        runner: SubprocessRunner(py),
+      );
+
+      final res = await pt.execute({'tz': 8});
+      expect(res, contains('后台已启动'));
+      expect(res, contains('current_time_res'));
+
+      // 已登记到全局注册表，输出自动累积回填。
+      expect(agentProcessRegistry.isRunning('current_time_res'), isTrue);
+      final deadline = DateTime.now().add(const Duration(seconds: 10));
+      var out = '';
+      while (DateTime.now().isBefore(deadline) && !out.contains('got:')) {
+        out = await agentProcessRegistry.readOutput('current_time_res');
+        await Future.delayed(const Duration(milliseconds: 50));
+      }
+      expect(out, contains('got:'));
+      expect(out, contains('tz'));
+
+      // 幂等：再次调用不重复启动。
+      final again = await pt.execute({'tz': 9});
+      expect(again, contains('后台已运行'));
+
+      // 清理：结束常驻进程，避免残留。
+      await agentProcessRegistry.disposeAll();
+      expect(agentProcessRegistry.isRunning('current_time_res'), isFalse);
+      File(scriptPath).deleteSync();
     });
   });
 }

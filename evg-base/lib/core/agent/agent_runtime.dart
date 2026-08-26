@@ -14,6 +14,7 @@ import 'package:evergreen_base/core/agent/memory/file_memory_store.dart';
 import 'package:evergreen_base/core/agent/memory/memory_agent.dart';
 import 'package:evergreen_base/core/agent/tool.dart';
 import 'package:evergreen_base/core/agent/tools/plugin_bridge.dart';
+import 'package:evergreen_base/core/agent/tools/agent_process_tools.dart';
 import 'package:evergreen_base/core/agent/tools/read_global_memory.dart';
 import 'package:evergreen_base/core/agent/tools/run_skill.dart';
 import 'package:evergreen_base/core/agent/tools/web_search.dart';
@@ -97,6 +98,10 @@ final agentRuntimeProvider = Provider<AgentRuntime>((ref) {
     ListSkillsTool(loader, skillIndex),
     WebSearchTool(Dio()),
     WebFetchTool(Dio()),
+    // 后台常驻进程管理工具（Task 三决策 3.2）——与 app_bootstrap /
+    // agent_factory 同步注册；共享全局单例 agentProcessRegistry。
+    ListProcessesTool(),
+    KillProcessTool(),
   ]) {
     if (!registry.has(t.name)) registry.register(t);
   }
@@ -185,6 +190,8 @@ final agentRuntimeProvider = Provider<AgentRuntime>((ref) {
   ref.onDispose(() {
     httpServer.stop();
     controller.dispose();
+    // 清理所有常驻 tool 进程（lifetime:"resident"），避免孤儿进程。
+    agentProcessRegistry.disposeAll();
   });
   return AgentRuntime(controller: controller, eventSink: eventSink, session: session);
 });

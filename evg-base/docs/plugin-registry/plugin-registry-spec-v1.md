@@ -271,6 +271,7 @@ manifest 的 `type` 决定落盘路径与加载方式：
 |--------|---------|---------|------|
 | `module` | `plugins/<id>/module/manifest.json` | `ModuleLoader` 扫描 → 注册模块 → 侧边栏/路由 | UI 模块、导出工具 |
 | `data-source` | `plugins/<id>/data/manifest.json` | `registerDataSourcesFromManifest` → 注册进数据中枢 | 数据爬虫、API 封装 |
+| `agent` | `plugins/<id>/agent/manifest.json` | `PluginBridge` 自动扫描（启动 / 刷新时）→ 注册为 Agent 工具（`PluginTool`） | AI 助手可调用的工具（`.py` 统一主路径，`.exe` legacy） |
 
 ### 5.1 `data-source` manifest 契约
 
@@ -314,6 +315,43 @@ manifest 的 `type` 决定落盘路径与加载方式：
 ```
 
 完整 module 字段参考见 `lib/core/module/docs/plugin-module.md`。
+
+### 5.3 `agent` manifest 契约（Agent 工具插件，Task 三）
+
+最小 agent manifest（`PluginManifest` 解析，`name` 必填；放入
+`plugins/<id>/agent/manifest.json` 后由 `PluginBridge` 自动注册为 AI 工具）：
+
+```json
+{
+  "name": "current_time",
+  "description": "返回当前 UTC 时间，支持可选时区偏移。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "tz_offset": { "type": "integer", "description": "时区偏移（小时），缺省 0" }
+    },
+    "required": []
+  },
+  "readOnly": true,
+  "runtime": "python",
+  "argMode": "stdin",
+  "lifetime": "once"
+}
+```
+
+- **落盘路径**：`plugins/<id>/agent/manifest.json` + 入口文件
+  （`.py` 统一主路径，`.exe` 仅存量 legacy）。
+- **加载方式**：`PluginBridge` 在应用启动（`_stepAgentTools`）及刷新时自动扫描
+  `plugins/<id>/agent/`，把每个有效 manifest 注册为 Agent 工具（`PluginTool`）；
+  放入插件目录即自动注册，无需重启。
+- **适用**：AI 助手可调用的工具——AI 主动运行既定脚本（如 `current_time`），
+  平台运行并把 stdout 返回给 AI。
+- **`lifetime` 字段（Task 三新增）**：`"once"`（默认）= 一次性，AI 调用后进程
+  即被回收；`"resident"` = 常驻，AI 调用后持续运行并登记到后台进程注册表，
+  直到 AI 用 `kill_process` 结束。缺省 / 未知值静默回退 `"once"`（向后兼容）。
+
+完整字段规范见 `lib/core/agent/docs/plugin-agent-tool.md`；运行期参考实现见
+§九示例 `example-agent-current_time`。
 
 ---
 
@@ -379,6 +417,7 @@ manifest 的 `type` 决定落盘路径与加载方式：
 | `examples/example-theme-warm_study/` | theme | 主题插件：`theme/theme.json` 声明配色（`type:"theme"`） |
 | `examples/example-html-view/` | module（HTML） | HTML 模块：`module/manifest.json`（`template:"html"`）+ `module/index.html` |
 | `examples/example-data-zju_grades/` | data-source | 数据源插件：`data/manifest.json`（`runtime:"python"` + `script`）+ `data/scraper.py` + `config/config.json` |
+| `examples/example-agent-current_time/` | agent | Agent 工具插件（Task 三）：`agent/manifest.json`（含 `lifetime` 一次性/常驻声明）+ `agent/tool.py` |
 
 ### 9.1 theme 示例 —— `example-theme-warm_study`
 
@@ -398,3 +437,7 @@ manifest 的 `type` 决定落盘路径与加载方式：
 ### 9.3 data-source 示例 —— `example-data-zju_grades`
 
 `data/manifest.json` 声明 `runtime:"python"` + `script:"scraper.py"`，`scraper.py` 是符合 §六 CLI 契约的适配壳（stdout 纯 JSON、失败 `{"error":...}` + exit≠0、凭证三级降级），`config/config.json` 存运行配置。
+
+### 9.4 agent 示例 —— `example-agent-current_time`
+
+`agent/manifest.json`（§5.3 契约）声明 `runtime:"python"` + `argMode:"stdin"` + `lifetime:"once"`，`agent/tool.py` 是纯标准库一次性工具（读 stdin JSON 时区偏移 → 打印当前时间）；README 含一次性 vs 常驻说明与放入 `plugins/<id>/` 后 AI 自动注册的验证步骤。

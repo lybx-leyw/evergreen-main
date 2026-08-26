@@ -28,6 +28,7 @@ import 'package:evergreen_base/core/agent/session_manager.dart';
 import 'package:evergreen_base/core/agent/skill/skill.dart';
 import 'package:evergreen_base/core/agent/tool.dart' as agent;
 import 'package:evergreen_base/core/agent/tools/agent_http_server.dart';
+import 'package:evergreen_base/core/agent/tools/agent_process_tools.dart';
 import 'package:evergreen_base/core/agent/tools/data_query.dart';
 import 'package:evergreen_base/core/agent/tools/file_info.dart';
 import 'package:evergreen_base/core/agent/tools/grep.dart';
@@ -611,6 +612,11 @@ class AppBootstrap {
     }
     // 注册插件 Agent 工具
     PluginBridge.registerAll(registry, Directory(pluginsDir));
+    // 后台常驻进程管理工具（Task 三决策 3.2）——与 agent_runtime /
+    // agent_factory 同步注册；共享全局单例 agentProcessRegistry
+    // （list_processes 只读可并行；kill_process 写操作串行）。
+    registry.register(ListProcessesTool());
+    registry.register(KillProcessTool());
     Log().info('[BOOT] Agent 工具: ${registry.all().map((t) => t.name).toList()}');
     return _ok();
   }
