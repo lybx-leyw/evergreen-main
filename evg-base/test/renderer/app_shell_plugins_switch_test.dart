@@ -5,12 +5,13 @@
 /// 只在 ModeRail 里），导致进入插件视图后无法切回 AI 视图 / 开发者模式（单向门）。
 ///
 /// 修复：在插件视图三个导航面顶部都加入 ModeSwitchButton；本测试验证桌面展开侧栏
-/// 顶部存在切换按钮，点击后切回 AI 视图并导航到 /ai-assistant。
+/// 顶部存在切换按钮，点击后（循环切换：插件 → AI）导航到 /ai-assistant。
 import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'package:evergreen_base/core/module/module_registry.dart';
 import 'package:evergreen_base/providers.dart';
 import 'package:evergreen_base/renderer/app/app_mode.dart';
 import 'package:evergreen_base/renderer/app/app_shell.dart';
+import 'package:evergreen_base/renderer/app/mode_rail.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, debugDefaultTargetPlatformOverride;
 import 'package:flutter/material.dart';
@@ -41,6 +42,7 @@ void main() {
   testWidgets('插件视图展开侧栏顶部有视图切换按钮，点击切回 AI 视图并导航',
       (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    final prefs = await SharedPreferences.getInstance();
 
     final registry = ModuleRegistry();
     registry.registerAll([
@@ -64,6 +66,7 @@ void main() {
         overrides: [
           moduleRegistryProvider.overrideWith((ref) => registry),
           pluginsDirProvider.overrideWith((ref) => 'test-plugins'),
+          sharedPreferencesProvider.overrideWithValue(prefs),
           appModeProvider.overrideWith((ref) => AppMode.plugins),
         ],
         child: MaterialApp.router(
@@ -94,17 +97,13 @@ void main() {
 
     FlutterError.onError = oldHandler;
 
-    // 展开侧栏顶部应有「视图模式」切换按钮（插件视图切回入口）。
-    expect(find.byTooltip('视图模式'), findsOneWidget);
+    // 展开侧栏顶部应有「视图模式切换」按钮（插件视图切回入口）。
+    expect(find.byType(ModeSwitchButton), findsOneWidget);
 
-    // 点击切换按钮 → 弹扇形菜单 → 选「AI 视图」。
-    await tester.tap(find.byTooltip('视图模式'));
-    await tester.pumpAndSettle();
-    expect(find.text('AI 视图'), findsOneWidget);
-    await tester.tap(find.text('AI 视图'));
+    // 点击切换按钮 → 循环切换（插件 → AI）→ 导航到 /ai-assistant。
+    await tester.tap(find.byType(ModeSwitchButton));
     await tester.pumpAndSettle();
 
-    // 切回 AI 视图后导航到 /ai-assistant。
     expect(find.text('PAGE-ai-assistant'), findsOneWidget);
     expect(errors.where((e) => e.toString().contains('unbounded')), isEmpty);
 

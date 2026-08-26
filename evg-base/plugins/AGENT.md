@@ -45,7 +45,8 @@ parent: root
 | `zju_modle`（纯模板） | `plugin-zju` | `lib/renderer/templates/zju_modle/AGENT.md` |
 
 > 其余插件（`data-dashboard`、`python-runner`、`settings`、`skill-creator`）由本 OWNER 统一托管。
-> `view` / `warm_study` / `zju_autosign` 已移交「发现插件」registry（`docs/plugin-registry/plugins.json`）管理。
+> `view` / `warm_study` / `zju_autosign` 已移交「发现插件」registry（`docs/plugin-registry/plugins.json`）管理
+> （该 registry 现由独立视图「发现插件」`/discover` 消费，入口收敛于「插件中心」内部按钮）。
 
 ## 2. 边界与红线
 

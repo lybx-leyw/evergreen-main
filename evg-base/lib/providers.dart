@@ -44,6 +44,16 @@ final pluginsDirProvider = Provider<String>((ref) {
   );
 });
 
+/// 反馈浮珠（🐛 FeedbackFab）显示开关。
+///
+/// 单一真相源为 StateProvider，SharedPreferences 仅作持久化（键
+/// `SHOW_FEEDBACK_FAB`，bool 类型，默认 true）。app_shell 通过本 provider
+/// 实时响应设置面板变更，无需重启。SettingsView 改写时同步持久化到 SP。
+final showFeedbackFabProvider = StateProvider<bool>((ref) {
+  final prefs = ref.watch(sharedPreferencesProvider);
+  return prefs.getBool('SHOW_FEEDBACK_FAB') ?? true;
+});
+
 /// 模块 ID → HTTP 端口映射。
 ///
 /// 由 main() 在启动模块 .exe 后填充，供渲染层通过 HTTP 与模块后端通信。

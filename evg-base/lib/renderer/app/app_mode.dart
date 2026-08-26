@@ -2,7 +2,8 @@
 ///
 /// 设计依据：《三模式视图重构_实施计划.md》（根目录）。
 ///
-/// - 模式切换：左栏顶部视图图标 → 扇形菜单（mode_rail.dart），点击即切换；
+/// - 模式切换：左栏顶部视图图标 → 点击循环切换下一个视图
+///   （mode_rail.dart 的 [ModeSwitchButton]，扇形菜单已移除）；
 /// - 持久化：SharedPreferences（key: app_mode），默认 AI 视图；
 /// - 导航过滤：插件视图（AppMode.plugins）侧栏排除 4 个特殊插件
 ///   （ai-assistant / theme-creator / html-creator / scraper），

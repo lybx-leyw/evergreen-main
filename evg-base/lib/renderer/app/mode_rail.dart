@@ -1,22 +1,20 @@
-/// 模式窄轨（AI 视图 / 开发者模式）——视图图标（扇形切换菜单）+ 4 个系统按钮
+/// 模式窄轨（AI 视图 / 开发者模式）——视图图标（点击循环切换）+ 4 个系统按钮
 /// + 开发者插件入口。
 ///
 /// 设计依据：《三模式视图重构_实施计划.md》（根目录）。
 ///
-/// - 顶部视图图标：点击弹出**扇形菜单**（AI 视图 / 开发者模式 / 插件视图），
-///   点击即切换并持久化（SharedPreferences）；
+/// - 顶部视图图标：点击**循环切换**下一个视图
+///   （AI 视图 → 开发者模式 → 插件视图 → AI 视图 …），切换并持久化；
+///   不再弹扇形菜单（原扇形菜单视觉不符合预期，已移除）；
 /// - 4 个系统按钮：显示设置 / 插件中心 / 数据中心 → 全屏推入新页（context.push），
 ///   返回后 AI 会话在 provider 中后台继续；远程同步为占位（点击提示即将上线）；
+/// - 「发现插件」不再单列入口，统一由「插件中心」内部按钮跳转（路由 `/discover`）；
 /// - 开发者模式：4 按钮下方追加 主题创作 / 插件制作 / 数据爬取 三个入口，
 ///   点击切换主区（IndexedStack 保持状态）；安卓端爬取入口变占位，
 ///   点击提示「安卓不支持，请使用 Windows 版」；
 /// - 颜色一律从 Theme.colorScheme 派生，不硬编码。
 library;
 
-import 'dart:math' as math;
-
-import 'package:flutter/animation.dart'
-    show AnimationController, CurvedAnimation, Curves, Interval, Tween;
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
@@ -62,11 +60,6 @@ const List<_SystemButton> _systemButtons = [
       label: '插件中心',
       icon: Icons.storefront_outlined,
       route: '/marketplace'),
-  _SystemButton(
-      label: '发现插件',
-      icon: Icons.explore_outlined,
-      route: '/discover'),
-
   _SystemButton(
       label: '数据中心',
       icon: Icons.storage_outlined,
@@ -265,7 +258,7 @@ class _RailButton extends StatelessWidget {
 
 // ═══════ 扇形模式切换菜单 ═══════
 
-/// 顶部视图图标按钮——点击弹出扇形三选项菜单。
+/// 顶部视图图标按钮——点击循环切到下一个视图模式。
 ///
 /// 公开供壳层（app_shell）复用：插件视图的侧栏/抽屉顶部也放一个，
 /// 否则进入插件视图后无法切回 AI 视图 / 开发者模式（单向门）。
@@ -278,73 +271,38 @@ class ModeSwitchButton extends ConsumerStatefulWidget {
 }
 
 class _ModeSwitchButtonState extends ConsumerState<ModeSwitchButton> {
-  OverlayEntry? _overlay;
-
-  @override
-  void dispose() {
-    _overlay?.remove();
-    _overlay = null;
-    super.dispose();
-  }
-
-  void _toggle() {
-    if (_overlay != null) {
-      _close();
-      return;
-    }
-    final box = context.findRenderObject() as RenderBox?;
-    if (box == null || !box.attached) return;
-    final center = box.localToGlobal(
-        Offset(box.size.width / 2, box.size.height / 2));
-    final overlay = Overlay.of(context);
-    _overlay = OverlayEntry(
-      builder: (ctx) => _FanMenuOverlay(
-        anchor: center,
-        current: widget.mode,
-        onClose: _close,
-        onSelect: (m) {
-          _close();
-          setAppMode(ref, m);
-          // 切模式后导航到目标模式的默认视图，避免壳层变了但主内容区仍停在旧路由。
-          final registry = ref.read(moduleRegistryProvider);
-          final target = defaultRouteForMode(
-            mode: m,
-            registry: registry,
-            pluginStates: ref.read(pluginStateProvider).records,
-          );
-          if (target != null) context.go(target);
-        },
-      ),
+  /// 点击循环切到下一个视图模式（ai → developer → plugins → ai …），
+  /// 不再弹扇形菜单。切后导航到该模式默认视图，避免壳层变了主内容仍停在旧路由。
+  Future<void> _cycle() async {
+    final modes = AppMode.values;
+    final next = modes[(widget.mode.index + 1) % modes.length];
+    await setAppMode(ref, next);
+    final registry = ref.read(moduleRegistryProvider);
+    final target = defaultRouteForMode(
+      mode: next,
+      registry: registry,
+      pluginStates: ref.read(pluginStateProvider).records,
     );
-    overlay.insert(_overlay!);
-  }
-
-  void _close() {
-    _overlay?.remove();
-    _overlay = null;
+    if (target != null && mounted) context.go(target);
   }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final next = AppMode.values[(widget.mode.index + 1) % AppMode.values.length];
     return Tooltip(
-      message: '视图模式',
+      message: '当前：${appModeLabel(widget.mode)}　点击切到：${appModeLabel(next)}',
       waitDuration: const Duration(milliseconds: 300),
       child: InkWell(
         customBorder: const CircleBorder(),
-        onTap: _toggle,
+        onTap: _cycle,
         child: Container(
           width: 40,
           height: 40,
           decoration: BoxDecoration(
             color: scheme.surfaceContainerHigh,
             shape: BoxShape.circle,
-            border: Border.all(
-              color: _overlay != null
-                  ? scheme.primary
-                  : scheme.outlineVariant,
-              width: 1.2,
-            ),
+            border: Border.all(color: scheme.outlineVariant, width: 1.2),
           ),
           child: Icon(Icons.view_quilt_outlined,
               size: 20, color: scheme.primary),
@@ -354,163 +312,4 @@ class _ModeSwitchButtonState extends ConsumerState<ModeSwitchButton> {
   }
 }
 
-/// 扇形菜单 Overlay——全屏透明屏障 + 沿圆弧排布的 3 个模式选项。
-class _FanMenuOverlay extends StatefulWidget {
-  final Offset anchor;
-  final AppMode current;
-  final VoidCallback onClose;
-  final ValueChanged<AppMode> onSelect;
-
-  const _FanMenuOverlay({
-    required this.anchor,
-    required this.current,
-    required this.onClose,
-    required this.onSelect,
-  });
-
-  @override
-  State<_FanMenuOverlay> createState() => _FanMenuOverlayState();
-}
-
-class _FanMenuOverlayState extends State<_FanMenuOverlay>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 240),
-  )..forward();
-
-  static const double _radius = 116;
-  static const double _itemW = 88;
-  static const double _itemH = 92;
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final modes = AppMode.values;
-    final screen = MediaQuery.of(context).size;
-    return Stack(
-      children: [
-        // 全屏透明屏障：点击任意处关闭。
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: widget.onClose,
-            child: const ColoredBox(color: Color(0x00000000)),
-          ),
-        ),
-        for (int i = 0; i < modes.length; i++)
-          _buildFanItem(context, modes[i], i, screen),
-      ],
-    );
-  }
-
-  Widget _buildFanItem(
-      BuildContext context, AppMode m, int i, Size screen) {
-    final modes = AppMode.values;
-    // 扇形张角：-62°（右下）→ 0°（正右）→ +62°（右上）。
-    final angle = (i - (modes.length - 1) / 2) * 62 * math.pi / 180;
-    final dx = _radius * math.cos(angle);
-    final dy = -_radius * math.sin(angle);
-    var left = widget.anchor.dx + dx - _itemW / 2;
-    var top = widget.anchor.dy + dy - _itemH / 2;
-    left = left
-        .clamp(8.0, math.max(8.0, screen.width - _itemW - 8))
-        .toDouble();
-    top = top
-        .clamp(8.0, math.max(8.0, screen.height - _itemH - 8))
-        .toDouble();
-
-    // 交错入场：逐项延迟 + 回弹曲线。
-    final anim = CurvedAnimation(
-      parent: _ctrl,
-      curve: Interval(i * 0.12, i * 0.12 + 0.55, curve: Curves.easeOutBack),
-    );
-    return Positioned(
-      left: left,
-      top: top,
-      width: _itemW,
-      height: _itemH,
-      child: FadeTransition(
-        opacity: anim,
-        child: ScaleTransition(
-          scale: Tween<double>(begin: 0.6, end: 1.0).animate(anim),
-          child: _FanItem(
-            mode: m,
-            selected: m == widget.current,
-            onTap: () => widget.onSelect(m),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 扇形菜单单选项——圆形图标 + 标签胶囊。
-class _FanItem extends StatelessWidget {
-  final AppMode mode;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _FanItem({required this.mode, required this.selected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    // 整项（图标圆 + 标签胶囊）都可点击。
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Material(
-            color:
-                selected ? scheme.primaryContainer : scheme.surfaceContainerHigh,
-            elevation: 3,
-            shape: const CircleBorder(),
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: onTap,
-              child: SizedBox(
-                width: 52,
-                height: 52,
-                child: Icon(
-                  _modeIcon(mode),
-                  size: 24,
-                  color: selected ? scheme.onPrimaryContainer : scheme.primary,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: scheme.surfaceContainerHigh.withValues(alpha: 0.95),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: scheme.outlineVariant),
-            ),
-            child: Text(
-              appModeLabel(mode),
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: selected ? scheme.primary : scheme.onSurfaceVariant,
-                    fontWeight: FontWeight.w600,
-                  ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  static IconData _modeIcon(AppMode m) => switch (m) {
-        AppMode.ai => Icons.smart_toy_outlined,
-        AppMode.developer => Icons.code,
-        AppMode.plugins => Icons.widgets_outlined,
-      };
-}
+/// （扇形菜单已移除：模式切换改为点击循环切换，见 [ModeSwitchButton]。）

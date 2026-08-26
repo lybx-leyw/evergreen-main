@@ -52,7 +52,7 @@ flowchart LR
 > 与 `pdf_reader.py` 因论文阅读依赖**保留**）。
 
 > **已移交 registry 的插件**：`view`（我的成绩单）、`warm_study`（温暖学习主题）、`zju_autosign`（学在浙大自动签到）
-> 已移出内置插件目录，改由「发现插件」页经 `docs/plugin-registry/plugins.json` 管理（local 资源条目），
+> 已移出内置插件目录，改由独立视图「发现插件」（`/discover`）经 `docs/plugin-registry/plugins.json` 管理（local 资源条目），
 > 安装后经 `_copyLocalAssets` 落盘到 `plugins/<id>/`。
 
 ## HTML 插件（用户侧主路径）

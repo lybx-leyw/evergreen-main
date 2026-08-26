@@ -199,6 +199,7 @@ class _EffortButton extends StatelessWidget {
     final offset = renderBox.localToGlobal(Offset.zero);
     showMenu<String>(
       context: context,
+      color: Theme.of(context).colorScheme.surfaceContainerLowest,
       position: RelativeRect.fromLTRB(
         offset.dx, offset.dy + renderBox.size.height + 4,
         offset.dx + renderBox.size.width, offset.dy + renderBox.size.height + 4,

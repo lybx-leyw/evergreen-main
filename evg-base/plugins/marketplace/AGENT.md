@@ -8,16 +8,23 @@ parent: plugins
 # AGENT.md — plugin-marketplace 职责书
 
 > 本文件是「谁负责这里」的职责书。技术原理见根 `CLAUDE.md`。
-> 最后更新：2026-08-25
+> 最后更新：2026-08-26
 
 ## 1. 职责范围
 
 - 管辖目录：`evg-base/plugins/marketplace/`（`module/manifest.json`，`component.type: "marketplace"`）
-- 一句话定位：插件市场（本地插件管理 + 插件发现）——浏览、搜索、启用/停用、卸载。
+- 一句话定位：插件市场（本地插件管理）——浏览、搜索、启用/停用、卸载、排序。
+- **「发现插件」由「插件中心」内部按钮跳转，不单列导航入口**：2026-08-26 二次修订，
+  `MarketplaceSlot` 头部提供「发现插件」按钮（`context.push('/discover')`），mode_rail
+  不再单独列出「发现插件」入口。`MarketplaceSlot` 自身仍为纯本地插件管理（不含内嵌发现 UI）。
+  外部可发现插件的浏览与安装由独立视图 `DiscoveredPluginsView`（路由 `/discover`）负责。
+  两者管理**层次不同**：插件中心管已装插件，发现插件管外部可装插件的浏览与安装，
+  故发现插件作为插件中心内的一个动作而非并列的导航入口。
 
 > **实现归属说明**：市场 UI 的实现代码**不在本目录**，而分属其他 OWNER（不剥离，通过引用协作）：
-> - 本地管理槽位 `marketplace_slot.dart` 等 → `renderer-templates`（`v4_modle/components/marketplace/`）
-> - 远程市场页 `market_view.dart`、发现页 `discovered_plugins_view.dart` → `renderer-page`
+> - 本地管理槽位 `marketplace_slot.dart`（纯本地插件管理，无内嵌发现 UI）→ `renderer-templates`（`v4_modle/components/marketplace/`）
+> - 发现插件独立视图 `discovered_plugins_view.dart` 与其列表卡 `discover_section.dart`
+>   （`DiscoverPluginCard` 视觉风格与 `LocalPluginCard` 对齐）→ `renderer-page`
 > - 市场领域模型 `plugin_review.dart`（ReviewQueue）→ `core-module`
 >
 > 本 OWNER 负责插件声明与跨模块协调，实现改动需与上述 OWNER 对齐。

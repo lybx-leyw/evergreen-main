@@ -135,7 +135,7 @@ class _DesktopShellState extends ConsumerState<_DesktopShell>
                   Expanded(child: widget.child),
                 ],
               ),
-              const FeedbackFab(),
+              ref.watch(showFeedbackFabProvider) ? const FeedbackFab() : const SizedBox.shrink(),
             ],
           ),
         );
@@ -146,8 +146,17 @@ class _DesktopShellState extends ConsumerState<_DesktopShell>
 
 // ═══════ _RailShell（模式 1/2 窄轨壳层） ═══════
 
+/// AI 视图推入返回按钮的路由白名单：仅当从 AI 视图推入这些系统面板时，
+/// 左上角出现浮动返回按钮（面板自身无 AppBar/返回按钮）。
+const Set<String> _aiShellBackRoutes = {
+  '/settings',
+  '/data-dashboard',
+  '/marketplace',
+};
+
 /// 模式 1/2（AI 视图 / 开发者模式）窄轨壳层：
-/// ModeRail + 主内容 + 浮动返回按钮（推入页出现）+ FeedbackFab。
+/// ModeRail + 主内容 + FeedbackFab。
+/// AI 视图下窄轨隐藏，且推入设置/数据中心/插件中心面板时显示浮动返回按钮。
 class _RailShell extends ConsumerWidget {
   final Widget child;
   final AppMode mode;
@@ -156,8 +165,35 @@ class _RailShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 路由变化时重建（GoRouter.of 注册继承依赖），使返回按钮随导航栈显隐。
-    final canPop = GoRouter.of(context).canPop();
+    // AI 视图：窄轨（ModeRail）整体隐藏，内容区占满；
+    // 原窄轨按钮（模式切换/系统按钮）已收进 AI 助手左侧抽屉（SystemDrawerSection）。
+    // 开发者模式：仍保留窄轨（开发者入口逻辑在窄轨内）。
+    if (mode == AppMode.ai) {
+      // 从 AI 视图推入设置/数据中心/插件中心面板时显示浮动返回按钮。
+      // 判据 = AI 视图 + 当前路径 ∈ 白名单（AI 视图下进入这三个面板的唯一途径
+      // 就是 AI 视图本身，无需再依赖 canPop——push 期间壳层只在过渡早期重建，
+      // 彼时 navigator 栈尚未更新，canPop 不可靠）。
+      // GoRouterState.of 注册继承依赖，路由变化时本 build 重建，返回后按钮消失。
+      final path = GoRouterState.of(context).uri.path;
+      final showBack = _aiShellBackRoutes.contains(path);
+      return Scaffold(
+        body: Stack(
+          children: [
+            child,
+            if (showBack)
+              const Positioned(
+                left: 12,
+                top: 12,
+                child: _FloatingBackButton(),
+              ),
+            ref.watch(showFeedbackFabProvider)
+                ? const FeedbackFab()
+                : const SizedBox.shrink(),
+          ],
+        ),
+      );
+    }
+
     return Scaffold(
       body: Stack(
         children: [
@@ -171,27 +207,21 @@ class _RailShell extends ConsumerWidget {
               Expanded(child: child),
             ],
           ),
-          // 推入页返回：全屏推入 显示设置/插件中心/数据中心 后出现，
-          // 返回后 AI 会话在 provider 中后台继续。
-          if (canPop)
-            const Positioned(
-              left: kModeRailWidth + 12,
-              top: 12,
-              child: _FloatingBackButton(),
-            ),
-          const FeedbackFab(),
+          ref.watch(showFeedbackFabProvider) ? const FeedbackFab() : const SizedBox.shrink(),
         ],
       ),
     );
   }
 }
 
-/// 浮动返回按钮——主区左上角，颜色从 colorScheme 派生。
-class _FloatingBackButton extends StatelessWidget {
+/// 浮动返回按钮——AI 视图推入设置/数据中心/插件中心面板后出现在内容区左上角，
+/// 颜色从 colorScheme 派生。点击优先 pop 回推入页；若栈不可 pop（如快捷键 go
+/// 直达），回退到 AI 视图默认页。
+class _FloatingBackButton extends ConsumerWidget {
   const _FloatingBackButton();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
     return Material(
       color: scheme.surfaceContainerHigh.withValues(alpha: 0.92),
@@ -201,7 +231,24 @@ class _FloatingBackButton extends StatelessWidget {
         icon: const Icon(Icons.arrow_back),
         tooltip: '返回',
         color: scheme.onSurfaceVariant,
-        onPressed: () => context.pop(),
+        onPressed: () {
+          final router = GoRouter.of(context);
+          if (router.canPop()) {
+            router.pop();
+            return;
+          }
+          // 栈不可 pop（go 直达，如全局快捷键 _SettingsIntent）：
+          // 回 AI 视图默认页，避免用户被困在面板。
+          final registry = ref.read(moduleRegistryProvider);
+          final pluginStates = ref.read(pluginStateProvider).records;
+          final target = defaultRouteForMode(
+                mode: AppMode.ai,
+                registry: registry,
+                pluginStates: pluginStates,
+              ) ??
+              '/ai-assistant';
+          router.go(target);
+        },
       ),
     );
   }
