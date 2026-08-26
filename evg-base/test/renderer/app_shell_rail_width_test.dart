@@ -152,4 +152,127 @@ void main() {
 
     debugDefaultTargetPlatformOverride = null;
   });
+
+  testWidgets('AI 视图推入设置面板：出现浮动返回按钮，点击回到 AI 视图', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    final prefs = await SharedPreferences.getInstance();
+
+    final registry = ModuleRegistry();
+    registry.registerAll([
+      _mod('ai-assistant', 'AI 助手', '/ai-assistant'),
+    ]);
+    registry.seal();
+
+    // 与真实 app.dart 一致：ShellRoute 需传 navigatorKey，canPop 才可感知推入页。
+    final shellNavKey = GlobalKey<NavigatorState>();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          moduleRegistryProvider.overrideWith((ref) => registry),
+          pluginsDirProvider.overrideWith((ref) => 'test-plugins'),
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          appModeProvider.overrideWith((ref) => AppMode.ai),
+        ],
+        child: MaterialApp.router(
+          routerConfig: GoRouter(
+            initialLocation: '/ai-assistant',
+            routes: [
+              ShellRoute(
+                navigatorKey: shellNavKey,
+                builder: (context, state, child) => AppShell(child: child),
+                routes: [
+                  GoRoute(
+                    path: '/ai-assistant',
+                    builder: (c, s) => const Scaffold(body: SizedBox()),
+                  ),
+                  GoRoute(
+                    path: '/settings',
+                    builder: (c, s) => const Scaffold(body: SizedBox()),
+                  ),
+                  GoRoute(
+                    path: '/discover',
+                    builder: (c, s) => const Scaffold(body: SizedBox()),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    // AI 视图初始（非推入页）：无返回按钮。
+    expect(find.byTooltip('返回'), findsNothing);
+
+    // 推入 /settings（白名单面板）→ 出现浮动返回按钮。
+    final router = GoRouter.of(tester.element(find.byType(AppShell)));
+    router.push('/settings');
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('返回'), findsOneWidget);
+
+    // 点击返回 → 回到 AI 视图，按钮随之消失。
+    await tester.tap(find.byTooltip('返回'));
+    await tester.pumpAndSettle();
+    expect(
+      GoRouterState.of(tester.element(find.byType(AppShell))).uri.path,
+      '/ai-assistant',
+    );
+    expect(find.byTooltip('返回'), findsNothing);
+
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('AI 视图推入非白名单路由（/discover）：不出现浮动返回按钮', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    final prefs = await SharedPreferences.getInstance();
+
+    final registry = ModuleRegistry();
+    registry.registerAll([
+      _mod('ai-assistant', 'AI 助手', '/ai-assistant'),
+    ]);
+    registry.seal();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          moduleRegistryProvider.overrideWith((ref) => registry),
+          pluginsDirProvider.overrideWith((ref) => 'test-plugins'),
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          appModeProvider.overrideWith((ref) => AppMode.ai),
+        ],
+        child: MaterialApp.router(
+          routerConfig: GoRouter(
+            initialLocation: '/ai-assistant',
+            routes: [
+              ShellRoute(
+                builder: (context, state, child) => AppShell(child: child),
+                routes: [
+                  GoRoute(
+                    path: '/ai-assistant',
+                    builder: (c, s) => const Scaffold(body: SizedBox()),
+                  ),
+                  GoRoute(
+                    path: '/discover',
+                    builder: (c, s) => const Scaffold(body: SizedBox()),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final router = GoRouter.of(tester.element(find.byType(AppShell)));
+    router.push('/discover');
+    await tester.pumpAndSettle();
+
+    // 非白名单路由：不显示浮动返回按钮（discover 自带 AppBar 返回）。
+    expect(find.byTooltip('返回'), findsNothing);
+
+    debugDefaultTargetPlatformOverride = null;
+  });
 }
