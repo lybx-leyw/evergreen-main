@@ -108,6 +108,7 @@ flutter:
     # 查老师（zju teachers）：内置完整教师评分数据集（chalaoshi.top 抓取）。
     # 注意：勿放入下方 >>>PLUGIN_ASSETS_START>>> 标记块（该块由 bundle_plugins.dart 自动生成）。
     - assets/plugins_bundle/ai-assistant/module/manifest.json
+    - assets/plugins_bundle/bright_brand_green/theme/theme.json
     - assets/plugins_bundle/data-dashboard/module/manifest.json
     - assets/plugins_bundle/dsh/module/manifest.json
     - assets/plugins_bundle/html-creator/module/manifest.json
