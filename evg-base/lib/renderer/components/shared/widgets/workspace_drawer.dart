@@ -201,13 +201,14 @@ class _FileTile extends StatelessWidget {
               width: 36,
               height: 36,
               decoration: BoxDecoration(
-                color: _fileColor(file.name).withValues(alpha: 0.1),
+                color: _fileColor(file.name, theme.colorScheme)
+                    .withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(
                 _fileIcon(file.name),
                 size: 18,
-                color: _fileColor(file.name),
+                color: _fileColor(file.name, theme.colorScheme),
               ),
             ),
             const SizedBox(width: 12),
@@ -270,12 +271,12 @@ class _FileTile extends StatelessWidget {
     };
   }
 
-  Color _fileColor(String name) {
+  Color _fileColor(String name, ColorScheme scheme) {
     final ext = name.split('.').last.toLowerCase();
     return switch (ext) {
       'dart' || 'py' || 'js' || 'ts' || 'java' || 'cpp' || 'go' || 'rs' => Colors.blue,
       'json' || 'yaml' || 'yml' || 'xml' => Colors.orange,
-      'md' || 'txt' => Colors.grey,
+      'md' || 'txt' => scheme.outlineVariant,
       'pdf' => Colors.red,
       'pptx' || 'ppt' => Colors.deepOrange,
       'docx' || 'doc' => Colors.indigo,
@@ -284,7 +285,7 @@ class _FileTile extends StatelessWidget {
       'mp4' || 'webm' => Colors.pink,
       'mp3' || 'wav' => Colors.teal,
       'zip' || 'tar' || 'gz' => Colors.brown,
-      _ => Colors.blueGrey,
+      _ => scheme.outline,
     };
   }
 

@@ -1312,6 +1312,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                             onTap: () { ref.read(switchSessionProvider)(s.id); Navigator.pop(ctx); },
                             trailing: PopupMenuButton<String>(
                               icon: const Icon(Icons.more_horiz, size: 16),
+                              color: theme.colorScheme.surfaceContainerLowest,
                               onSelected: (action) {
                                 if (action == 'rename') _showRenameSheet(ctx, s.id, s.title);
                                 else if (action == 'delete') ref.read(deleteSessionProvider)(s.id);
@@ -1960,6 +1961,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                     },
                     trailing: PopupMenuButton<String>(
                       icon: const Icon(Icons.more_vert, size: 16),
+                      color: theme.colorScheme.surfaceContainerLowest,
                       itemBuilder: (_) => [
                         const PopupMenuItem(
                             value: 'delete', child: Text('删除')),
@@ -2050,7 +2052,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                       value: false,
                       onChanged: (_) =>
                           _scaffoldKey.currentState?.openEndDrawer(),
-                      activeColor: const Color(0xFF1565C0),
+                      activeColor: theme.colorScheme.primary,
                     ),
                     const SizedBox(width: 6),
                   ],
@@ -2059,7 +2061,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                     label: '联网搜索',
                     value: ref.watch(webSearchEnabledProvider),
                     onChanged: (v) => _setWebSearchEnabled(v, ref),
-                    activeColor: const Color(0xFF1565C0),
+                    activeColor: theme.colorScheme.primary,
                   ),
                   const SizedBox(width: 6),
                   _EffortSelector(
@@ -2512,7 +2514,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                         value: false,
                         onChanged: (_) =>
                             _scaffoldKey.currentState?.openEndDrawer(),
-                        activeColor: const Color(0xFF1565C0),
+                        activeColor: theme.colorScheme.primary,
                       ),
                       const SizedBox(width: 6),
                     ],
@@ -2521,7 +2523,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                       label: '联网搜索',
                       value: webSearch,
                       onChanged: (v) => _setWebSearchEnabled(v, ref),
-                      activeColor: const Color(0xFF1565C0),
+                      activeColor: theme.colorScheme.primary,
                     ),
                     const SizedBox(width: 6),
                     _EffortSelector(
@@ -2996,7 +2998,11 @@ class _MessageBubbleState extends State<_MessageBubble> {
                                   .replaceAll('<br />', '\n'),
                               selectable: true,
                               builders: {
-                                'pre': _PreBlockBuilder(),
+                                'pre': _PreBlockBuilder(
+                                  codeBackground: Theme.of(context)
+                                      .colorScheme
+                                      .surfaceContainerLow,
+                                ),
                                 'code': _InlineMathBuilder(),
                               },
                               styleSheet: MarkdownStyleSheet(
@@ -3004,8 +3010,9 @@ class _MessageBubbleState extends State<_MessageBubble> {
                                 code: TextStyle(
                                   fontSize: 13 * s,
                                   fontFamily: 'monospace',
-                                  backgroundColor:
-                                      const Color(0xFFF5F5F5),
+                                  backgroundColor: Theme.of(context)
+                                      .colorScheme
+                                      .surfaceContainerLow,
                                   color: const Color(0xFFE53935),
                                 ),
                                 h1: TextStyle(
@@ -3081,10 +3088,10 @@ class _MessageBubbleState extends State<_MessageBubble> {
             constraints: const BoxConstraints(maxHeight: 280),
             margin: const EdgeInsets.only(top: 8),
             decoration: BoxDecoration(
-              color: const Color(0xFFFFF8E1),
+              color: Theme.of(context).colorScheme.tertiaryContainer,
               borderRadius: BorderRadius.circular(8),
-              border:
-                  Border.all(color: const Color(0xFFFFE082)),
+              border: Border.all(
+                  color: Theme.of(context).colorScheme.tertiary),
             ),
             child: SingleChildScrollView(
               controller: _thinkingScrollCtrl,
@@ -3331,6 +3338,11 @@ class _InlineMathBuilder extends MarkdownElementBuilder {
 
 /// 代码块构建器：处理 mindmap 和 math 代码块。
 class _PreBlockBuilder extends MarkdownElementBuilder {
+  /// 普通代码块背景色（由调用方注入主题色，深色模式自动适配）。
+  final Color? codeBackground;
+
+  _PreBlockBuilder({this.codeBackground});
+
   @override
   Widget? visitElementAfter(element, TextStyle? preferredStyle) {
     if (element.children == null || element.children!.isEmpty) {
@@ -3369,7 +3381,7 @@ class _PreBlockBuilder extends MarkdownElementBuilder {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF5F5F5),
+        color: codeBackground ?? const Color(0xFFF5F5F5),
         borderRadius: BorderRadius.circular(8),
       ),
       child: SelectableText(
@@ -3589,6 +3601,7 @@ class _ConversationHistoryPanel extends ConsumerWidget {
                       icon: const Icon(Icons.more_horiz,
                           size: 16),
                       padding: EdgeInsets.zero,
+                      color: theme.colorScheme.surfaceContainerLowest,
                       onSelected: (action) {
                         if (action == 'rename') {
                           _showRenameDialog(
@@ -3725,12 +3738,13 @@ class _EffortSelector extends StatelessWidget {
   };
 
   static const _levelColor = Color(0xFF7B1FA2);
-  static const _offColor = Color(0xFF757575);
 
   @override
   Widget build(BuildContext context) {
     final isOn = effort != 'off';
-    final color = isOn ? _levelColor : _offColor;
+    final color = isOn
+        ? _levelColor
+        : Theme.of(context).colorScheme.onSurfaceVariant;
     final label = _labels[effort] ?? '思考';
 
     return FilterChip(

@@ -146,9 +146,12 @@ class _SessionDropdown extends StatelessWidget {
         ];
 
         if (sessions.isEmpty) {
-          items.add(const PopupMenuItem<String>(
+          items.add(PopupMenuItem<String>(
             enabled: false,
-            child: Text('暂无会话', style: TextStyle(fontSize: 12, color: Colors.grey)),
+            child: Text('暂无会话',
+                style: TextStyle(
+                    fontSize: 12,
+                    color: theme.colorScheme.onSurfaceVariant)),
           ));
         } else {
           for (final s in sessions) {
