@@ -830,6 +830,15 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
 
       final model = getSetting(prefs, 'DEEPSEEK_MODEL');
       final baseUrl = getSetting(prefs, 'DEEPSEEK_BASE_URL');
+      // A5 断链②接线：嵌入 Agent 创建时传入初始 thinking/effort——
+      // 设置（DEEPSEEK_THINKING / DEEPSEEK_REASONING_EFFORT）优先，
+      // effort 缺失/非法回退 UI 档位 _localEffort（与 AgentAssembly 面板一致）。
+      final thinkingEnabled =
+          getSetting(prefs, 'DEEPSEEK_THINKING').toLowerCase() != 'false';
+      final effortSetting = getSetting(prefs, 'DEEPSEEK_REASONING_EFFORT');
+      final initialEffort = validReasoningEfforts.contains(effortSetting)
+          ? effortSetting
+          : _localEffort;
 
       final provider = agent.DeepSeekProvider(
         dio: Dio(BaseOptions(
@@ -839,7 +848,12 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
         apiKey: apiKey,
         model: model.isNotEmpty ? model : 'deepseek-v4-flash',
         baseUrl: baseUrl,
+        thinking: thinkingEnabled ? 'enabled' : 'disabled',
       );
+      if (initialEffort == 'off') {
+        provider.setThinking('disabled');
+      }
+      provider.setReasoningEffort(initialEffort);
 
       final skillIdx = ref.read(skillIndexProvider);
       final memStore = ref.read(memoryStoreProvider);
@@ -2134,14 +2148,15 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                     effort: _localEffort,
                     onChanged: (v) {
                       setState(() => _localEffort = v);
-                      // A5 配合：直接驱动嵌入 Agent 的 provider（_embeddedCtrl.provider
-                      // 即 _initEmbeddedAgent 传入的共享 DeepSeekProvider 实例），
-                      // 使档位真实作用于请求参数（原来只更新 UI 状态不生效）。
+                      // A5 断链②接线：同时驱动嵌入 Agent 的 provider
+                      // （_embeddedCtrl.provider 即 _initEmbeddedAgent 传入的共享
+                      // DeepSeekProvider 实例），使档位真实作用于请求参数。
                       final ctrl = _embeddedCtrl;
                       if (ctrl != null && ctrl.provider is agent.DeepSeekProvider) {
                         final provider = ctrl.provider as agent.DeepSeekProvider;
                         if (v == 'off') {
                           provider.setThinking('disabled');
+                          provider.setReasoningEffort('off');
                         } else {
                           provider.setThinking('enabled');
                           provider.setReasoningEffort(v);
@@ -2508,27 +2523,36 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     }
   }
 
-  /// 应用思考档位（Task 五 Bug 6 / A5 配合点）：
-  /// ① 写全局 [reasoningEffortProvider]（UI 响应式真相源，保持旧链路兼容）；
-  /// ② 直接驱动主 Controller（[agentControllerProvider]，app_bootstrap 注入的
-  /// 实际实例）的 provider——当前运行时 agentRuntimeProvider 的
-  /// reasoningEffortProvider 监听链路不会被实例化，UI 写 provider 并不真正
-  /// 作用于请求参数，故在此直接调用 provider.setThinking/setReasoningEffort。
-  ///
-  /// TODO(A5 协同)：Provider 抽象接口暂无 setThinking/setReasoningEffort，
-  /// 按实际类型（DeepSeekProvider）降级调用；A5 若把二者上提到抽象接口，
-  /// 可改为 ctrl.provider.setThinking(...) 直调。
+  /// 应用思考档位（Task 五 Bug 6 / A5 断链①运行期接线）：
+  /// ① 写全局 [reasoningEffortProvider]（UI 响应式真相源）；
+  /// ② 经 [agentProviderProvider]（app_bootstrap 注入的主 DeepSeekProvider，
+  /// 类型即 DeepSeekProvider，无需降级）同步 setThinking/setReasoningEffort，
+  /// 使档位真实作用于请求参数（agent_runtime 的 reasoningEffortProvider 监听
+  /// 只服务于 agentRuntimeProvider 自建实例，主路径不依赖它——见 A5 报告 §五-1）；
+  /// ③ 对齐 agent_runtime L169-176 的系统提示词强化（effortDescriptions）——
+  /// 主 Controller 创建时未自定义 systemPrompt，同步安全。
   void _applyEffort(String v, WidgetRef ref) {
     ref.read(reasoningEffortProvider.notifier).state = v;
+    final p = ref.read(agentProviderProvider);
+    if (v == 'off') {
+      p.setThinking('disabled');
+      p.setReasoningEffort('off');
+    } else {
+      p.setThinking('enabled');
+      p.setReasoningEffort(v);
+    }
     final ctrl = ref.read(agentControllerProvider);
-    final provider = ctrl.provider;
-    if (provider is agent.DeepSeekProvider) {
-      if (v == 'off') {
-        provider.setThinking('disabled');
-      } else {
-        provider.setThinking('enabled');
-        provider.setReasoningEffort(v);
-      }
+    if (v == 'off') {
+      ctrl.setSystemPrompt(agent.defaultSystemPrompt);
+    } else {
+      const effortDescriptions = <String, String>{
+        'low': '请简要思考后回答。',
+        'medium': '请适度思考后回答。',
+        'high': '请深入思考后再回答。',
+        'max': '请做最全面的思考，考虑多种方案和边界情况后再回答。',
+      };
+      ctrl.setSystemPrompt(agent.defaultSystemPrompt +
+          '\n\n深度思考模式：$v 级。${effortDescriptions[v] ?? ''}');
     }
   }
 

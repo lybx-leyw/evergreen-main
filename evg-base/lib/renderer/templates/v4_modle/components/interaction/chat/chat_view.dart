@@ -263,8 +263,19 @@ class _ChatViewState extends ConsumerState<ChatView> {
                 const SizedBox(width: 4),
                 _MiniEffortSelector(
                   effort: effort,
-                  onChanged: (v) =>
-                      ref.read(reasoningEffortProvider.notifier).state = v,
+                  onChanged: (v) {
+                    ref.read(reasoningEffortProvider.notifier).state = v;
+                    // A5 断链①接线：运行期同步主 provider（app_bootstrap 注入的
+                    // agentProviderProvider），使档位真实作用于请求参数。
+                    final p = ref.read(agentProviderProvider);
+                    if (v == 'off') {
+                      p.setThinking('disabled');
+                      p.setReasoningEffort('off');
+                    } else {
+                      p.setThinking('enabled');
+                      p.setReasoningEffort(v);
+                    }
+                  },
                 ),
                 const SizedBox(width: 8),
                 Expanded(
