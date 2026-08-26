@@ -1,6 +1,6 @@
 <div align="center" style="background-color:#232326;border:1px solid #3f3f45;border-radius:12px;padding:32px 24px 24px;">
 
-<img src="evg-base/assets/branding/logo-ink.svg" alt="Evergreen" width="104" height="104"/>
+<img src="evg-base/assets/branding/logo.svg" alt="Evergreen" width="104" height="104"/>
 
 <span style="font-size:32px;font-weight:700;color:#f4f3f1;letter-spacing:2px;">Evergreen</span>
 
@@ -13,7 +13,7 @@
 ![version](https://img.shields.io/badge/版本-v2.0--rc.4-2e2e33?style=flat-square&labelColor=232326)
 ![flutter](https://img.shields.io/badge/Flutter-本地优先-4dc878?style=flat-square&labelColor=232326)
 
-<span style="color:#99999a;font-size:13px;">当前版本 v2.0-rc 系列（最新 tag：`v2.0-rc.4`）· 本项目以 **GPLv3** 许可证发布，详见 [LICENSE](./LICENSE)</span>
+<span style="color:#99999a;font-size:13px;">当前版本 v2.0-rc 系列（最新 tag：`v2.0-rc.5`）· 本项目以 **GPLv3** 许可证发布，详见 [LICENSE](./LICENSE)</span>
 
 </div>
 
