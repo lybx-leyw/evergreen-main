@@ -44,6 +44,7 @@ import 'package:evergreen_base/renderer/components/shared/widgets/system_drawer_
 import 'package:evergreen_base/renderer/page/file_viewer.dart';
 import 'package:evergreen_base/renderer/page/global_memory_view.dart';
 import 'package:evergreen_base/renderer/page/skill_management_view.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/interaction/chat/session_branch.dart';
 
 /// AI 助手工作区的统一模块 id——Agent 写入端（agent_factory / main 等）
 /// 与 UI 读取端（工作区抽屉 [WorkspaceDrawer]）都通过 [greenixWorkspaceDir] 指向同一目录。
@@ -74,6 +75,12 @@ class _AssemblySessionData {
 final _chatMessagesProvider =
     StateNotifierProvider<_LocalChatMessagesNotifier, List<ChatMessage>>(
         (ref) => _LocalChatMessagesNotifier());
+
+/// 后台 tool 进程数（Task 三决策 3.2 UI 侧）——响应式计数，由
+/// [_ChatControllerViewState._refreshBgProcessCount] 定时/事件刷新。
+/// 数据源是 core 全局单例 [agent.agentProcessRegistry]（agent.dart barrel 已导出）。
+final _bgProcessCountProvider =
+    StateProvider<int>((ref) => agent.agentProcessRegistry.activeNames().length);
 
 /// Chat 范式统一控制器视图——全屏 / 嵌入两用。
 ///
@@ -205,6 +212,9 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     );
     _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (_isRunning && mounted) setState(() => _elapsedSeconds++);
+      // 后台 tool 进程数响应式刷新（Task 三决策 3.2 UI 侧）——复用既有 1s 定时器，
+      // 不新增 Timer；计数变化才写 provider，避免无谓重建。
+      if (mounted) _refreshBgProcessCount();
     });
 
     // 修复：把「联网搜索」开关（webSearchEnabledProvider）真正挂钩到全局工具
@@ -260,6 +270,14 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
           curve: Curves.easeOut,
         );
       });
+    }
+  }
+
+  /// 刷新「后台 tool 进程数」provider（计数变化才写，避免无谓重建）。
+  void _refreshBgProcessCount() {
+    final n = agent.agentProcessRegistry.activeNames().length;
+    if (ref.read(_bgProcessCountProvider) != n) {
+      ref.read(_bgProcessCountProvider.notifier).state = n;
     }
   }
 
@@ -554,7 +572,16 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     final msg = messages[msgIndex];
     if (!msg.isUser) return;
 
-    final text = msg.content;
+    // ── edit/branch 语义（Task 六 Bug 7）──
+    // 不再删除旧历史：以该 user 消息为分叉点 fork 出新分支（新分支继承
+    // [0..forkTurn) 即该消息之前的全部历史），旧会话（含该消息及其后回复）
+    // 完整保留在会话列表；该消息文本回填输入框供编辑，重新发送后写入新分支。
+    // 分支是纯会话层操作，不触碰工作区文件（rewind/edit 不撤销工作区变更）。
+    final sourceId = ref.read(activeSessionIdProvider);
+    if (sourceId == null) return;
+
+    // UI 列表（仅 user/assistant 气泡）与 Agent Session（含 tool_call/tool_result
+    // 消息）索引不对齐：按「该消息是第 N 个 user 消息」在 Session 中定位分叉点。
     final ctrl = ref.read(agentControllerProvider);
     final sessionMessages = ctrl.session.messages;
     int sessionUserIdx = -1;
@@ -568,13 +595,25 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
         userCount++;
       }
     }
-    if (sessionUserIdx >= 0) {
-      ctrl.session.removeFrom(sessionUserIdx);
-    }
-    ref.read(_chatMessagesProvider.notifier).removeFrom(msgIndex);
+    if (sessionUserIdx < 0) return;
+
+    // forkSessionProvider(sourceId, forkTurn)：新分支继承 [0..forkTurn) 并切换为
+    // 活动会话（内部先 saveCurrentSessionProvider 保存父会话，再写入新分支并
+    // 更新 activeSessionId → build 里的 activeSessionId 监听自动同步消息列表）。
+    ref.read(forkSessionProvider)(sourceId, sessionUserIdx);
+
+    // 回填原文供编辑（剥离附件标记，避免把 [📎 …] 伪标记当正文重发）。
+    final text = _stripAttachmentMarker(msg.content);
     _inputCtrl.text = text;
     _inputCtrl.selection = TextSelection.collapsed(offset: text.length);
     FocusScope.of(context).requestFocus();
+  }
+
+  /// 剥离用户消息末尾的附件标记 `[📎 ...]`（与 [_MessageBubble] 的展示逻辑一致）。
+  static String _stripAttachmentMarker(String content) {
+    final m = RegExp(r'\[📎 .+?\]$').firstMatch(content);
+    if (m == null) return content;
+    return content.substring(0, content.length - m.group(0)!.length).trim();
   }
 
   int _countUserMessagesBefore(List<ChatMessage> messages, int msgIndex) {
@@ -1210,6 +1249,12 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
             tooltip: '工具选项',
             onTap: () => _showToolsPopup(context),
           ),
+          // Task 三决策 3.2：后台 tool 进程入口（嵌入紧凑工具栏，图标式）。
+          _ToolbarIconButton(
+            icon: Icons.ad_units,
+            tooltip: '后台 tool 进程',
+            onTap: () => _showProcessesPopup(context),
+          ),
           const Spacer(),
           if (cfg['multi_session'] != false)
             IconButton(
@@ -1303,11 +1348,14 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                         itemBuilder: (_, i) {
                           final s = sessions[i];
                           final isActive = s.id == activeId;
+                          // Task 六 Bug 7：会话行显示分支计数小标签（分支族 > 1 时）。
+                          final branchCount =
+                              branchFamilyOf(sessions, s.id).length;
                           return ListTile(
                             selected: isActive,
                             selectedTileColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
                             title: Text(s.title.isEmpty ? '新对话' : s.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                            subtitle: Text('${s.messages.length} 条消息', style: const TextStyle(fontSize: 12)),
+                            subtitle: Text('${s.messages.length} 条消息${branchCount > 1 ? ' · 分支 $branchCount' : ''}', style: const TextStyle(fontSize: 12)),
                             dense: true,
                             onTap: () { ref.read(switchSessionProvider)(s.id); Navigator.pop(ctx); },
                             trailing: PopupMenuButton<String>(
@@ -1653,6 +1701,13 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     ref.listen<String?>(activeSessionIdProvider, (prev, next) {
       if (prev == next) return;
       _syncMessagesFromRuntime();
+      // Bug 8：切换/分叉/新建会话后自动滑到最新（_scrollToBottom 内置
+      // postFrameCallback）。长会话 ListView 懒加载下 maxScrollExtent 首次估算
+      // 可能偏小，延迟再滚一次确保到底。
+      _scrollToBottom();
+      Future<void>.delayed(const Duration(milliseconds: 120), () {
+        if (mounted) _scrollToBottom();
+      });
     });
 
     final messages = ref.watch(_chatMessagesProvider);
@@ -1670,10 +1725,21 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
           tooltip: '会话历史',
           onPressed: () => _scaffoldKey.currentState?.openDrawer(),
         ),
-        title: Text(
-          ref.watch(activeSessionTitleProvider),
-          style:
-              const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              ref.watch(activeSessionTitleProvider),
+              style:
+                  const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            // Task 六 Bug 7：分支切换「< 分支 i/n >」——当前会话有父/兄弟/子
+            // 分支时显示；旧会话（分支族大小 1）不显示，行为零变化。
+            _BranchSwitcher(sessionId: ref.watch(activeSessionIdProvider)),
+          ],
         ),
         centerTitle: false,
         actions: [
@@ -2066,12 +2132,22 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                   const SizedBox(width: 6),
                   _EffortSelector(
                     effort: _localEffort,
-                    onChanged: (v) => setState(() {
-                      _localEffort = v;
-                      // AgentAssembly 的 effort 在创建时已配置，
-                      // 运行时修改 effort 需要重建 Provider；
-                      // 此处仅更新 UI 状态。
-                    }),
+                    onChanged: (v) {
+                      setState(() => _localEffort = v);
+                      // A5 配合：直接驱动嵌入 Agent 的 provider（_embeddedCtrl.provider
+                      // 即 _initEmbeddedAgent 传入的共享 DeepSeekProvider 实例），
+                      // 使档位真实作用于请求参数（原来只更新 UI 状态不生效）。
+                      final ctrl = _embeddedCtrl;
+                      if (ctrl != null && ctrl.provider is agent.DeepSeekProvider) {
+                        final provider = ctrl.provider as agent.DeepSeekProvider;
+                        if (v == 'off') {
+                          provider.setThinking('disabled');
+                        } else {
+                          provider.setThinking('enabled');
+                          provider.setReasoningEffort(v);
+                        }
+                      }
+                    },
                   ),
                   const SizedBox(width: 6),
                   _ToggleChip(
@@ -2081,6 +2157,9 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                     onChanged: (_) => _showToolsPopup(context),
                     activeColor: const Color(0xFF2E7D32),
                   ),
+                  const SizedBox(width: 6),
+                  // Task 三决策 3.2：后台 tool 进程计数入口（点击弹窗管理）。
+                  const _BgProcessChip(),
                   const SizedBox(width: 6),
                   IconButton(
                     icon: const Icon(Icons.auto_fix_high, size: 18),
@@ -2429,6 +2508,30 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     }
   }
 
+  /// 应用思考档位（Task 五 Bug 6 / A5 配合点）：
+  /// ① 写全局 [reasoningEffortProvider]（UI 响应式真相源，保持旧链路兼容）；
+  /// ② 直接驱动主 Controller（[agentControllerProvider]，app_bootstrap 注入的
+  /// 实际实例）的 provider——当前运行时 agentRuntimeProvider 的
+  /// reasoningEffortProvider 监听链路不会被实例化，UI 写 provider 并不真正
+  /// 作用于请求参数，故在此直接调用 provider.setThinking/setReasoningEffort。
+  ///
+  /// TODO(A5 协同)：Provider 抽象接口暂无 setThinking/setReasoningEffort，
+  /// 按实际类型（DeepSeekProvider）降级调用；A5 若把二者上提到抽象接口，
+  /// 可改为 ctrl.provider.setThinking(...) 直调。
+  void _applyEffort(String v, WidgetRef ref) {
+    ref.read(reasoningEffortProvider.notifier).state = v;
+    final ctrl = ref.read(agentControllerProvider);
+    final provider = ctrl.provider;
+    if (provider is agent.DeepSeekProvider) {
+      if (v == 'off') {
+        provider.setThinking('disabled');
+      } else {
+        provider.setThinking('enabled');
+        provider.setReasoningEffort(v);
+      }
+    }
+  }
+
   // ── 状态指示灯 ──
 
   Widget _buildStatusBar(ThemeData theme) {
@@ -2528,8 +2631,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                     const SizedBox(width: 6),
                     _EffortSelector(
                       effort: effort,
-                      onChanged: (v) =>
-                          ref.read(reasoningEffortProvider.notifier).state = v,
+                      onChanged: (v) => _applyEffort(v, ref),
                     ),
                     const SizedBox(width: 6),
                     _ToggleChip(
@@ -2539,6 +2641,9 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                       onChanged: (_) => _showToolsPopup(context),
                       activeColor: const Color(0xFF2E7D32),
                     ),
+                    const SizedBox(width: 6),
+                    // Task 三决策 3.2：后台 tool 进程计数入口（点击弹窗管理）。
+                    const _BgProcessChip(),
                     const SizedBox(width: 6),
                     IconButton(
                       icon: const Icon(Icons.auto_fix_high, size: 18),
@@ -2739,6 +2844,100 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
       ),
     );
   }
+}
+
+// ═══════ 后台 tool 进程管理（Task 三决策 3.2 UI 侧） ═══════
+
+/// 「后台 N 个 tool 进程运行中」按钮的弹窗——列出全部已登记进程（含已退出），
+/// 每项显示名称/状态/累积输出摘要（截断 500 字符），可一键结束。
+///
+/// 复用 [_showToolsPopup] 的 showDialog 模式（避免 bottom sheet 拖拽手势吞点击）。
+/// 「结束」直接调 core 全局单例 [agent.agentProcessRegistry.kill]——与内置工具
+/// `kill_process`（KillProcessTool，见 core/agent/tools/agent_process_tools.dart）
+/// 等价：KillProcessTool 只是对同一注册表 kill 的薄包装，故 renderer 直调注册表
+/// 单例简化接线（分层红线例外：A3 已把注册表暴露为 core 顶层单例）。
+void _showProcessesPopup(BuildContext context) {
+  final theme = Theme.of(context);
+  showDialog(
+    context: context,
+    barrierDismissible: true,
+    builder: (dialogCtx) {
+      return StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final entries = agent.agentProcessRegistry.entries.toList()
+            ..sort((a, b) {
+              // 运行中的排前，其余按启动时间倒序。
+              if (a.isRunning != b.isRunning) return a.isRunning ? -1 : 1;
+              return b.startedAt.compareTo(a.startedAt);
+            });
+          final running = entries.where((e) => e.isRunning).length;
+          return Dialog(
+            insetPadding: const EdgeInsets.all(24),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: ConstrainedBox(
+              constraints:
+                  const BoxConstraints(maxWidth: 460, maxHeight: 520),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
+                    child: Row(
+                      children: [
+                        Icon(Icons.ad_units,
+                            size: 20, color: theme.colorScheme.primary),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text('后台 tool 进程（$running 个运行中）',
+                              style: theme.textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w600)),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 18),
+                          tooltip: '关闭',
+                          onPressed: () => Navigator.pop(dialogCtx),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(),
+                  if (entries.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Text('暂无后台 tool 进程',
+                          style: TextStyle(
+                              color: theme.colorScheme.onSurfaceVariant)),
+                    )
+                  else
+                    Flexible(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        itemCount: entries.length,
+                        itemBuilder: (ctx, i) {
+                          final e = entries[i];
+                          return _ProcessTile(
+                            entry: e,
+                            onKill: () async {
+                              await agent.agentProcessRegistry.kill(e.name);
+                              // 「结束」后刷新列表（StatefulBuilder 重建；
+                              // 弹窗若已关闭则跳过，避免对已卸载元素 setState）。
+                              if (ctx.mounted) setDialogState(() {});
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    },
+  );
 }
 
 // ═══════ _MessageBubble ═══════
@@ -3247,8 +3446,8 @@ class _MessageBubbleState extends State<_MessageBubble> {
           ],
           if (isUser) ...[
             _ActionButton(
-              icon: Icons.undo,
-              tooltip: '撤回',
+              icon: Icons.edit_outlined,
+              tooltip: '编辑（保留原历史，另开分支）',
               size: 12 * s,
               onTap: () => widget.onEdit?.call(),
             ),
@@ -3562,6 +3761,8 @@ class _ConversationHistoryPanel extends ConsumerWidget {
                           m.role == agent.Role.user ||
                           m.role == agent.Role.assistant)
                       .length;
+                  // Task 六 Bug 7：会话行显示分支计数小标签（分支族 > 1 时）。
+                  final branchCount = branchFamilyOf(sessions, s.id).length;
                   return ListTile(
                     selected: isActive,
                     selectedTileColor: theme
@@ -3587,7 +3788,8 @@ class _ConversationHistoryPanel extends ConsumerWidget {
                       ),
                     ),
                     subtitle: Text(
-                      '$msgCount 条消息 · ${_formatRelativeTime(s.updatedAt)}',
+                      '$msgCount 条消息 · ${_formatRelativeTime(s.updatedAt)}'
+                      '${branchCount > 1 ? ' · 分支 $branchCount' : ''}',
                       style: theme.textTheme.labelSmall?.copyWith(
                           color:
                               theme.colorScheme.onSurfaceVariant),
@@ -3640,6 +3842,59 @@ class _ConversationHistoryPanel extends ConsumerWidget {
           onTap: onGlobalMemory,
         ),
         const SizedBox(height: 4),
+      ],
+    );
+  }
+}
+
+// ═══════ _BranchSwitcher ═══════
+
+/// Task 六 Bug 7：分支切换控件「< 分支 i/n >」。
+///
+/// 读取 [sessionListProvider]（内部即 `sessionStoreProvider.listAll()`）过滤出
+/// 当前会话的分支族（自身 + 父会话 + 同父兄弟 + 子分支，见 session_branch.dart），
+/// 分支族大小 > 1 时显示序号与左右切换按钮；否则返回空（旧会话无分支元数据 →
+/// 零行为变化）。切换走 [switchSessionProvider]：纯会话层操作，不撤销工作区变更。
+class _BranchSwitcher extends ConsumerWidget {
+  final String? sessionId;
+
+  const _BranchSwitcher({this.sessionId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final id = sessionId ?? ref.watch(activeSessionIdProvider);
+    if (id == null) return const SizedBox.shrink();
+    final sessions =
+        ref.watch(sessionListProvider).valueOrNull ?? const <agent.Session>[];
+    final group = branchFamilyOf(sessions, id);
+    if (group.length <= 1) return const SizedBox.shrink();
+    final index = branchIndexIn(group, id);
+    final dim = Theme.of(context).colorScheme.onSurfaceVariant;
+
+    Widget arrow(IconData icon, bool next) {
+      return InkWell(
+        onTap: () {
+          final target = branchSwitchTo(group, id, next: next);
+          if (target != null) ref.read(switchSessionProvider)(target);
+        },
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.all(1),
+          child: Icon(icon, size: 14, color: dim),
+        ),
+      );
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        arrow(Icons.chevron_left, false),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Text('分支 $index/${group.length}',
+              style: TextStyle(fontSize: 10, color: dim)),
+        ),
+        arrow(Icons.chevron_right, true),
       ],
     );
   }
@@ -3828,6 +4083,118 @@ class _EffortSelector extends StatelessWidget {
     ).then((selected) {
       if (selected != null) onChanged(selected);
     });
+  }
+}
+
+// ═══════ _BgProcessChip ═══════
+
+/// 工具区「后台 N」chip——Task 三决策 3.2 的 UI 入口：
+/// 显示当前后台 tool 进程数（[_bgProcessCountProvider] 响应式刷新），
+/// 点击弹出 [_showProcessesPopup] 管理列表。
+class _BgProcessChip extends ConsumerWidget {
+  const _BgProcessChip();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final n = ref.watch(_bgProcessCountProvider);
+    final theme = Theme.of(context);
+    final active = n > 0;
+    return Tooltip(
+      message: '后台 $n 个 tool 进程运行中，点击查看/结束',
+      child: FilterChip(
+        avatar: Icon(Icons.ad_units,
+            size: 16,
+            color: active
+                ? theme.colorScheme.onPrimary
+                : theme.colorScheme.onSurfaceVariant),
+        label: Text('后台 $n',
+            style: TextStyle(
+                fontSize: 12,
+                color: active ? theme.colorScheme.onPrimary : null)),
+        selected: active,
+        selectedColor: theme.colorScheme.primary,
+        checkmarkColor: theme.colorScheme.onPrimary,
+        showCheckmark: false,
+        onSelected: (_) => _showProcessesPopup(context),
+        visualDensity: VisualDensity.compact,
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+    );
+  }
+}
+
+// ═══════ _ProcessTile ═══════
+
+/// 后台进程列表条目：名称 + 状态（运行中/已退出）+ 累积输出摘要（截断 500
+/// 字符）+ 「结束」按钮（仅运行中显示）。
+class _ProcessTile extends StatelessWidget {
+  final agent.ResidentProcessEntry entry;
+  final VoidCallback onKill;
+
+  const _ProcessTile({required this.entry, required this.onKill});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isRunning = entry.isRunning;
+    final status = isRunning
+        ? '运行中'
+        : '已退出${entry.exitCode != null ? ' (exit=${entry.exitCode})' : ''}';
+    final raw = entry.output.trim();
+    final summary =
+        raw.length > 500 ? '${raw.substring(0, 500)}…' : raw;
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 3),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: ListTile(
+        leading: Icon(
+          isRunning ? Icons.ad_units : Icons.stop_circle_outlined,
+          size: 20,
+          color: isRunning
+              ? theme.colorScheme.primary
+              : theme.colorScheme.onSurfaceVariant,
+        ),
+        title: Text(entry.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(fontWeight: FontWeight.w600, fontSize: 13)),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(status,
+                style: TextStyle(
+                    fontSize: 11,
+                    color: isRunning
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.onSurfaceVariant)),
+            if (summary.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(summary,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontFamily: 'monospace',
+                        color: theme.colorScheme.onSurfaceVariant)),
+              ),
+          ],
+        ),
+        trailing: isRunning
+            ? TextButton(
+                onPressed: onKill,
+                child: const Text('结束', style: TextStyle(fontSize: 12)),
+              )
+            : null,
+        dense: true,
+        visualDensity: VisualDensity.compact,
+      ),
+    );
   }
 }
 

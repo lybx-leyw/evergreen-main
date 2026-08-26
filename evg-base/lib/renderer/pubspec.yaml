@@ -27,3 +27,6 @@ dependencies:
     path: lib/flutter_widget_from_html_core_stub
   html:
     path: lib/html_stub
+
+dev_dependencies:
+  test: ^1.24.0
