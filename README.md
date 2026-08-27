@@ -10,10 +10,10 @@
 
 ![platform](https://img.shields.io/badge/平台-Windows%20%7C%20Android-2e2e33?style=flat-square&labelColor=232326)
 ![license](https://img.shields.io/badge/许可证-GPLv3-4dc878?style=flat-square&labelColor=232326)
-![version](https://img.shields.io/badge/版本-v2.0--rc.4-2e2e33?style=flat-square&labelColor=232326)
+![version](https://img.shields.io/badge/版本-v2.0--rc.6.2-2e2e33?style=flat-square&labelColor=232326)
 ![flutter](https://img.shields.io/badge/Flutter-本地优先-4dc878?style=flat-square&labelColor=232326)
 
-<span style="color:#99999a;font-size:13px;">当前版本 v2.0-rc 系列（最新 tag：`v2.0-rc.5`）· 本项目以 **GPLv3** 许可证发布，详见 [LICENSE](./LICENSE)</span>
+<span style="color:#99999a;font-size:13px;">当前版本 v2.0-rc 系列（最新 tag：`v2.0-rc.6.2`）· 本项目以 **GPLv3** 许可证发布，详见 [LICENSE](./LICENSE)</span>
 
 </div>
 
@@ -164,6 +164,22 @@ dart tool/gen_template_registry.dart --profile release_full
 | 🏗️ 平台底层 / Lib 层 | [`evg-base/README.md`](evg-base/README.md) / [`evg-base/lib/README.md`](evg-base/lib/README.md) |
 | 📚 各子域规范 | `evg-base/lib/core/*/CLAUDE.md` + `README.md`（见根 `CLAUDE.md` §文档地图） |
 | ⬇️ 下载中心 / 特性截图 | `docs/index.html` + `docs/features/*.png` |
+
+---
+
+## 🙏 致谢
+
+一路走来，感谢每一位为 Evergreen 提供改进建议、体验优化建议与评价的**舍友、朋友、同学**，以及**其他专业的应用体验者**——你们的每一个反馈都让 Evergreen 变得更好。
+
+特别感谢 **炎龙铠甲** 在 2.0-alpha 探索初期提交的优化与 debug 工作：
+
+- **新增工具选项面板**：聊天界面可选择启用/禁用 Agent 工具，核心工具有禁用警告
+- **多级深度思考参数**：从二元开关改为五档选择（关 / 低 / 中 / 高 / 最强）
+- **AI 驱动的 Skill 生成器**（上游已完成）：调用 LLM 自动生成 Skill Markdown
+- **渲染优化**：TabBar 指示线加粗、Slot 卡片阴影、侧边栏 hover 反馈
+- 等优化以及相关 debug 工作
+
+正是你们共同构成了 Evergreen 现在的样子。
 
 ---
 
