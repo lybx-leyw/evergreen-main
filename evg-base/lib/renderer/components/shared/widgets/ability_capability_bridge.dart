@@ -11,7 +11,7 @@ import 'package:evergreen_base/renderer/components/shared/widgets/models.dart';
 
 /// 渲染层 [AbilityDim] → 核心层 [CapabilityDimension]。
 ///
-/// `skill` 在核心层无对应维度 → 返回 `null`。
+/// `skill` / `skin` 在核心层无对应维度 → 返回 `null`。
 CapabilityDimension? toCoreDim(AbilityDim dim) {
   switch (dim) {
     case AbilityDim.agent:
@@ -25,6 +25,8 @@ CapabilityDimension? toCoreDim(AbilityDim dim) {
     case AbilityDim.settings:
       return CapabilityDimension.config;
     case AbilityDim.skill:
+      return null;
+    case AbilityDim.skin:
       return null;
   }
 }

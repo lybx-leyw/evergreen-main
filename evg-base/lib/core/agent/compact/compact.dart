@@ -75,6 +75,9 @@ class Compactor {
     session.messages.addAll(head);
     session.messages.add(Message.system(summary));
     session.messages.addAll(tail);
+    // R3 会话树：压实把活动路径中间段替换为摘要，旧树结构（含侧枝）不再
+    // 有意义，重建为与压实后 messages 一致的单路径树（双写一致）。
+    session.rebuildTreeFromMessages();
 
     return session;
   }

@@ -3,6 +3,11 @@
 /// 契约：`docs/superpowers/specs/egsync-sync-center-spec-v1.md` §七（parent_id / fork_turn
 /// 元数据 + §7.2 合并语义）。本文件为 t-C4（core-agent）实施落点，供导入端（t-C3
 /// core-module）调用；导出端（t-C2）不参与合并。
+///
+/// R3 会话树增强：双方都有 `tree` 时把树纳入判定——消息相等但树分化 → 保留本地；
+/// 删除（删小）要求「路径包含 且 兄弟分支集合包含」，防止删除持有额外分支的会话；
+/// 任一方无树（旧直线数据）走旧逻辑，行为零变化。树内不写 updatedAt 等易变字段，
+/// 跨设备判定稳定。
 library;
 
 import 'dart:convert';
@@ -62,26 +67,33 @@ SessionMergeResult mergeSessions(List<Session> local, List<Session> imported) {
     // ── 同 id 冲突 ──
     final a = existing.session;
     if (_messagesEqual(a.messages, s.messages)) {
-      // 内容相等：保留先见者（本地优先），导入同内容 no-op
-      existing.reason = '同 id 内容相等（去重 no-op），保留既有副本';
+      if (_treesEqual(a, s)) {
+        // 内容相等（含树结构）：保留先见者（本地优先），导入同内容 no-op
+        existing.reason = '同 id 内容相等（去重 no-op），保留既有副本';
+        return;
+      }
+      // 消息相同但树不同（兄弟分支差异）：保留本地，导入副本静默丢弃
+      // （同文件不可共存，导入端按结果落盘，见 §7.2）。
+      existing.reason = '同 id 消息相等但树结构分化（分支差异），保留本地';
       return;
     }
-    if (_isStrictPrefix(a.messages, s.messages)) {
-      // 本地是导入的前缀 → 保留更长（导入），本地入删除清单
+    if (_isStrictPrefix(a.messages, s.messages) && _treeContainedIn(a, s)) {
+      // 本地是导入的前缀且树包含 → 保留更长（导入），本地入删除清单
       deletedIds.add(a.id);
       deletedReasons[a.id] = '同 id 冲突：本地是导入会话的前缀，删除本地保留导入（更长）';
       pool[s.id] = _PoolEntry(session: s, isLocal: isLocal,
           reason: '同 id 冲突：导入会话更长（本地是其前缀），保留导入');
-    } else if (_isStrictPrefix(s.messages, a.messages)) {
-      // 导入是本地的前缀 → 保留本地，导入入删除清单
+    } else if (_isStrictPrefix(s.messages, a.messages) && _treeContainedIn(s, a)) {
+      // 导入是本地的前缀且树包含 → 保留本地，导入入删除清单
       deletedIds.add(s.id);
       deletedReasons[s.id] = '同 id 冲突：导入是本地会话的前缀，删除导入保留本地（更长）';
       existing.reason = '同 id 冲突：本地会话更长（导入是其前缀），保留本地';
     } else {
-      // 分化：保留本地；导入同 id 副本入删除清单（同文件不可共存，导入端按结果落盘）
+      // 分化（含树不包含的情形：较短方的树含导入方缺失的分支）：保留本地；
+      // 导入同 id 副本入删除清单（同文件不可共存，导入端按结果落盘）
       deletedIds.add(s.id);
-      deletedReasons[s.id] = '同 id 冲突：内容分化，保留本地，丢弃导入副本';
-      existing.reason = '同 id 冲突：内容分化，保留本地';
+      deletedReasons[s.id] = '同 id 冲突：内容或树分化，保留本地，丢弃导入副本';
+      existing.reason = '同 id 冲突：内容或树分化，保留本地';
     }
   }
 
@@ -106,7 +118,10 @@ SessionMergeResult mergeSessions(List<Session> local, List<Session> imported) {
     String? containedIn;
     for (final other in entries) {
       if (identical(other, entry)) continue;
-      if (_isStrictPrefix(a.messages, other.session.messages)) {
+      // 树感知：双方都有树时，删除要求「路径包含 且 兄弟分支集合包含」，
+      // 避免删掉较短但持有导入方缺失分支的会话（分支数据不丢失）。
+      if (_isStrictPrefix(a.messages, other.session.messages) &&
+          _treeContainedIn(a, other.session)) {
         containedIn = other.session.id;
         break;
       }
@@ -168,3 +183,63 @@ bool _messagesEqual(List<Message> a, List<Message> b) {
 
 bool _sameMessage(Message a, Message b) =>
     jsonEncode(a.toJson()) == jsonEncode(b.toJson());
+
+// ═══════ 树感知合并辅助 ═══════
+
+/// [small] 的内容是否包含于 [big]（用于「删小保大」判定）。
+///
+/// - 任一方无树（旧数据 / 代码构造）→ 回退旧逻辑（视为包含，纯消息判定）；
+/// - 双方都有树 → 要求 big 的树在结构上包含 small 的树（路径包含 且 兄弟
+///   分支集合包含），防止删除持有额外分支的会话。
+bool _treeContainedIn(Session small, Session big) {
+  if (small.roots.isEmpty || big.roots.isEmpty) return true;
+  return _treeContains(big, small);
+}
+
+/// [container] 的树是否包含 [contained] 的树（逐根、逐轮结构包含）。
+bool _treeContains(Session container, Session contained) {
+  for (final rc in contained.roots) {
+    if (!container.roots.any((r) => _roundContains(r, rc))) return false;
+  }
+  return true;
+}
+
+/// 两棵树结构是否完全相等（忽略 active_child/active_root 导航态；
+/// 用于同 id 内容相等的去重判定）。
+bool _treesEqual(Session a, Session b) {
+  if (a.roots.isEmpty || b.roots.isEmpty) return a.roots.isEmpty && b.roots.isEmpty;
+  if (a.roots.length != b.roots.length) return false;
+  for (var i = 0; i < a.roots.length; i++) {
+    if (!_roundsEqual(a.roots[i], b.roots[i])) return false;
+  }
+  return true;
+}
+
+bool _roundsEqual(Round a, Round b) {
+  if (!_messagesEqual(a.messages, b.messages)) return false;
+  if (a.children.length != b.children.length) return false;
+  for (var i = 0; i < a.children.length; i++) {
+    if (!_roundsEqual(a.children[i], b.children[i])) return false;
+  }
+  return true;
+}
+
+/// [contained] 轮是否包含于 [container] 轮：container 的 messages 是 contained
+/// messages 的前缀（或相等），且 contained 的每个子分支都能在 container 中
+/// 找到对应包含轮（同一递归）。
+bool _roundContains(Round container, Round contained) {
+  if (!_isMessagePrefix(contained.messages, container.messages)) return false;
+  for (final cc in contained.children) {
+    if (!container.children.any((c) => _roundContains(c, cc))) return false;
+  }
+  return true;
+}
+
+/// [short] 是否为 [long] 的前缀（逐条相等；short 可等于 long）。
+bool _isMessagePrefix(List<Message> short, List<Message> long) {
+  if (short.length > long.length) return false;
+  for (var i = 0; i < short.length; i++) {
+    if (!_sameMessage(short[i], long[i])) return false;
+  }
+  return true;
+}

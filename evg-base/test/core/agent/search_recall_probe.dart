@@ -1,4 +1,4 @@
-// 搜索召回测试探针（Task 二 A2 交付物 3）
+// 搜索召回测试探针（Task 二 A2 交付物 3 + R2 多来源召回 mode 维度）
 //
 // 用途：debug 探针——观察 AI 助手搜索工具对「全面 / 专业 / 可靠 / 时效」四类
 // 关键词的召回质量。按 Task 二评估方式，本文件**不 assert 任何值**，不会
@@ -11,7 +11,8 @@
 // 说明：
 //   - 预设 4 类关键词（全面 / 专业 / 可靠 / 时效），可按需修改 [keywords] 列表；
 //   - 每个关键词依次调用 web_search(max_results: 8) / arxiv_search /
-//     github_search / crossref_search（真实 HTTP，无需任何 API Key）；
+//     github_search / crossref_search，以及 web_search(mode: all, max_results: 6)
+//     三合一召回（Task 二 R2 新增 mode 维度，真实 HTTP，无需任何 API Key）；
 //   - 打印：召回条目数、来源域名分布、每条标题 + URL、失败原因。
 //   - 注意 GitHub 未认证 API 限流 60 次/小时，连续跑多次探针可能触发限流。
 //   - 实测提示：GitHub 仓库搜索对中文自然语言 query 几乎零命中（如
@@ -40,7 +41,9 @@ void main() async {
   final github = GithubSearchTool(Dio());
   final crossref = CrossrefSearchTool(Dio());
 
-  print('搜索召回探针 — ${keywords.length} 类关键词 × 4 个搜索工具（真实 HTTP）');
+  print('搜索召回探针 — ${keywords.length} 类关键词 × 5 个检索维度（真实 HTTP）');
+  print('维度：web_search / arxiv_search / github_search / crossref_search / '
+      'web_search(mode: all 三合一)');
   print('结果仅供人工观察迭代，不判 pass/fail。\n');
 
   for (var i = 0; i < keywords.length; i++) {
@@ -52,6 +55,8 @@ void main() async {
     await _probe('arxiv_search', () => arxiv.execute({'query': q}));
     await _probe('github_search', () => github.execute({'query': q}));
     await _probe('crossref_search', () => crossref.execute({'query': q}));
+    // Task 二 R2：mode=all 三合一召回（max_results=6 → 网络 2 / arxiv 2 / github 2）
+    await _probe('web_search(all)', () => webSearch.execute({'query': q, 'max_results': 6, 'mode': 'all'}));
     print('');
   }
   print('═' * 72);
@@ -101,14 +106,17 @@ Future<void> _probe(String toolName, Future<String> Function() run) async {
   if (raw.startsWith('[') && (raw.contains('失败') || raw.contains('error'))) {
     return (const [], raw.trim());
   }
-  if (toolName == 'web_search') {
+  if (toolName == 'web_search' || toolName == 'web_search(all)') {
     // 成功格式：搜索 "q" 的结果:\n\n条目1\n\n条目2...
+    // mode=all 条目带 [网络]/[arxiv]/[github] 来源标记（Task 二 R2），展示时剥离。
     final parts = raw.split('\n\n');
     final entries = <(String, String)>[];
     for (final part in parts.skip(1)) {
       final lines = part.trim().split('\n');
       if (lines.isEmpty || lines.first.isEmpty) continue;
-      final title = lines.first.trim();
+      final title = lines.first
+          .trim()
+          .replaceFirst(RegExp(r'^\[(网络|arxiv|github)\] '), '');
       final urlLine =
           lines.where((l) => l.trim().startsWith('http')).firstOrNull ?? '';
       entries.add((title, urlLine.trim()));

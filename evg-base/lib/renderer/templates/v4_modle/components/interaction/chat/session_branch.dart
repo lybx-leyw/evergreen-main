@@ -1,17 +1,110 @@
-/// 会话分支（fork）纯逻辑 —— Task 六 Bug 7「撤回 → edit/branch」的 renderer 侧辅助。
+/// 会话树形分支纯逻辑 —— R3（Task 三）会话树形分支的 renderer 侧辅助。
 ///
 /// 全部函数纯 Dart、零 Flutter 依赖，可独立 `dart test`（见 `renderer/test/`）。
 ///
-/// 分支组定义（与 `docs/superpowers/specs/2026-08-26-AI-assistant-improvement.md`
-/// Task 六一致）：某会话的「分支族」= 自身 + 父会话 + 同父兄弟 + 子分支。
-/// 旧会话（无 parentId 且无子会话）的分支族大小为 1 → UI 不显示分支切换
-/// （缺省零行为变化）。
+/// 新语义（R3）：分支不再是「独立会话」，而是同一会话内的轮次树
+/// （`agent.Session` 的 `Round` 树，`children` 有序 = 孩子兄弟链）。
+/// - [siblingsOf]：某轮（loopId）的兄弟分支链（含当前活动轮）；
+/// - [branchIndexIn]：活动轮在兄弟链中的 1-based 序号（「◀ i/n ▶」的 i）；
+/// - [nextSiblingIndex] / [switchSibling]：左右环绕切换（switch 即 i±1）；
+/// - [treeBranchCount]：树内分支（叶子）计数，供会话历史行标签。
+///
+/// Legacy 兜底：旧 A6 fork 数据（parent_id/fork_turn 家族，多会话）仍保留
+/// [branchFamilyOf] 读兼容（会话历史行标签回退），懒迁移不破坏旧文件。
 library;
 
 import 'package:evergreen_base/core/agent/agent/session.dart';
 
-/// 计算某会话的分支族（自身 + 父会话 + 同父兄弟 + 子分支），按
-/// [_compareBranchOrder] 排序。找不到该会话返回空列表。
+// ═══════ R3 树语义 ═══════
+
+/// 会话中 [loopId] 轮所在的兄弟分支链（含当前活动轮）。
+///
+/// - loopId 越界 / 会话无树 → 空列表（缺省不渲染切换条，零行为变化）；
+/// - loopId == 0 → 深度 0 分支链（`session.roots`，根轮分叉后长度 > 1）。
+List<Round> siblingsOf(Session session, int loopId) {
+  if (loopId < 0) return const [];
+  final path = session.activePath;
+  if (loopId >= path.length) return const [];
+  if (loopId == 0) return List.of(session.roots);
+  return List.of(path[loopId - 1].children);
+}
+
+/// 当前活动轮在其兄弟链中的 1-based 序号；不在链中 / 越界返回 0。
+int branchIndexIn(Session session, int loopId) {
+  final siblings = siblingsOf(session, loopId);
+  if (siblings.isEmpty) return 0;
+  final path = session.activePath;
+  if (loopId >= path.length) return 0;
+  final i = siblings.indexOf(path[loopId]);
+  return i < 0 ? 0 : i + 1;
+}
+
+/// 计算在兄弟链中向前（next=true）/ 向后环绕一步的目标下标（0-based）。
+///
+/// 兄弟链长度 <= 1 或 loopId 越界 → null（无切换目标）。
+int? nextSiblingIndex(Session session, int loopId, {required bool next}) {
+  final siblings = siblingsOf(session, loopId);
+  if (siblings.length <= 1) return null;
+  final path = session.activePath;
+  if (loopId >= path.length) return null;
+  final i = siblings.indexOf(path[loopId]);
+  if (i < 0) return null;
+  return next
+      ? (i + 1) % siblings.length
+      : (i - 1 + siblings.length) % siblings.length;
+}
+
+/// 切换：计算目标下标并调用 [Session.switchRound] 重建活动路径与消息。
+/// 返回目标下标（0-based）；无切换目标返回 null（不修改会话）。
+///
+/// 切换是纯会话层操作：不改变会话 id、不产生新会话、不触碰工作区。
+int? switchSibling(Session session, int loopId, {required bool next}) {
+  final j = nextSiblingIndex(session, loopId, next: next);
+  if (j == null) return null;
+  session.switchRound(loopId, j);
+  return j;
+}
+
+/// 树内分支（根到叶路径）数量——会话历史行「分支 n」标签用。
+///
+/// 无树 / 单路径直线 → 1（不显示标签）；有分叉 → 叶子数（> 1 时显示）。
+/// 旧 A6 fork 数据（无树但有 parent_id 家族）由 [branchLabelCount] 走
+/// [branchFamilyOf] 兜底。
+int treeBranchCount(Session session) {
+  var leaves = 0;
+  void walk(Round round) {
+    if (round.children.isEmpty) {
+      leaves++;
+      return;
+    }
+    for (final c in round.children) {
+      walk(c);
+    }
+  }
+
+  for (final r in session.roots) {
+    walk(r);
+  }
+  return leaves;
+}
+
+/// 会话历史行分支标签计数：树内分叉优先；旧 A6 fork 数据（parent_id 家族）
+/// 走 [branchFamilyOf] 兜底。无分叉返回 null（不显示标签）。
+int? branchLabelCount(List<Session> all, Session s) {
+  final tree = treeBranchCount(s);
+  if (tree > 1) return tree;
+  if (s.parentId != null || all.any((x) => x.parentId == s.id)) {
+    final family = branchFamilyOf(all, s.id).length;
+    if (family > 1) return family;
+  }
+  return null;
+}
+
+// ═══════ Legacy 兜底（旧 A6 fork 数据读兼容）═══════
+
+/// ⚠️ Legacy：旧「分支 = 独立会话」语义的分支族（自身 + 父会话 + 同父兄弟 +
+/// 子分支），仅供旧 A6 fork 数据（parent_id/fork_turn）的懒迁移读兼容兜底；
+/// R3 起新分叉一律走树内 [siblingsOf] / [switchSibling]。
 List<Session> branchFamilyOf(List<Session> all, String sessionId) {
   final current = all.where((s) => s.id == sessionId).firstOrNull;
   if (current == null) return const [];
@@ -43,26 +136,4 @@ int _compareBranchOrder(Session a, Session b) {
   if (bt == null) return 1;
   if (at != bt) return at.compareTo(bt);
   return a.updatedAt.compareTo(b.updatedAt);
-}
-
-/// 当前会话在分支族中的 1-based 序号；不在族内返回 0。
-int branchIndexIn(List<Session> group, String sessionId) {
-  final i = group.indexWhere((s) => s.id == sessionId);
-  return i < 0 ? 0 : i + 1;
-}
-
-/// 分支切换：当前序号向前（next=false）或向后（next=true）移一步（环绕）。
-/// 返回目标会话 id；分支族大小 <= 1 或当前会话不在族内返回 null。
-String? branchSwitchTo(
-  List<Session> group,
-  String sessionId, {
-  required bool next,
-}) {
-  if (group.length <= 1) return null;
-  final i = group.indexWhere((s) => s.id == sessionId);
-  if (i < 0) return null;
-  final j = next
-      ? (i + 1) % group.length
-      : (i - 1 + group.length) % group.length;
-  return group[j].id;
 }

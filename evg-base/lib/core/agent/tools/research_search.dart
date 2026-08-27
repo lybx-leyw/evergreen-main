@@ -5,6 +5,50 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 import '../tool.dart';
 
+// ═══════ 共享检索逻辑 ═══════
+//
+// 网络请求与响应解析只在这里实现一次，供两类消费者复用：
+//   1. ArxivSearchTool / GithubSearchTool（独立专业检索工具）；
+//   2. WebSearchTool 的 mode=arxiv / mode=github / mode=all（web_search 多来源召回，
+//      Task 二 R2——避免为同一来源重复实现网络请求）。
+// 共享函数返回 (结果条目, 错误信息?)：error 非 null 表示检索失败（含原始异常），
+// 此时条目不使用；成功时 error 为 null。
+
+/// 共享 arXiv 检索（arXiv API，XML 响应）。
+Future<(List<Map<String, dynamic>>, String?)> arxivSearchShared(
+    Dio dio, String query, int maxResults) async {
+  try {
+    final r = await dio.get('https://export.arxiv.org/api/query', queryParameters: {
+      'search_query': 'all:$query', 'start': 0, 'max_results': maxResults,
+    }, options: Options(responseType: ResponseType.plain, receiveTimeout: const Duration(seconds: 30), sendTimeout: const Duration(seconds: 10)));
+    final xml = r.data?.toString() ?? '';
+    final entries = RegExp(r'<entry>([\s\S]*?)</entry>').allMatches(xml).map((m) {
+      final b = m.group(1)!;
+      String pick(String tag) => RegExp('<$tag[^>]*>([\\s\\S]*?)</$tag>').firstMatch(b)?.group(1)?.trim() ?? '';
+      final authors = RegExp(r'<author>[\s\S]*?<name>([\s\S]*?)</name>[\s\S]*?</author>').allMatches(b).map((m) => m.group(1)!.trim()).join(', ');
+      final id = pick('id');
+      return {'title': pick('title').replaceAll(RegExp(r'\s+'), ' '), 'authors': authors,
+        'published': pick('published'), 'summary': pick('summary').replaceAll(RegExp(r'\s+'), ' '),
+        'url': id, 'pdf': id.replaceFirst('/abs/', '/pdf/')};
+    }).toList();
+    return (entries, null);
+  } catch (e) {
+    return (const <Map<String, dynamic>>[], 'arxiv search failed: $e');
+  }
+}
+
+/// 共享 GitHub 仓库检索（GitHub Search API，JSON 响应）。
+Future<(List<Map<String, dynamic>>, String?)> githubSearchShared(
+    Dio dio, String query, int maxResults) async {
+  try {
+    final r = await dio.get('https://api.github.com/search/repositories', queryParameters: {'q': query, 'per_page': maxResults}, options: Options(receiveTimeout: const Duration(seconds: 30), sendTimeout: const Duration(seconds: 10), headers: {'Accept': 'application/vnd.github+json', 'User-Agent': 'Evergreen-Research-Agent'}));
+    final items = (r.data is Map ? (r.data['items'] as List? ?? const []) : const []).map((x) => {'name': x['full_name'], 'url': x['html_url'], 'description': x['description'], 'language': x['language'], 'stars': x['stargazers_count'], 'updatedAt': x['updated_at']}).toList();
+    return (items, null);
+  } catch (e) {
+    return (const <Map<String, dynamic>>[], 'github search failed: $e');
+  }
+}
+
 class ArxivSearchTool extends Tool {
   final Dio dio;
   ArxivSearchTool(this.dio);
@@ -19,22 +63,9 @@ class ArxivSearchTool extends Tool {
     if (q.isEmpty) return '[error: arxiv query is empty]';
     if (q.length > 2048) return '[error: arxiv query exceeds 2048 characters]';
     final limit = ((args['max_results'] as num?)?.toInt() ?? 5).clamp(1, 10);
-    try {
-      final r = await dio.get('https://export.arxiv.org/api/query', queryParameters: {
-        'search_query': 'all:$q', 'start': 0, 'max_results': limit,
-      }, options: Options(responseType: ResponseType.plain, receiveTimeout: const Duration(seconds: 30), sendTimeout: const Duration(seconds: 10)));
-      final xml = r.data?.toString() ?? '';
-      final entries = RegExp(r'<entry>([\s\S]*?)</entry>').allMatches(xml).map((m) {
-        final b = m.group(1)!;
-        String pick(String tag) => RegExp('<$tag[^>]*>([\\s\\S]*?)</$tag>').firstMatch(b)?.group(1)?.trim() ?? '';
-        final authors = RegExp(r'<author>[\s\S]*?<name>([\s\S]*?)</name>[\s\S]*?</author>').allMatches(b).map((m) => m.group(1)!.trim()).join(', ');
-        final id = pick('id');
-        return {'title': pick('title').replaceAll(RegExp(r'\s+'), ' '), 'authors': authors,
-          'published': pick('published'), 'summary': pick('summary').replaceAll(RegExp(r'\s+'), ' '),
-          'url': id, 'pdf': id.replaceFirst('/abs/', '/pdf/')};
-      }).toList();
-      return jsonEncode({'source': 'arxiv', 'query': q, 'results': entries});
-    } catch (e) { return '[error: arxiv search failed: $e]'; }
+    final (entries, err) = await arxivSearchShared(dio, q, limit);
+    if (err != null) return '[error: $err]';
+    return jsonEncode({'source': 'arxiv', 'query': q, 'results': entries});
   }
 }
 class GithubSearchTool extends Tool {
@@ -49,11 +80,9 @@ class GithubSearchTool extends Tool {
     if (q.isEmpty) return '[error: github query is empty]';
     if (q.length > 2048) return '[error: github query exceeds 2048 characters]';
     final limit = ((args['max_results'] as num?)?.toInt() ?? 5).clamp(1, 10);
-    try {
-      final r = await dio.get('https://api.github.com/search/repositories', queryParameters: {'q': q, 'per_page': limit}, options: Options(receiveTimeout: const Duration(seconds: 30), sendTimeout: const Duration(seconds: 10), headers: {'Accept': 'application/vnd.github+json', 'User-Agent': 'Evergreen-Research-Agent'}));
-      final items = (r.data is Map ? (r.data['items'] as List? ?? const []) : const []).map((x) => {'name': x['full_name'], 'url': x['html_url'], 'description': x['description'], 'language': x['language'], 'stars': x['stargazers_count'], 'updatedAt': x['updated_at']}).toList();
-      return jsonEncode({'source': 'github', 'query': q, 'results': items});
-    } catch (e) { return '[error: github search failed: $e]'; }
+    final (entries, err) = await githubSearchShared(dio, q, limit);
+    if (err != null) return '[error: $err]';
+    return jsonEncode({'source': 'github', 'query': q, 'results': entries});
   }
 }
 

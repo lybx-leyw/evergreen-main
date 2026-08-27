@@ -1,10 +1,12 @@
-// WebSearchTool 单元测试（Task 二 A2 交付物 4）。
+// WebSearchTool 单元测试（Task 二 A2 交付物 4 + R2 多来源召回）。
 //
 // 覆盖：
-//   - schema：query + max_results（integer 1-10）
+//   - schema：query + max_results（integer 1-10）+ mode（network/arxiv/github/all）
 //   - max_results 解析：缺省 5 / 0·负值·超上限 clamp / 非法字符串回退 / 合法数字字符串
 //   - 结构化错误：网络失败（无法连接搜索服务）/ 未找到结果 / 被反爬（长度异常页面）
 //   - 结果条目：每条附加来源域名；双 host 回退；max_results 不进 Bing 请求参数
+//   - mode 路由（Task 二 R2）：单来源 arxiv/github、三合一 all、缺省零行为变化、
+//     非法值静默回退、all 下 max_results 均分分配、单来源失败不阻塞其余来源
 //
 // 运行：cd evg-base/lib/core/agent && dart test test/web_search_test.dart -j 1
 // 依赖：dio stub（lib/dio_stub），不依赖真实网络。
@@ -65,6 +67,48 @@ int _entryCount(String out) {
       .split('\n\n')
       .where((e) => e.trim().isNotEmpty)
       .length;
+}
+
+/// 统计带指定来源标记（[网络]/[arxiv]/[github]）的条目数。
+int _entryCountByMarker(String out, String marker) {
+  final idx = out.indexOf('\n\n');
+  if (idx < 0) return 0;
+  return out
+      .substring(idx + 2)
+      .split('\n\n')
+      .where((e) => e.trim().startsWith(marker))
+      .length;
+}
+
+/// 构造含 count 个 entry 的模拟 arXiv Atom XML。
+String _arxivXml(int count) {
+  final buf = StringBuffer('<?xml version="1.0" encoding="UTF-8"?><feed>');
+  for (var i = 1; i <= count; i++) {
+    buf.write('<entry>'
+        '<id>https://arxiv.org/abs/2301.0000$i</id>'
+        '<title>Arxiv Paper $i</title>'
+        '<author><name>Author $i</name></author>'
+        '<published>2023-01-0$i</published>'
+        '<summary>Summary of paper $i.</summary>'
+        '</entry>');
+  }
+  buf.write('</feed>');
+  return buf.toString();
+}
+
+/// 构造含 count 个仓库的模拟 GitHub Search JSON（Map 形式，等价 dio JSON 解码）。
+Map<String, dynamic> _githubJson(int count) {
+  return {
+    'total_count': count,
+    'items': List.generate(count, (i) => {
+          'full_name': 'owner/repo$i',
+          'html_url': 'https://github.com/owner/repo$i',
+          'description': 'Repo description $i',
+          'language': 'Dart',
+          'stargazers_count': 100 + i,
+          'updated_at': '2026-01-0${i + 1}T00:00:00Z',
+        }),
+  };
 }
 
 void main() {
@@ -236,6 +280,203 @@ void main() {
         ]);
       final out = await WebSearchTool(dio).execute({'query': 'flutter'});
       expect(_entryCount(out), 3);
+    });
+  });
+
+  group('mode 参数与 schema', () {
+    test('schema 含 mode：enum network/arxiv/github/all', () {
+      final tool = WebSearchTool(_StubDio());
+      final props = tool.schema['properties'] as Map<String, dynamic>;
+      final mode = props['mode'] as Map<String, dynamic>;
+      expect(mode['type'], 'string');
+      expect(mode['enum'], ['network', 'arxiv', 'github', 'all']);
+    });
+
+    test('mode 缺省 = 现状网络搜索（零行为变化：仅 Bing，无来源标记）', () async {
+      final dio = _StubDio()
+        ..responses.add(Response(statusCode: 200, data: _bingHtml(6)));
+      final out = await WebSearchTool(dio).execute({'query': 'flutter'});
+      expect(out, startsWith('搜索 "flutter" 的结果:'));
+      expect(_entryCount(out), 5, reason: '缺省 max_results=5');
+      expect(out, isNot(contains('[网络]')));
+      expect(out, isNot(contains('[arxiv]')));
+      expect(out, isNot(contains('[github]')));
+      expect(dio.requestPaths.single, startsWith('https://cn.bing.com'));
+    });
+
+    test('mode: network 与缺省完全一致', () async {
+      final dio = _StubDio()
+        ..responses.add(Response(statusCode: 200, data: _bingHtml(6)));
+      final out = await WebSearchTool(dio)
+          .execute({'query': 'flutter', 'mode': 'network'});
+      expect(out, startsWith('搜索 "flutter" 的结果:'));
+      expect(out, isNot(contains('[网络]')));
+      expect(dio.requestPaths.single, startsWith('https://cn.bing.com'));
+    });
+
+    test('非法 mode（未知字符串/空串/数字）静默回退到网络搜索', () async {
+      for (final bad in ['foo', '', '   ', 123, null]) {
+        final dio = _StubDio()
+          ..responses.add(Response(statusCode: 200, data: _bingHtml(6)));
+        final args = <String, dynamic>{'query': 'flutter'};
+        if (bad != null) args['mode'] = bad;
+        final out = await WebSearchTool(dio).execute(args);
+        expect(out, startsWith('搜索 "flutter" 的结果:'),
+            reason: 'mode=$bad 应回退网络搜索');
+        expect(out, isNot(contains('[网络]')), reason: 'mode=$bad 不应带来源标记');
+        expect(dio.requestPaths.single, startsWith('https://cn.bing.com'),
+            reason: 'mode=$bad 应只请求 Bing');
+      }
+    });
+
+    test('mode 忽略大小写与首尾空白（"  ARXIV " → arxiv）', () async {
+      final dio = _StubDio()
+        ..responses.add(Response(
+            statusCode: 200,
+            data: _arxivXml(2)));
+      final out = await WebSearchTool(dio)
+          .execute({'query': 'llm', 'mode': '  ARXIV '});
+      expect(out, startsWith('搜索 "llm" 的结果（来源: arxiv）:'));
+      expect(dio.requestPaths.single, 'https://export.arxiv.org/api/query');
+    });
+  });
+
+  group('mode 单来源路由', () {
+    test('mode: arxiv → 仅请求 arXiv API，条目带 [arxiv] 标记', () async {
+      final dio = _StubDio()
+        ..responses.add(Response(statusCode: 200, data: _arxivXml(3)));
+      final out = await WebSearchTool(dio)
+          .execute({'query': 'llm', 'mode': 'arxiv', 'max_results': 2});
+      expect(out, startsWith('搜索 "llm" 的结果（来源: arxiv）:'));
+      expect(_entryCount(out), 2);
+      expect(_entryCountByMarker(out, '[arxiv]'), 2);
+      expect(out, contains('Arxiv Paper 1'));
+      expect(out, contains('作者: Author 1'));
+      expect(out, contains('https://arxiv.org/abs/2301.00001'));
+      expect(dio.requestPaths.single, 'https://export.arxiv.org/api/query');
+      final params = dio.queryParams.single;
+      expect(params['search_query'], 'all:llm');
+      expect(params['max_results'], 2);
+    });
+
+    test('mode: github → 仅请求 GitHub API，条目带 [github] 标记', () async {
+      final dio = _StubDio()
+        ..responses.add(Response(statusCode: 200, data: _githubJson(3)));
+      final out = await WebSearchTool(dio)
+          .execute({'query': 'flutter', 'mode': 'github', 'max_results': 2});
+      expect(out, startsWith('搜索 "flutter" 的结果（来源: github）:'));
+      expect(_entryCount(out), 2);
+      expect(_entryCountByMarker(out, '[github]'), 2);
+      expect(out, contains('owner/repo1'));
+      expect(out, contains('描述: Repo description 1'));
+      expect(out, contains('https://github.com/owner/repo1'));
+      expect(dio.requestPaths.single, 'https://api.github.com/search/repositories');
+      final params = dio.queryParams.single;
+      expect(params['q'], 'flutter');
+      expect(params['per_page'], 2);
+    });
+
+    test('mode: arxiv 检索失败 → 结构化错误文本', () async {
+      final dio = _StubDio()
+        ..responses.add(DioException(message: 'Connection refused'));
+      final out = await WebSearchTool(dio)
+          .execute({'query': 'llm', 'mode': 'arxiv'});
+      expect(out, startsWith('[搜索失败: arxiv search failed'));
+    });
+  });
+
+  group('mode: all 三合一召回', () {
+    test('三来源一并召回，max_results=5 均分 2/2/1，条目区分来源', () async {
+      final dio = _StubDio()
+        ..responses.addAll([
+          Response(statusCode: 200, data: _bingHtml(3)),
+          Response(statusCode: 200, data: _arxivXml(3)),
+          Response(statusCode: 200, data: _githubJson(3)),
+        ]);
+      final out = await WebSearchTool(dio).execute(
+          {'query': 'flutter', 'mode': 'all', 'max_results': 5});
+      expect(out, startsWith('搜索 "flutter" 的结果（来源: 网络+arxiv+github）:'));
+      expect(_entryCount(out), 5);
+      expect(_entryCountByMarker(out, '[网络]'), 2);
+      expect(_entryCountByMarker(out, '[arxiv]'), 2);
+      expect(_entryCountByMarker(out, '[github]'), 1);
+      // 请求顺序：Bing → arXiv → GitHub（网络条目在前）
+      expect(dio.requestPaths[0], startsWith('https://cn.bing.com'));
+      expect(dio.requestPaths[1], 'https://export.arxiv.org/api/query');
+      expect(dio.requestPaths[2], 'https://api.github.com/search/repositories');
+      // 各来源配额透传：网络取 2、arxiv max_results=2、github per_page=1
+      expect(dio.queryParams[1]['max_results'], 2);
+      expect(dio.queryParams[2]['per_page'], 1);
+    });
+
+    test('max_results=1 → 分配 1/0/0，仅请求网络，arxiv/github 不发起', () async {
+      final dio = _StubDio()
+        ..responses.add(Response(statusCode: 200, data: _bingHtml(3)));
+      final out = await WebSearchTool(dio)
+          .execute({'query': 'flutter', 'mode': 'all', 'max_results': 1});
+      expect(_entryCount(out), 1);
+      expect(_entryCountByMarker(out, '[网络]'), 1);
+      expect(dio.requestPaths.length, 1,
+          reason: '分配为 0 的来源应跳过，不发起请求');
+      expect(dio.requestPaths.single, startsWith('https://cn.bing.com'));
+    });
+
+    test('max_results=10 → 分配 4/3/3', () async {
+      final dio = _StubDio()
+        ..responses.addAll([
+          Response(statusCode: 200, data: _bingHtml(10)),
+          Response(statusCode: 200, data: _arxivXml(10)),
+          Response(statusCode: 200, data: _githubJson(10)),
+        ]);
+      final out = await WebSearchTool(dio).execute(
+          {'query': 'flutter', 'mode': 'all', 'max_results': 10});
+      expect(_entryCount(out), 10);
+      expect(_entryCountByMarker(out, '[网络]'), 4);
+      expect(_entryCountByMarker(out, '[arxiv]'), 3);
+      expect(_entryCountByMarker(out, '[github]'), 3);
+    });
+
+    test('单来源失败不阻塞其余来源，末尾附部分失败说明', () async {
+      final dio = _StubDio()
+        ..responses.addAll([
+          Response(statusCode: 200, data: _bingHtml(3)),
+          DioException(message: 'arxiv down'),
+          Response(statusCode: 200, data: _githubJson(3)),
+        ]);
+      final out = await WebSearchTool(dio).execute(
+          {'query': 'flutter', 'mode': 'all', 'max_results': 5});
+      expect(out, startsWith('搜索 "flutter" 的结果（来源: 网络+arxiv+github）:'));
+      expect(_entryCountByMarker(out, '[网络]'), 2);
+      expect(_entryCountByMarker(out, '[github]'), 1);
+      expect(out, contains('[部分来源失败: arxiv: arxiv search failed'));
+    });
+
+    test('来源返回空结果（无错误）→ 记为该来源未找到结果', () async {
+      final dio = _StubDio()
+        ..responses.addAll([
+          Response(statusCode: 200, data: _bingHtml(3)),
+          Response(statusCode: 200, data: _arxivXml(0)),
+          Response(statusCode: 200, data: _githubJson(0)),
+        ]);
+      final out = await WebSearchTool(dio).execute(
+          {'query': 'flutter', 'mode': 'all', 'max_results': 5});
+      expect(_entryCountByMarker(out, '[网络]'), 2);
+      expect(out, contains('[部分来源失败: arxiv: 未找到结果；github: 未找到结果]'));
+    });
+
+    test('三来源全部失败 → 整体失败并汇总原因', () async {
+      final dio = _StubDio()
+        ..responses.addAll([
+          DioException(message: 'bing down'),
+          DioException(message: 'bing down 2'),
+          DioException(message: 'arxiv down'),
+          DioException(message: 'github down'),
+        ]);
+      final out = await WebSearchTool(dio).execute(
+          {'query': 'flutter', 'mode': 'all', 'max_results': 5});
+      expect(out, startsWith('[搜索失败: 网络: 无法连接搜索服务'));
+      expect(out, contains('arxiv: arxiv search failed'));
+      expect(out, contains('github: github search failed'));
     });
   });
 }

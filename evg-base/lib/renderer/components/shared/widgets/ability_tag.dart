@@ -65,6 +65,12 @@ class AbilityTag extends StatelessWidget {
       darkBg: Color(0xFF112A2A),
       darkText: Color(0xFF13C2C2),
     ),
+    AbilityDim.skin: _TagColor(
+      bg: Color(0xFFF0FFF4),
+      text: Color(0xFF0F9D58),
+      darkBg: Color(0xFF0E2A1A),
+      darkText: Color(0xFF4CC38A),
+    ),
   };
 
   @override

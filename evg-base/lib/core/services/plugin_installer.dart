@@ -413,6 +413,7 @@ class PluginInstaller {
         'theme': Directory(p.join(dir.path, 'theme')).existsSync(),
         'config': Directory(p.join(dir.path, 'config')).existsSync(),
         'skill': Directory(p.join(dir.path, 'skill')).existsSync(),
+        'skin': Directory(p.join(dir.path, 'skin')).existsSync(),
       };
 
       final stat = manifestFile.statSync();

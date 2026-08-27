@@ -13,12 +13,14 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_math_fork/flutter_math.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart' as fp;
@@ -34,10 +36,14 @@ import 'package:evergreen_base/core/agent/memory/file_memory_store.dart';
 import 'package:evergreen_base/core/agent/agent_runtime.dart'
     show webSearchEnabledProvider, deepThinkingEnabledProvider,
          reasoningEffortProvider, validReasoningEfforts, agentRuntimeProvider;
+import 'package:evergreen_base/core/skin/skin_descriptor.dart';
+import 'package:evergreen_base/core/theme/theme_descriptor.dart';
 import 'package:evergreen_base/providers.dart';
 import 'package:evergreen_base/providers.dart' show agentControllerProvider;
 import 'package:evergreen_base/core/agent/session_manager.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
+import 'package:evergreen_base/renderer/app/service/providers/renderer_providers.dart'
+    show skinDescriptorProvider;
 import 'package:evergreen_base/renderer/components/shared/workspace_file_download.dart';
 import 'package:evergreen_base/renderer/components/shared/widgets/models.dart';
 import 'package:evergreen_base/renderer/components/shared/widgets/mindmap_widget.dart';
@@ -124,6 +130,114 @@ void applyWebSearchEnabledToRegistry(agent.Registry registry, bool enabled) {
     registry.disable('web_search');
     registry.disable('web_fetch');
   }
+}
+
+// ═══════ 皮肤包渲染辅助（Task 一：AI 视图皮肤包）═══════
+//
+// 边界约定：皮肤包只覆盖「AI 视图内部消费点」的功能色与局部渲染，
+// 绝不覆盖 ThemeData/ColorScheme 语义色。所有取值 `skin.xxx ?? 默认值`，
+// 未装皮肤包（skin == null 或字段未配置）时全部回退现有默认值 → 零行为变化。
+
+/// 皮肤包 hex 颜色字符串 → Flutter Color；非法/缺失返回 null（渲染点回退默认）。
+Color? _skinHex(String? hex) {
+  if (hex == null || hex.isEmpty) return null;
+  final c = ThemeDescriptor.parseHex(hex);
+  return c == null ? null : Color(c.value);
+}
+
+/// 皮肤包图片资源引用（相对 manifest 路径）→ 插件目录绝对路径；
+/// 无皮肤 / 无引用 / 无插件目录返回 null。
+String? _skinAssetPath(SkinDescriptor? skin, String? ref) {
+  final src = skin?.sourceDir;
+  if (ref == null || ref.isEmpty || src == null) return null;
+  return p.join(src, 'skin', ref);
+}
+
+/// 皮肤包图片资源 → Widget（svg 用 flutter_svg，png 用 Image.file）；
+/// 文件缺失 / 加载失败返回 null（回退默认渲染，不抛异常）。
+Widget? _skinAssetImage(String? path, {double size = 28}) {
+  if (path == null) return null;
+  final file = File(path);
+  if (!file.existsSync()) return null;
+  final lower = path.toLowerCase();
+  if (lower.endsWith('.svg')) {
+    return SvgPicture.file(
+      file,
+      width: size,
+      height: size,
+      fit: BoxFit.contain,
+    );
+  }
+  return Image.file(
+    file,
+    width: size,
+    height: size,
+    fit: BoxFit.cover,
+    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+  );
+}
+
+/// A1 对话背景——`skin.background` 段（solid 纯色 / gradient 渐变）。
+/// 未配置 / 类型未知返回 null（保持现有默认背景，零行为变化）。
+///
+/// 渐变角度约定：角度制，0° = 左→右，正值逆时针旋转；缺省 135°（斜向渐变）。
+Decoration? _skinBackground(SkinDescriptor? skin) {
+  final type = skin?.backgroundType;
+  if (type == 'solid') {
+    final c = _skinHex(skin?.backgroundColor);
+    if (c == null) return null;
+    return BoxDecoration(color: c);
+  }
+  if (type == 'gradient') {
+    final from = _skinHex(skin?.backgroundGradientFrom);
+    final to = _skinHex(skin?.backgroundGradientTo);
+    if (from == null || to == null) return null;
+    final angle = skin?.backgroundGradientAngle ?? 135.0;
+    final a = angle * math.pi / 180.0;
+    final begin = Alignment(-math.cos(a), -math.sin(a));
+    final end = Alignment(math.cos(a), math.sin(a));
+    return BoxDecoration(
+      gradient: LinearGradient(begin: begin, end: end, colors: [from, to]),
+    );
+  }
+  return null;
+}
+
+/// E 头像 / 空状态 logo：`#` 开头 → hex 颜色；否则视为图片资源引用。
+bool _isSkinColorRef(String? v) => v != null && v.startsWith('#');
+
+/// 构建用户 / AI 头像（E）。默认渲染与现状一致；
+/// 皮肤配置 hex 颜色 → 换 CircleAvatar 底色；图片引用 → 渲染 logo 图片。
+Widget _buildSkinAvatar({
+  required bool isUser,
+  required double s,
+  required ColorScheme scheme,
+  required SkinDescriptor? skin,
+}) {
+  final raw = isUser ? skin?.avatarUser : skin?.avatarAssistant;
+  final color = _isSkinColorRef(raw) ? _skinHex(raw) : null;
+  final assetRef = _isSkinColorRef(raw) ? null : raw;
+  final assetPath = _skinAssetPath(skin, assetRef);
+  final image = _skinAssetImage(assetPath, size: 28 * s);
+  final bg = color ??
+      (isUser
+          ? scheme.primary.withValues(alpha: 0.7)
+          : scheme.primaryContainer);
+  final fg = isUser ? scheme.onPrimary : scheme.primary;
+  return CircleAvatar(
+    radius: 14 * s,
+    backgroundColor: bg,
+    child: image != null
+        ? ClipOval(
+            child: SizedBox(
+              width: 28 * s,
+              height: 28 * s,
+              child: image,
+            ),
+          )
+        : Icon(isUser ? Icons.person : Icons.auto_awesome,
+            size: 16 * s, color: fg),
+  );
 }
 
 class ChatControllerView extends ConsumerStatefulWidget {
@@ -538,10 +652,21 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     final session = ctrl.session;
     final notifier = ref.read(_chatMessagesProvider.notifier);
     notifier.clear();
+    // R3 会话树：UI user 消息序号即轮次深度（loopId），据此填充分支切换条
+    // 信息（siblingsOf/branchIndexIn 纯函数，零 Flutter 依赖）。
+    var userOrdinal = 0;
     for (final m in session.messages) {
       if (m.content.isEmpty) continue;
       if (m.isUser) {
-        notifier.addUser(m.content);
+        final siblings = siblingsOf(session, userOrdinal);
+        notifier.addUser(
+          m.content,
+          loopId: userOrdinal,
+          branchCount: siblings.isEmpty ? null : siblings.length,
+          branchIndex:
+              siblings.isEmpty ? null : branchIndexIn(session, userOrdinal),
+        );
+        userOrdinal++;
       } else if (m.isAssistant) {
         notifier.addAssistant(
           _contentWithReasoning(m.reasoningContent, m.content),
@@ -611,38 +736,25 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     final msg = messages[msgIndex];
     if (!msg.isUser) return;
 
-    // ── edit/branch 语义（Task 六 Bug 7）──
-    // 不再删除旧历史：以该 user 消息为分叉点 fork 出新分支（新分支继承
-    // [0..forkTurn) 即该消息之前的全部历史），旧会话（含该消息及其后回复）
-    // 完整保留在会话列表；该消息文本回填输入框供编辑，重新发送后写入新分支。
-    // 分支是纯会话层操作，不触碰工作区文件（rewind/edit 不撤销工作区变更）。
-    final sourceId = ref.read(activeSessionIdProvider);
-    if (sourceId == null) return;
-
-    // UI 列表（仅 user/assistant 气泡）与 Agent Session（含 tool_call/tool_result
-    // 消息）索引不对齐：按「该消息是第 N 个 user 消息」在 Session 中定位分叉点。
+    // ── edit/branch 语义（R3 会话树形分支）──
+    // 不再删除旧历史、不再新建会话：以该 user 消息所在轮为分叉点，在同一
+    // 会话内 forkRound 出空 sibling（旧分支完整保留，可经分支切换条切回），
+    // 原文回填输入框供编辑，发送后由轮次感知 Session.add 写入新分支。
+    // 分叉是纯会话层操作，不触碰工作区文件（rewind/edit 不撤销工作区变更）。
     final ctrl = ref.read(agentControllerProvider);
-    final sessionMessages = ctrl.session.messages;
-    int sessionUserIdx = -1;
-    int userCount = 0;
-    for (int i = 0; i < sessionMessages.length; i++) {
-      if (sessionMessages[i].role == agent.Role.user) {
-        if (userCount == _countUserMessagesBefore(messages, msgIndex)) {
-          sessionUserIdx = i;
-          break;
-        }
-        userCount++;
-      }
-    }
-    if (sessionUserIdx < 0) return;
+    final session = ctrl.session;
+    // 该 user 消息的轮次深度：UI 列表 user 序号即 loopId（每轮恰含一条
+    // user 消息，见 session.dart 轮次边界约定）。
+    final loopId = _countUserMessagesBefore(messages, msgIndex);
+    final text = _stripAttachmentMarker(msg.content);
+    if (!session.forkRound(loopId, text)) return;
 
-    // forkSessionProvider(sourceId, forkTurn)：新分支继承 [0..forkTurn) 并切换为
-    // 活动会话（内部先 saveCurrentSessionProvider 保存父会话，再写入新分支并
-    // 更新 activeSessionId → build 里的 activeSessionId 监听自动同步消息列表）。
-    ref.read(forkSessionProvider)(sourceId, sessionUserIdx);
+    // 树内分叉：同一会话、不改变 activeSessionId —— 显式重建消息列表并
+    // 保存新活动路径（双写一致：messages 与 tree 同步落盘）。
+    _syncMessagesFromRuntime();
+    ref.read(saveCurrentSessionProvider)(session.id);
 
     // 回填原文供编辑（剥离附件标记，避免把 [📎 …] 伪标记当正文重发）。
-    final text = _stripAttachmentMarker(msg.content);
     _inputCtrl.text = text;
     _inputCtrl.selection = TextSelection.collapsed(offset: text.length);
     FocusScope.of(context).requestFocus();
@@ -661,6 +773,54 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
       if (messages[i].isUser) count++;
     }
     return count;
+  }
+
+  /// R3 会话树：树内切换兄弟分支（左右环绕）。
+  ///
+  /// 切换不改变 activeSessionId（同一会话）：显式重建消息列表并保存新活动
+  /// 路径（双写一致），随后滚到最新。
+  void _switchBranchAt(int loopId, {required bool next}) {
+    final ctrl = ref.read(agentControllerProvider);
+    final session = ctrl.session;
+    final target = switchSibling(session, loopId, next: next);
+    if (target == null) return;
+    _syncMessagesFromRuntime();
+    ref.read(saveCurrentSessionProvider)(session.id);
+    _scrollToBottom();
+  }
+
+  /// 渲染单条消息：气泡 + （user 消息所在轮有分支时）下方分支切换条
+  /// 「◀ i/n ▶」（R3：切换条在消息下面，不是会话名下面）。
+  Widget _buildMessageItem(
+      ChatMessage msg, int index, List<ChatMessage> messages,
+      [SkinDescriptor? skin]) {
+    final lastAsstIdx = messages.lastIndexWhere((m) => m.isAssistant);
+    final bubble = _MessageBubble(
+      message: msg,
+      fontScale: widget.fontScale,
+      messageIndex: index,
+      skin: skin,
+      onEdit: msg.isUser ? () => _editUserMessage(index) : null,
+      onRegenerate:
+          msg.isAssistant && index == lastAsstIdx ? _regenerate : null,
+    );
+    final branchCount = msg.branchCount;
+    if (!msg.isUser || branchCount == null || branchCount <= 1) {
+      return bubble; // 无分叉 / 旧直线数据：零行为变化
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        bubble,
+        _BranchSwitcherBar(
+          branchIndex: msg.branchIndex ?? 1,
+          branchCount: branchCount,
+          onPrev: () => _switchBranchAt(msg.loopId ?? 0, next: false),
+          onNext: () => _switchBranchAt(msg.loopId ?? 0, next: true),
+        ),
+      ],
+    );
   }
 
   /// 格式化日期为简短展示（今日 → 时间，昨日 → "昨天"，其他 → 月/日）。
@@ -706,11 +866,18 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     final messages = ref.read(_chatMessagesProvider);
     if (messages.isEmpty) return;
     final ctrl = ref.read(agentControllerProvider);
-    final lastUserContent = ctrl.session.removeLastTurn();
-    if (lastUserContent == null) return;
-    final notifier = ref.read(_chatMessagesProvider.notifier);
-    notifier.removeLastTurn();
-    _editUserText(lastUserContent);
+    final session = ctrl.session;
+    final lastUserIdx = messages.lastIndexWhere((m) => m.isUser);
+    if (lastUserIdx < 0) return;
+    // R3：非破坏性重新生成——以最后一轮为分叉点开 sibling（旧回复完整保留
+    // 在树中，可经分支切换条切回），原文本回填后重发。纯会话层操作，
+    // 不触碰工作区。
+    final loopId = _countUserMessagesBefore(messages, lastUserIdx);
+    final text = _stripAttachmentMarker(messages[lastUserIdx].content);
+    if (!session.forkRound(loopId, text)) return;
+    _syncMessagesFromRuntime();
+    ref.read(saveCurrentSessionProvider)(session.id);
+    _editUserText(text);
     await _sendMessage();
   }
 
@@ -812,7 +979,19 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     }
 
     final messagesNotifier = ref.read(_chatMessagesProvider.notifier);
-    messagesNotifier.addUser(displayText);
+    // R3 会话树：新 user 消息的分支切换条信息——发送后所在轮 = 当前 user 序号
+    // （分叉续写时该轮已是活动 sibling，切换条立即可用；普通续写无兄弟 → null）。
+    final session = ref.read(agentControllerProvider).session;
+    final userOrdinal =
+        messagesNotifier.state.where((m) => m.isUser).length;
+    final siblings = siblingsOf(session, userOrdinal);
+    messagesNotifier.addUser(
+      displayText,
+      loopId: userOrdinal,
+      branchCount: siblings.isEmpty ? null : siblings.length,
+      branchIndex:
+          siblings.isEmpty ? null : branchIndexIn(session, userOrdinal),
+    );
     _inputCtrl.clear();
 
     _pendingTimeline.clear();
@@ -1233,6 +1412,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
 
   Widget _buildEmbeddedContent() {
     final theme = Theme.of(context);
+    final skin = ref.watch(skinDescriptorProvider);
     final messages = widget.embedded && widget.agentConfig != null
         ? _embeddedMessages
         : ref.watch(_chatMessagesProvider);
@@ -1254,23 +1434,8 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                     padding:
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                     itemCount: messages.length,
-                    itemBuilder: (context, index) {
-                      final msg = messages[index];
-                      final lastAsstIdx =
-                          messages.lastIndexWhere((m) => m.isAssistant);
-                      return _MessageBubble(
-                        message: msg,
-                        fontScale: widget.fontScale,
-                        messageIndex: index,
-                        onEdit: msg.isUser
-                            ? () => _editUserMessage(index)
-                            : null,
-                        onRegenerate: msg.isAssistant &&
-                                index == lastAsstIdx
-                            ? _regenerate
-                            : null,
-                      );
-                    },
+                    itemBuilder: (context, index) => _buildMessageItem(
+                        messages[index], index, messages, skin),
                   ),
           ),
           _buildEmbeddedInputBar(theme),
@@ -1430,9 +1595,9 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                         itemBuilder: (_, i) {
                           final s = sessions[i];
                           final isActive = s.id == activeId;
-                          // Task 六 Bug 7：会话行显示分支计数小标签（分支族 > 1 时）。
-                          final branchCount =
-                              branchFamilyOf(sessions, s.id).length;
+                          // R3 会话树：会话行分支标签 = 树内分支计数（旧 A6
+                          // fork 数据走 branchFamilyOf 兜底）。
+                          final branchCount = branchLabelCount(sessions, s);
                           return ListTile(
                             selected: isActive,
                             selectedTileColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
@@ -1794,6 +1959,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
 
     final messages = ref.watch(_chatMessagesProvider);
     final theme = Theme.of(context);
+    final skin = ref.watch(skinDescriptorProvider);
     final workspace = widget.descriptor.workspace;
 
     return Scaffold(
@@ -1818,9 +1984,8 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            // Task 六 Bug 7：分支切换「< 分支 i/n >」——当前会话有父/兄弟/子
-            // 分支时显示；旧会话（分支族大小 1）不显示，行为零变化。
-            _BranchSwitcher(sessionId: ref.watch(activeSessionIdProvider)),
+            // R3 会话树：分支切换条不再放在会话名下面，改在分叉的 user
+            // 消息下方渲染（见 _buildMessageItem / _BranchSwitcherBar）。
           ],
         ),
         centerTitle: false,
@@ -1866,33 +2031,23 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
       body: Column(
         children: [
           Expanded(
-            child: messages.isEmpty
-                ? _buildEmptyState()
-                : ListView.builder(
-                    controller: _scrollCtrl,
-                    padding: const EdgeInsets.all(16),
-                    itemCount: messages.length,
-                    itemBuilder: (context, index) {
-                      final msg = messages[index];
-                      final lastAsstIdx =
-                          messages.lastIndexWhere((m) => m.isAssistant);
-                      return _MessageBubble(
-                        message: msg,
-                        fontScale: widget.fontScale,
-                        messageIndex: index,
-                        onEdit: msg.isUser
-                            ? () => _editUserMessage(index)
-                            : null,
-                        onRegenerate: msg.isAssistant &&
-                                index == lastAsstIdx
-                            ? _regenerate
-                            : null,
-                      );
-                    },
-                  ),
+            child: Container(
+              // A1 对话背景：skin.background 段（纯色/渐变）；未配置时 null →
+              // Container 直通 child，与现状布局完全一致。
+              decoration: _skinBackground(skin),
+              child: messages.isEmpty
+                  ? _buildEmptyState(skin)
+                  : ListView.builder(
+                      controller: _scrollCtrl,
+                      padding: const EdgeInsets.all(16),
+                      itemCount: messages.length,
+                      itemBuilder: (context, index) => _buildMessageItem(
+                          messages[index], index, messages, skin),
+                    ),
+            ),
           ),
           if (_isRunning) _buildStatusBar(theme),
-          _buildInputBar(theme),
+          _buildInputBar(theme, skin),
         ],
       ),
     );
@@ -1904,6 +2059,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
   Widget _buildAssemblyFullScaffold() {
     final messages = _embeddedMessages;
     final theme = Theme.of(context);
+    final skin = ref.watch(skinDescriptorProvider);
     final workspace = widget.descriptor.workspace;
 
     return Scaffold(
@@ -1965,33 +2121,22 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
       body: Column(
         children: [
           Expanded(
-            child: messages.isEmpty
-                ? _buildEmptyState()
-                : ListView.builder(
-                    controller: _scrollCtrl,
-                    padding: const EdgeInsets.all(16),
-                    itemCount: messages.length,
-                    itemBuilder: (context, index) {
-                      final msg = messages[index];
-                      final lastAsstIdx =
-                          messages.lastIndexWhere((m) => m.isAssistant);
-                      return _MessageBubble(
-                        message: msg,
-                        fontScale: widget.fontScale,
-                        messageIndex: index,
-                        onEdit: msg.isUser
-                            ? () => _editUserMessage(index)
-                            : null,
-                        onRegenerate: msg.isAssistant &&
-                                index == lastAsstIdx
-                            ? _regenerate
-                            : null,
-                      );
-                    },
-                  ),
+            child: Container(
+              // A1 对话背景（皮肤包），同全屏模式。
+              decoration: _skinBackground(skin),
+              child: messages.isEmpty
+                  ? _buildEmptyState(skin)
+                  : ListView.builder(
+                      controller: _scrollCtrl,
+                      padding: const EdgeInsets.all(16),
+                      itemCount: messages.length,
+                      itemBuilder: (context, index) => _buildMessageItem(
+                          messages[index], index, messages, skin),
+                    ),
+            ),
           ),
           if (_isRunning) _buildStatusBar(theme),
-          _buildAssemblyInputBar(theme),
+          _buildAssemblyInputBar(theme, skin),
         ],
       ),
     );
@@ -2166,9 +2311,18 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
 
   // ── AgentAssembly 全屏模式：输入栏 ──
 
-  Widget _buildAssemblyInputBar(ThemeData theme) {
+  Widget _buildAssemblyInputBar(ThemeData theme, [SkinDescriptor? skin]) {
     // 竖版（手机窄屏）：输入栏紧凑化，减少竖向占用。
     final compact = MediaQuery.sizeOf(context).width < 600;
+    // B1 皮肤包按钮显隐（缺省 null = 全部显示，零行为变化）。
+    final showWorkspace = skin?.inputBarVisible('workspace') ?? true;
+    final showEffort = skin?.inputBarVisible('thinkingEffort') ?? true;
+    final showTools = skin?.inputBarVisible('tools') ?? true;
+    final showBgProcess = skin?.inputBarVisible('bgProcess') ?? true;
+    final showSkills = skin?.inputBarVisible('skills') ?? true;
+    final showClear = skin?.inputBarVisible('clear') ?? true;
+    final toolActiveColor =
+        _skinHex(skin?.toolActiveColor) ?? const Color(0xFF2E7D32);
     return Container(
       padding: compact
           ? const EdgeInsets.fromLTRB(12, 8, 12, 8)
@@ -2193,7 +2347,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                  if (widget.descriptor.workspace != null) ...[
+                  if (widget.descriptor.workspace != null && showWorkspace) ...[
                     _ToggleChip(
                       icon: Icons.folder_outlined,
                       label: '工作区',
@@ -2204,16 +2358,20 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                     ),
                     const SizedBox(width: 6),
                   ],
-                  _ToggleChip(
-                    icon: Icons.language,
-                    label: '联网搜索',
-                    value: ref.watch(webSearchEnabledProvider),
-                    onChanged: (v) => _setWebSearchEnabled(v, ref),
-                    activeColor: theme.colorScheme.primary,
-                  ),
-                  const SizedBox(width: 6),
+                  if (skin?.inputBarVisible('webSearch') ?? true) ...[
+                    _ToggleChip(
+                      icon: Icons.language,
+                      label: '联网搜索',
+                      value: ref.watch(webSearchEnabledProvider),
+                      onChanged: (v) => _setWebSearchEnabled(v, ref),
+                      activeColor: theme.colorScheme.primary,
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                  if (showEffort) ...[
                   _EffortSelector(
                     effort: _localEffort,
+                    color: _skinHex(skin?.effortColor),
                     onChanged: (v) {
                       setState(() => _localEffort = v);
                       // A5 断链②接线：同时驱动嵌入 Agent 的 provider
@@ -2233,34 +2391,41 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                     },
                   ),
                   const SizedBox(width: 6),
+                  ],
+                  if (showTools) ...[
                   _ToggleChip(
                     icon: Icons.handyman_outlined,
                     label: '工具',
                     value: false,
                     onChanged: (_) => _showToolsPopup(context),
-                    activeColor: const Color(0xFF2E7D32),
+                    activeColor: toolActiveColor,
                   ),
                   const SizedBox(width: 6),
+                  ],
                   // Task 三决策 3.2：后台 tool 进程计数入口（点击弹窗管理）。
-                  const _BgProcessChip(),
-                  const SizedBox(width: 6),
-                  IconButton(
-                    icon: const Icon(Icons.auto_fix_high, size: 18),
-                    tooltip: '技能管理',
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                          builder: (_) =>
-                              const SkillManagementView()),
+                  if (showBgProcess) ...[
+                    const _BgProcessChip(),
+                    const SizedBox(width: 6),
+                  ],
+                  if (showSkills)
+                    IconButton(
+                      icon: const Icon(Icons.auto_fix_high, size: 18),
+                      tooltip: '技能管理',
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                            builder: (_) =>
+                                const SkillManagementView()),
+                      ),
+                      visualDensity: VisualDensity.compact,
                     ),
-                    visualDensity: VisualDensity.compact,
-                  ),
-                  IconButton(
-                    icon:
-                        const Icon(Icons.delete_outline, size: 18),
-                    tooltip: '清空对话',
-                    onPressed: _newAssemblySession,
-                    visualDensity: VisualDensity.compact,
-                  ),
+                  if (showClear)
+                    IconButton(
+                      icon:
+                          const Icon(Icons.delete_outline, size: 18),
+                      tooltip: '清空对话',
+                      onPressed: _newAssemblySession,
+                      visualDensity: VisualDensity.compact,
+                    ),
                   ],
                 ),
               ),
@@ -2669,7 +2834,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
 
   // ── 输入栏 ──
 
-  Widget _buildInputBar(ThemeData theme) {
+  Widget _buildInputBar(ThemeData theme, [SkinDescriptor? skin]) {
     final isRunning =
         ref.watch(controllerStateProvider) == ControllerState.running;
     final webSearch = ref.watch(webSearchEnabledProvider);
@@ -2677,6 +2842,16 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     final hasWorkspace = widget.descriptor.workspace != null;
     // 竖版（手机窄屏）：输入栏紧凑化，减少竖向占用。
     final compact = MediaQuery.sizeOf(context).width < 600;
+    // B1 皮肤包按钮显隐（缺省 null = 全部显示，零行为变化）。
+    final showWorkspace = skin?.inputBarVisible('workspace') ?? true;
+    final showWebSearch = skin?.inputBarVisible('webSearch') ?? true;
+    final showEffort = skin?.inputBarVisible('thinkingEffort') ?? true;
+    final showTools = skin?.inputBarVisible('tools') ?? true;
+    final showBgProcess = skin?.inputBarVisible('bgProcess') ?? true;
+    final showSkills = skin?.inputBarVisible('skills') ?? true;
+    final showClear = skin?.inputBarVisible('clear') ?? true;
+    final toolActiveColor =
+        _skinHex(skin?.toolActiveColor) ?? const Color(0xFF2E7D32);
 
     return Container(
       padding: compact
@@ -2702,7 +2877,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (hasWorkspace) ...[
+                    if (hasWorkspace && showWorkspace) ...[
                       _ToggleChip(
                         icon: Icons.folder_outlined,
                         label: '工作区',
@@ -2713,54 +2888,65 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                       ),
                       const SizedBox(width: 6),
                     ],
-                    _ToggleChip(
-                      icon: Icons.language,
-                      label: '联网搜索',
-                      value: webSearch,
-                      onChanged: (v) => _setWebSearchEnabled(v, ref),
-                      activeColor: theme.colorScheme.primary,
-                    ),
-                    const SizedBox(width: 6),
-                    _EffortSelector(
-                      effort: effort,
-                      onChanged: (v) => _applyEffort(v, ref),
-                    ),
-                    const SizedBox(width: 6),
-                    _ToggleChip(
-                      icon: Icons.handyman_outlined,
-                      label: '工具',
-                      value: false,
-                      onChanged: (_) => _showToolsPopup(context),
-                      activeColor: const Color(0xFF2E7D32),
-                    ),
-                    const SizedBox(width: 6),
-                    // Task 三决策 3.2：后台 tool 进程计数入口（点击弹窗管理）。
-                    const _BgProcessChip(),
-                    const SizedBox(width: 6),
-                    IconButton(
-                      icon: const Icon(Icons.auto_fix_high, size: 18),
-                      tooltip: '技能管理',
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                            builder: (_) =>
-                                const SkillManagementView()),
+                    if (showWebSearch) ...[
+                      _ToggleChip(
+                        icon: Icons.language,
+                        label: '联网搜索',
+                        value: webSearch,
+                        onChanged: (v) => _setWebSearchEnabled(v, ref),
+                        activeColor: theme.colorScheme.primary,
                       ),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                    IconButton(
-                      icon:
-                          const Icon(Icons.delete_outline, size: 18),
-                      tooltip: '清空对话',
-                      onPressed: () {
-                        ref
-                            .read(_chatMessagesProvider.notifier)
-                            .clear();
-                        ref
-                            .read(agentControllerProvider)
-                            .newSession();
-                      },
-                      visualDensity: VisualDensity.compact,
-                    ),
+                      const SizedBox(width: 6),
+                    ],
+                    if (showEffort) ...[
+                      _EffortSelector(
+                        effort: effort,
+                        color: _skinHex(skin?.effortColor),
+                        onChanged: (v) => _applyEffort(v, ref),
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    if (showTools) ...[
+                      _ToggleChip(
+                        icon: Icons.handyman_outlined,
+                        label: '工具',
+                        value: false,
+                        onChanged: (_) => _showToolsPopup(context),
+                        activeColor: toolActiveColor,
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    // Task 三决策 3.2：后台 tool 进程计数入口（点击弹窗管理）。
+                    if (showBgProcess) ...[
+                      const _BgProcessChip(),
+                      const SizedBox(width: 6),
+                    ],
+                    if (showSkills)
+                      IconButton(
+                        icon: const Icon(Icons.auto_fix_high, size: 18),
+                        tooltip: '技能管理',
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                              builder: (_) =>
+                                  const SkillManagementView()),
+                        ),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    if (showClear)
+                      IconButton(
+                        icon:
+                            const Icon(Icons.delete_outline, size: 18),
+                        tooltip: '清空对话',
+                        onPressed: () {
+                          ref
+                              .read(_chatMessagesProvider.notifier)
+                              .clear();
+                          ref
+                              .read(agentControllerProvider)
+                              .newSession();
+                        },
+                        visualDensity: VisualDensity.compact,
+                      ),
                   ],
                 ),
               ),
@@ -2864,19 +3050,32 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
 
   // ── 空状态 ──
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState([SkinDescriptor? skin]) {
+    // E 空状态欢迎区：logo（hex 着色 / 图片资源）与标题可配，缺省现有渲染。
+    final scheme = Theme.of(context).colorScheme;
+    final logoRaw = skin?.emptyStateLogo;
+    final logoColor = _isSkinColorRef(logoRaw) ? _skinHex(logoRaw) : null;
+    final logoPath = _skinAssetPath(skin, _isSkinColorRef(logoRaw) ? null : logoRaw);
+    final logoImage = _skinAssetImage(logoPath, size: 64);
+    final title = skin?.emptyStateTitle ?? '我是你的 AI 教学助手';
+
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.auto_awesome, size: 64, color: Theme.of(context).colorScheme.onSurfaceVariant),
+          if (logoImage != null)
+            logoImage
+          else
+            Icon(Icons.auto_awesome,
+                size: 64,
+                color: logoColor ?? scheme.onSurfaceVariant),
           const SizedBox(height: 16),
           Text(
-            '我是你的 AI 教学助手',
+            title,
             style: Theme.of(context)
                 .textTheme
                 .titleMedium
-                ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                ?.copyWith(color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: 8),
           Text(
@@ -3041,10 +3240,14 @@ class _MessageBubble extends StatefulWidget {
   final VoidCallback? onEdit;
   final VoidCallback? onRegenerate;
 
+  /// 皮肤包描述符（Task 一）；null = 未装皮肤包，全部渲染点回退默认。
+  final SkinDescriptor? skin;
+
   const _MessageBubble({
     required this.message,
     this.fontScale = 1.0,
     this.messageIndex,
+    this.skin,
     this.onEdit,
     this.onRegenerate,
   });
@@ -3153,32 +3356,29 @@ class _MessageBubbleState extends State<_MessageBubble> {
     // 思考中占位
     if (mainContent == '_thinking_' && !isUser) {
       final s = widget.fontScale;
+      final scheme = Theme.of(context).colorScheme;
+      final skin = widget.skin;
+      // D1 气泡覆盖（AI 侧）：底色 / 圆角，未配置回退现有默认。
+      final bubbleBg = _skinHex(skin?.bubbleAssistantBackground) ??
+          scheme.surfaceContainerHighest;
+      final radius = skin?.bubbleBorderRadius;
       return Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            CircleAvatar(
-              radius: 14 * s,
-              backgroundColor:
-                  Theme.of(context).colorScheme.primaryContainer,
-              child: Icon(Icons.auto_awesome,
-                  size: 16 * s,
-                  color: Theme.of(context).colorScheme.primary),
-            ),
+            _buildSkinAvatar(isUser: false, s: s, scheme: scheme, skin: skin),
             const SizedBox(width: 8),
             Flexible(
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Theme.of(context)
-                      .colorScheme
-                      .surfaceContainerHighest,
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(16),
-                    topRight: Radius.circular(16),
-                    bottomRight: Radius.circular(16),
-                    bottomLeft: Radius.circular(4),
+                  color: bubbleBg,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(radius ?? 16),
+                    topRight: Radius.circular(radius ?? 16),
+                    bottomRight: Radius.circular(radius ?? 16),
+                    bottomLeft: Radius.circular(radius ?? 4),
                   ),
                 ),
                 child: Row(
@@ -3204,6 +3404,24 @@ class _MessageBubbleState extends State<_MessageBubble> {
     }
 
     final s = widget.fontScale;
+    final scheme = Theme.of(context).colorScheme;
+    final skin = widget.skin;
+
+    // D1 消息气泡覆盖（皮肤包；未配置全部回退现有默认，零行为变化）。
+    final bubbleRadius = skin?.bubbleBorderRadius;
+    final bubbleColor = isUser
+        ? (_skinHex(skin?.bubbleUserBackground) ?? scheme.primary)
+        : (_skinHex(skin?.bubbleAssistantBackground) ??
+            scheme.surfaceContainerHighest);
+    final userTextColor =
+        _skinHex(skin?.bubbleUserTextColor) ?? scheme.onPrimary;
+    final assistantTextColor = _skinHex(skin?.bubbleAssistantTextColor);
+    final maxWidthRatio = skin?.bubbleMaxWidthRatio ?? 0.72;
+    // C1 代码配色（功能色可覆盖）。
+    final codeInlineColor =
+        _skinHex(skin?.codeInline) ?? const Color(0xFFE53935);
+    final codeBlockBackground =
+        _skinHex(skin?.codeBlockBackground) ?? scheme.surfaceContainerLow;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -3213,36 +3431,25 @@ class _MessageBubbleState extends State<_MessageBubble> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (!isUser) ...[
-            CircleAvatar(
-              radius: 14 * s,
-              backgroundColor:
-                  Theme.of(context).colorScheme.primaryContainer,
-              child: Icon(Icons.auto_awesome,
-                  size: 16 * s,
-                  color: Theme.of(context).colorScheme.primary),
-            ),
+            _buildSkinAvatar(isUser: false, s: s, scheme: scheme, skin: skin),
             const SizedBox(width: 8),
           ],
           Flexible(
             child: ConstrainedBox(
               constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.72,
+                maxWidth: MediaQuery.of(context).size.width * maxWidthRatio,
               ),
               child: Container(
                 padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
                 decoration: BoxDecoration(
-                  color: isUser
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context)
-                          .colorScheme
-                          .surfaceContainerHighest,
+                  color: bubbleColor,
                   borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(16),
-                    topRight: const Radius.circular(16),
+                    topLeft: Radius.circular(bubbleRadius ?? 16),
+                    topRight: Radius.circular(bubbleRadius ?? 16),
                     bottomLeft:
-                        Radius.circular(isUser ? 16 : 4),
+                        Radius.circular(isUser ? bubbleRadius ?? 16 : bubbleRadius ?? 4),
                     bottomRight:
-                        Radius.circular(isUser ? 4 : 16),
+                        Radius.circular(isUser ? bubbleRadius ?? 4 : bubbleRadius ?? 16),
                   ),
                 ),
                 child: Column(
@@ -3251,7 +3458,7 @@ class _MessageBubbleState extends State<_MessageBubble> {
                   children: [
                     // ── 思考过程（chip 风格折叠） ──
                     if (!isUser && reasoningContent != null)
-                      _buildThinkingSection(reasoningContent!, s),
+                      _buildThinkingSection(reasoningContent!, s, skin),
 
                     // ── 文件卡片（show_file4u，Task 七 9.2） ──
                     if (!isUser && fileCardRel != null)
@@ -3294,7 +3501,7 @@ class _MessageBubbleState extends State<_MessageBubble> {
                               mainContent,
                               style: TextStyle(
                                   fontSize: 14 * s,
-                                  color: Theme.of(context).colorScheme.onPrimary),
+                                  color: userTextColor),
                             )
                           : MarkdownBody(
                               data: mainContent
@@ -3304,21 +3511,20 @@ class _MessageBubbleState extends State<_MessageBubble> {
                               selectable: true,
                               builders: {
                                 'pre': _PreBlockBuilder(
-                                  codeBackground: Theme.of(context)
-                                      .colorScheme
-                                      .surfaceContainerLow,
+                                  // C1 代码块背景：皮肤包覆盖或主题语义色。
+                                  codeBackground: codeBlockBackground,
                                 ),
                                 'code': _InlineMathBuilder(),
                               },
                               styleSheet: MarkdownStyleSheet(
-                                p: TextStyle(fontSize: 14 * s),
+                                p: TextStyle(
+                                    fontSize: 14 * s,
+                                    color: assistantTextColor),
                                 code: TextStyle(
                                   fontSize: 13 * s,
                                   fontFamily: 'monospace',
-                                  backgroundColor: Theme.of(context)
-                                      .colorScheme
-                                      .surfaceContainerLow,
-                                  color: const Color(0xFFE53935),
+                                  backgroundColor: codeBlockBackground,
+                                  color: codeInlineColor,
                                 ),
                                 h1: TextStyle(
                                     fontSize: 20 * s,
@@ -3349,7 +3555,7 @@ class _MessageBubbleState extends State<_MessageBubble> {
                     // ── 操作按钮 ──
                     if (mainContent.isNotEmpty &&
                         mainContent != '_thinking_')
-                      _buildActions(isUser, mainContent, s),
+                      _buildActions(isUser, mainContent, s, skin),
                   ],
                 ),
               ),
@@ -3357,22 +3563,20 @@ class _MessageBubbleState extends State<_MessageBubble> {
           ),
           if (isUser) ...[
             const SizedBox(width: 8),
-            CircleAvatar(
-              radius: 14 * s,
-              backgroundColor: Theme.of(context)
-                  .colorScheme
-                  .primary
-                  .withValues(alpha: 0.7),
-              child: Icon(Icons.person,
-                  size: 16 * s, color: Theme.of(context).colorScheme.onPrimary),
-            ),
+            _buildSkinAvatar(isUser: true, s: s, scheme: scheme, skin: skin),
           ],
         ],
       ),
     );
   }
 
-  Widget _buildThinkingSection(String reasoningContent, double s) {
+  Widget _buildThinkingSection(
+      String reasoningContent, double s, [SkinDescriptor? skin]) {
+    // C1 思考栏配色（功能色，皮肤包可覆盖；缺省回退现有硬编码默认值）。
+    final headerColor =
+        _skinHex(skin?.thinkingColor('header')) ?? const Color(0xFFF57C00);
+    final containerBg = _skinHex(skin?.thinkingColor('containerBackground')) ??
+        Theme.of(context).colorScheme.tertiaryContainer;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -3382,8 +3586,8 @@ class _MessageBubbleState extends State<_MessageBubble> {
           onToggle: () =>
               setState(() => _reasoningExpanded = !_reasoningExpanded),
           icon: Icons.psychology,
-          color: const Color(0xFFF57C00),
-          title: '思考过程',
+          color: headerColor,
+          title: skin?.thinkingTitle ?? '思考过程',
           badge: _countTools(reasoningContent),
           scale: s,
         ),
@@ -3393,7 +3597,9 @@ class _MessageBubbleState extends State<_MessageBubble> {
             constraints: const BoxConstraints(maxHeight: 280),
             margin: const EdgeInsets.only(top: 8),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.tertiaryContainer,
+              // 思考栏容器底色：皮肤包覆盖「这一消费点」；未配置保持
+              // 语义色 tertiaryContainer（深色适配不变）。
+              color: containerBg,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
                   color: Theme.of(context).colorScheme.tertiary),
@@ -3401,7 +3607,7 @@ class _MessageBubbleState extends State<_MessageBubble> {
             child: SingleChildScrollView(
               controller: _thinkingScrollCtrl,
               padding: const EdgeInsets.all(10),
-              child: _buildThinkingContent(reasoningContent, s),
+              child: _buildThinkingContent(reasoningContent, s, skin),
             ),
           ),
       ],
@@ -3414,7 +3620,27 @@ class _MessageBubbleState extends State<_MessageBubble> {
         '📋'.allMatches(content).length;
   }
 
-  Widget _buildThinkingContent(String text, double s) {
+  Widget _buildThinkingContent(String text, double s, [SkinDescriptor? skin]) {
+    // C1 思考栏功能色（皮肤包可覆盖；缺省回退现有硬编码默认值）。
+    final chipMemoryBg =
+        _skinHex(skin?.thinkingColor('chipMemoryBg')) ?? const Color(0xFFF3E5F5);
+    final chipMemoryFg =
+        _skinHex(skin?.thinkingColor('chipMemoryFg')) ?? const Color(0xFF7B1FA2);
+    final chipSkillBg =
+        _skinHex(skin?.thinkingColor('chipSkillBg')) ?? const Color(0xFFE0F2F1);
+    final chipSkillFg =
+        _skinHex(skin?.thinkingColor('chipSkillFg')) ?? const Color(0xFF00695C);
+    final chipToolBg =
+        _skinHex(skin?.thinkingColor('chipToolBg')) ?? const Color(0xFFE3F2FD);
+    final chipToolFg =
+        _skinHex(skin?.thinkingColor('chipToolFg')) ?? const Color(0xFF1565C0);
+    final chipToolResultBg = _skinHex(skin?.thinkingColor('chipToolResultBg')) ??
+        const Color(0xFFE8F5E9);
+    final chipToolResultFg = _skinHex(skin?.thinkingColor('chipToolResultFg')) ??
+        const Color(0xFF1B5E20);
+    final contentTextColor =
+        _skinHex(skin?.thinkingColor('contentText')) ?? const Color(0xFF795548);
+
     final lines = text.split('\n');
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -3429,8 +3655,8 @@ class _MessageBubbleState extends State<_MessageBubble> {
           return _thinkingChip(
             icon: Icons.memory,
             text: isRecall ? '回忆全局记忆' : '写入全局记忆',
-            bgColor: const Color(0xFFF3E5F5),
-            fgColor: const Color(0xFF7B1FA2),
+            bgColor: chipMemoryBg,
+            fgColor: chipMemoryFg,
             scale: s,
           );
         }
@@ -3440,8 +3666,8 @@ class _MessageBubbleState extends State<_MessageBubble> {
           return _thinkingChip(
             icon: Icons.auto_stories,
             text: trimmed.replaceAll('📋', '').trim(),
-            bgColor: const Color(0xFFE0F2F1),
-            fgColor: const Color(0xFF00695C),
+            bgColor: chipSkillBg,
+            fgColor: chipSkillFg,
             scale: s,
           );
         }
@@ -3451,8 +3677,8 @@ class _MessageBubbleState extends State<_MessageBubble> {
           return _thinkingChip(
             icon: Icons.touch_app,
             text: trimmed.replaceAll('🔧', '').trim(),
-            bgColor: const Color(0xFFE3F2FD),
-            fgColor: const Color(0xFF1565C0),
+            bgColor: chipToolBg,
+            fgColor: chipToolFg,
             scale: s,
           );
         }
@@ -3462,8 +3688,8 @@ class _MessageBubbleState extends State<_MessageBubble> {
           return _thinkingChip(
             icon: Icons.check_circle,
             text: trimmed.replaceAll('✅', '').trim(),
-            bgColor: const Color(0xFFE8F5E9),
-            fgColor: const Color(0xFF1B5E20),
+            bgColor: chipToolResultBg,
+            fgColor: chipToolResultFg,
             scale: s,
           );
         }
@@ -3474,7 +3700,7 @@ class _MessageBubbleState extends State<_MessageBubble> {
           child: Text(line,
               style: TextStyle(
                   fontSize: 12 * s,
-                  color: const Color(0xFF795548),
+                  color: contentTextColor,
                   height: 1.5)),
         );
       }).toList(),
@@ -3518,31 +3744,37 @@ class _MessageBubbleState extends State<_MessageBubble> {
     );
   }
 
-  Widget _buildActions(bool isUser, String content, double s) {
+  Widget _buildActions(
+      bool isUser, String content, double s, [SkinDescriptor? skin]) {
+    // B2 消息操作按钮显隐（皮肤包；缺省 null = 全部显示，零行为变化）。
+    final showCopy = skin?.messageActionVisible('copy') ?? true;
+    final showRegenerate = skin?.messageActionVisible('regenerate') ?? true;
+    final showEdit = skin?.messageActionVisible('edit') ?? true;
     return Padding(
       padding: const EdgeInsets.only(top: 4),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (!isUser) ...[
-            _ActionButton(
-              icon: Icons.content_copy,
-              tooltip: '复制',
-              size: 12 * s,
-              onTap: () {
-                final clean = content.replaceFirst(
-                    RegExp(r'^:::reasoning\n[\s\S]*?\n:::\n?'),
-                    '');
-                Clipboard.setData(
-                    ClipboardData(text: clean));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text('已复制'),
-                      duration: Duration(seconds: 1)),
-                );
-              },
-            ),
-            if (widget.onRegenerate != null)
+            if (showCopy)
+              _ActionButton(
+                icon: Icons.content_copy,
+                tooltip: '复制',
+                size: 12 * s,
+                onTap: () {
+                  final clean = content.replaceFirst(
+                      RegExp(r'^:::reasoning\n[\s\S]*?\n:::\n?'),
+                      '');
+                  Clipboard.setData(
+                      ClipboardData(text: clean));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('已复制'),
+                        duration: Duration(seconds: 1)),
+                  );
+                },
+              ),
+            if (widget.onRegenerate != null && showRegenerate)
               _ActionButton(
                 icon: Icons.refresh,
                 tooltip: '重新生成',
@@ -3550,7 +3782,7 @@ class _MessageBubbleState extends State<_MessageBubble> {
                 onTap: () => widget.onRegenerate?.call(),
               ),
           ],
-          if (isUser) ...[
+          if (isUser && showEdit) ...[
             _ActionButton(
               icon: Icons.edit_outlined,
               tooltip: '编辑（保留原历史，另开分支）',
@@ -3983,8 +4215,9 @@ class _ConversationHistoryPanel extends ConsumerWidget {
                           m.role == agent.Role.user ||
                           m.role == agent.Role.assistant)
                       .length;
-                  // Task 六 Bug 7：会话行显示分支计数小标签（分支族 > 1 时）。
-                  final branchCount = branchFamilyOf(sessions, s.id).length;
+                  // R3 会话树：会话行分支标签 = 树内分支计数（旧 A6 fork
+                  // 数据走 branchFamilyOf 兜底）。
+                  final branchCount = branchLabelCount(sessions, s);
                   return ListTile(
                     selected: isActive,
                     selectedTileColor: theme
@@ -4069,55 +4302,65 @@ class _ConversationHistoryPanel extends ConsumerWidget {
   }
 }
 
-// ═══════ _BranchSwitcher ═══════
+// ═══════ _BranchSwitcherBar ═══════
 
-/// Task 六 Bug 7：分支切换控件「< 分支 i/n >」。
+/// R3 会话树分支切换条「◀ i/n ▶」——渲染在**分叉的 user 消息下方**（spec：
+/// 消息下面，不是会话名下面）。
 ///
-/// 读取 [sessionListProvider]（内部即 `sessionStoreProvider.listAll()`）过滤出
-/// 当前会话的分支族（自身 + 父会话 + 同父兄弟 + 子分支，见 session_branch.dart），
-/// 分支族大小 > 1 时显示序号与左右切换按钮；否则返回空（旧会话无分支元数据 →
-/// 零行为变化）。切换走 [switchSessionProvider]：纯会话层操作，不撤销工作区变更。
-class _BranchSwitcher extends ConsumerWidget {
-  final String? sessionId;
+/// 左右环绕切换同一会话内的兄弟分支（switch 即 i±1，见 session_branch.dart 的
+/// [switchSibling]）；切换是纯会话层操作：不改变会话 id、不产生新会话、
+/// 不撤销工作区变更。仅在消息所在轮有分支（branchCount > 1）时由
+/// [_ChatControllerViewState._buildMessageItem] 渲染。
+class _BranchSwitcherBar extends StatelessWidget {
+  final int branchIndex;
+  final int branchCount;
+  final VoidCallback onPrev;
+  final VoidCallback onNext;
 
-  const _BranchSwitcher({this.sessionId});
+  const _BranchSwitcherBar({
+    required this.branchIndex,
+    required this.branchCount,
+    required this.onPrev,
+    required this.onNext,
+  });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final id = sessionId ?? ref.watch(activeSessionIdProvider);
-    if (id == null) return const SizedBox.shrink();
-    final sessions =
-        ref.watch(sessionListProvider).valueOrNull ?? const <agent.Session>[];
-    final group = branchFamilyOf(sessions, id);
-    if (group.length <= 1) return const SizedBox.shrink();
-    final index = branchIndexIn(group, id);
+  Widget build(BuildContext context) {
     final dim = Theme.of(context).colorScheme.onSurfaceVariant;
-
-    Widget arrow(IconData icon, bool next) {
-      return InkWell(
-        onTap: () {
-          final target = branchSwitchTo(group, id, next: next);
-          if (target != null) ref.read(switchSessionProvider)(target);
-        },
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.all(1),
-          child: Icon(icon, size: 14, color: dim),
-        ),
-      );
-    }
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        arrow(Icons.chevron_left, false),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 2),
-          child: Text('分支 $index/${group.length}',
-              style: TextStyle(fontSize: 10, color: dim)),
-        ),
-        arrow(Icons.chevron_right, true),
-      ],
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            onTap: onPrev,
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.all(2),
+              child: Icon(Icons.chevron_left, size: 16, color: dim),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              '$branchIndex/$branchCount',
+              style: TextStyle(
+                fontSize: 11,
+                color: dim,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ),
+          InkWell(
+            onTap: onNext,
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.all(2),
+              child: Icon(Icons.chevron_right, size: 16, color: dim),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -4188,7 +4431,14 @@ class _EffortSelector extends StatelessWidget {
   final String effort;
   final ValueChanged<String> onChanged;
 
-  const _EffortSelector({required this.effort, required this.onChanged});
+  /// 深度思考档位色（C1：皮肤包可覆盖 `effortColor`；缺省 0xFF7B1FA2）。
+  final Color? color;
+
+  const _EffortSelector({
+    required this.effort,
+    required this.onChanged,
+    this.color,
+  });
 
   static const _labels = <String, String>{
     'off': '思考: 关',
@@ -4216,11 +4466,14 @@ class _EffortSelector extends StatelessWidget {
 
   static const _levelColor = Color(0xFF7B1FA2);
 
+  /// 档位主色：皮肤包覆盖色或默认紫。
+  Color get _color => color ?? _levelColor;
+
   @override
   Widget build(BuildContext context) {
     final isOn = effort != 'off';
-    final color = isOn
-        ? _levelColor
+    final levelColor = isOn
+        ? _color
         : Theme.of(context).colorScheme.onSurfaceVariant;
     final label = _labels[effort] ?? '思考';
 
@@ -4228,13 +4481,13 @@ class _EffortSelector extends StatelessWidget {
       avatar: Icon(
         _icons[effort] ?? Icons.auto_awesome,
         size: 16,
-        color: isOn ? Theme.of(context).colorScheme.onPrimary : color,
+        color: isOn ? Theme.of(context).colorScheme.onPrimary : levelColor,
       ),
       label: Text(label,
           style: TextStyle(
               fontSize: 12, color: isOn ? Theme.of(context).colorScheme.onPrimary : null)),
       selected: isOn,
-      selectedColor: _levelColor,
+      selectedColor: _color,
       checkmarkColor: Theme.of(context).colorScheme.onPrimary,
       showCheckmark: false,
       onSelected: (_) => _showMenu(context),
@@ -4267,7 +4520,7 @@ class _EffortSelector extends StatelessWidget {
             children: [
               Icon(icon,
                   size: 18,
-                  color: isSelected ? _levelColor : null),
+                  color: isSelected ? _color : null),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -4462,8 +4715,20 @@ class _LocalChatMessagesNotifier
     extends StateNotifier<List<ChatMessage>> {
   _LocalChatMessagesNotifier() : super([]);
 
-  void addUser(String text) {
-    state = [...state, ChatMessage(role: 'user', content: text)];
+  /// [loopId]/[branchCount]/[branchIndex]：R3 会话树分支切换条信息
+  /// （缺省 null → 不渲染切换条，零行为变化）。
+  void addUser(String text,
+      {int? loopId, int? branchCount, int? branchIndex}) {
+    state = [
+      ...state,
+      ChatMessage(
+        role: 'user',
+        content: text,
+        loopId: loopId,
+        branchCount: branchCount,
+        branchIndex: branchIndex,
+      ),
+    ];
   }
 
   void addNotice(String text) {

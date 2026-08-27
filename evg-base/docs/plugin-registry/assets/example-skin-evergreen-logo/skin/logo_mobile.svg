@@ -1,0 +1,62 @@
+<svg width="240" height="240" viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Evergreen 墨白 Logo">
+  <defs>
+    <!-- 墨白渐变：深墨盘 + 浅灰图形 -->
+    <linearGradient id="inkBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#333338"/>
+      <stop offset="100%" stop-color="#26262b"/>
+    </linearGradient>
+    <linearGradient id="inkLeaf" x1="18%" y1="8%" x2="82%" y2="95%">
+      <stop offset="0%" stop-color="#e8e7e4"/>
+      <stop offset="45%" stop-color="#c9c8c5"/>
+      <stop offset="100%" stop-color="#a5a4a1"/>
+    </linearGradient>
+    <linearGradient id="inkRing" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e8e7e4"/>
+      <stop offset="50%" stop-color="#c9c8c5"/>
+      <stop offset="100%" stop-color="#a5a4a1"/>
+    </linearGradient>
+    <!-- 柔和阴影 -->
+    <filter id="inkShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <!-- 深墨背景盘 -->
+  <rect x="8" y="8" width="224" height="224" rx="56" fill="url(#inkBg)"/>
+  <rect x="8" y="8" width="224" height="224" rx="56" fill="none" stroke="#4a4a50" stroke-opacity="0.6" stroke-width="2"/>
+
+  <!-- 循环不息环（墨白灰阶） -->
+  <g filter="url(#inkShadow)">
+    <path d="M120 40
+             a80 80 0 1 1 -56.6 23.4"
+          fill="none" stroke="url(#inkRing)" stroke-width="9" stroke-linecap="round"/>
+    <!-- 环首箭头 -->
+    <path d="M120 40 l-13 -2 l4 13 z" fill="#c9c8c5"/>
+  </g>
+
+  <!-- 中央叶片（墨白灰阶） -->
+  <g filter="url(#inkShadow)" transform="translate(120 132)">
+    <path d="M0 -78
+             C 46 -58, 60 6, 8 64
+             C -6 74, -6 74, -8 64
+             C -58 8, -42 -52, 0 -78 Z"
+          fill="url(#inkLeaf)"/>
+    <!-- 主叶脉 -->
+    <path d="M0 -70 C 2 -36, 2 18, -2 60"
+          fill="none" stroke="#f4f3f1" stroke-width="3.4" stroke-linecap="round"/>
+    <!-- 侧脉 左 -->
+    <path d="M-1 -44 C -16 -34, -28 -22, -38 -8" fill="none" stroke="#f4f3f1" stroke-opacity="0.55" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M-1 -18 C -14 -10, -26 2, -34 14" fill="none" stroke="#f4f3f1" stroke-opacity="0.5" stroke-width="2.2" stroke-linecap="round"/>
+    <!-- 侧脉 右 -->
+    <path d="M1 -44 C 16 -36, 28 -24, 38 -12" fill="none" stroke="#f4f3f1" stroke-opacity="0.55" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M1 -18 C 14 -12, 26 0, 34 10" fill="none" stroke="#f4f3f1" stroke-opacity="0.5" stroke-width="2.2" stroke-linecap="round"/>
+    <!-- 叶面高光 -->
+    <path d="M-10 -64 C 18 -52, 34 -16, 20 20 C 6 -6, -8 -34, -10 -64 Z"
+          fill="#f4f3f1" fill-opacity="0.18"/>
+  </g>
+
+  <!-- 露珠点缀 -->
+  <circle cx="166" cy="78" r="6.5" fill="#f4f3f1" fill-opacity="0.9"/>
+  <circle cx="166" cy="78" r="6.5" fill="none" stroke="#a5a4a1" stroke-opacity="0.4" stroke-width="1.2"/>
+  <circle cx="164" cy="76" r="2.2" fill="#ffffff"/>
+</svg>

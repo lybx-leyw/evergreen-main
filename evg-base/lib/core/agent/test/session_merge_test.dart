@@ -27,6 +27,23 @@ Session _s(
 List<Message> _msgs(List<String> contents) =>
     [for (final c in contents) Message.user(c)];
 
+/// 交替 user/assistant 构造消息（更贴近真实会话）。
+List<Message> _conv(List<String> parts) => [
+      for (var i = 0; i < parts.length; i++)
+        i.isEven ? Message.user(parts[i]) : Message.assistant(parts[i]),
+    ];
+
+/// 带树的会话：经轮次感知 [Session.addAll] 建立 Round 树。
+Session _treeSession(String id, List<Message> msgs,
+    {DateTime? updatedAt}) {
+  final s = Session(
+    id: id,
+    updatedAt: updatedAt ?? DateTime(2026, 8, 25, 12),
+  );
+  s.addAll(msgs);
+  return s;
+}
+
 void main() {
   group('mergeSessions · 完全包含则删小', () {
     test('前缀包含（无元数据兜底）→ 删 A 保留 B', () {
@@ -172,6 +189,96 @@ void main() {
       expect(restored.parentId, 'P');
       expect(restored.forkTurn, 2);
       expect(restored.messages.length, 3);
+    });
+  });
+
+  // ═══════ R3 树感知合并 ═══════
+
+  group('mergeSessions · 树感知（R3）', () {
+    test('同 id 内容相等 + 树相等 → 去重 no-op，无删除', () {
+      final a = _treeSession('S', _conv(['u1', 'a1', 'u2', 'a2']));
+      final b = _treeSession('S', _conv(['u1', 'a1', 'u2', 'a2']));
+
+      final r = mergeSessions([a], [b]);
+
+      expect(r.merged.single.messages.length, 4);
+      expect(r.deletedSessionIds, isEmpty);
+      expect(r.keepReasons['S'], contains('相等'));
+    });
+
+    test('同 id 消息相等但树分化（分支差异）→ 保留本地', () {
+      // a：在轮 1 分叉出同内容 sibling（消息与 b 相同，但树有 2 个分支）
+      final a = _treeSession('S', _conv(['u1', 'a1', 'u2', 'a2']));
+      a.forkRound(1, 'u2');
+      a.add(Message.user('u2'));
+      a.add(Message.assistant('a2'));
+      expect(a.roots.first.children, hasLength(2));
+      expect(a.messages.map((m) => m.content), ['u1', 'a1', 'u2', 'a2']);
+      // b：直线会话，无侧枝
+      final b = _treeSession('S', _conv(['u1', 'a1', 'u2', 'a2']));
+
+      final r = mergeSessions([a], [b]);
+
+      expect(r.merged.single.id, 'S');
+      expect(r.deletedSessionIds, isEmpty);
+      expect(r.keepReasons['S'], contains('树'));
+    });
+
+    test('前缀包含 + 树包含 → 删小保大（树感知删除）', () {
+      final a = _treeSession('A', _conv(['u1', 'a1']));
+      final b = _treeSession('B', _conv(['u1', 'a1', 'u2', 'a2']));
+
+      final r = mergeSessions([a], [b]);
+
+      expect(r.deletedSessionIds, contains('A'));
+      expect(r.merged.map((s) => s.id), contains('B'));
+      expect(r.deletedReasons['A'], contains('完全包含'));
+    });
+
+    test('前缀包含但树不包含（短会话有额外分支）→ 都保留', () {
+      // A：活动路径 [u1,a1,u2,a2] + 非空侧枝 [u2b,a2b]
+      final a = _treeSession('A', _conv(['u1', 'a1', 'u2', 'a2']));
+      a.forkRound(1, 'u2b');
+      a.add(Message.user('u2b'));
+      a.add(Message.assistant('a2b'));
+      a.switchRound(1, 0);
+      expect(a.messages.map((m) => m.content), ['u1', 'a1', 'u2', 'a2']);
+      expect(a.roots.first.children, hasLength(2));
+      // B：A 的续写（无 A 的侧枝）
+      final b = _treeSession('B', _conv(['u1', 'a1', 'u2', 'a2', 'u3', 'a3']));
+
+      final r = mergeSessions([a], [b]);
+
+      expect(r.deletedSessionIds, isNot(contains('A')));
+      expect(r.merged.map((s) => s.id).toSet(), {'A', 'B'});
+    });
+
+    test('同 id 前缀 + 树不包含 → 保留本地（丢弃导入）', () {
+      // 本地：较短但有侧枝；导入：较长无侧枝
+      final local = _treeSession('S', _conv(['u1', 'a1', 'u2', 'a2']));
+      local.forkRound(1, 'u2b');
+      local.add(Message.user('u2b'));
+      local.add(Message.assistant('a2b'));
+      local.switchRound(1, 0);
+      final imported = _treeSession('S', _conv(['u1', 'a1', 'u2', 'a2', 'u3', 'a3']));
+
+      final r = mergeSessions([local], [imported]);
+
+      expect(r.merged.single.id, 'S');
+      expect(r.merged.single.messages.last.content, 'a2');
+      expect(r.deletedSessionIds, contains('S'));
+      expect(r.deletedReasons['S'], contains('分化'));
+    });
+
+    test('同 id 前缀 + 树包含 → 删小保大（与旧行为一致）', () {
+      final local = _treeSession('S', _conv(['u1', 'a1']));
+      final imported = _treeSession('S', _conv(['u1', 'a1', 'u2', 'a2']));
+
+      final r = mergeSessions([local], [imported]);
+
+      expect(r.merged.single.messages.length, 4);
+      expect(r.deletedSessionIds, contains('S'));
+      expect(r.deletedReasons['S'], contains('前缀'));
     });
   });
 }

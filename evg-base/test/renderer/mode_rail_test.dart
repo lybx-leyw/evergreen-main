@@ -99,7 +99,7 @@ void main() {
     expect(find.text('远程同步即将上线，敬请期待。'), findsOneWidget);
   });
 
-  testWidgets('显示设置：点击推入 /settings（返回按钮语义由壳层提供）', (tester) async {
+  testWidgets('显示设置：点击推入 /settings（返回入口由壳层返回 AppBar 提供）', (tester) async {
     await tester.pumpWidget(_wrap(AppMode.ai, _sealedRegistry()));
     await tester.pump();
 

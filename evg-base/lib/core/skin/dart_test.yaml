@@ -1,0 +1,3 @@
+# 皮肤包子包测试——纯 Dart，无 HTTP 端口占用，串行执行保持输出稳定。
+concurrency: 1
+timeout: 30s
