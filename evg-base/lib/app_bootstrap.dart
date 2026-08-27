@@ -33,6 +33,7 @@ import 'package:evergreen_base/core/agent/tools/data_query.dart';
 import 'package:evergreen_base/core/agent/tools/file_info.dart';
 import 'package:evergreen_base/core/agent/tools/grep.dart';
 import 'package:evergreen_base/core/agent/tools/head_tail.dart';
+import 'package:evergreen_base/core/agent/tools/ocr_file_tool.dart';
 import 'package:evergreen_base/core/agent/tools/plugin_bridge.dart';
 import 'package:evergreen_base/core/agent/tools/python_runner_tool.dart';
 import 'package:evergreen_base/core/agent/tools/read_file.dart';
@@ -602,6 +603,24 @@ class AppBootstrap {
     registry.register(ReadHeadTool(workspaceDir: aiWorkspace));
     registry.register(ReadTailTool(workspaceDir: aiWorkspace));
     registry.register(FileInfoTool(workspaceDir: aiWorkspace));
+    // OCR 工具（Task 四决策 4.2）——与 agent_runtime / agent_factory 同步注册；
+    // 真实能力走 core OcrPipeline（DeepSeek 云端 → Tesseract 本地两级降级），
+    // Key 优先读设置（DEEPSEEK_OCR_API_KEY），缺省回退环境变量（OcrPipeline 内部）。
+    final ocrPipeline = OcrPipeline(
+        _agentDio!, null, getSetting(prefs!, 'DEEPSEEK_OCR_API_KEY'));
+    registry.register(OcrFileTool(
+        recognize: ocrPipeline.recognizeFile, workspaceDir: aiWorkspace));
+    registry.register(CheckOcrReadyTool(readiness: () async {
+      final r = await ocrPipeline.checkReadiness();
+      return CheckOcrReadyTool.readinessMap(
+        summarize: r.summarize(),
+        python: r.pythonAvailable,
+        pdfScript: r.pdfScriptAvailable,
+        ocrScript: r.ocrFileScriptAvailable,
+        ocrKey: r.deepSeekKeyConfigured,
+        tesseract: r.tesseractAvailable,
+      );
+    }));
     registry.register(DataQueryTool(orchestrator: orchestrator));
     // Skill 工具 —— 与全局 agentRuntimeProvider / AgentAssembly.buildStandardTools 对齐
     final skillToolLoader = SkillLoader(

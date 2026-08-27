@@ -22,6 +22,8 @@ export 'tools/plugin_bridge.dart';
 export 'tools/agent_process_registry.dart';
 export 'tools/agent_process_tools.dart';
 export 'tools/show_file4u.dart';
+export 'tools/ocr_file_tool.dart';
+export 'tools/workspace_import.dart';
 export 'tools/agent_http_server.dart';
 export 'tools/mock_event_stream.dart';
 export 'tools/ocr_attachment_handler.dart';

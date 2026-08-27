@@ -26,9 +26,11 @@ import 'package:evergreen_base/core/agent/tools/grep.dart';
 import 'package:evergreen_base/core/agent/tools/write_file.dart';
 import 'package:evergreen_base/core/agent/tools/head_tail.dart';
 import 'package:evergreen_base/core/agent/tools/file_info.dart';
+import 'package:evergreen_base/core/agent/tools/ocr_file_tool.dart';
 import 'package:evergreen_base/core/agent/tools/write_global_memory.dart';
 import 'package:evergreen_base/core/agent/tools/python_runner_tool.dart';
 import 'package:evergreen_base/core/agent/skill/skill.dart';
+import 'package:evergreen_base/core/services/ocr_pipeline.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
 import 'package:evergreen_base/core/utils/python_env.dart';
 import 'package:evergreen_base/providers.dart';
@@ -86,6 +88,10 @@ final agentRuntimeProvider = Provider<AgentRuntime>((ref) {
   BuiltinSkills.loadInto(skillIndex);
 
   final registry = agent.Registry();
+  // OCR 工具（Task 四决策 4.2）——与 app_bootstrap / agent_factory 同步注册；
+  // 真实能力走 core OcrPipeline（DeepSeek 云端 → Tesseract 本地两级降级）。
+  final ocrPipeline =
+      OcrPipeline(Dio(), null, getSetting(prefs, 'DEEPSEEK_OCR_API_KEY'));
   for (final t in [
     GetUserInfoTool(),
     ReadGlobalMemoryTool(globalStore),
@@ -96,6 +102,21 @@ final agentRuntimeProvider = Provider<AgentRuntime>((ref) {
     ReadHeadTool(workspaceDir: greenixWorkspaceDir('ai-assistant')),
     ReadTailTool(workspaceDir: greenixWorkspaceDir('ai-assistant')),
     FileInfoTool(workspaceDir: greenixWorkspaceDir('ai-assistant')),
+    OcrFileTool(
+      recognize: ocrPipeline.recognizeFile,
+      workspaceDir: greenixWorkspaceDir('ai-assistant'),
+    ),
+    CheckOcrReadyTool(readiness: () async {
+      final r = await ocrPipeline.checkReadiness();
+      return CheckOcrReadyTool.readinessMap(
+        summarize: r.summarize(),
+        python: r.pythonAvailable,
+        pdfScript: r.pdfScriptAvailable,
+        ocrScript: r.ocrFileScriptAvailable,
+        ocrKey: r.deepSeekKeyConfigured,
+        tesseract: r.tesseractAvailable,
+      );
+    }),
     RunSkillTool(loader, skillIndex, provider, registry),
     ListSkillsTool(loader, skillIndex),
     WebSearchTool(Dio()),

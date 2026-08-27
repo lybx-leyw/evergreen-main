@@ -201,9 +201,13 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
   List<StreamSubscription<SlotEvent>>? _eventBusSubs;
 
   // ── 文件附件 ──
-  String? _attachedFilePath;
   String? _attachedFileName;
-  String? _attachedFileOcrText;
+
+  /// 附件复制进工作区后的相对路径（Task 四决策 4.1）。null = 复制失败或未复制。
+  String? _attachedRelPath;
+
+  /// 附件复制进工作区失败的原因（成功为 null）。
+  String? _attachedImportError;
   bool _attaching = false;
 
   @override
@@ -682,7 +686,8 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
       if (_embeddedMessages.isEmpty) return;
       final lastUserIdx = _embeddedMessages.lastIndexWhere((m) => m.isUser);
       if (lastUserIdx < 0) return;
-      final text = _embeddedMessages[lastUserIdx].content;
+      // 剥离附件标记（[📎 …]），避免把伪标记当正文回填到编辑框。
+      final text = _stripAttachmentMarker(_embeddedMessages[lastUserIdx].content);
       // 删除最后一条 assistant 回复 + 最后一条 user
       if (_embeddedMessages.isNotEmpty && _embeddedMessages.last.isAssistant) {
         _embeddedMessages.removeLast();
@@ -733,26 +738,35 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
       if (path == null) return;
 
       setState(() {
-        _attachedFilePath = path;
         _attachedFileName = file.name;
+        _attachedRelPath = null;
+        _attachedImportError = null;
         _attaching = true;
       });
 
-      // 文本文件直接读取，图片/PDF 尝试 OCR
-      final ext = file.name.split('.').last.toLowerCase();
-      final textExts = ['txt', 'md', 'json', 'csv', 'py', 'dart'];
-      String? content;
-      if (textExts.contains(ext)) {
-        try {
-          content = await File(path).readAsString();
-        } catch (_) {}
-      }
+      // Task 四决策 4.1：上传任意文件 = 字节拷贝到 AI 助手工作区
+      // （二进制/文本通吃；同名自动加时间戳/序号防覆盖；PathSandbox 校验）。
+      // 发送时不再内联全文——AI 通过 read_file / ocr_file 读取工作区文件。
+      final importResult = await agent.importToWorkspace(
+        sourcePath: path,
+        workspaceDir: greenixWorkspaceDir(aiAssistantWorkspaceModuleId),
+      );
+      if (!mounted) return;
       setState(() {
-        _attachedFileOcrText = content ?? '(无法读取文件内容)';
+        _attachedRelPath = importResult.ok ? importResult.relativePath : null;
+        _attachedImportError = importResult.ok ? null : importResult.error;
         _attaching = false;
       });
+      if (!importResult.ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('文件未能复制到工作区：${importResult.error}'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
     } catch (e) {
-      setState(() => _attaching = false);
+      if (mounted) setState(() => _attaching = false);
     }
   }
 
@@ -762,10 +776,32 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     var text = _inputCtrl.text.trim();
     if (text.isEmpty && _attachedFileName == null) return;
 
+    // Task 四决策 4.1：附件不再内联全文——发给 AI 的是「文件已入工作区」的位置提示，
+    // 气泡（displayText）保持 `[📎 文件名]` 文件夹伪装，用户看到「上传文件给 AI 看」的体感。
+    // 双轨：sendText（真实发给 AI 的 user message）与 displayText（UI 气泡）分离。
+    String sendText = text;
+    String displayText = text;
+    final attachedName = _attachedFileName;
+    if (attachedName != null) {
+      if (text.isEmpty) text = '(文件)';
+      final rel = _attachedRelPath;
+      if (rel != null && rel.isNotEmpty) {
+        sendText = '用户上传了文件: $attachedName，已保存到 AI 助手工作区：$rel。\n'
+            '请阅读该文件后回答：文本文件请用 read_file 工具读取；'
+            '图片/PDF 或扫描件请调用 ocr_file 工具识别内容。'
+            '${text != '(文件)' ? '\n\n用户需求: $text' : ''}';
+      } else {
+        sendText = '用户上传了文件: $attachedName，但未能复制到工作区'
+            '${_attachedImportError != null ? '（$_attachedImportError）' : ''}。'
+            '${text != '(文件)' ? '\n\n用户需求: $text' : ''}';
+      }
+      displayText = '$text\n\n[📎 $attachedName]';
+    }
+
     // AgentAssembly 模式（嵌入/全屏均可用）
     if (_embeddedCtrl != null) {
       if (_isRunning) return;
-      _sendEmbedded(text);
+      _sendEmbedded(sendText, bubbleText: displayText);
       return;
     }
 
@@ -773,18 +809,6 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
 
     if (ref.read(activeSessionIdProvider) == null) {
       ref.read(createSessionProvider)(null);
-    }
-
-    // 有附件时拼接 OCR 内容
-    String displayText = text;
-    if (_attachedFileName != null && _attachedFileOcrText != null) {
-      if (text.isEmpty) text = '(文件)';
-      final ext = _attachedFileName!.split('.').last.toLowerCase();
-      final textExts = ['txt', 'md', 'json', 'csv', 'py', 'dart'];
-      if (textExts.contains(ext)) {
-        text = '用户上传了文件: $_attachedFileName\n\n【文件内容】\n$_attachedFileOcrText\n\n用户需求: $text';
-      }
-      displayText = '$text\n\n[📎 $_attachedFileName]';
     }
 
     final messagesNotifier = ref.read(_chatMessagesProvider.notifier);
@@ -795,18 +819,18 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     _pendingAnswer.clear();
     _textThrottleCount = 0;
     _hasBubble = false;
-    _currentTurnUserText = text;
+    _currentTurnUserText = sendText;
     _seenNotices.clear();
 
     setState(() {
-      _attachedFilePath = null;
       _attachedFileName = null;
-      _attachedFileOcrText = null;
+      _attachedRelPath = null;
+      _attachedImportError = null;
     });
 
     final webSearch = ref.read(webSearchEnabledProvider);
     final ctrl = ref.read(agentControllerProvider);
-    ctrl.send(webSearch ? _withWebSearchDirective(text) : text);
+    ctrl.send(webSearch ? _withWebSearchDirective(sendText) : sendText);
   }
 
   /// 为「联网搜索」开启时的用户消息追加指令，确保 Agent 实际调用 web_search
@@ -818,14 +842,18 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
 
   // ── 嵌入模式：发送 ──
 
-  void _sendEmbedded(String text) {
+  /// 嵌入模式：发送。[text] 是发给 AI 的 user message；[bubbleText] 为 UI 气泡
+  /// 展示文本（Task 四决策 4.1 附件双轨：缺省同 [text]，附件时为「用户文本 +
+  /// [📎 文件名]」文件夹伪装）。
+  void _sendEmbedded(String text, {String? bubbleText}) {
     final ctrl = _embeddedCtrl;
     if (ctrl == null) return;
+    final bubble = bubbleText ?? text;
     setState(() {
-      _embeddedMessages.add(ChatMessage(role: 'user', content: text));
+      _embeddedMessages.add(ChatMessage(role: 'user', content: bubble));
       // 首条用户消息自动命名（仅一次）
       if (!_assemblySessionAutoTitled && _embeddedMessages.where((m) => m.isUser).length == 1) {
-        final t = text.replaceAll('\n', ' ').trim();
+        final t = bubble.replaceAll('\n', ' ').trim();
         _localSessionTitle = t.length > 30 ? '${t.substring(0, 30)}...' : t;
         _assemblySessionAutoTitled = true;
       }
@@ -900,6 +928,9 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
         provider: provider,
         skillIndex: skillIdx,
         orchestrator: ref.read(dataOrchestratorProvider),
+        // Task 四决策 4.2：嵌入 Agent 同样获得 ocr_file / check_ocr_ready 工具，
+        // OCR Key 从设置读取（缺省回退环境变量）。
+        ocrApiKey: getSetting(prefs, 'DEEPSEEK_OCR_API_KEY'),
       );
 
       final assembly = AgentAssembly.fromConfig(
@@ -2265,7 +2296,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                   ),
                 ),
                 // 附件状态
-                if (_attachedFileOcrText != null)
+                if (_attachedFileName != null)
                   Padding(
                     padding: const EdgeInsets.only(right: 4),
                     child: Tooltip(
@@ -2282,9 +2313,9 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                         ),
                         onDeleted: () {
                           setState(() {
-                            _attachedFilePath = null;
                             _attachedFileName = null;
-                            _attachedFileOcrText = null;
+                            _attachedRelPath = null;
+                            _attachedImportError = null;
                           });
                         },
                         deleteIcon: const Icon(Icons.close,
@@ -2765,7 +2796,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                   ),
                 ),
                 // 附件状态
-                if (_attachedFileOcrText != null)
+                if (_attachedFileName != null)
                   Padding(
                     padding: const EdgeInsets.only(right: 4),
                     child: Tooltip(
@@ -2783,9 +2814,9 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                         deleteIcon:
                             const Icon(Icons.close, size: 16),
                         onDeleted: () => setState(() {
-                          _attachedFilePath = null;
                           _attachedFileName = null;
-                          _attachedFileOcrText = null;
+                          _attachedRelPath = null;
+                          _attachedImportError = null;
                         }),
                         visualDensity: VisualDensity.compact,
                         padding: const EdgeInsets.symmetric(
