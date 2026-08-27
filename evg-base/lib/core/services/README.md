@@ -6,17 +6,17 @@
 | 版本 | 以根 `README.md` 为准 |
 | 日期 | 2026-08-02 |
 | 负责人 | 待补充 |
-| 适用 | services（OCR/更新/安装/同步中心） |
+| 适用 | services（更新/安装/同步中心） |
 
-> 源码 `ocr_pipeline.dart` `deepseek_ocr_service.dart` `update_service.dart` `plugin_installer.dart` `core_http_server.dart` `github_stars.dart` `sync_import_service.dart`、测试 `../test/`
+> 源码 `update_service.dart` `plugin_installer.dart` `core_http_server.dart` `github_stars.dart` `sync_import_service.dart`、测试 `../test/`
 >
-> **HTML-first 事实**：用户 HTML 插件通过 `platform.api.call("core", ...)` 访问 Core 服务；本目录的 OCR/更新/安装服务仍由平台内部与开发者模式插件使用。
+> **HTML-first 事实**：用户 HTML 插件通过 `platform.api.call("core", ...)` 访问 Core 服务；本目录的更新/安装服务仍由平台内部与开发者模式插件使用。
 >
-> **barrel 说明**：`services.dart` 导出纯 Dart 服务（OCR/更新/安装/Core HTTP/GitHub stars/同步导入）；
+> **barrel 说明**：`services.dart` 导出纯 Dart 服务（更新/安装/Core HTTP/GitHub stars/同步导入）；
 > `github_clone.dart` / `github_metadata.dart` / `release_downloader.dart` / `ui_operation_log.dart`
 > 含 Flutter 依赖或独立契约，按需直接 import 对应文件。
 
-平台级基础服务——OCR 文字识别、应用更新、插件安装管理、HTTP API、GitHub 集成、同步中心导入。外部插件可直接调用。
+平台级基础服务——应用更新、插件安装管理、HTTP API、GitHub 集成、同步中心导入。外部插件可直接调用。（OCR 管线已移除，见 R3-4。）
 
 ---
 
@@ -24,8 +24,6 @@
 
 | 服务 | 文件 | 说明 | 是否 barrel 导出 |
 |------|------|------|-----------------|
-| `OcrPipeline` | `ocr_pipeline.dart` | 两级降级 OCR + 并行 + 就绪诊断 | ✅ |
-| `DeepSeekOcrService` | `deepseek_ocr_service.dart` | DeepSeek Vision API 封装 | ✅ |
 | `UpdateService` | `update_service.dart` | 宿主/插件更新检查 | ✅ |
 | `PluginInstaller` | `plugin_installer.dart` | 插件安装/卸载/校验/崩溃监控 | ✅ |
 | `CoreHttpServer` | `core_http_server.dart` | REST 端点微服务网格 | ✅ |
@@ -36,57 +34,6 @@
 | `GithubMetadata` | `github_metadata.dart` | 仓库元数据抓取（市场卡片实时 star） | 直接 import |
 | `ReleaseDownloader` | `release_downloader.dart` | GitHub release 二进制下载/解压 | 直接 import |
 | `UIOperationLog` | `ui_operation_log.dart` | UI 操作日志（DebugErrorBar 实时显示） | 直接 import |
-
----
-
-## 一、OCR 文字识别（I20）
-
-两级降级管线：DeepSeek 云端 → Tesseract 本地。
-
-```
-  图片/文件输入
-    └─ OcrPipeline.recognizeFile(path)
-         ├─ Level 1: DeepSeek-OCR（云端，高精度）
-         └─ 失败 → Level 2: Tesseract/Python（本地，离线可用）
-```
-
-```dart
-import 'package:evergreen_base/core/services/services.dart';
-import 'package:dio/dio.dart';
-
-// 两级降级 OCR（推荐）
-final pipeline = OcrPipeline(Dio());                 // apiKey 缺省回退环境变量 DEEPSEEK_OCR_API_KEY
-final text = await pipeline.recognizeFile(path);     // → String?，失败返回 null
-final text2 = await pipeline.recognizeUrl(url);      // → String，失败返回空字符串
-final texts = await pipeline.recognizeFiles([p1, p2]); // → List<String?>，多文件并行
-final report = await pipeline.checkReadiness();      // → OcrReadinessReport 环境诊断
-
-// 仅云端 OCR
-final svc = DeepSeekOcrService(Dio(), apiKey);
-final text = await svc.recognize(File(path));     // → String?，失败返回 null
-final result = await svc.testConnection();        // → Result<String>
-```
-
-### OcrPipeline
-
-| 方法 | 输入 | 输出 | 说明 |
-|------|------|------|------|
-| `OcrPipeline(dio, [pythonEnv, apiKey])` | `dio: Dio`, `pythonEnv: PythonEnv?`, `apiKey: String?` | `OcrPipeline` | 构造；apiKey 缺省读 `DEEPSEEK_OCR_API_KEY` |
-| `.recognizeFile(path)` | `path: String` 本地文件路径 | `Future<String?>` | 图片/PDF→文字，失败 null |
-| `.recognizeFiles(paths)` | `paths: List<String>` | `Future<List<String?>>` | 多文件并行，单文件失败不影响其他 |
-| `.recognizeUrl(url)` | `url: String` 图片 URL | `Future<String>` | 下载+OCR，失败返回空字符串 |
-| `.checkReadiness()` | — | `Future<OcrReadinessReport>` | Python/脚本/Key/Tesseract 就绪诊断 |
-| `pageConcurrency` | `int`（默认 4） | 属性 | PDF 逐页 OCR 并行度 |
-| `parsePageOutput(stdout)` | `stdout: String` | `String?` | 解析子进程 JSON 输出（公开静态方法） |
-
-### DeepSeekOcrService
-
-| 方法 | 输入 | 输出 | 说明 |
-|------|------|------|------|
-| `DeepSeekOcrService(dio, apiKey)` | `dio: Dio`, `apiKey: String` | `DeepSeekOcrService` | 构造 |
-| `.recognize(imageFile)` | `imageFile: File` 图片文件 | `Future<String?>` | OCR 识别，失败 null |
-| `.testConnection()` | — | `Future<Result<String>>` | 用 1×1 PNG 测试 API 连通性 |
-| `mimeFromPath(path)` | `path: String` | `String` | 扩展名→MIME（公开静态方法） |
 
 ---
 
@@ -189,7 +136,7 @@ projectRoot 下的 `.core_port` 供插件 `.exe` 发现（server 自身不再写
 ```dart
 import 'package:evergreen_base/core/services/services.dart';
 
-final server = CoreHttpServer(installer, ocrPipeline, updateService);
+final server = CoreHttpServer(installer, updateService);
 final port = await server.start();    // 启动 → 返回端口号
 // 插件 .exe 读取 projectRoot/.core_port 文件 → http://127.0.0.1:$port/core/...
 
@@ -201,7 +148,7 @@ print(server.isRunning);              // 运行状态
 
 | 方法 | 说明 |
 |------|------|
-| `CoreHttpServer(installer, ocrPipeline, updateService, {port})` | 构造，默认 port=0 自动分配 |
+| `CoreHttpServer(installer, updateService, {port})` | 构造，默认 port=0 自动分配 |
 | `.start()` → `Future<int>` | 启动监听，返回端口号 |
 | `.stop()` → `Future<void>` | 关闭服务器 |
 | `isRunning` → `bool` | 是否正在监听 |
@@ -211,14 +158,12 @@ print(server.isRunning);              // 运行状态
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| `GET` | `/core/health` | `{status, pluginsCount, ocrAvailable, timestamp}` |
+| `GET` | `/core/health` | `{status, pluginsCount, timestamp}` |
 | `POST` | `/core/install` | Body `{path}` 或 `{url}` → 安装插件 |
 | `POST` | `/core/uninstall/:id` | 卸载指定插件 |
 | `GET` | `/core/plugins` | `{plugins: [PluginStatus...]}` |
 | `GET` | `/core/update/check/:id` | 检查单个插件更新 |
 | `GET` | `/core/update/check` | 检查宿主更新 |
-| `POST` | `/core/ocr` | Body `{path}` → OCR 识别 |
-| `GET` | `/core/ocr/status` | `{deepseekAvailable, tesseractAvailable}` |
 
 ---
 
@@ -308,18 +253,13 @@ final results = await svc.downloadFiles(
 
 | 依赖 | 说明 |
 |------|------|
-| 嵌入式 Python 运行时 | Tesseract 降级链解释器（由安装包预置 / 资产释放提供，非仓库资产） |
-| `scripts/ocr_slides.py` | OCR 子进程（URL 输入） |
-| `scripts/pdf_to_images.py` | PDF 拆页脚本 |
-| `scripts/ocr_file.py` | 本地 OCR 脚本 |
-| DeepSeek OCR API Key | 环境变量 `DEEPSEEK_OCR_API_KEY`（OCR 云端链；`OcrPipeline` 构造可注入 apiKey 覆盖） |
+| 嵌入式 Python 运行时 | 由安装包预置 / 资产释放提供（`paper_reader.py` 等平台脚本，非仓库资产） |
 
 > 脚本运行期路径：由资产释放填充到 `.greenix/scripts`（`greenixScriptsDir`），
 > 本体维护在 `evg-base/scripts/`（platform OWNER 管辖）。
 
 ## 规则
 
-- `OcrPipeline` 两级降级——优先云端，失败回退本地。
 - `recognizeFile` 返回 `null` 表示全部降级失败；`recognizeUrl` 失败返回空字符串（不抛异常）。
 - `UpdateService` 网络错误静默返回 `(false, null, null)`。
 - `PluginInstaller.install()` 签名不匹配→拒绝、3 次重试(1s/3s/5s)、ZIP slip 防护。

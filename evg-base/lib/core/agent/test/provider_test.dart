@@ -9,7 +9,6 @@ import '../message.dart';
 import '../provider.dart';
 import '../event.dart';
 import '../tools/mock_event_stream.dart';
-import '../tools/ocr_attachment_handler.dart';
 
 void main() {
   // ═══════ AiUnavailableException ═══════
@@ -185,78 +184,6 @@ void main() {
       }
       expect(errorDone, isNotNull);
       expect(errorDone!.error, contains('超时'));
-    });
-  });
-
-  // ═══════ OcrAttachmentHandler ═══════
-
-  group('OcrAttachmentHandler', () {
-    test('process empty list returns empty', () async {
-      final handler = OcrAttachmentHandler(
-        recognize: (_) async => 'text',
-        sink: null,
-      );
-      final results = await handler.process([]);
-      expect(results, isEmpty);
-    });
-
-    test('process single file returns OcrResult', () async {
-      final handler = OcrAttachmentHandler(
-        recognize: (path) async => 'OCR content for $path',
-        sink: null,
-      );
-      final results = await handler.process(['/tmp/test.png']);
-      expect(results.length, 1);
-      expect(results.first.isSuccess, isTrue);
-      expect(results.first.text, contains('OCR content'));
-      expect(results.first.isImage, isTrue);
-    });
-
-    test('process handles OCR failure gracefully', () async {
-      final handler = OcrAttachmentHandler(
-        recognize: (_) async => throw Exception('OCR engine crash'),
-        sink: null,
-      );
-      final results = await handler.process(['/tmp/bad.png']);
-      expect(results.length, 1);
-      expect(results.first.isSuccess, isFalse);
-      expect(results.first.error, contains('Exception'));
-    });
-
-    test('toContextString formats results', () {
-      final handler = OcrAttachmentHandler(recognize: (_) async => '');
-      final results = [
-        OcrResult(filePath: '/tmp/a.png', text: 'hello world', mimeType: 'image/png'),
-        OcrResult(filePath: '/tmp/b.pdf', error: 'timeout', mimeType: 'application/pdf'),
-      ];
-      final ctx = handler.toContextString(results);
-      expect(ctx, contains('附件 OCR 内容'));
-      expect(ctx, contains('a.png'));
-      expect(ctx, contains('hello world'));
-      expect(ctx, contains('b.pdf'));
-      expect(ctx, contains('识别失败'));
-      expect(ctx, contains('timeout'));
-    });
-
-    test('toContextString empty returns empty string', () {
-      final handler = OcrAttachmentHandler(recognize: (_) async => '');
-      expect(handler.toContextString([]), '');
-    });
-
-    test('mime type detection by extension', () async {
-      final handler = OcrAttachmentHandler(
-        recognize: (path) async => 'content',
-        sink: null,
-      );
-      final imageTypes = ['a.png', 'a.jpg', 'a.jpeg', 'a.webp', 'a.pdf'];
-      for (final file in imageTypes) {
-        final results = await handler.process(['/tmp/$file']);
-        expect(results.first.isImage || results.first.isPdf, isTrue,
-            reason: '$file should be detected as image or pdf');
-      }
-      final results = await handler.process(['/tmp/a.txt']);
-      expect(results.first.isImage || results.first.isPdf, isFalse,
-          reason: 'txt should not be detected as image or pdf');
     });
   });
 

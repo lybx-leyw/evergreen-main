@@ -1,9 +1,9 @@
-/// Core HTTP Server — 将安装管理、OCR、更新检测能力暴露为内部 HTTP API。
+/// Core HTTP Server — 将安装管理、更新检测能力暴露为内部 HTTP API。
 ///
-/// 插件 .exe 通过本端点安装/卸载插件、执行 OCR、检查更新，无需直接访问文件系统。
+/// 插件 .exe 通过本端点安装/卸载插件、检查更新，无需直接访问文件系统。
 /// 启动后端口写入 `.core_port` 文件，供外部 .exe 发现。
 ///
-/// ## 8 端点一览
+/// ## 6 端点一览
 /// | # | 方法 | 路径 | 说明 |
 /// |---|------|------|------|
 /// | 1 | GET  | `/core/health`           | 健康检查 |
@@ -12,8 +12,6 @@
 /// | 4 | GET  | `/core/plugins`          | 列出已安装插件 |
 /// | 5 | GET  | `/core/update/check/:id` | 检查单个插件更新 |
 /// | 6 | GET  | `/core/update/check`     | 检查宿主更新 |
-/// | 7 | POST | `/core/ocr`              | OCR 识别 |
-/// | 8 | GET  | `/core/ocr/status`       | OCR 服务状态 |
 library;
 
 import 'dart:async';
@@ -22,17 +20,15 @@ import 'dart:io';
 
 import '../log.dart';
 import 'plugin_installer.dart';
-import 'ocr_pipeline.dart';
 import 'update_service.dart';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CoreHttpServer
 // ═══════════════════════════════════════════════════════════════════════════
 
-/// Core 层 HTTP 服务器。供插件 .exe 通过 HTTP 调用安装、OCR、更新等平台能力。
+/// Core 层 HTTP 服务器。供插件 .exe 通过 HTTP 调用安装、更新等平台能力。
 class CoreHttpServer {
   final PluginInstaller _installer;
-  final OcrPipeline _ocrPipeline;
   final UpdateService _updateService;
   final int _requestedPort;
 
@@ -41,7 +37,6 @@ class CoreHttpServer {
 
   CoreHttpServer(
     this._installer,
-    this._ocrPipeline,
     this._updateService, {
     int port = 0,
   }) : _requestedPort = port;
@@ -153,7 +148,6 @@ class CoreHttpServer {
       _respond(req.response, 200, {
         'status': 'ok',
         'pluginsCount': plugins.length,
-        'ocrAvailable': true,
         'timestamp': DateTime.now().toIso8601String(),
       });
     },
@@ -197,29 +191,6 @@ class CoreHttpServer {
       });
     },
 
-    // 7: OCR
-    'POST /core/ocr': (req, _) async {
-      final body = await _readBody(req);
-      final path = body['path'] as String?;
-
-      if (path == null || path.isEmpty) {
-        _respond(req.response, 400, {'error': '缺少 path'});
-        return;
-      }
-
-      final text = await _ocrPipeline.recognizeFile(path);
-      _respond(req.response, 200, {'text': text});
-    },
-
-    // 8: OCR status
-    'GET /core/ocr/status': (req, _) async {
-      // DeepSeek 可用性由 API Key 是否配置决定
-      final deepseekAvailable = true; // OcrPipeline 内部已有降级
-      _respond(req.response, 200, {
-        'deepseekAvailable': deepseekAvailable,
-        'tesseractAvailable': true,
-      });
-    },
   };
 
   // ── 参数路由表 ──

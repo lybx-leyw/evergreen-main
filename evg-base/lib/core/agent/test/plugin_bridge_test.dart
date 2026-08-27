@@ -74,6 +74,38 @@ void main() {
       expect(m.argSpec.style, 'json'); // default when no argSpec
     });
 
+    // ═══════ vision 插件 manifest（Task R3-5） ═══════
+
+    test('vision manifest：多 mode stdin 工具解析合法', () {
+      const json = '''
+{
+  "name": "vision",
+  "description": "多模态视觉工具",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "mode": {"type": "string", "enum": ["ocr", "describe", "generate"]},
+      "file_path": {"type": "string"}
+    },
+    "required": []
+  },
+  "readOnly": true,
+  "runtime": "python",
+  "argMode": "stdin",
+  "lifetime": "once"
+}''';
+      final m = PluginManifest.fromJson(json);
+      expect(m.name, 'vision');
+      expect(m.argMode, 'stdin');
+      expect(m.runtime, 'python');
+      expect(m.lifetime, 'once');
+      expect(m.readOnly, isTrue);
+      expect(m.isValid, isTrue);
+      // mode enum 透出（供 LLM schema 展示）
+      final mode = m.schema['properties']['mode'] as Map<String, dynamic>;
+      expect(mode['enum'], ['ocr', 'describe', 'generate']);
+    });
+
     // ═══════ lifetime（Task 三决策 3.1） ═══════
 
     test('lifetime 缺省 → once（向后兼容：旧插件无字段行为不变）', () {

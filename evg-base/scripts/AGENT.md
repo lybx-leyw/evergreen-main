@@ -13,13 +13,13 @@ parent: root
 ## 1. 职责范围
 
 - 管辖目录：`evg-base/scripts/` + `evg-base/tool/` + `evg-base/windows/` + `evg-base/android/`
-- 一句话定位：Python 管线（OCR / PDF 提取）、打包、Inno Setup、CMake、Chaquopy 安卓壳、CI。
+- 一句话定位：Python 管线（PDF 提取等平台脚本）、打包、Inno Setup、CMake、Chaquopy 安卓壳、CI。
 
 ### 主要资产
 
 | 资产 | 位置 | 职责 |
 |------|------|------|
-| Python 管线 | `scripts/*.py`（ocr_file / ocr_slides / pdf_to_images / paper_reader）+ 嵌入式 Python（由 `setup_python.cmd` 预装） | OCR 运行时 + PDF 文本提取（paper_reader extract，skill_creator 用） |
+| Python 管线 | `scripts/*.py`（paper_reader 等）+ 嵌入式 Python（由 `setup_python.cmd` 预装） | PDF 文本提取（paper_reader extract，skill_creator 用） |
 | 安装脚本 | `scripts/installer.iss` / `installer_platform.iss` | Inno Setup 打包 |
 | 环境脚本 | `scripts/setup_python.cmd` / `reload.cmd` | Python 环境 |
 | 工具脚本 | `tool/`（bundle_plugins / bundle_scripts / gen_template_registry） | 资产打包 / 注册表生成 |

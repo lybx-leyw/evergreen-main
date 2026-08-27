@@ -1,4 +1,4 @@
-/// 跨插件调度联调 + OCR 端到端集成测试 — A-S3-3, A-S3-4。
+/// 跨插件调度联调集成测试 — A-S3-3。
 ///
 /// 覆盖：
 /// - 多工具并行/串行调度
@@ -14,7 +14,6 @@ import '../message.dart';
 import '../tool.dart';
 import '../agent/session.dart';
 import '../agent/agent.dart';
-import '../tools/ocr_attachment_handler.dart';
 
 // ═══════ helpers ═══════
 
@@ -125,64 +124,6 @@ void main() {
       registry.disable('b');
       expect(registry.all().length, 3);
       expect(registry.enabled().length, 2);
-    });
-  });
-
-  // ═══════ A-S3-4: OCR 端到端 ═══════
-
-  group('OCR 端到端管线 (A-S3-4)', () {
-    test('Handler 构造 + process + toContextString 全链路', () async {
-      // Step 1: 构造 Handler（模拟 OCR 引擎）
-      final handler = OcrAttachmentHandler(
-        recognize: (path) async {
-          // 模拟：图片返回 OCR 文本，PDF 返回更长文本
-          if (path.endsWith('.png')) return '图片内容：这是一张截图，包含错误日志...';
-          if (path.endsWith('.pdf')) return 'PDF 内容：第一章 引言\n第二章 方法\n...';
-          return null;
-        },
-        sink: null,
-      );
-
-      // Step 2: 批量处理
-      final files = ['/tmp/error.png', '/tmp/report.pdf', '/tmp/empty.txt'];
-      final results = await handler.process(files);
-
-      expect(results.length, 3);
-      expect(results[0].isSuccess, isTrue);
-      expect(results[0].text, contains('错误日志'));
-      expect(results[1].isSuccess, isTrue);
-      expect(results[1].isPdf, isTrue);
-      expect(results[2].isSuccess, isFalse); // .txt returns null
-
-      // Step 3: 格式化为 context 注入文本
-      final context = handler.toContextString(results);
-      expect(context, contains('附件 OCR 内容'));
-      expect(context, contains('error.png'));
-      expect(context, contains('report.pdf'));
-      expect(context, contains('empty.txt'));
-      expect(context, contains('识别失败'));
-    });
-
-    test('OCR 结果 → Agent 上下文注入模拟', () {
-      // 模拟完整流程
-      final session = _sessionWithSystem();
-
-      // Step 1: 用户发送带附件的消息
-      final userMsg = '帮我分析这张错误截图';
-      final ocrContext = '## 附件 OCR 内容\n\n### 文件: error.png\nNullPointerException at line 42\n';
-
-      // Step 2: 注入 OCR 上下文（Controller.send 的 attachments 参数）
-      // （实际流程中由 _buildSystemPrompt 自动注入）
-      final fullSystemPrompt = '${session.systemMessage!.content}\n$ocrContext';
-
-      session.add(Message.user(userMsg));
-
-      // Step 3: 模拟 Agent 基于 OCR 内容回答
-      session.add(Message.assistant('根据截图中的错误信息，NullPointerException 发生在第 42 行...'));
-
-      expect(session.messageCount, 3); // system + user + assistant
-      expect(fullSystemPrompt, contains('NullPointerException'));
-      expect(session.messages.last.content, contains('NullPointerException'));
     });
   });
 

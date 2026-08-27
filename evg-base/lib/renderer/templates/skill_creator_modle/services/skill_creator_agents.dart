@@ -2,8 +2,8 @@
 ///
 /// - [DeepSearchRunner]：按来源（arXiv/通用/书籍）为每个采集任务创建一个
 ///   隔离 AgentAssembly（独立工具白名单 + 独立会话/工作区），驱动其
-///   工具循环（web_search / web_fetch / download_file / pdf_extract_text /
-///   ocr_file），回收结构化结果；
+///   工具循环（web_search / web_fetch / download_file / pdf_extract_text 等），
+///   回收结构化结果；
 /// - 规划/验收/整合等单轮 LLM 调用：直连 DeepSeek（与主题创作 AI 同款），
 ///   无会话、无断点，失败可重试。
 library;
@@ -26,7 +26,6 @@ import 'package:evergreen_base/core/plugin/plugin_runner.dart';
 import 'package:evergreen_base/core/agent/tools/read_file.dart';
 import 'package:evergreen_base/core/agent/tools/web_search.dart';
 import 'package:evergreen_base/core/agent/tools/write_file.dart';
-import 'package:evergreen_base/core/services/ocr_pipeline.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
 import 'package:evergreen_base/core/utils/python_env.dart';
 
@@ -166,7 +165,6 @@ class DeepSearchRunner {
   final FileMemoryStore globalMemoryStore;
   final String workspaceRoot;
   final String? pythonPath;
-  final String? ocrApiKey;
 
   DeepSearchRunner({
     required this.apiKey,
@@ -176,7 +174,6 @@ class DeepSearchRunner {
     required this.globalMemoryStore,
     required this.workspaceRoot,
     this.pythonPath,
-    this.ocrApiKey,
   });
 
   /// 运行一个深寻任务。
@@ -202,7 +199,6 @@ class DeepSearchRunner {
       connectTimeout: const Duration(seconds: 30),
       receiveTimeout: const Duration(seconds: 120),
     ));
-    final ocrPipeline = OcrPipeline(dio, null, ocrApiKey);
     final seedTools = <agent.Tool>[
       WebSearchTool(dio),
       WebFetchTool(dio),
@@ -215,8 +211,6 @@ class DeepSearchRunner {
       ReadTailTool(workspaceDir: agentWs),
       DownloadFileTool(dio, workspaceDir: agentWs),
       PdfExtractTool(pythonPath: pythonPath),
-      OcrFileTool(ocrPipeline),
-      CheckOcrReadyTool(ocrPipeline),
     ];
 
     // 注册 Python runner，供 agent 执行辅助脚本。
@@ -406,7 +400,7 @@ class DeepSearchRunner {
 1. 优先用 arxiv_search 和 crossref_search 检索论文/正式出版物元数据，再用 web_search 补充引用与相关页面；
 2. 用 web_fetch 打开 arxiv 搜索页/论文页，解析标题/作者/年份/PDF 直链（arxiv.org/pdf/xxxx）；
 3. 用 download_file 把 PDF 下载到工作区 materials/ 下（save_path 如 materials/paper1.pdf）；
-4. 用 pdf_extract_text 提取 PDF 文本预览，判断相关性；扫描版失败可用 ocr_file；
+4. 用 pdf_extract_text 提取 PDF 文本预览，判断相关性；
 5. 优先收录：近年、高被引、与主题直接相关；重复命中说明该经验值得参考。
 ''',
       SearchSource.web => '''

@@ -99,8 +99,6 @@ final bundled = PythonInterpreter.bundledPathSync(); // → greenix 目录 pytho
 | `PythonInterpreter.resolveExePath({configuredPath})` | 兼容旧签名：返回路径 / 哨兵 / null |
 | `PythonInterpreter.bundledPathSync()` | 同步探测嵌入式 Python（供无法 await 的组装点） |
 | `resolvePythonExe({configuredPath})` | 顶层兼容包装（行为不变，收敛到单例） |
-| `PythonEnv({python, requirements})` | OCR 依赖检查/安装实例（`pythonExe` 内部走单例） |
-| `runOcrProcess(exe, args, {dir})` | 运行 OCR Python 子进程 |
 | `pipInstallPackages(packages, {pythonExe, timeout})` | pip 安装（⚠️ 仅桌面：安卓 Chaquopy 无 pip，依赖须构建期打进 APK） |
 
 ---
@@ -121,7 +119,7 @@ greenixSkillsDir;                                // → .greenix/skills/（旧�
 greenixSkillPluginDir('skill-name');             // → plugins/<id>/skill/（Skill 即插件，规范路径）
 greenixSessionsDir;                              // → .greenix/sessions/
 greenixPythonDir;                                // → .greenix/python/
-greenixScriptsDir;                               // → .greenix/scripts/（OCR/论文/翻译脚本，资产释放填充）
+greenixScriptsDir;                               // → .greenix/scripts/（论文/翻译等平台脚本，资产释放填充）
 greenixPluginsDir;                               // → .greenix/plugins/
 greenixWorkspacesDir;                            // → .greenix/workspaces/
 greenixWorkspaceDir('agent');                    // → .greenix/workspaces/agent/
@@ -206,7 +204,7 @@ await releaseScriptsAssetsIfNeeded();   // 释放 Python 脚本 → greenixScrip
 | 函数 | 输出 | 说明 |
 |------|------|------|
 | `releasePluginsAssetsIfNeeded()` | `Future<void>` | 幂等释放插件资产（校验产物完整性，不只看标记） |
-| `releaseScriptsAssetsIfNeeded()` | `Future<void>` | 幂等释放 OCR/论文/翻译脚本到 `.greenix/scripts` |
+| `releaseScriptsAssetsIfNeeded()` | `Future<void>` | 幂等释放平台脚本（paper_reader 等）到 `.greenix/scripts` |
 
 > 释放目标与 `greenix_path.resolvePluginsRoot()` / `greenixScriptsDir` 一致（安卓侧统一入口），
 > 桌面端由安装包预置，无需释放。
@@ -216,7 +214,6 @@ await releaseScriptsAssetsIfNeeded();   // 释放 Python 脚本 → greenixScrip
 ## 规则
 
 - `SafeParse` — 所有 JSON 解析统一入口。
-- `PythonEnv` — 子进程执行，不依赖平台 API。
 - `greenix_path.dart` — 纯路径计算，无外部依赖。工作区路径按 module id 隔离。
 - `path_sandbox.dart` — 规范化路径 + 越界拒绝，所有 Agent 文件操作工具统一入口。
 - `file_utils.dart` — 仅调用系统命令（explorer / open / xdg-open），使用 Log() 替代 Flutter debugPrint。

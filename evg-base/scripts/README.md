@@ -1,19 +1,15 @@
 # Scripts
 
-Python 管线（OCR）、嵌入式运行时、安装包配置。
+Python 管线（论文/翻译等平台脚本）、嵌入式运行时、安装包配置。
 
-> 这些脚本属于平台/开发者管线（OCR、打包）。普通用户 HTML 插件不直接调用，
-> 如需 OCR 能力请通过平台 `platform.api.call` 或内置模块使用。
+> 这些脚本属于平台/开发者管线（论文阅读、打包）。普通用户 HTML 插件不直接调用。
 
 ## 文件
 
 | 文件 | 说明 |
 |------|------|
-| `ocr_file.py` | 本地文件 OCR（Tesseract），输出 JSON |
-| `ocr_slides.py` | 课件 URL 批量 OCR（下载→识别），输出 JSON 数组 |
-| `pdf_to_images.py` | PDF 转 JPEG 图片列表 |
 | `paper_reader.py` | PDF 文本提取 CLI（pymupdf/fitz，仅 `extract` 命令；skill_creator 的 `pdf_extract_text` 工具依赖，stdin/stdout JSON Lines 协议） |
-| `requirements.txt` | **嵌入式 Python 唯一依赖真源**（setup_python.cmd / CI 均按此安装）：pytesseract / Pillow / requests / pdf2image / pymupdf |
+| `requirements.txt` | **嵌入式 Python 唯一依赖真源**（setup_python.cmd / CI 均按此安装）：requests / pymupdf |
 | `setup_python.cmd` | 下载嵌入式 Python 3.10.11（embeddable）+ 启用 pip + 安装 `requirements.txt` |
 | `reload.cmd` | 重新编译辅助：`flutter pub get` + `flutter build windows --release` |
 | `installer.iss` | Inno Setup 安装包脚本（双版 × 双模式，CI 传参区分） |
@@ -96,7 +92,7 @@ flutter build apk --debug --dart-define=EVERGREEN_ZJU=true
 - **`assets/plugins_bundle/` 是 `plugins/` 的纯镜像不变式**：仅由 `tool/bundle_plugins.dart` 生成；运行期代码（renderer 导出等）禁止直写 bundle。校验用 `dart run tool/bundle_plugins.dart --check`（O4 门禁，CI 构建前执行；`assets/plugins_bundle/` 被 .gitignore，CI 首建场景只校验 pubspec 提交态）。修复漂移：重跑 `bundle_plugins.dart` 并把 pubspec.yaml 变更一并提交。
 - **`assets/scripts_bundle/` 同理是 `scripts/` 的纯镜像**（按 `bundle_scripts.dart` 排除规则），校验用 `dart run tool/bundle_scripts.dart --check`（O4 扩展，t27；CI 构建前执行，与 bundle_plugins 同款语义）。
 - 排除规则含任意层级的 `AGENT.md`（OWNER 职责书，非运行期资源）、顶层 `README.md`、`.exe`、点文件、Python 缓存等（详见 `tool/bundle_plugins.dart` 的 `_shouldSkip`）。
-- Windows：OCR 依赖由 `setup_python.cmd` 预装到嵌入式 Python；Android：依赖由 Chaquopy 构建期安装（`android/app/build.gradle.kts` 的 `chaquopy.pip` 声明）。
+- Windows：Python 依赖由 `setup_python.cmd` 预装到嵌入式 Python；Android：依赖由 Chaquopy 构建期安装（`android/app/build.gradle.kts` 的 `chaquopy.pip` 声明）。
 - 修改 `plugins/` 或 `scripts/` 资产后必须重跑 `tool/bundle_plugins.dart` / `tool/bundle_scripts.dart`，否则 APK / 安装包打入旧文件。
 - `pubspec.yaml` 资产声明分两类：`assets/plugins_bundle/`、`assets/scripts_bundle/` 由上述工具写入各自标记块（`>>>PLUGIN_ASSETS_START>>>` / `>>>SCRIPTS_ASSETS_START>>>`，重跑即整体重写）；`docs/plugin-registry/`（registry 清单 + `assets/` 本地资源）为手写声明，须保持标记块外、逐文件显式声明（目录声明不递归子目录），勿放入自动生成块。
 - 用户数据（`.env`、`.cookies` 等）在运行时生成于 `.greenix/`，不在打包产物内。

@@ -8,11 +8,10 @@
 ```
 插件 .exe 启动 → 读取 .core_port .data_port .agent_port ...
                 → HTTP GET /core/health  /data/health  /agent/health ...
-                → 获得全部平台能力（OCR、配置、数据、AI、模块、主题）
+                → 获得全部平台能力（配置、数据、AI、模块、主题）
 ```
 
 **插件不需要做的事情：**
-- ❌ 不需要捆绑 Tesseract（调 `POST /core/ocr` 即可）
 - ❌ 不需要硬编码数据源 URL（读 `.data_port` 即可）
 - ❌ 不需要自己管理 SharedPreferences（调 `/config/*` 即可）
 - ❌ 不需要实现 LLM 调用（调 `/agent/*` 即可）
@@ -40,7 +39,7 @@ plugins/mesh_demo/
 
 | 端口文件 | 写入者 | 启动管线步骤 | 包含的服务端点 |
 |---------|--------|------------|-------------|
-| `.core_port` | CoreHttpServer | 第 4 步 | install/uninstall/ocr/update/plugins |
+| `.core_port` | CoreHttpServer | 第 4 步 | install/uninstall/update/plugins |
 | `.config_port` | ConfigHttpServer | 第 3 步 | settings/permissions/sources |
 | `.data_port` | DataHttpServer | 第 6 步 | data types/status/connectivity |
 | `.module_port` | ModuleHttpServer | 第 7 步 | modules/search/nav/routes |

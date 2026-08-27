@@ -34,8 +34,6 @@ lib/core/
 ├── services/                # 平台级基础服务
 │   ├── services.dart        #   barrel 导出（纯 Dart 服务）
 │   ├── core_http_server.dart #   微服务网格（REST 端点）
-│   ├── ocr_pipeline.dart    #   两级 OCR 降级管线 + 并行 + 就绪诊断
-│   ├── deepseek_ocr_service.dart # DeepSeek Vision API 封装
 │   ├── plugin_installer.dart #   插件生命周期管理
 │   ├── update_service.dart  #   应用更新检查
 │   ├── github_stars.dart    #   GitHub star 数据中枢接入（DataType）
@@ -60,7 +58,6 @@ lib/core/
 ├── core_text_app.dart       # 文本版 Core 自证应用（命令行交互验证）
 ├── test/                    # 测试
 │   ├── installer_test.dart  #   插件安装/卸载/校验/崩溃/沙箱
-│   ├── ocr_pipeline_test.dart # OCR 管线 + parsePageOutput
 │   ├── path_sandbox_test.dart # 路径沙箱越界防护
 │   ├── python_env_test.dart #   PythonInterpreter 统一解析/哨兵/双真理源合并
 │   ├── signature_test.dart  #   签名计算 + 常数时间比较
@@ -79,9 +76,9 @@ lib/core/
 └── CLAUDE.md                # 本文件
 ```
 
-> 注：OCR/论文/翻译等 Python 脚本本体位于 `evg-base/scripts/`（platform OWNER 管辖），
-> 运行期由资产释放填充到 `.greenix/scripts`（`greenixScriptsDir`），本目录 `scripts/` 仅保留
-> 一个 `ocr_file.py` 副本。`lib/core/CLAUDE.md` 不直接涉及这些脚本的维护。
+> 注：论文/翻译等 Python 脚本本体位于 `evg-base/scripts/`（platform OWNER 管辖），
+> 运行期由资产释放填充到 `.greenix/scripts`（`greenixScriptsDir`）。
+> `lib/core/CLAUDE.md` 不直接涉及这些脚本的维护。（OCR 管线已移除，见 R3-4。）
 
 ---
 
@@ -139,23 +136,13 @@ sealed class Result<T> {
 - **内存缓冲**：保留最近 500 条日志，`exportRecent()` 用于用户反馈附到 GitHub Issue
 - **模块标签**：自动从调用栈提取类名作为日志标签
 
-### 2.4 OCR 两级降级策略
+### 2.4 OCR 已移除（R3-4）
 
-```
-OcrPipeline.recognizeFile(path)
-  ├── Level 1: DeepSeek-OCR（DashScope API, vanchin/deepseek-ocr）
-  │   ├── 图片：直接 base64 发送
-  │   └── PDF：pdf_to_images.py 拆页 → 逐页 OCR（并行）→ 合并
-  └── Level 2: Tesseract 本地（Python 子进程）
-      ├── ocr_file.py（单文件 / 目录）
-      └── ocr_slides.py（URL 输入）
-```
-
-- API Key 通过环境变量 `DEEPSEEK_OCR_API_KEY` 配置（`OcrPipeline` 构造亦可注入 apiKey）
-- `recognizeFile` 失败返回 `null`（全部降级失败）
-- `recognizeUrl` 失败返回空字符串
-- `parsePageOutput` 解析 `{"pages": [{"page": N, "text": "..."}]}` 格式
-- 并行能力：`recognizeFiles(paths)` 多文件并行；`pageConcurrency` 控制 PDF 逐页并行度；`checkReadiness()` 输出环境就绪诊断
+OCR 路径（`OcrPipeline` / `DeepSeekOcrService` / 内置 `ocr_file` 工具 / OCR 脚本 /
+`/core/ocr` 端点 / `DEEPSEEK_OCR_API_KEY` 设置项 / `plugins/ocr` 示例插件）已于 R3-4
+整体砍除——本地 OCR（tesseract/poppler）在安卓无可行打包路径，云端 OCR 由未来
+API-OCR 插件工具承接（另行规划）。`python_env.dart` 保留 `pipInstallPackages` 与
+解释器解析（`resolve` / `bundledPathSync`），移除 `runOcrProcess` 与 `PythonEnv` 类。
 
 ### 2.5 PluginInstaller 安全模型
 
@@ -183,8 +170,6 @@ REST 端点（见下表），绑定 `127.0.0.1` 随机端口。端口发现文�
 | GET | `/core/plugins` | 列出已安装插件 |
 | GET | `/core/update/check/:id` | 检查单个插件更新 |
 | GET | `/core/update/check` | 检查宿主更新 |
-| POST | `/core/ocr` | OCR 识别 |
-| GET | `/core/ocr/status` | OCR 服务状态 |
 
 > 端口文件契约：`.agent_port` / `.config_port` / `.data_port` / `.module_port` /
 > `.theme_port` / `.core_port` 均由 `app_bootstrap.dart` 的 `_stepServersStart()` 统一写入
@@ -220,7 +205,6 @@ REST 端点（见下表），绑定 `127.0.0.1` 随机端口。端口发现文�
 | 测试文件 | 覆盖范围 |
 |----------|---------|
 | `installer_test.dart` | 安装/卸载/签名/校验/崩溃/沙箱/版本比较 |
-| `ocr_pipeline_test.dart` | 文件不存在/空路径/parsePageOutput 多格式 |
 | `path_sandbox_test.dart` | 路径沙箱越界防护（`../../../` 等绕过） |
 | `python_env_test.dart` | PythonInterpreter 统一解析（configuredPath/greenix 绑定/缓存）、哨兵常量、bundledPathSync |
 | `signature_test.dart` | SHA-256 计算/常数时间比较/签名场景 |
@@ -254,7 +238,7 @@ Stub 模式：
 ### 5.1 CoreHttpServer 端点签名
 
 ```dart
-CoreHttpServer(PluginInstaller installer, OcrPipeline ocrPipeline, UpdateService updateService, {int port = 0})
+CoreHttpServer(PluginInstaller installer, UpdateService updateService, {int port = 0})
   .start() → Future<int>          // 启动，返回端口号
   .stop()  → Future<void>         // 关闭
   .isRunning → bool               // 运行状态
@@ -265,9 +249,7 @@ CoreHttpServer(PluginInstaller installer, OcrPipeline ocrPipeline, UpdateService
 
 - `PluginInstaller.install()` → `Result<InstallResult>`
 - `PluginInstaller.uninstall()` → `Result<void>`
-- `OcrPipeline.recognizeFile()` → `Future<String?>`
 - `UpdateService.checkForUpdate()` → `Future<(bool, String?, String?)>`
-- `DeepSeekOcrService.testConnection()` → `Future<Result<String>>`
 
 ---
 

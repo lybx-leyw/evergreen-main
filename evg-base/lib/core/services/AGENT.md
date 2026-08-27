@@ -13,7 +13,7 @@ parent: core
 ## 1. 职责范围
 
 - 管辖目录：`evg-base/lib/core/services/`（Dart 服务 + `services.dart` barrel + README）
-- 一句话定位：平台级基础服务——`CoreHttpServer`、OCR 管线、DeepSeek OCR、GitHub 克隆/星标、插件安装、应用更新、UI 操作日志、同步中心导入。
+- 一句话定位：平台级基础服务——`CoreHttpServer`、GitHub 克隆/星标、插件安装、应用更新、UI 操作日志、同步中心导入。
 
 ### 主要文件
 
@@ -21,8 +21,6 @@ parent: core
 |------|------|
 | `services.dart` | barrel 导出（纯 Dart 服务；含 Flutter 依赖的服务直接 import） |
 | `core_http_server.dart` | 微服务网格（REST 端点） |
-| `ocr_pipeline.dart` | 两级 OCR 降级管线 + 并行 + 就绪诊断 |
-| `deepseek_ocr_service.dart` | DeepSeek Vision API 封装 |
 | `github_clone.dart` / `github_metadata.dart` / `github_stars.dart` | GitHub 集成 |
 | `plugin_installer.dart` | 插件生命周期管理 |
 | `release_downloader.dart` | 发布下载 |
@@ -32,7 +30,7 @@ parent: core
 ## 2. 边界与红线
 
 - ✅ 可以：改 `services/` 内一切实现；新增服务。
-- ❌ 禁止：引用 Flutter Widget；改动其他子包；OCR 绕过降级管线。
+- ❌ 禁止：引用 Flutter Widget；改动其他子包。
 - ⚠️ 需协调：`CoreHttpServer` 端点变更需通知 plugins；`PluginInstaller` 安全模型（签名/沙箱/崩溃监控）变更需广播。
 
 ## 3. 对外契约（可被其他 OWNER 依赖的公开接口）
@@ -41,13 +39,11 @@ parent: core
 |------|------|--------|---------|
 | `CoreHttpServer`（8 端点） | HTTP（`.core_port`） | plugins .exe | 端点变更需通知 plugins |
 | `PluginInstaller.install/uninstall` | `plugin_installer.dart` | renderer（marketplace） | 签名变更需通知 renderer |
-| `OcrPipeline.recognizeFile/Url` | `ocr_pipeline.dart` | renderer | 降级行为变更需广播 |
 | `UpdateService.checkForUpdate` | `update_service.dart` | app-shell | 更新源变更需通知 app-shell |
 
 ## 4. 规则（本 OWNER 内必须遵守）
 
 - 纯 Dart，禁止 Flutter 依赖。
-- OCR 走两级降级（DeepSeek → Tesseract），失败返回 null 或空字符串，不抛异常。
 - `PluginInstaller` 遵守 SHA-256 签名 + ZIP slip 防护 + 沙箱隔离。
 
 ## 5. 验收标准

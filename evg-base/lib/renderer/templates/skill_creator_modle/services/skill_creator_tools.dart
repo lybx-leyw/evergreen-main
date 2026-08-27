@@ -2,9 +2,7 @@
 ///
 /// 在标准工具（web_search / web_fetch / workspace 读写）之上追加：
 /// - `download_file` — 下载 URL 到工作区（PDF 等，写工具）；
-/// - `pdf_extract_text` — pymupdf 提取 PDF 文本预览（扫描版失败 → 用 ocr_file）；
-/// - `ocr_file` — 扫描版 PDF/图片 OCR（DeepSeek-OCR 云端 → Tesseract 本地降级）；
-/// - `check_ocr_ready` — OCR 环境就绪诊断。
+/// - `pdf_extract_text` — pymupdf 提取 PDF 文本预览（数字型 PDF 文本层）。
 library;
 
 import 'dart:io';
@@ -12,7 +10,6 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:path/path.dart' as p;
 import 'package:evergreen_base/core/agent/tool.dart';
-import 'package:evergreen_base/core/services/ocr_pipeline.dart';
 import 'package:evergreen_base/renderer/templates/skill_creator_modle/tools/pymupdf_tool.dart';
 
 // ═══════ DownloadFileTool ═══════
@@ -148,7 +145,7 @@ class DownloadFileTool extends Tool {
 
 /// 用 pymupdf 提取本地 PDF 文本预览（只读）。
 ///
-/// 返回前 [previewChars] 字符 + 总长度 + 分段数；扫描版失败时提示用 ocr_file。
+/// 返回前 [previewChars] 字符 + 总长度 + 分段数。
 /// 完整文本由编排层落盘到 `materials/<id>.txt`，避免撑爆 Agent 上下文。
 class PdfExtractTool extends Tool {
   final String? pythonPath;
@@ -164,7 +161,7 @@ class PdfExtractTool extends Tool {
   String get description =>
       'Extract plain text preview from a local PDF using pymupdf. '
       'Input: file_path (absolute path). Returns first ~6000 chars + total length. '
-      'For scanned/image PDFs this fails — use ocr_file instead.';
+      'For scanned/image PDFs the text layer is empty.';
 
   @override
   Map<String, dynamic> get schema => {
@@ -197,91 +194,7 @@ class PdfExtractTool extends Tool {
       return '[ok] 页数=$pageCount 分段=$segments 总字数=${fullText.length}\n'
           '--- 预览（前 ${preview.length} 字）---\n$preview';
     } catch (e) {
-      return '[error: $e]（扫描版请改用 ocr_file）';
+      return '[error: $e]';
     }
-  }
-}
-
-// ═══════ OcrFileTool ═══════
-
-/// 对扫描版 PDF / 图片运行 OCR（只读；云端 DeepSeek → 本地 Tesseract 降级）。
-class OcrFileTool extends Tool {
-  final OcrPipeline _pipeline;
-
-  OcrFileTool(this._pipeline);
-
-  @override
-  String get name => 'ocr_file';
-
-  @override
-  String get description =>
-      'Run OCR on a scanned PDF or image file. '
-      'Input: file_path (absolute path). Returns recognized text (first ~6000 chars). '
-      'Use when pdf_extract_text fails on scanned documents.';
-
-  @override
-  Map<String, dynamic> get schema => {
-        'type': 'object',
-        'properties': {
-          'file_path': {
-            'type': 'string',
-            'description': 'Absolute path to the scanned PDF/image file',
-          },
-        },
-        'required': ['file_path'],
-      };
-
-  @override
-  Future<String> execute(Map<String, dynamic> args) async {
-    final filePath = args['file_path']?.toString() ?? '';
-    if (filePath.isEmpty) return '[error: file_path 必填]';
-    try {
-      final text = await _pipeline.recognizeFile(filePath);
-      if (text == null || text.isEmpty) {
-        return '[error: OCR 未识别到任何文本（检查 OCR 环境，见 check_ocr_ready）]';
-      }
-      final preview =
-          text.length > 6000 ? text.substring(0, 6000) : text;
-      return '[ok] OCR 完成（总字数=${text.length}）\n--- 预览 ---\n$preview';
-    } catch (e) {
-      return '[error: OCR 失败: $e]';
-    }
-  }
-}
-
-// ═══════ CheckOcrReadyTool ═══════
-
-/// OCR 环境就绪诊断（只读）。
-class CheckOcrReadyTool extends Tool {
-  final OcrPipeline _pipeline;
-
-  CheckOcrReadyTool(this._pipeline);
-
-  @override
-  String get name => 'check_ocr_ready';
-
-  @override
-  String get description =>
-      'Diagnose the local OCR environment: python, scripts, OCR API key, tesseract. '
-      'Call this before relying on ocr_file for scanned PDFs.';
-
-  @override
-  Map<String, dynamic> get schema => {
-        'type': 'object',
-        'properties': {},
-        'required': <String>[],
-      };
-
-  @override
-  Future<String> execute(Map<String, dynamic> args) async {
-    final report = await _pipeline.checkReadiness();
-    final buf = StringBuffer()
-      ..writeln(report.summarize())
-      ..writeln('python: ${report.pythonAvailable ? "可用" : "不可用"}')
-      ..writeln('pdf_to_images.py: ${report.pdfScriptAvailable ? "存在" : "缺失"}')
-      ..writeln('ocr_file.py: ${report.ocrFileScriptAvailable ? "存在" : "缺失"}')
-      ..writeln('DeepSeek OCR Key: ${report.deepSeekKeyConfigured ? "已配置" : "未配置"}')
-      ..writeln('Tesseract: ${report.tesseractAvailable ? "可用" : "不可用"}');
-    return buf.toString();
   }
 }

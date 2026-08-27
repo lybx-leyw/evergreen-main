@@ -1,0 +1,18 @@
+{
+  "id": "vision",
+  "name": "Vision 多模态视觉（OCR / 读图 / 生图）",
+  "settings": [
+    {"key": "OCR_API_BASE_URL", "label": "OCR API 地址", "type": "string", "default": "",
+     "hint": "OpenAI 兼容 chat/completions 地址（vision 工具 mode=ocr 用），如 https://api.openai.com/v1 或 DashScope 兼容端点"},
+    {"key": "OCR_API_KEY", "label": "OCR API Key", "type": "string", "isSecure": true, "default": "",
+     "hint": "vision 工具 mode=ocr（提取文字）使用的 API Key"},
+    {"key": "OCR_API_MODEL", "label": "OCR 模型", "type": "string", "default": "",
+     "hint": "多模态模型 id（需支持图片输入），如 gpt-4o-mini / qwen-vl-max / deepseek-vl 等"},
+    {"key": "VISION_API_BASE_URL", "label": "Vision API 地址", "type": "string", "default": "",
+     "hint": "OpenAI 兼容 chat/completions 地址（vision 工具 mode=describe 用），可复用 OCR 地址"},
+    {"key": "VISION_API_KEY", "label": "Vision API Key", "type": "string", "isSecure": true, "default": "",
+     "hint": "vision 工具 mode=describe（读图描述）使用的 API Key"},
+    {"key": "VISION_API_MODEL", "label": "Vision 模型", "type": "string", "default": "",
+     "hint": "读图描述模型 id，如 gpt-4o / qwen-vl-max / deepseek-vl 等"}
+  ]
+}

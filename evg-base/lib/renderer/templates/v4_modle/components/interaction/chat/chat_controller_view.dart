@@ -962,7 +962,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
 
       // Task 四决策 4.1：上传任意文件 = 字节拷贝到 AI 助手工作区
       // （二进制/文本通吃；同名自动加时间戳/序号防覆盖；PathSandbox 校验）。
-      // 发送时不再内联全文——AI 通过 read_file / ocr_file 读取工作区文件。
+      // 发送时不再内联全文——AI 通过 read_file 读取工作区文件。
       final importResult = await agent.importToWorkspace(
         sourcePath: path,
         workspaceDir: greenixWorkspaceDir(aiAssistantWorkspaceModuleId),
@@ -1004,7 +1004,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
       if (rel != null && rel.isNotEmpty) {
         sendText = '用户上传了文件: $attachedName，已保存到 AI 助手工作区：$rel。\n'
             '请阅读该文件后回答：文本文件请用 read_file 工具读取；'
-            '图片/PDF 或扫描件请调用 ocr_file 工具识别内容。'
+            '图片/PDF 附件：AI 可通过 read_file 读取工作区文件。'
             '${text != '(文件)' ? '\n\n用户需求: $text' : ''}';
       } else {
         sendText = '用户上传了文件: $attachedName，但未能复制到工作区'
@@ -1156,9 +1156,6 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
         provider: provider,
         skillIndex: skillIdx,
         orchestrator: ref.read(dataOrchestratorProvider),
-        // Task 四决策 4.2：嵌入 Agent 同样获得 ocr_file / check_ocr_ready 工具，
-        // OCR Key 从设置读取（缺省回退环境变量）。
-        ocrApiKey: getSetting(prefs, 'DEEPSEEK_OCR_API_KEY'),
       );
 
       final assembly = AgentAssembly.fromConfig(
