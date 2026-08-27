@@ -6,7 +6,7 @@ import 'dart:io';
 
 import 'package:dio/dio.dart';
 
-import 'package:evergreen_base/core/agent/tool.dart';
+import '../tool.dart';
 
 // ═══════ WebSearchTool ═══════
 
@@ -16,11 +16,23 @@ class WebSearchTool extends Tool {
 
   WebSearchTool(this._dio);
 
+  /// 结果条数默认值（缺省 = 现状 take(5)，零行为变化）。
+  static const int maxResultsDefault = 5;
+
+  /// 结果条数上限（与 schema 一致）。
+  static const int maxResultsCap = 10;
+
+  /// 正常结果页的最小长度阈值：低于此值视为跳转/验证/错误页（被反爬）。
+  static const int minNormalPageLength = 1000;
+
+  /// HTML 抓取上限（保留现状 8MiB 截断）。
+  static const int htmlCap = 8 * 1024 * 1024;
+
   @override
   String get name => 'web_search';
 
   @override
-  String get description => '搜索网络获取最新信息。当你需要回答用户关于实时事件、最新新闻、学术资料等需要联网获取的内容时使用。参数 query 为搜索关键词。';
+  String get description => '搜索网络获取最新信息。当你需要回答用户关于实时事件、最新新闻、学术资料等需要联网获取的内容时使用。参数 query 为搜索关键词，max_results 为返回结果条数（1-10，默认 5）。';
 
   @override
   Map<String, dynamic> get schema => {
@@ -30,6 +42,12 @@ class WebSearchTool extends Tool {
             'type': 'string',
             'description': '搜索关键词，尽量用中文，简洁准确',
           },
+          'max_results': {
+            'type': 'integer',
+            'minimum': 1,
+            'maximum': 10,
+            'description': '返回结果条数（1-10，默认 5）',
+          },
         },
         'required': ['query'],
       };
@@ -38,16 +56,36 @@ class WebSearchTool extends Tool {
   Future<String> execute(Map<String, dynamic> args) async {
     final query = args['query']?.toString() ?? '';
     if (query.isEmpty) return '[error: 搜索关键词为空]';
+    final maxResults = _parseMaxResults(args);
 
     // 直接使用 Bing 搜索（国内可访问），跳过 DuckDuckGo（被屏蔽）
     try {
-      return await _searchBing(query);
+      return await _searchBing(query, maxResults);
     } catch (e) {
       return '[搜索失败: $e]';
     }
   }
 
-  Future<String> _searchBing(String query) async {
+  /// 解析 max_results：缺省 5；0/负值/超上限 clamp 到 1-10；
+  /// 非法字符串回退默认 5；合法数字字符串（如 "7"）按数字处理。
+  static int _parseMaxResults(Map<String, dynamic> args) {
+    final raw = args['max_results'];
+    if (raw is num) return raw.toInt().clamp(1, maxResultsCap);
+    if (raw is String) {
+      final parsed = int.tryParse(raw.trim());
+      if (parsed != null) return parsed.clamp(1, maxResultsCap);
+    }
+    return maxResultsDefault;
+  }
+
+  /// 从结果 URL 提取来源域名，供 LLM 判断来源可信度（轻量，不搬整套证据层）。
+  static String _hostOf(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null || uri.host.isEmpty) return '';
+    return uri.host;
+  }
+
+  Future<String> _searchBing(String query, int maxResults) async {
     try {
       // 先用 cn.bing.com（国内镜像），失败再试 www.bing.com
       final hosts = ['https://cn.bing.com', 'https://www.bing.com'];
@@ -78,9 +116,12 @@ class WebSearchTool extends Tool {
         }
       }
 
-      if (html == null || html.isEmpty) return '[搜索失败: 无法连接搜索服务]';
-      if (html.length > 8 * 1024 * 1024) {
-        html = html.substring(0, 8 * 1024 * 1024);
+      // 结构化错误 ①：网络失败（双 host 均不可达/无响应体）。
+      if (html == null || html.isEmpty) {
+        return '[搜索失败: 无法连接搜索服务]';
+      }
+      if (html.length > htmlCap) {
+        html = html.substring(0, htmlCap);
       }
 
       // 提取搜索结果——适应多种 HTML 结构
@@ -114,14 +155,23 @@ class WebSearchTool extends Tool {
           var entry = title;
           if (snippet.isNotEmpty) entry += '\n  $snippet';
           if (url.isNotEmpty) entry += '\n  $url';
+          // 附加来源域名，便于 LLM 判断可信度。
+          final host = _hostOf(url);
+          if (host.isNotEmpty) entry += '\n  来源: $host';
           results.add(entry);
         }
       }
 
       if (results.isNotEmpty) {
-        return '搜索 "$query" 的结果:\n\n${results.take(5).join('\n\n')}';
+        return '搜索 "$query" 的结果:\n\n${results.take(maxResults).join('\n\n')}';
       }
-      return '未找到 "$query" 的相关结果。';
+      // 结构化错误 ②③：无 b_algo 结果块时，按页面长度区分
+      // 「未找到结果」与「被反爬/异常页面（可能被限流）」。长度异常 = 过短
+      // （跳转/验证页）或达到 8MiB 截断上限（JS 渲染/验证大页）。
+      if (html.length < minNormalPageLength || html.length >= htmlCap) {
+        return '[搜索失败: 搜索服务返回异常页面（可能被限流），请稍后重试]';
+      }
+      return '[搜索失败: 未找到结果]';
     } catch (e) {
       return '[搜索失败: $e]';
     }

@@ -19,6 +19,8 @@ export 'components/shared/stream_playback.dart';
 export 'components/shared/file_export_names.dart';
 export 'components/shared/file_export.dart';
 export 'components/shared/file_export_bar.dart';
+export 'components/shared/workspace_download_names.dart';
+export 'components/shared/workspace_file_download.dart';
 export 'templates/v4_modle/slot/slot.dart';
 export 'templates/v4_modle/components/document/document.dart';
 export 'templates/v4_modle/components/data/data.dart';

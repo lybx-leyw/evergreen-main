@@ -22,6 +22,7 @@ import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart' as fp;
+import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:evergreen_base/core/config/config.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
@@ -36,6 +37,8 @@ import 'package:evergreen_base/core/agent/agent_runtime.dart'
 import 'package:evergreen_base/providers.dart';
 import 'package:evergreen_base/providers.dart' show agentControllerProvider;
 import 'package:evergreen_base/core/agent/session_manager.dart';
+import 'package:evergreen_base/core/utils/greenix_path.dart';
+import 'package:evergreen_base/renderer/components/shared/workspace_file_download.dart';
 import 'package:evergreen_base/renderer/components/shared/widgets/models.dart';
 import 'package:evergreen_base/renderer/components/shared/widgets/mindmap_widget.dart';
 import 'package:evergreen_base/renderer/components/shared/widgets/workspace_drawer.dart';
@@ -355,6 +358,9 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
         case agent.EventKind.toolDispatch:
           if (event.tool != null) {
             _flushAnswerToTimeline();
+            // show_file4u：注入文件卡片标记（Task 七 9.2），
+            // 由 _MessageBubble 解析渲染「预览 + 下载」卡片。
+            _handleShowFile4u(event.tool!);
             final name = event.tool!.name;
             final isRead = name == 'read_global_memory';
             final isWrite = name == 'write_global_memory';
@@ -476,6 +482,35 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
       _pendingTimeline.write(_pendingAnswer.toString());
       _pendingAnswer.clear();
     }
+  }
+
+  // ── show_file4u 文件卡片（Task 七 9.2） ──
+
+  /// 解析 show_file4u 工具参数（`arguments` 原始 JSON）→ 工作区相对路径。
+  /// 工具名不符 / 参数非法 / 无 file_path 时静默返回 null（缺省零行为变化）。
+  String? _parseShowFile4uPath(agent.ToolEventPayload tool) {
+    if (tool.name != 'show_file4u') return null;
+    try {
+      final decoded = jsonDecode(tool.arguments);
+      if (decoded is! Map<String, dynamic>) return null;
+      final raw = decoded['file_path'];
+      if (raw is! String || raw.trim().isEmpty) return null;
+      return raw.trim();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// show_file4u 事件处理：把文件卡片标记注入待展示内容，由 [_MessageBubble]
+  /// 解析渲染卡片（点击预览 → [FileViewer]，下载 → 共享固定目录下载函数）。
+  /// 文件不存在 / 参数非法时静默跳过——工具侧会给模型返回错误，UI 不渲染破损卡片。
+  void _handleShowFile4u(agent.ToolEventPayload tool) {
+    final rel = _parseShowFile4uPath(tool);
+    if (rel == null) return;
+    final full = p.join(greenixWorkspaceDir(aiAssistantWorkspaceModuleId), rel);
+    if (!File(full).existsSync()) return;
+    if (_pendingAnswer.toString().contains('[📄 工作区文件: $rel]')) return; // 同文件防重复
+    _pendingAnswer.write('\n[📄 工作区文件: $rel]');
   }
 
   String _buildCombinedMessage() {
@@ -1029,6 +1064,8 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
             _currentTool = event.tool!.name;
             _statusText = '🔧 ${event.tool!.name}';
           });
+          // show_file4u：注入文件卡片标记（Task 七 9.2，嵌入模式同款）。
+          _handleShowFile4u(event.tool!);
           _pendingTimeline.writeln('\n🔧 调用 ${event.tool!.name}');
           _maybeUpdateEmbeddedBubble();
         }
@@ -3061,6 +3098,16 @@ class _MessageBubbleState extends State<_MessageBubble> {
           .trim();
     }
 
+    // 检测 show_file4u 文件卡片标记（Task 七 9.2）——任意位置出现即提取并移除，
+    // 由下方 [_WorkspaceFileCard] 渲染「预览 + 下载」卡片。
+    String? fileCardRel;
+    final fileCardMatch =
+        RegExp(r'\[📄 工作区文件: (.+?)\]').firstMatch(content);
+    if (fileCardMatch != null) {
+      fileCardRel = fileCardMatch.group(1);
+      content = content.replaceFirst(fileCardMatch.group(0)!, '').trim();
+    }
+
     // 检测 :::reasoning 标记
     String? reasoningContent;
     String mainContent = content;
@@ -3174,6 +3221,10 @@ class _MessageBubbleState extends State<_MessageBubble> {
                     // ── 思考过程（chip 风格折叠） ──
                     if (!isUser && reasoningContent != null)
                       _buildThinkingSection(reasoningContent!, s),
+
+                    // ── 文件卡片（show_file4u，Task 七 9.2） ──
+                    if (!isUser && fileCardRel != null)
+                      _WorkspaceFileCard(relativePath: fileCardRel!),
 
                     // ── 文件附件标记 ──
                     if (isUser && attachedFile != null)
@@ -3533,6 +3584,122 @@ class _MessageBubbleState extends State<_MessageBubble> {
         ),
       ),
     );
+  }
+}
+
+// ═══════ _WorkspaceFileCard（show_file4u，Task 七 9.2） ═══════
+
+/// `show_file4u` 工具产出的文件卡片——显示文件名 + 大小，
+/// 右侧「下载」触发 9.1 的固定目录下载（成功弹窗路径+复制、失败报错），
+/// 点击卡片进入 [FileViewer] 预览（不支持预览的类型由 FileViewer 自行兜底）。
+class _WorkspaceFileCard extends StatelessWidget {
+  /// 工作区相对路径（来自 show_file4u 的 `file_path` 参数）。
+  final String relativePath;
+
+  const _WorkspaceFileCard({required this.relativePath});
+
+  /// 相对路径 → 绝对路径 + [WorkspaceFile]（与工作区抽屉同一路径契约）。
+  WorkspaceFile _resolveFile() {
+    final full =
+        p.join(greenixWorkspaceDir(aiAssistantWorkspaceModuleId), relativePath);
+    final f = File(full);
+    return WorkspaceFile(
+      name: relativePath.split('/').last,
+      path: full,
+      sizeBytes: f.existsSync() ? f.lengthSync() : 0,
+    );
+  }
+
+  static IconData _fileIcon(String name) {
+    final ext = name.split('.').last.toLowerCase();
+    return switch (ext) {
+      'dart' || 'py' || 'js' || 'ts' => Icons.code,
+      'md' || 'txt' => Icons.article,
+      'pdf' => Icons.picture_as_pdf,
+      'json' || 'yaml' || 'yml' => Icons.data_object,
+      'jpg' || 'jpeg' || 'png' || 'gif' || 'svg' || 'bmp' => Icons.image,
+      'html' || 'htm' => Icons.html,
+      'zip' || 'tar' || 'gz' || 'rar' => Icons.archive,
+      _ => Icons.insert_drive_file,
+    };
+  }
+
+  static String _formatSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final file = _resolveFile();
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant,
+          width: 0.5,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(_fileIcon(file.name), size: 20, color: theme.colorScheme.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  file.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '工作区文件 · ${_formatSize(file.sizeBytes)}',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // 下载（复用 9.1 固定目录下载；成功弹窗路径+复制，失败报错）
+          IconButton(
+            icon: const Icon(Icons.download, size: 18),
+            tooltip: '下载',
+            visualDensity: VisualDensity.compact,
+            onPressed: () => _download(context, file),
+          ),
+          // 预览（FileViewer，同工作区点击文件）
+          TextButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => FileViewer(file: file)),
+            ),
+            child: const Text('预览'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _download(BuildContext context, WorkspaceFile file) async {
+    final r = await downloadWorkspaceFile(file);
+    if (!context.mounted) return;
+    if (r.ok) {
+      showWorkspaceDownloadSuccessDialog(context, [r.savedPath!]);
+    } else {
+      showWorkspaceDownloadErrorSnackBar(context, r.error!);
+    }
   }
 }
 

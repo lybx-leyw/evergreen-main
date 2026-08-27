@@ -44,6 +44,8 @@ import 'package:evergreen_base/core/agent/tools/plugin_bridge.dart';
 import 'package:evergreen_base/core/agent/tools/python_runner_tool.dart';
 import 'package:evergreen_base/core/agent/tools/read_file.dart';
 import 'package:evergreen_base/core/agent/tools/read_global_memory.dart';
+import 'package:evergreen_base/core/agent/tools/show_file4u.dart';
+import 'package:evergreen_base/core/agent/tools/research_search.dart';
 import 'package:evergreen_base/core/agent/tools/run_skill.dart';
 import 'package:evergreen_base/core/agent/tools/user_info.dart';
 import 'package:evergreen_base/core/agent/tools/web_search.dart';
@@ -215,11 +217,18 @@ class AgentAssembly {
       ListSkillsTool(loader, skillIndex),
       WebSearchTool(Dio()),
       WebFetchTool(Dio()),
+      // 三个专业检索工具（Task 二 A2）——与 app_bootstrap / agent_runtime 同步注册。
+      ArxivSearchTool(Dio()),
+      GithubSearchTool(Dio()),
+      CrossrefSearchTool(Dio()),
       DataQueryTool(orchestrator: orchestrator),
       // 后台常驻进程管理工具（Task 三决策 3.2）——与 app_bootstrap /
       // agent_runtime 同步注册；共享全局单例 agentProcessRegistry。
       ListProcessesTool(),
       KillProcessTool(),
+      // 工作区文件展示工具（Task 七决策 9.2）——与 app_bootstrap /
+      // agent_runtime 同步注册；readOnly 纯展示，不列入 essentialToolNames。
+      ShowFile4uTool(workspaceDir: greenixWorkspaceDir('ai-assistant')),
     ]) {
       if (!registry.has(t.name)) registry.register(t);
     }

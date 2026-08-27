@@ -37,6 +37,8 @@ import 'package:evergreen_base/core/agent/tools/plugin_bridge.dart';
 import 'package:evergreen_base/core/agent/tools/python_runner_tool.dart';
 import 'package:evergreen_base/core/agent/tools/read_file.dart';
 import 'package:evergreen_base/core/agent/tools/read_global_memory.dart';
+import 'package:evergreen_base/core/agent/tools/show_file4u.dart';
+import 'package:evergreen_base/core/agent/tools/research_search.dart';
 import 'package:evergreen_base/core/agent/tools/run_skill.dart';
 import 'package:evergreen_base/core/agent/tools/web_search.dart';
 import 'package:evergreen_base/core/agent/tools/write_file.dart';
@@ -587,6 +589,13 @@ class AppBootstrap {
     registry.register(ReadGlobalMemoryTool(memoryStore!));
     registry.register(WriteGlobalMemoryTool(memoryStore!));
     registry.register(WebSearchTool(_agentDio!));
+    // Task 二（A2）：主助手补齐 web_fetch 与三个专业检索工具——
+    // 与 agent_factory.buildStandardTools / agent_runtime.agentRuntimeProvider
+    // 三处注册点同步（skill-creator 轻量复用资产，零重依赖）。
+    registry.register(WebFetchTool(_agentDio!));
+    registry.register(ArxivSearchTool(_agentDio!));
+    registry.register(GithubSearchTool(_agentDio!));
+    registry.register(CrossrefSearchTool(_agentDio!));
     registry.register(ReadFileTool(workspaceDir: aiWorkspace));
     registry.register(WriteFileTool(workspaceDir: aiWorkspace));
     registry.register(GrepTool(workspaceDir: aiWorkspace));
@@ -633,6 +642,9 @@ class AppBootstrap {
     // （list_processes 只读可并行；kill_process 写操作串行）。
     registry.register(ListProcessesTool());
     registry.register(KillProcessTool());
+    // 工作区文件展示工具（Task 七决策 9.2）——与 agent_runtime /
+    // agent_factory 同步注册；readOnly 纯展示，不列入 essentialToolNames。
+    registry.register(ShowFile4uTool(workspaceDir: aiWorkspace));
     Log().info('[BOOT] Agent 工具: ${registry.all().map((t) => t.name).toList()}');
     return _ok();
   }

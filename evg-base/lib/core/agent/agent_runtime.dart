@@ -16,10 +16,12 @@ import 'package:evergreen_base/core/agent/tool.dart';
 import 'package:evergreen_base/core/agent/tools/plugin_bridge.dart';
 import 'package:evergreen_base/core/agent/tools/agent_process_tools.dart';
 import 'package:evergreen_base/core/agent/tools/read_global_memory.dart';
+import 'package:evergreen_base/core/agent/tools/research_search.dart';
 import 'package:evergreen_base/core/agent/tools/run_skill.dart';
 import 'package:evergreen_base/core/agent/tools/web_search.dart';
 import 'package:evergreen_base/core/agent/tools/user_info.dart';
 import 'package:evergreen_base/core/agent/tools/read_file.dart';
+import 'package:evergreen_base/core/agent/tools/show_file4u.dart';
 import 'package:evergreen_base/core/agent/tools/grep.dart';
 import 'package:evergreen_base/core/agent/tools/write_file.dart';
 import 'package:evergreen_base/core/agent/tools/head_tail.dart';
@@ -98,10 +100,17 @@ final agentRuntimeProvider = Provider<AgentRuntime>((ref) {
     ListSkillsTool(loader, skillIndex),
     WebSearchTool(Dio()),
     WebFetchTool(Dio()),
+    // 三个专业检索工具（Task 二 A2）——与 app_bootstrap / agent_factory 同步注册。
+    ArxivSearchTool(Dio()),
+    GithubSearchTool(Dio()),
+    CrossrefSearchTool(Dio()),
     // 后台常驻进程管理工具（Task 三决策 3.2）——与 app_bootstrap /
     // agent_factory 同步注册；共享全局单例 agentProcessRegistry。
     ListProcessesTool(),
     KillProcessTool(),
+    // 工作区文件展示工具（Task 七决策 9.2）——与 app_bootstrap /
+    // agent_factory 同步注册；readOnly 纯展示，不列入 essentialToolNames。
+    ShowFile4uTool(workspaceDir: greenixWorkspaceDir('ai-assistant')),
   ]) {
     if (!registry.has(t.name)) registry.register(t);
   }
@@ -151,8 +160,22 @@ final agentRuntimeProvider = Provider<AgentRuntime>((ref) {
   httpServer.start(); // fire-and-forget: 异步启动，不阻塞 Provider 构造
 
   ref.listen<bool>(webSearchEnabledProvider, (prev, enabled) {
-    if (enabled) { registry.enable('web_search'); registry.enable('web_fetch'); }
-    else { registry.disable('web_search'); registry.disable('web_fetch'); }
+    // 联网搜索开关统一管控：web_search/web_fetch + 三个专业检索工具
+    // （arxiv/github/crossref，Task 二 A2——与 app_bootstrap / agent_factory 对齐）。
+    const searchTools = [
+      'web_search',
+      'web_fetch',
+      'arxiv_search',
+      'github_search',
+      'crossref_search',
+    ];
+    for (final name in searchTools) {
+      if (enabled) {
+        registry.enable(name);
+      } else {
+        registry.disable(name);
+      }
+    }
   });
 
   // ── 深度思考档位（主要入口） ──
