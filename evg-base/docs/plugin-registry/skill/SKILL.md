@@ -269,7 +269,6 @@ HTML 模块（`template:"html"`）是「全面替代 Dart 路线」的载体，b
 | `DEEPSEEK_MODEL` | string | DeepSeek 模型名，默认 `deepseek-v4-flash` |
 | `DEEPSEEK_BASE_URL` | string | DeepSeek API 地址（自定义端点时） |
 | `DEEPSEEK_THINKING` | bool | 深度思考开关 |
-| `DEEPSEEK_OCR_API_KEY` | string(secure) | DeepSeek OCR 云端链 Key |
 
 **浙大统一认证（zju）**：
 

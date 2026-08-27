@@ -129,7 +129,7 @@ Future<void> _initServers() async {
   final prefs = await SharedPreferences.getInstance();
   final dio = Dio();
   final installer = PluginInstaller(pluginsDir: '.text_app_plugins', dio: dio);
-  final coreServer = CoreHttpServer(installer, OcrPipeline(dio), UpdateService(dio));
+  final coreServer = CoreHttpServer(installer, UpdateService(dio));
   await initSettings(prefs, pluginDirs: ['builtins/']);
   final configServer = ConfigHttpServer(prefs);
   final orch = DataOrchestrator();

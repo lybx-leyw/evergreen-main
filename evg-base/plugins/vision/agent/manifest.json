@@ -1,0 +1,23 @@
+{
+  "name": "vision",
+  "description": "多模态视觉工具（OCR 提取文字 / 读图描述 / 生图占位）。三种模式：mode=\"ocr\" 提取图片/PDF/PPT 中的文字（OCR_API_* 配置）；mode=\"describe\" 详细描述图片内容（VISION_API_* 配置）；mode=\"generate\" 生图（占位，即将上线）。file_path 为工作区相对或绝对路径。需先在设置面板配置对应 API（base_url/api_key/model）。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "mode": {
+        "type": "string",
+        "enum": ["ocr", "describe", "generate"],
+        "description": "运行模式：ocr=提取文字, describe=读图描述, generate=生图（占位）"
+      },
+      "file_path": {
+        "type": "string",
+        "description": "图片（png/jpg/jpeg/bmp/webp/tiff）/ PDF / PPT 文件路径（工作区相对或绝对路径）"
+      }
+    },
+    "required": []
+  },
+  "readOnly": true,
+  "runtime": "python",
+  "argMode": "stdin",
+  "lifetime": "once"
+}

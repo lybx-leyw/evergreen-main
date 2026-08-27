@@ -65,7 +65,6 @@ import '../agent/session.dart'; // Session（消息历史 + token 统计 + 序�
 import '../output_style/style.dart'; // OutputStyle / BuiltinStyles / StyleManager
 import '../provider.dart'; // AiUnavailableException
 import '../tools/mock_event_stream.dart'; // MockEventStream
-// OcrAttachmentHandler / OcrResult
 
 // ═══════ helpers ═══════
 // 以下辅助函数供 main() 和各个 Demo 共用。
@@ -877,7 +876,6 @@ void _demoFlutterOnlyApis() {
   print('  controller.setSystemPrompt("自定义系统提示"); // 覆盖 system prompt');
   print('  controller.activateSkill("acceptance"); // 激活技能（注入 body 到 system prompt）');
   print('  controller.deactivateSkill("acceptance"); // 停用技能');
-  print('  controller.send("分析这张图", attachments: ocrContext); // 带附件上下文');
   print('  controller.activeSkillIds; // 当前激活的技能 ID 列表');
 }
 

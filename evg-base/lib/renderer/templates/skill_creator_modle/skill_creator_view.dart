@@ -110,7 +110,6 @@ class _SkillCreatorViewState extends ConsumerState<SkillCreatorView> {
       globalSkillIndex: ref.read(skillIndexProvider),
       globalMemoryStore: ref.read(memoryStoreProvider),
       pythonPath: null,
-      ocrApiKey: _readSetting('DEEPSEEK_OCR_API_KEY'),
       initialWorkflow: session?.workflow ?? data?.workflow,
       initialSession: session?.agentSession,
       initialUi: session?.uiMessages,
@@ -833,9 +832,7 @@ class _MaterialsSection extends StatelessWidget {
                     Icon(
                       m.readability == 'unreadable'
                           ? Icons.warning_amber
-                          : m.readability == 'ocr'
-                              ? Icons.document_scanner
-                              : Icons.description,
+                          : Icons.description,
                       size: 14,
                       color: m.readability == 'unreadable'
                           ? theme.colorScheme.error
@@ -849,7 +846,7 @@ class _MaterialsSection extends StatelessWidget {
                           Text('${m.title}（${searchSourceLabel(m.source)}）',
                               style: theme.textTheme.bodySmall),
                           Text(
-                            '${m.url}${m.readability == 'unreadable' ? ' · ⚠ 不可读' : ''}${m.ocrAttempts > 0 ? ' · OCR ${m.ocrAttempts} 次' : ''}',
+                            '${m.url}${m.readability == 'unreadable' ? ' · ⚠ 不可读' : ''}',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: theme.textTheme.labelSmall

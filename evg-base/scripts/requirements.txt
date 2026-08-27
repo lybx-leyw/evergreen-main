@@ -1,11 +1,3 @@
-# Evergreen — 脚本依赖（OCR + PDF 文本提取）
-# 安装: scripts/python/python.exe -m pip install -r scripts/requirements.txt
-# 说明：本文件是嵌入式 Python 的**唯一依赖真源**（setup_python.cmd / CI 均按此安装）。
-# 2026-08-25 撤销 PDF 翻译/论文阅读后 site-packages 已瘦身（~748MB → ~91MB，
-# 移除 cv2/scipy/sklearn/onnx/selenium/babeldoc/openai 系等死重，详见 scripts/README.md）。
-pytesseract>=0.3.10
-Pillow>=10.0.0
 requests>=2.28.0
-pdf2image>=1.16.0
 # pymupdf(fitz)：paper_reader.py extract 命令（skill_creator 的 pdf_extract_text 工具依赖）
 pymupdf>=1.24

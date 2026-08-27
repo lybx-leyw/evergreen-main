@@ -7,7 +7,7 @@
 ## 方案
 
 - 保留现有 DeepSearchRunner 和 SkillCreatorOrchestrator，新增协议适配与结构化证据层。
-- 统一工具名为 `web_search`、`web_fetch`、`download_file`、`pdf_extract_text`、`ocr_file`，提示词与 whitelist 必须使用同一名称。
+- 统一工具名为 `web_search`、`web_fetch`、`download_file`、`pdf_extract_text`（OCR 路径已移除，见 R3-4），提示词与 whitelist 必须使用同一名称。
 - 深寻结果保留现有 `DeepSearchResult` 兼容接口，同时为材料增加来源 URL、抓取时间、原文片段、引用 ID、可信度和去重指纹。
 - Provider 能力不足、未配置或工具调用失败时返回可识别的连接状态与重试信息；不自动接入其他服务。
 

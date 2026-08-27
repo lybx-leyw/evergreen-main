@@ -16,13 +16,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:evergreen_base/core/agent/agent.dart' as agent;
 import 'package:evergreen_base/core/agent/memory/file_memory_store.dart';
 import 'package:evergreen_base/core/agent/skill/skill.dart';
-import 'package:evergreen_base/core/services/ocr_pipeline.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
 import 'package:evergreen_base/renderer/templates/skill_creator_modle/tools/pymupdf_tool.dart';
 
@@ -45,7 +43,6 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
   final SkillIndex globalSkillIndex;
   final FileMemoryStore globalMemoryStore;
   final String? pythonPath;
-  final String? ocrApiKey;
 
   /// 工作流状态（可序列化，断点续做）。
   SkillCreatorWorkflow _workflow;
@@ -77,7 +74,6 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
     required this.globalSkillIndex,
     required this.globalMemoryStore,
     this.pythonPath,
-    this.ocrApiKey,
     SkillCreatorWorkflow? initialWorkflow,
     List<Map<String, dynamic>>? initialSession,
     List<Map<String, dynamic>>? initialUi,
@@ -92,8 +88,6 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
 
   agent.Provider get _provider =>
       buildDeepSeekProvider(apiKey: apiKey, baseUrl: baseUrl, model: model);
-
-  OcrPipeline get _ocr => OcrPipeline(Dio(), null, ocrApiKey);
 
   // ═══════ 生命周期 ═══════
 
@@ -311,15 +305,7 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
       globalMemoryStore: globalMemoryStore,
       workspaceRoot: _workspaceDir,
       pythonPath: pythonPath,
-      ocrApiKey: ocrApiKey,
     );
-    // C 阶段：采集前记录 OCR 能力，扫描版材料失败时用户能看到真实原因。
-    try {
-      final readiness = await OcrPipeline(Dio(), null, ocrApiKey).checkReadiness();
-      _appendEvent('info', 'OCR 就绪：${readiness.summarize()}');
-    } catch (e) {
-      _appendEvent('warn', 'OCR 就绪检查失败：$e');
-    }
 
     // 并行执行（共享 Provider，各任务独立 AgentAssembly）
     await Future.wait(pending.map((task) async {
@@ -375,7 +361,7 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
           await _processMaterial(m);
         }
         _appendEvent('info',
-            '材料[${searchSourceLabel(task.source)}]入库：${result.materials.length} 份（可读 ${_workflow.materials.where((m) => m.readability == 'ok' || m.readability == 'ocr').length} 份）',
+            '材料[${searchSourceLabel(task.source)}]入库：${result.materials.length} 份（可读 ${_workflow.materials.where((m) => m.readability == 'ok').length} 份）',
             agentId: task.id);
       }
       notifyListeners();
@@ -460,7 +446,7 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
     _appendEvent('info', '整合 agent 开始撰写报告（${_workflow.materials.length} 份材料）...');
 
     final readable = _workflow.materials
-        .where((m) => m.readability == 'ok' || m.readability == 'ocr')
+        .where((m) => m.readability == 'ok')
         .toList();
     final report = await writeReport(
       provider: _provider,
@@ -572,7 +558,7 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
 
   // ═══════ 内部 ═══════
 
-  /// 材料全文提取（PDF → 文本；扫描版降级 OCR）。
+  /// 材料全文提取（PDF → 文本；扫描版标记不可读）。
   Future<void> _processMaterial(MaterialItem m) async {
     // 重试前清除旧文本引用，避免失败后继续消费上一次的过期结果。
     if (m.textPath != null) {
@@ -605,28 +591,9 @@ class SkillCreatorOrchestrator extends ChangeNotifier {
       m.textPath = textPath;
       m.readability = 'ok';
     } catch (e) {
-      // 扫描版 → OCR 降级
-      try {
-        m.ocrAttempts++;
-        _appendEvent('info', '材料进入 OCR：${m.title}');
-        final ocrText = await _ocr.recognizeFile(localPath);
-        if (ocrText != null && ocrText.isNotEmpty) {
-          if (ocrText.length > 20 * 1024 * 1024) {
-            m.readability = 'unreadable';
-            m.processingError = 'OCR 文本超过 20MiB 上限';
-            return;
-          }
-          File(textPath).writeAsStringSync(ocrText);
-          m.textPath = textPath;
-          m.readability = 'ocr';
-        } else {
-          m.readability = 'unreadable';
-          m.processingError = 'OCR 未识别到有效文本';
-        }
-      } catch (ocrError) {
-        m.readability = 'unreadable';
-        m.processingError = '文本提取失败：$e；OCR 失败：$ocrError';
-      }
+      // 扫描版（无文本层）→ 标记不可读（OCR 能力已移除，R3-4）。
+      m.readability = 'unreadable';
+      m.processingError = 'PDF 没有文本层（扫描版 PDF 无法提取文本）';
     }
   }
 
