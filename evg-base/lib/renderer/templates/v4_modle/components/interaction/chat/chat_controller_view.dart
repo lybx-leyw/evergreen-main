@@ -3602,7 +3602,10 @@ class _MessageBubbleState extends State<_MessageBubble> {
               color: containerBg,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                  color: Theme.of(context).colorScheme.tertiary),
+                  // R2-1 思考框边框：皮肤包可覆盖（默认皮肤恢复历史橙黄
+                  // #FFE082）；未配置保持语义色 tertiary（深色适配不变）。
+                  color: _skinHex(skin?.thinkingColor('containerBorder')) ??
+                      Theme.of(context).colorScheme.tertiary),
             ),
             child: SingleChildScrollView(
               controller: _thinkingScrollCtrl,

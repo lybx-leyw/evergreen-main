@@ -17,7 +17,7 @@
 /// | `assets` | `logoDesktop`/`logoMobile`/`backgroundImage` | 图片资源引用（相对 manifest 路径） | 头像 / 空状态 logo 等 |
 /// | `background` | `type`(solid/gradient)、`color`、`gradient.from/to/angle` | 对话背景（A1） | 消息列表容器 decoration |
 /// | `buttons` | `inputBar.{workspace,webSearch,thinkingEffort,tools,bgProcess,skills,clear}`、`messageActions.{copy,regenerate,edit}` | 按钮显隐（B1/B2） | 工具栏 / 消息操作行 |
-/// | `thinking` | `title`、`visible`、`colors.{header,containerBackground,contentText,chipMemoryBg/Fg,chipSkillBg/Fg,chipToolBg/Fg,chipToolResultBg/Fg}` | 思考栏配色（C1）+ 标题（E） | 思考栏渲染点 |
+/// | `thinking` | `title`、`visible`、`colors.{header,containerBackground,containerBorder,contentText,chipMemoryBg/Fg,chipSkillBg/Fg,chipToolBg/Fg,chipToolResultBg/Fg}` | 思考栏配色（C1）+ 标题（E） | 思考栏渲染点 |
 /// | `bubble` | `userBackground`/`assistantBackground`/`userTextColor`/`assistantTextColor`/`borderRadius`/`maxWidthRatio` | 消息气泡样式（D1） | 气泡 BoxDecoration / ConstrainedBox |
 /// | `avatar` | `user`/`assistant`（hex 颜色或图片资源引用） | 头像 DIY（E） | CircleAvatar |
 /// | `emptyState` | `logo`（hex 或图片引用）、`title` | 空状态欢迎区（E） | 空状态渲染 |

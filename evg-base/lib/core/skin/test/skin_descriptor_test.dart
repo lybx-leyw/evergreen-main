@@ -140,6 +140,8 @@ void main() {
           'title': '推理过程',
           'colors': {
             'header': '#F57C00',
+            'containerBackground': '#FFF8E1',
+            'containerBorder': '#FFE082',
             'contentText': '#795548',
             'chipMemoryBg': '#F3E5F5',
           },
@@ -147,6 +149,8 @@ void main() {
       });
       expect(s.thinkingTitle, '推理过程');
       expect(s.thinkingColor('header'), '#F57C00');
+      expect(s.thinkingColor('containerBackground'), '#FFF8E1');
+      expect(s.thinkingColor('containerBorder'), '#FFE082');
       expect(s.thinkingColor('contentText'), '#795548');
       expect(s.thinkingColor('chipMemoryBg'), '#F3E5F5');
       expect(s.thinkingColor('chipSkillBg'), isNull); // 未配置
