@@ -1,12 +1,13 @@
-// WebSearchTool 单元测试（Task 二 A2 交付物 4 + R2 多来源召回）。
+// WebSearchTool 单元测试（Task 二 A2 交付物 4 + R2 多来源召回 + R2-5 统一入口）。
 //
 // 覆盖：
-//   - schema：query + max_results（integer 1-10）+ mode（network/arxiv/github/all）
+//   - schema：query + max_results（integer 1-10）+ mode（network/arxiv/github/crossref/all）
 //   - max_results 解析：缺省 5 / 0·负值·超上限 clamp / 非法字符串回退 / 合法数字字符串
 //   - 结构化错误：网络失败（无法连接搜索服务）/ 未找到结果 / 被反爬（长度异常页面）
 //   - 结果条目：每条附加来源域名；双 host 回退；max_results 不进 Bing 请求参数
-//   - mode 路由（Task 二 R2）：单来源 arxiv/github、三合一 all、缺省零行为变化、
-//     非法值静默回退、all 下 max_results 均分分配、单来源失败不阻塞其余来源
+//   - mode 路由（Task 二 R2/R2-5）：单来源 arxiv/github/crossref、四合一 all、
+//     缺省零行为变化、非法值静默回退、all 下 max_results 四源均分（余数优先网络）、
+//     单来源失败不阻塞其余来源
 //
 // 运行：cd evg-base/lib/core/agent && dart test test/web_search_test.dart -j 1
 // 依赖：dio stub（lib/dio_stub），不依赖真实网络。
@@ -108,6 +109,28 @@ Map<String, dynamic> _githubJson(int count) {
           'stargazers_count': 100 + i,
           'updated_at': '2026-01-0${i + 1}T00:00:00Z',
         }),
+  };
+}
+
+/// 构造含 count 条作品的模拟 Crossref JSON（Map 形式，等价 dio JSON 解码）。
+Map<String, dynamic> _crossrefJson(int count) {
+  return {
+    'message': {
+      'items': List.generate(count, (i) => {
+            'title': ['Crossref Paper $i'],
+            'DOI': '10.1000/paper$i',
+            'URL': 'https://doi.org/10.1000/paper$i',
+            'author': [
+              {'given': 'Given$i', 'family': 'Family$i'},
+            ],
+            'container-title': ['Journal $i'],
+            'published-print': {
+              'date-parts': [
+                [2024, 1, i + 1]
+              ]
+            },
+          }),
+    },
   };
 }
 
@@ -284,12 +307,12 @@ void main() {
   });
 
   group('mode 参数与 schema', () {
-    test('schema 含 mode：enum network/arxiv/github/all', () {
+    test('schema 含 mode：enum network/arxiv/github/crossref/all', () {
       final tool = WebSearchTool(_StubDio());
       final props = tool.schema['properties'] as Map<String, dynamic>;
       final mode = props['mode'] as Map<String, dynamic>;
       expect(mode['type'], 'string');
-      expect(mode['enum'], ['network', 'arxiv', 'github', 'all']);
+      expect(mode['enum'], ['network', 'arxiv', 'github', 'crossref', 'all']);
     });
 
     test('mode 缺省 = 现状网络搜索（零行为变化：仅 Bing，无来源标记）', () async {
@@ -376,6 +399,48 @@ void main() {
       expect(params['per_page'], 2);
     });
 
+    test('mode: crossref → 仅请求 Crossref API，条目带 [crossref] 标记', () async {
+      final dio = _StubDio()
+        ..responses.add(Response(statusCode: 200, data: _crossrefJson(3)));
+      final out = await WebSearchTool(dio)
+          .execute({'query': 'llm', 'mode': 'crossref', 'max_results': 2});
+      expect(out, startsWith('搜索 "llm" 的结果（来源: crossref）:'));
+      expect(_entryCount(out), 2);
+      expect(_entryCountByMarker(out, '[crossref]'), 2);
+      expect(out, contains('Crossref Paper 1'));
+      expect(out, contains('作者: Given1 Family1'));
+      expect(out, contains('期刊: Journal 1'));
+      expect(out, contains('DOI: 10.1000/paper1'));
+      expect(out, contains('https://doi.org/10.1000/paper1'));
+      expect(dio.requestPaths.single, 'https://api.crossref.org/works');
+      final params = dio.queryParams.single;
+      expect(params['query'], 'llm');
+      expect(params['rows'], 2);
+    });
+
+    test('mode: crossref 无 URL 时回退 doi.org 链接', () async {
+      final json = {
+        'message': {
+          'items': [
+            {
+              'title': ['No Url Paper'],
+              'DOI': '10.1000/nourl',
+              // URL 字段缺失 → 应回退 https://doi.org/<DOI>
+              'author': [
+                {'given': 'A', 'family': 'B'},
+              ],
+              'container-title': ['Journal X'],
+            },
+          ],
+        },
+      };
+      final dio = _StubDio()
+        ..responses.add(Response(statusCode: 200, data: json));
+      final out = await WebSearchTool(dio)
+          .execute({'query': 'llm', 'mode': 'crossref'});
+      expect(out, contains('https://doi.org/10.1000/nourl'));
+    });
+
     test('mode: arxiv 检索失败 → 结构化错误文本', () async {
       final dio = _StubDio()
         ..responses.add(DioException(message: 'Connection refused'));
@@ -385,31 +450,36 @@ void main() {
     });
   });
 
-  group('mode: all 三合一召回', () {
-    test('三来源一并召回，max_results=5 均分 2/2/1，条目区分来源', () async {
+  group('mode: all 四合一召回', () {
+    test('四来源一并召回，max_results=5 均分 2/1/1/1，条目区分来源', () async {
       final dio = _StubDio()
         ..responses.addAll([
           Response(statusCode: 200, data: _bingHtml(3)),
           Response(statusCode: 200, data: _arxivXml(3)),
           Response(statusCode: 200, data: _githubJson(3)),
+          Response(statusCode: 200, data: _crossrefJson(3)),
         ]);
       final out = await WebSearchTool(dio).execute(
           {'query': 'flutter', 'mode': 'all', 'max_results': 5});
-      expect(out, startsWith('搜索 "flutter" 的结果（来源: 网络+arxiv+github）:'));
+      expect(out,
+          startsWith('搜索 "flutter" 的结果（来源: 网络+arxiv+github+crossref）:'));
       expect(_entryCount(out), 5);
       expect(_entryCountByMarker(out, '[网络]'), 2);
-      expect(_entryCountByMarker(out, '[arxiv]'), 2);
+      expect(_entryCountByMarker(out, '[arxiv]'), 1);
       expect(_entryCountByMarker(out, '[github]'), 1);
-      // 请求顺序：Bing → arXiv → GitHub（网络条目在前）
+      expect(_entryCountByMarker(out, '[crossref]'), 1);
+      // 请求顺序：Bing → arXiv → GitHub → Crossref（网络条目在前）
       expect(dio.requestPaths[0], startsWith('https://cn.bing.com'));
       expect(dio.requestPaths[1], 'https://export.arxiv.org/api/query');
       expect(dio.requestPaths[2], 'https://api.github.com/search/repositories');
-      // 各来源配额透传：网络取 2、arxiv max_results=2、github per_page=1
-      expect(dio.queryParams[1]['max_results'], 2);
+      expect(dio.requestPaths[3], 'https://api.crossref.org/works');
+      // 各来源配额透传：网络取 2、arxiv max_results=1、github per_page=1、crossref rows=1
+      expect(dio.queryParams[1]['max_results'], 1);
       expect(dio.queryParams[2]['per_page'], 1);
+      expect(dio.queryParams[3]['rows'], 1);
     });
 
-    test('max_results=1 → 分配 1/0/0，仅请求网络，arxiv/github 不发起', () async {
+    test('max_results=1 → 分配 1/0/0/0，仅请求网络，其余来源不发起', () async {
       final dio = _StubDio()
         ..responses.add(Response(statusCode: 200, data: _bingHtml(3)));
       final out = await WebSearchTool(dio)
@@ -421,19 +491,38 @@ void main() {
       expect(dio.requestPaths.single, startsWith('https://cn.bing.com'));
     });
 
-    test('max_results=10 → 分配 4/3/3', () async {
+    test('max_results=10 → 分配 4/2/2/2（余数全给网络）', () async {
       final dio = _StubDio()
         ..responses.addAll([
           Response(statusCode: 200, data: _bingHtml(10)),
           Response(statusCode: 200, data: _arxivXml(10)),
           Response(statusCode: 200, data: _githubJson(10)),
+          Response(statusCode: 200, data: _crossrefJson(10)),
         ]);
       final out = await WebSearchTool(dio).execute(
           {'query': 'flutter', 'mode': 'all', 'max_results': 10});
       expect(_entryCount(out), 10);
       expect(_entryCountByMarker(out, '[网络]'), 4);
-      expect(_entryCountByMarker(out, '[arxiv]'), 3);
-      expect(_entryCountByMarker(out, '[github]'), 3);
+      expect(_entryCountByMarker(out, '[arxiv]'), 2);
+      expect(_entryCountByMarker(out, '[github]'), 2);
+      expect(_entryCountByMarker(out, '[crossref]'), 2);
+    });
+
+    test('max_results=4 → 分配 1/1/1/1（整除无余数）', () async {
+      final dio = _StubDio()
+        ..responses.addAll([
+          Response(statusCode: 200, data: _bingHtml(4)),
+          Response(statusCode: 200, data: _arxivXml(4)),
+          Response(statusCode: 200, data: _githubJson(4)),
+          Response(statusCode: 200, data: _crossrefJson(4)),
+        ]);
+      final out = await WebSearchTool(dio).execute(
+          {'query': 'flutter', 'mode': 'all', 'max_results': 4});
+      expect(_entryCount(out), 4);
+      expect(_entryCountByMarker(out, '[网络]'), 1);
+      expect(_entryCountByMarker(out, '[arxiv]'), 1);
+      expect(_entryCountByMarker(out, '[github]'), 1);
+      expect(_entryCountByMarker(out, '[crossref]'), 1);
     });
 
     test('单来源失败不阻塞其余来源，末尾附部分失败说明', () async {
@@ -442,12 +531,15 @@ void main() {
           Response(statusCode: 200, data: _bingHtml(3)),
           DioException(message: 'arxiv down'),
           Response(statusCode: 200, data: _githubJson(3)),
+          Response(statusCode: 200, data: _crossrefJson(3)),
         ]);
       final out = await WebSearchTool(dio).execute(
           {'query': 'flutter', 'mode': 'all', 'max_results': 5});
-      expect(out, startsWith('搜索 "flutter" 的结果（来源: 网络+arxiv+github）:'));
+      expect(out,
+          startsWith('搜索 "flutter" 的结果（来源: 网络+arxiv+github+crossref）:'));
       expect(_entryCountByMarker(out, '[网络]'), 2);
       expect(_entryCountByMarker(out, '[github]'), 1);
+      expect(_entryCountByMarker(out, '[crossref]'), 1);
       expect(out, contains('[部分来源失败: arxiv: arxiv search failed'));
     });
 
@@ -457,26 +549,30 @@ void main() {
           Response(statusCode: 200, data: _bingHtml(3)),
           Response(statusCode: 200, data: _arxivXml(0)),
           Response(statusCode: 200, data: _githubJson(0)),
+          Response(statusCode: 200, data: _crossrefJson(3)),
         ]);
       final out = await WebSearchTool(dio).execute(
           {'query': 'flutter', 'mode': 'all', 'max_results': 5});
       expect(_entryCountByMarker(out, '[网络]'), 2);
+      expect(_entryCountByMarker(out, '[crossref]'), 1);
       expect(out, contains('[部分来源失败: arxiv: 未找到结果；github: 未找到结果]'));
     });
 
-    test('三来源全部失败 → 整体失败并汇总原因', () async {
+    test('四来源全部失败 → 整体失败并汇总原因', () async {
       final dio = _StubDio()
         ..responses.addAll([
           DioException(message: 'bing down'),
           DioException(message: 'bing down 2'),
           DioException(message: 'arxiv down'),
           DioException(message: 'github down'),
+          DioException(message: 'crossref down'),
         ]);
       final out = await WebSearchTool(dio).execute(
           {'query': 'flutter', 'mode': 'all', 'max_results': 5});
       expect(out, startsWith('[搜索失败: 网络: 无法连接搜索服务'));
       expect(out, contains('arxiv: arxiv search failed'));
       expect(out, contains('github: github search failed'));
+      expect(out, contains('crossref: crossref search failed'));
     });
   });
 }
