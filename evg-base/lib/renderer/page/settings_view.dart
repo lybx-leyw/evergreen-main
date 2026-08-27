@@ -124,6 +124,8 @@ class _SettingsViewState extends ConsumerState<SettingsView> {
         const SizedBox(height: 16),
         _buildThemeSection(theme),
         const SizedBox(height: 16),
+        _buildSkinSection(theme),
+        const SizedBox(height: 16),
         _buildInterfaceSection(theme),
         const SizedBox(height: 16),
         for (final e in items) _buildTile(e, theme.colorScheme),
@@ -175,6 +177,70 @@ class _SettingsViewState extends ConsumerState<SettingsView> {
                       final prefs = ref.read(sharedPreferencesProvider);
                       await prefs.setString('active_theme_id', id);
                       debugPrint('[SettingsView] 主题切换 → $id');
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 外观 · 皮肤包——列出 SkinStore 全部皮肤包（内置默认 + 插件皮肤包），
+  /// 切换即 AI 视图热切换（ChangeNotifier 链路）并持久化到 prefs
+  /// （`active_skin_id`，镜像 `active_theme_id` 的主题切换模式）。
+  ///
+  /// Task 一（AI 视图皮肤包「DIY your own greenix」）决策 1.3。
+  Widget _buildSkinSection(ThemeData theme) {
+    final store = ref.watch(skinStoreProvider);
+    final all = store.all;
+    final activeId = store.activeSkin?.id;
+    final validActive =
+        activeId != null && all.any((s) => s.id == activeId) ? activeId : null;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: theme.colorScheme.outlineVariant),
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 180,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('外观 · 皮肤包',
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(fontWeight: FontWeight.w500)),
+                Text('AI 助手视图外观（DIY your own greenix）',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                        fontSize: 11)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: all.isEmpty
+                ? Text('无可用皮肤包',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant))
+                : DropdownButtonFormField<String>(
+                    value: validActive ?? all.first.id,
+                    isExpanded: true,
+                    decoration: _decoration(theme.colorScheme),
+                    items: all
+                        .map((s) => DropdownMenuItem(
+                            value: s.id, child: Text(s.name)))
+                        .toList(),
+                    onChanged: (id) async {
+                      if (id == null || id == activeId) return;
+                      store.setActiveById(id);
+                      final prefs = ref.read(sharedPreferencesProvider);
+                      await prefs.setString('active_skin_id', id);
+                      debugPrint('[SettingsView] 皮肤包切换 → $id');
                     },
                   ),
           ),

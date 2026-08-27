@@ -15,6 +15,7 @@ import 'package:evergreen_base/core/agent/tool.dart' show Registry;
 import 'package:evergreen_base/core/config/config_http_server.dart' show ConfigHttpServer;
 import 'package:evergreen_base/core/data/orchestrator.dart' show DataOrchestrator;
 import 'package:evergreen_base/core/module/module_registry.dart';
+import 'package:evergreen_base/core/skin/skin_store.dart';
 import 'package:evergreen_base/core/theme/theme_store.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -171,6 +172,19 @@ bool isEssentialTool(String name) => essentialToolNames.contains(name);
 final themeStoreProvider = ChangeNotifierProvider<ThemeStore>((ref) {
   throw UnimplementedError(
     'themeStoreProvider 未注入——请在 main() 的 ProviderScope.overrides 中提供 ThemeStore 实例。',
+  );
+});
+
+// ═══════ 皮肤包 ═══════
+
+/// 全局 [SkinStore]——AI 视图皮肤包（agent 皮肤包）注册、查询、活跃皮肤切换。
+///
+/// 当 [SkinStore.activeSkin] 变更时（设置面板下拉切换或直接调用），
+/// [ChangeNotifierProvider] 自动通知所有 watch 此 provider 的消费者重建，
+/// AI 视图热切换与主题切换体验一致，无需重启。
+final skinStoreProvider = ChangeNotifierProvider<SkinStore>((ref) {
+  throw UnimplementedError(
+    'skinStoreProvider 未注入——请在 main() 的 ProviderScope.overrides 中提供 SkinStore 实例。',
   );
 });
 

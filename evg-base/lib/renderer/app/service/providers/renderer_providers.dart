@@ -4,8 +4,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:evergreen_base/core/module/modules.dart';
+import 'package:evergreen_base/core/skin/skin_descriptor.dart';
 import 'package:evergreen_base/core/theme/theme_descriptor.dart';
-import 'package:evergreen_base/providers.dart' show themeStoreProvider;
+import 'package:evergreen_base/providers.dart' show skinStoreProvider, themeStoreProvider;
 import '../theme/render_tokens.dart';
 
 // ═══════ 当前模块 ═══════
@@ -53,6 +54,19 @@ final renderTokensProvider = Provider<RenderTokensColors>((ref) {
   final tokens = RenderTokensColors.fromTheme(theme);
   RenderTokens.applyTheme(theme);
   return tokens;
+});
+
+// ═══════ 皮肤包提供者 ═══════
+
+/// 已解析的皮肤包描述符——从 [skinStoreProvider] 派生，皮肤切换时自动更新。
+///
+/// 当 [SkinStore.activeSkin] 变更（设置面板下拉切换或直接设置）时，
+/// [skinStoreProvider] 通知 → 本 provider 重建 → 所有 watch 本 provider 的
+/// AI 视图消费点重建（背景/按钮显隐/思考栏配色/气泡/头像/空状态）。
+/// 未配置皮肤包时返回 null → 渲染点全部回退现有默认值，零行为变化。
+final skinDescriptorProvider = Provider<SkinDescriptor?>((ref) {
+  final store = ref.watch(skinStoreProvider);
+  return store.activeSkin;
 });
 
 // ═══════ V2 Manifest ═══════

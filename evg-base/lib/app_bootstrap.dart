@@ -60,6 +60,9 @@ import 'package:evergreen_base/core/services/core_http_server.dart';
 import 'package:evergreen_base/core/services/ocr_pipeline.dart';
 import 'package:evergreen_base/core/services/plugin_installer.dart';
 import 'package:evergreen_base/core/services/update_service.dart';
+import 'package:evergreen_base/core/skin/builtin_skins.dart';
+import 'package:evergreen_base/core/skin/skin_loader.dart';
+import 'package:evergreen_base/core/skin/skin_store.dart';
 import 'package:evergreen_base/core/theme/builtin_themes.dart';
 import 'package:evergreen_base/core/theme/theme_descriptor.dart';
 import 'package:evergreen_base/core/theme/theme_http_server.dart';
@@ -181,6 +184,9 @@ class AppBootstrap {
   /// 主题存储（ChangeNotifierProvider 数据源）。
   ThemeStore? themeStore;
 
+  /// 皮肤包存储（AI 视图皮肤包，ChangeNotifierProvider 数据源）。
+  SkinStore? skinStore;
+
   /// Core 服务 HTTP 服务器。
   CoreHttpServer? coreServer;
 
@@ -257,6 +263,7 @@ class AppBootstrap {
         BootStep('settings', '设置初始化', _stepSettings),
         BootStep('data-orchestrator', '数据谱仪器', _stepDataOrchestrator),
         BootStep('themes', '主题加载', _stepThemes),
+        BootStep('skins', '皮肤包加载', _stepSkins),
         BootStep('http-services', '核心服务构造', _stepHttpServices),
         BootStep('zju-safety', 'ZJU 凭证安全网', _stepZjuSafety),
         BootStep('agent-runtime', 'Agent 运行时构造', _stepAgentRuntime),
@@ -269,6 +276,7 @@ class AppBootstrap {
         BootStep('modules', '模块注册中心', _stepModules),
         BootStep('module-server', 'ModuleHttpServer 启动', _stepModuleServer),
         BootStep('default-theme', '默认主题选取', _stepDefaultTheme),
+        BootStep('default-skin', '默认皮肤包选取', _stepDefaultSkin),
         BootStep('ui-launch', 'UI 启动 (runApp)', _stepUiLaunch),
         BootStep('window-show', '窗口显示', _stepWindowShow),
       ];
@@ -485,6 +493,19 @@ class AppBootstrap {
     registerBuiltinThemes(store);
     loadThemes(pluginsDir, store);
     themeStore = store;
+    return _ok();
+  }
+
+  /// 皮肤包加载（内置默认包 + 插件皮肤包，镜像 _stepThemes）。
+  ///
+  /// Task 一（AI 视图皮肤包）：SkinStore → registerBuiltinSkins（默认皮肤包
+  /// 内置编码）→ loadSkins(pluginsDir) 扫描 `plugins/<id>/skin/manifest.json`。
+  /// 皮肤包与主题共用同一套 ChangeNotifier 响应式切换链路。
+  Future<Result<void>> _stepSkins() async {
+    final store = SkinStore();
+    registerBuiltinSkins(store);
+    loadSkins(pluginsDir, store);
+    skinStore = store;
     return _ok();
   }
 
@@ -867,6 +888,22 @@ class AppBootstrap {
     return _ok();
   }
 
+  /// 选取默认皮肤包（上次选择 > skin-default > 首个已注册），镜像 _stepDefaultTheme。
+  Future<Result<void>> _stepDefaultSkin() async {
+    final store = skinStore!;
+    SkinDescriptor? defaultSkin;
+    final savedId = prefs!.getString('active_skin_id');
+    if (savedId != null && savedId.isNotEmpty) {
+      defaultSkin = store.findById(savedId);
+    }
+    defaultSkin ??= store.findById('skin-default') ??
+        (store.all.isNotEmpty ? store.all.first : null);
+    if (defaultSkin != null) {
+      store.activeSkin = defaultSkin;
+    }
+    return _ok();
+  }
+
   /// UI 启动：runApp + ProviderScope 注入全部构建产物。
   Future<Result<void>> _stepUiLaunch() async {
     runApp(
@@ -928,6 +965,10 @@ class AppBootstrap {
 
           // 主题存储——ChangeNotifierProvider，HTTP 切换主题后自动通知 UI 刷新
           themeStoreProvider.overrideWith((ref) => themeStore!),
+
+          // 皮肤包存储——ChangeNotifierProvider，设置面板切换皮肤包后
+          // 自动通知 AI 视图热切换（与主题切换体验一致，无需重启）
+          skinStoreProvider.overrideWith((ref) => skinStore!),
 
           // V2 原始 manifest JSON（HTML 渲染引擎使用）
           v2ManifestProvider.overrideWith((ref) => v2Manifests),
