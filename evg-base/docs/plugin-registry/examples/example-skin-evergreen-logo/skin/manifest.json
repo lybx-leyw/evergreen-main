@@ -17,12 +17,12 @@
 
   "buttons": {
     "inputBar": {
-      "workspace": true,
+      "workspace": false,
       "webSearch": true,
       "thinkingEffort": true,
-      "tools": true,
+      "tools": false,
       "bgProcess": false,
-      "skills": true,
+      "skills": false,
       "clear": true
     },
     "messageActions": {

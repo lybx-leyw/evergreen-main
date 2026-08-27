@@ -37,6 +37,16 @@ const List<SkinDescriptor> builtinSkins = [
       'avatar': {
         'userBackgroundColor': '#E3F2FD',
       },
+      // 第三轮 R3-1：输入框上方按钮去冗余——工作区/工具/skill 在顶栏
+      // （抽屉/工作区/工具/skill）已出现，输入框那排不再重复显示；
+      // 联网搜索/思考档位/后台进程/清空保持缺省显示。
+      'buttons': {
+        'inputBar': {
+          'workspace': false,
+          'tools': false,
+          'skills': false,
+        },
+      },
     },
   ),
 ];

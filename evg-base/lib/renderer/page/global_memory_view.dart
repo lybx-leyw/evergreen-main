@@ -229,6 +229,11 @@ class _GlobalMemoryViewState extends ConsumerState<GlobalMemoryView> {
 
     return Scaffold(
       appBar: AppBar(
+        // 第三轮 R3-2：记忆条数较多滚动后 AppBar 不再回退 surfaceContainer 近黑
+        // （经验 2 三件套，同 file_viewer / AI 助手同款）。
+        backgroundColor: theme.colorScheme.surfaceContainerLowest,
+        surfaceTintColor: Colors.transparent,
+        scrolledUnderElevation: 0,
         title: const Text('全局记忆'),
         actions: [
           IconButton(
