@@ -61,6 +61,7 @@ import 'package:evergreen_base/core/services/ocr_pipeline.dart';
 import 'package:evergreen_base/core/services/plugin_installer.dart';
 import 'package:evergreen_base/core/services/update_service.dart';
 import 'package:evergreen_base/core/skin/builtin_skins.dart';
+import 'package:evergreen_base/core/skin/skin_descriptor.dart';
 import 'package:evergreen_base/core/skin/skin_loader.dart';
 import 'package:evergreen_base/core/skin/skin_store.dart';
 import 'package:evergreen_base/core/theme/builtin_themes.dart';

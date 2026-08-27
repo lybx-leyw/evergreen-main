@@ -1602,7 +1602,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                             selected: isActive,
                             selectedTileColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
                             title: Text(s.title.isEmpty ? '新对话' : s.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                            subtitle: Text('${s.messages.length} 条消息${branchCount > 1 ? ' · 分支 $branchCount' : ''}', style: const TextStyle(fontSize: 12)),
+                            subtitle: Text('${s.messages.length} 条消息${(branchCount ?? 0) > 1 ? ' · 分支 $branchCount' : ''}', style: const TextStyle(fontSize: 12)),
                             dense: true,
                             onTap: () { ref.read(switchSessionProvider)(s.id); Navigator.pop(ctx); },
                             trailing: PopupMenuButton<String>(
@@ -4244,7 +4244,7 @@ class _ConversationHistoryPanel extends ConsumerWidget {
                     ),
                     subtitle: Text(
                       '$msgCount 条消息 · ${_formatRelativeTime(s.updatedAt)}'
-                      '${branchCount > 1 ? ' · 分支 $branchCount' : ''}',
+                      '${(branchCount ?? 0) > 1 ? ' · 分支 $branchCount' : ''}',
                       style: theme.textTheme.labelSmall?.copyWith(
                           color:
                               theme.colorScheme.onSurfaceVariant),

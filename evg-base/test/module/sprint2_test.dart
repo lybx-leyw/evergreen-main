@@ -77,14 +77,15 @@ Widget _materialApp(Widget child) {
 void main() {
   SharedPreferences.setMockInitialValues({});
   group('AbilityDim', () {
-    test('6 个枚举值', () {
-      expect(AbilityDim.values.length, 6);
+    test('7 个枚举值', () {
+      expect(AbilityDim.values.length, 7);
       expect(AbilityDim.values, contains(AbilityDim.agent));
       expect(AbilityDim.values, contains(AbilityDim.ui));
       expect(AbilityDim.values, contains(AbilityDim.data));
       expect(AbilityDim.values, contains(AbilityDim.theme));
       expect(AbilityDim.values, contains(AbilityDim.settings));
       expect(AbilityDim.values, contains(AbilityDim.skill));
+      expect(AbilityDim.values, contains(AbilityDim.skin));
     });
 
     test('label 返回英文缩写', () {
@@ -229,7 +230,7 @@ void main() {
   // ═══════════════════════════════════════════════════════════════
 
   group('AbilityTag', () {
-    testWidgets('渲染 6 种标签', (tester) async {
+    testWidgets('渲染 7 种标签', (tester) async {
       await tester.pumpWidget(_materialApp(
         Wrap(
           children: AbilityDim.values
@@ -243,6 +244,7 @@ void main() {
       expect(find.text('主题'), findsOneWidget);
       expect(find.text('设置'), findsOneWidget);
       expect(find.text('技能'), findsOneWidget);
+      expect(find.text('皮肤'), findsOneWidget);
     });
 
     testWidgets('compact 模式仅显示缩写', (tester) async {

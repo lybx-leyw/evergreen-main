@@ -1,4 +1,4 @@
-/// 市场页——瀑布流卡片 + 六色能力标签 + 搜索栏 + 筛选标签。
+/// 市场页——瀑布流卡片 + 七色能力标签 + 搜索栏 + 筛选标签。
 ///
 /// 对应 R-S2-1。遵循描述符驱动 + 数据注入模式。
 import 'package:evergreen_base/core/module/capability.dart';
@@ -82,7 +82,7 @@ PluginDescriptor registryPluginToDescriptor(
 
 /// registry `lattice`（插件类型声明）→ 能力维度。
 ///
-/// 与 [AbilityDim] 六色标签对应；未识别的 lattice 返回 null（保持既有
+/// 与 [AbilityDim] 七色标签对应；未识别的 lattice 返回 null（保持既有
 /// `dimensions` 不变）。theme 型插件（如 warm_study）由此映射为「主题」。
 AbilityDim? _latticeDim(String? lattice) => switch (lattice) {
       'theme' => AbilityDim.theme,

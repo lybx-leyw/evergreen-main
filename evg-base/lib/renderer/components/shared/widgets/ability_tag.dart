@@ -1,6 +1,6 @@
-/// 六色能力标签——用于市场卡片、详情页等场景。
+/// 七色能力标签——用于市场卡片、详情页等场景。
 ///
-/// 对应 [AbilityDim] 枚举的六种维度，使用 [color_palette.md] 定义的色值。
+/// 对应 [AbilityDim] 枚举的七种维度，使用 [color_palette.md] 定义的色值。
 import 'package:evergreen_base/core/module/capability.dart';
 import 'package:flutter/material.dart';
 import 'ability_capability_bridge.dart';
