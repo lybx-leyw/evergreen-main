@@ -1,0 +1,18 @@
+{
+  "name": "current_time",
+  "description": "返回当前 UTC 时间，支持可选时区偏移。一次性工具（\"lifetime\": \"once\"：AI 调用后进程即结束）；如需常驻运行，把 lifetime 改为 \"resident\"（AI 调用后持续运行，直到 AI 用 kill_process 结束）。/ Returns the current UTC time with an optional timezone offset. One-shot (\"lifetime\": \"once\": the process exits right after the AI call); set \"lifetime\": \"resident\" to keep it running until the AI kills it via kill_process.",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "tz_offset": {
+        "type": "integer",
+        "description": "时区偏移（小时，东正西负）：8=UTC+8（北京时间）、0=UTC、-5=UTC-5。缺省 0（UTC）。"
+      }
+    },
+    "required": []
+  },
+  "readOnly": true,
+  "runtime": "python",
+  "argMode": "stdin",
+  "lifetime": "once"
+}

@@ -46,6 +46,7 @@ PluginBridge 扫描 `plugins/` 下每个子目录的 `agent/` 子目录：
 | `argMode` | string | 否 | `"stdin"` | `"stdin"`：JSON 写入标准输入；`"args"`：命令行参数传递 |
 | `argSpec` | object | 否 | `{"style":"json"}` | 仅 `argMode="args"` 时生效，控制命令行构造方式 |
 | `runtime` | string | 否 | `"native"` | `"native"`=直接执行入口（legacy `.exe`）；`"python"`=用 Python 解释器执行（`.py`，推荐） |
+| `lifetime` | string | 否 | `"once"` | 进程生命周期：`"once"`=一次性（AI 调用后进程即结束，默认，向后兼容）；`"resident"`=常驻（AI 调用后持续运行，登记到后台进程注册表，直到 `kill_process` 结束）。缺省 / 未知值静默回退 `"once"` |
 
 ### 最小示例（stdin 模式）
 
@@ -90,6 +91,28 @@ PluginBridge 扫描 `plugins/` 下每个子目录的 `agent/` 子目录：
 ```
 
 调用方式：Agent 启动 `weather.py`（`runtime:"python"`），传参 `-c 北京 -d 3`。
+
+### `lifetime`：一次性 vs 常驻（Task 三决策 3.1）
+
+`lifetime` 声明 `tool.py` 进程的生命周期：
+
+| 值 | 语义 | 行为 |
+|----|------|------|
+| `"once"`（**默认**） | 一次性 | AI 调用该 tool 后走 `runOnce`：进程运行、收集 stdout 返回给 AI，进程随即被回收 |
+| `"resident"` | 常驻 | AI 调用后走 `startLong`：进程持续运行并登记到**后台进程注册表**（`AgentProcessRegistry`）；`execute` 立即返回「已后台启动」占位文本，输出在后台累积，AI 可经内置工具 `list_processes` 查看累积输出、`kill_process` 结束该进程 |
+
+- **缺省 = `once`，未知值静默回退 `once`**（项目铁律「未知静默忽略」）——旧插件
+  不声明该字段，行为与以前完全一致（向后兼容）。
+- 常驻场景示例（监控 / 轮询 / 长连接）：AI 调用一次即启动，之后每次需要结果时
+  用 `list_processes` 拉取累积输出，任务结束用 `kill_process` 收尾，避免重复启动
+  与孤儿进程。
+- 两种形态的 `tool.py` 写法差异：一次性脚本打印结果后正常退出；常驻脚本在打印
+  首行后保持运行（如 `while True: time.sleep(1)`），直到被 `kill_process` 结束。
+
+```json
+{ "name": "watcher", "description": "常驻监控工具。", "schema": {"type": "object", "properties": {}},
+  "readOnly": true, "runtime": "python", "argMode": "stdin", "lifetime": "resident" }
+```
 
 ---
 

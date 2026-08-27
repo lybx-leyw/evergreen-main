@@ -5,6 +5,15 @@
     {"key":"DEEPSEEK_API_KEY",     "label":"DeepSeek API Key",  "type":"string", "isSecure":true,  "hint":"从 platform.deepseek.com 获取"},
     {"key":"DEEPSEEK_MODEL",       "label":"DeepSeek 模型",     "type":"string", "default":"deepseek-v4-flash"},
     {"key":"DEEPSEEK_THINKING",    "label":"深度思考",           "type":"bool",   "default":"true"},
+    {"key":"DEEPSEEK_REASONING_EFFORT", "label":"推理强度",      "type":"option", "default":"off",
+      "options":[
+        {"value":"off",    "label":"关闭"},
+        {"value":"low",    "label":"低"},
+        {"value":"medium", "label":"中"},
+        {"value":"high",   "label":"高"},
+        {"value":"max",    "label":"最强"}
+      ],
+      "hint":"AI 推理深度档位。OpenAI o 系列映射为顶层 reasoning_effort（low/medium/high，max 发送时映射为 high）；DeepSeek 系列不发送该参数（仅 thinking:{type}）"},
     {"key":"PTA_SESSION",          "label":"PTA Session",       "type":"string", "isSecure":true},
     {"key":"DINGTALK_WEBHOOK",     "label":"钉钉 Webhook",      "type":"string"},
     {"key":"MATERIAL_DOWNLOAD_PATH","label":"下载目录",           "type":"path"},

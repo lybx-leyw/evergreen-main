@@ -39,10 +39,13 @@ import 'package:evergreen_base/core/agent/provider.dart';
 import 'package:evergreen_base/core/agent/tool.dart';
 import 'package:evergreen_base/core/agent/skill/skill.dart';
 import 'package:evergreen_base/core/agent/tools/data_query.dart';
+import 'package:evergreen_base/core/agent/tools/agent_process_tools.dart';
 import 'package:evergreen_base/core/agent/tools/plugin_bridge.dart';
 import 'package:evergreen_base/core/agent/tools/python_runner_tool.dart';
 import 'package:evergreen_base/core/agent/tools/read_file.dart';
 import 'package:evergreen_base/core/agent/tools/read_global_memory.dart';
+import 'package:evergreen_base/core/agent/tools/show_file4u.dart';
+import 'package:evergreen_base/core/agent/tools/research_search.dart';
 import 'package:evergreen_base/core/agent/tools/run_skill.dart';
 import 'package:evergreen_base/core/agent/tools/user_info.dart';
 import 'package:evergreen_base/core/agent/tools/web_search.dart';
@@ -50,7 +53,9 @@ import 'package:evergreen_base/core/agent/tools/write_file.dart';
 import 'package:evergreen_base/core/agent/tools/write_global_memory.dart';
 import 'package:evergreen_base/core/agent/tools/head_tail.dart';
 import 'package:evergreen_base/core/agent/tools/file_info.dart';
+import 'package:evergreen_base/core/agent/tools/ocr_file_tool.dart';
 import 'package:evergreen_base/core/data/orchestrator.dart';
+import 'package:evergreen_base/core/services/ocr_pipeline.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
 import 'package:evergreen_base/core/utils/python_env.dart';
 
@@ -193,6 +198,9 @@ class AgentAssembly {
     required Provider provider,
     required SkillIndex skillIndex,
     DataOrchestrator? orchestrator,
+    /// DeepSeek OCR API Key（Task 四决策 4.2）。缺省回退环境变量
+    /// `DEEPSEEK_OCR_API_KEY`（由 OcrPipeline 内部处理）。
+    String? ocrApiKey,
   }) {
     final loader = SkillLoader(
       [greenixSkillsDir, resolvePluginsRoot()],
@@ -201,6 +209,9 @@ class AgentAssembly {
       pluginsRootForDisabled: resolvePluginsRoot(),
     );
     final registry = Registry();
+    // OCR 工具（Task 四决策 4.2）——与 app_bootstrap / agent_runtime 同步注册；
+    // 真实能力走 core OcrPipeline（DeepSeek 云端 → Tesseract 本地两级降级）。
+    final ocrPipeline = OcrPipeline(Dio(), null, ocrApiKey);
     for (final t in [
       GetUserInfoTool(),
       ReadGlobalMemoryTool(globalStore),
@@ -210,11 +221,37 @@ class AgentAssembly {
       ReadHeadTool(workspaceDir: greenixWorkspaceDir('ai-assistant')),
       ReadTailTool(workspaceDir: greenixWorkspaceDir('ai-assistant')),
       FileInfoTool(workspaceDir: greenixWorkspaceDir('ai-assistant')),
+      OcrFileTool(
+        recognize: ocrPipeline.recognizeFile,
+        workspaceDir: greenixWorkspaceDir('ai-assistant'),
+      ),
+      CheckOcrReadyTool(readiness: () async {
+        final r = await ocrPipeline.checkReadiness();
+        return CheckOcrReadyTool.readinessMap(
+          summarize: r.summarize(),
+          python: r.pythonAvailable,
+          pdfScript: r.pdfScriptAvailable,
+          ocrScript: r.ocrFileScriptAvailable,
+          ocrKey: r.deepSeekKeyConfigured,
+          tesseract: r.tesseractAvailable,
+        );
+      }),
       RunSkillTool(loader, skillIndex, provider, registry),
       ListSkillsTool(loader, skillIndex),
       WebSearchTool(Dio()),
       WebFetchTool(Dio()),
+      // 三个专业检索工具（Task 二 A2）——与 app_bootstrap / agent_runtime 同步注册。
+      ArxivSearchTool(Dio()),
+      GithubSearchTool(Dio()),
+      CrossrefSearchTool(Dio()),
       DataQueryTool(orchestrator: orchestrator),
+      // 后台常驻进程管理工具（Task 三决策 3.2）——与 app_bootstrap /
+      // agent_runtime 同步注册；共享全局单例 agentProcessRegistry。
+      ListProcessesTool(),
+      KillProcessTool(),
+      // 工作区文件展示工具（Task 七决策 9.2）——与 app_bootstrap /
+      // agent_runtime 同步注册；readOnly 纯展示，不列入 essentialToolNames。
+      ShowFile4uTool(workspaceDir: greenixWorkspaceDir('ai-assistant')),
     ]) {
       if (!registry.has(t.name)) registry.register(t);
     }

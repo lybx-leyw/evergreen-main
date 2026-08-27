@@ -14,18 +14,23 @@ import 'package:evergreen_base/core/agent/memory/file_memory_store.dart';
 import 'package:evergreen_base/core/agent/memory/memory_agent.dart';
 import 'package:evergreen_base/core/agent/tool.dart';
 import 'package:evergreen_base/core/agent/tools/plugin_bridge.dart';
+import 'package:evergreen_base/core/agent/tools/agent_process_tools.dart';
 import 'package:evergreen_base/core/agent/tools/read_global_memory.dart';
+import 'package:evergreen_base/core/agent/tools/research_search.dart';
 import 'package:evergreen_base/core/agent/tools/run_skill.dart';
 import 'package:evergreen_base/core/agent/tools/web_search.dart';
 import 'package:evergreen_base/core/agent/tools/user_info.dart';
 import 'package:evergreen_base/core/agent/tools/read_file.dart';
+import 'package:evergreen_base/core/agent/tools/show_file4u.dart';
 import 'package:evergreen_base/core/agent/tools/grep.dart';
 import 'package:evergreen_base/core/agent/tools/write_file.dart';
 import 'package:evergreen_base/core/agent/tools/head_tail.dart';
 import 'package:evergreen_base/core/agent/tools/file_info.dart';
+import 'package:evergreen_base/core/agent/tools/ocr_file_tool.dart';
 import 'package:evergreen_base/core/agent/tools/write_global_memory.dart';
 import 'package:evergreen_base/core/agent/tools/python_runner_tool.dart';
 import 'package:evergreen_base/core/agent/skill/skill.dart';
+import 'package:evergreen_base/core/services/ocr_pipeline.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
 import 'package:evergreen_base/core/utils/python_env.dart';
 import 'package:evergreen_base/providers.dart';
@@ -83,6 +88,10 @@ final agentRuntimeProvider = Provider<AgentRuntime>((ref) {
   BuiltinSkills.loadInto(skillIndex);
 
   final registry = agent.Registry();
+  // OCR 工具（Task 四决策 4.2）——与 app_bootstrap / agent_factory 同步注册；
+  // 真实能力走 core OcrPipeline（DeepSeek 云端 → Tesseract 本地两级降级）。
+  final ocrPipeline =
+      OcrPipeline(Dio(), null, getSetting(prefs, 'DEEPSEEK_OCR_API_KEY'));
   for (final t in [
     GetUserInfoTool(),
     ReadGlobalMemoryTool(globalStore),
@@ -93,10 +102,36 @@ final agentRuntimeProvider = Provider<AgentRuntime>((ref) {
     ReadHeadTool(workspaceDir: greenixWorkspaceDir('ai-assistant')),
     ReadTailTool(workspaceDir: greenixWorkspaceDir('ai-assistant')),
     FileInfoTool(workspaceDir: greenixWorkspaceDir('ai-assistant')),
+    OcrFileTool(
+      recognize: ocrPipeline.recognizeFile,
+      workspaceDir: greenixWorkspaceDir('ai-assistant'),
+    ),
+    CheckOcrReadyTool(readiness: () async {
+      final r = await ocrPipeline.checkReadiness();
+      return CheckOcrReadyTool.readinessMap(
+        summarize: r.summarize(),
+        python: r.pythonAvailable,
+        pdfScript: r.pdfScriptAvailable,
+        ocrScript: r.ocrFileScriptAvailable,
+        ocrKey: r.deepSeekKeyConfigured,
+        tesseract: r.tesseractAvailable,
+      );
+    }),
     RunSkillTool(loader, skillIndex, provider, registry),
     ListSkillsTool(loader, skillIndex),
     WebSearchTool(Dio()),
     WebFetchTool(Dio()),
+    // 三个专业检索工具（Task 二 A2）——与 app_bootstrap / agent_factory 同步注册。
+    ArxivSearchTool(Dio()),
+    GithubSearchTool(Dio()),
+    CrossrefSearchTool(Dio()),
+    // 后台常驻进程管理工具（Task 三决策 3.2）——与 app_bootstrap /
+    // agent_factory 同步注册；共享全局单例 agentProcessRegistry。
+    ListProcessesTool(),
+    KillProcessTool(),
+    // 工作区文件展示工具（Task 七决策 9.2）——与 app_bootstrap /
+    // agent_factory 同步注册；readOnly 纯展示，不列入 essentialToolNames。
+    ShowFile4uTool(workspaceDir: greenixWorkspaceDir('ai-assistant')),
   ]) {
     if (!registry.has(t.name)) registry.register(t);
   }
@@ -146,11 +181,32 @@ final agentRuntimeProvider = Provider<AgentRuntime>((ref) {
   httpServer.start(); // fire-and-forget: 异步启动，不阻塞 Provider 构造
 
   ref.listen<bool>(webSearchEnabledProvider, (prev, enabled) {
-    if (enabled) { registry.enable('web_search'); registry.enable('web_fetch'); }
-    else { registry.disable('web_search'); registry.disable('web_fetch'); }
+    // 联网搜索开关统一管控：web_search/web_fetch + 三个专业检索工具
+    // （arxiv/github/crossref，Task 二 A2——与 app_bootstrap / agent_factory 对齐）。
+    const searchTools = [
+      'web_search',
+      'web_fetch',
+      'arxiv_search',
+      'github_search',
+      'crossref_search',
+    ];
+    for (final name in searchTools) {
+      if (enabled) {
+        registry.enable(name);
+      } else {
+        registry.disable(name);
+      }
+    }
   });
 
   // ── 深度思考档位（主要入口） ──
+  // ⚠️ 主路径接线说明（Task 五 A5 断链①修复）：
+  //   本监听作用于本 provider（agentRuntimeProvider 自建的 DeepSeekProvider 实例）。
+  //   但全局 agentRuntimeProvider 在运行时无消费者（历史并行实现）——
+  //   主 AI 助手实际使用 app_bootstrap._agentProvider，其 thinking/effort
+  //   由 app_bootstrap 从设置读取初始值，运行期由渲染层经 agentProviderProvider
+  //   直接调用 setThinking/setReasoningEffort 同步（见 providers.dart 注释）。
+  //   本监听保留：服务于任何确实消费 agentRuntimeProvider 的路径（如 AgentAssembly 复用）。
   ref.listen<String>(reasoningEffortProvider, (prev, effort) {
     // 同步到旧的 bool provider
     ref.read(deepThinkingEnabledProvider.notifier).state = (effort != 'off');
@@ -185,6 +241,8 @@ final agentRuntimeProvider = Provider<AgentRuntime>((ref) {
   ref.onDispose(() {
     httpServer.stop();
     controller.dispose();
+    // 清理所有常驻 tool 进程（lifetime:"resident"），避免孤儿进程。
+    agentProcessRegistry.disposeAll();
   });
   return AgentRuntime(controller: controller, eventSink: eventSink, session: session);
 });
@@ -200,6 +258,10 @@ final webSearchEnabledProvider = StateProvider<bool>((ref) => false);
 final reasoningEffortProvider = StateProvider<String>((ref) => 'off');
 
 /// 有效的 reasoning_effort 值列表。
+///
+/// 这是 UI 档位语义（off/low/medium/high/max），不是协议枚举：
+/// 发送时由 provider 按模型支持矩阵归一化——OpenAI o 系列仅 low/medium/high，
+/// 'max' 发送时映射为 'high'；DeepSeek 系列不发送该参数（只发 thinking:{type}）。
 const validReasoningEfforts = ['off', 'low', 'medium', 'high', 'max'];
 
 /// 深度思考开关（向后兼容）。

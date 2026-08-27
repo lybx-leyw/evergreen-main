@@ -10,7 +10,8 @@ class Dio {
     throw UnimplementedError('Dio stub — use real Dio in Flutter environment');
   }
 
-  Future<Response> get(String path, {Options? options}) async {
+  Future<Response> get(String path,
+      {Object? queryParameters, Options? options}) async {
     throw UnimplementedError('Dio stub — use real Dio in Flutter environment');
   }
 }
@@ -20,12 +21,18 @@ class Options {
   final String? contentType;
   final ResponseType? responseType;
   final Duration? receiveTimeout;
+  final Duration? connectTimeout;
+  final Duration? sendTimeout;
+  final bool? followRedirects;
 
   Options({
     this.headers,
     this.contentType,
     this.responseType,
     this.receiveTimeout,
+    this.connectTimeout,
+    this.sendTimeout,
+    this.followRedirects,
   });
 }
 

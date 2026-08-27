@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'package:evergreen_base/core/agent/agent_runtime.dart' show webSearchEnabledProvider, reasoningEffortProvider, validReasoningEfforts;
+import 'package:evergreen_base/providers.dart' show agentProviderProvider;
 
 /// 聊天输入栏。
 ///
@@ -101,8 +102,20 @@ class _ChatInputBarState extends ConsumerState<ChatInputBar> {
                 // 深度思考 — 直接读写 provider，同步 reasoning_effort
                 _EffortButton(
                   effort: effort,
-                  onChanged: (v) =>
-                      ref.read(reasoningEffortProvider.notifier).state = v,
+                  onChanged: (v) {
+                    ref.read(reasoningEffortProvider.notifier).state = v;
+                    // A5 断链①接线：运行期同步主 provider（app_bootstrap 注入的
+                    // agentProviderProvider，类型即 DeepSeekProvider），使档位
+                    // 真实作用于请求参数。
+                    final p = ref.read(agentProviderProvider);
+                    if (v == 'off') {
+                      p.setThinking('disabled');
+                      p.setReasoningEffort('off');
+                    } else {
+                      p.setThinking('enabled');
+                      p.setReasoningEffort(v);
+                    }
+                  },
                 ),
               ],
             ),

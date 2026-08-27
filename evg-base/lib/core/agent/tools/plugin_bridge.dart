@@ -13,6 +13,7 @@ import 'dart:io';
 
 import 'package:evergreen_base/core/plugin/plugin_runner.dart';
 import '../tool.dart';
+import 'agent_process_registry.dart';
 
 // ═══════ ArgSpec ═══════
 
@@ -66,6 +67,14 @@ class PluginManifest {
   final ArgSpec argSpec;
   final String runtime;
 
+  /// 进程生命周期（Task 三决策 3.1）：
+  /// - `once`（默认）：一次性——AI 调用该 tool 后进程即被回收（现有 runOnce 路径）；
+  /// - `resident`：常驻——AI 调用后进程持续运行，登记到后台进程注册表，
+  ///   直到 AI 用 `kill_process` 主动结束。
+  ///
+  /// 解析：缺省 → `once`；未知值 → 静默回退 `once`（项目铁律「未知静默忽略」）。
+  final String lifetime;
+
   const PluginManifest({
     required this.name,
     required this.description,
@@ -74,6 +83,7 @@ class PluginManifest {
     this.argMode = 'stdin',
     this.argSpec = const ArgSpec(),
     this.runtime = 'native',
+    this.lifetime = 'once',
   });
 
   /// 从 JSON 字符串解析。
@@ -94,7 +104,16 @@ class PluginManifest {
       argMode: map['argMode']?.toString() == 'args' ? 'args' : 'stdin',
       argSpec: argSpec,
       runtime: map['runtime'] as String? ?? 'native',
+      lifetime: _parseLifetime(map['lifetime']),
     );
+  }
+
+  /// 解析 `lifetime`：仅 `"resident"` 命中常驻；缺省 / 未知值一律回退 `once`
+  /// （向后兼容：旧插件无该字段行为不变）。
+  static String _parseLifetime(dynamic raw) {
+    final s = raw?.toString();
+    if (s == 'resident') return 'resident';
+    return 'once';
   }
 
   bool get isValid => name.isNotEmpty;
@@ -136,34 +155,77 @@ class PluginTool extends Tool {
   Future<String> execute(Map<String, dynamic> args) async {
     try {
       final runner = await _ensureRunner();
-      final RunResult res;
-      if (_manifest.argMode == 'args') {
-        res = await runner.runOnce(
-          _exePath,
-          _buildArgv(args),
-          runtime: _manifest.runtime,
-        );
-      } else {
-        res = await runner.runOnce(
-          _exePath,
-          const [],
-          stdinJson: args,
-          runtime: _manifest.runtime,
-        );
-      }
-      if (res.exitCode != 0) {
-        final errInfo =
-            res.stderr.isNotEmpty ? '\n[stderr]\n${res.stderr}' : '';
-        return '[plugin "${_manifest.name}" exited with code '
-            '${res.exitCode}]$errInfo\n${res.stdout}';
-      }
-      if (res.stderr.isNotEmpty) {
-        return '${res.stdout}\n[stderr]\n${res.stderr}';
-      }
-      return res.stdout.isNotEmpty ? res.stdout : '_(no output)_';
+      // 常驻插件（lifetime:"resident"）：startLong 常驻 + 登记后台注册表，
+      // execute 立即返回「已后台启动」占位文本。
+      final result = (_manifest.lifetime == 'resident')
+          ? await _executeResident(runner, args)
+          : await _executeOnce(runner, args);
+      return result;
     } catch (e) {
       return '[plugin "${_manifest.name}" error: $e]';
     }
+  }
+
+  /// 一次性执行（lifetime 缺省 / `once`，向后兼容的既有路径）。
+  Future<String> _executeOnce(PluginRunner runner, Map<String, dynamic> args) async {
+    final RunResult res;
+    if (_manifest.argMode == 'args') {
+      res = await runner.runOnce(
+        _exePath,
+        _buildArgv(args),
+        runtime: _manifest.runtime,
+      );
+    } else {
+      res = await runner.runOnce(
+        _exePath,
+        const [],
+        stdinJson: args,
+        runtime: _manifest.runtime,
+      );
+    }
+    if (res.exitCode != 0) {
+      final errInfo =
+          res.stderr.isNotEmpty ? '\n[stderr]\n${res.stderr}' : '';
+      return '[plugin "${_manifest.name}" exited with code '
+          '${res.exitCode}]$errInfo\n${res.stdout}';
+    }
+    if (res.stderr.isNotEmpty) {
+      return '${res.stdout}\n[stderr]\n${res.stderr}';
+    }
+    return res.stdout.isNotEmpty ? res.stdout : '_(no output)_';
+  }
+
+  /// 常驻执行（lifetime:"resident"）：经 [PluginRunner.startLong] 启动后
+  /// 登记到全局后台进程注册表，返回「已后台启动」占位文本；进程输出在后台
+  /// 累积，AI 可后续用 `list_processes` 查看、`kill_process` 结束。
+  ///
+  /// 幂等：同 key（工具名）已在运行则不重复启动。
+  Future<String> _executeResident(
+      PluginRunner runner, Map<String, dynamic> args) async {
+    final key = _manifest.name;
+    if (agentProcessRegistry.isRunning(key)) {
+      return '[后台已运行: $key] 进程已在后台运行，输出将自动回填。'
+          '可用 list_processes 查看累积输出，或 kill_process 结束。';
+    }
+    final argv = _manifest.argMode == 'args'
+        ? _buildArgv(args)
+        : const <String>[];
+    final proc = await runner.startLong(
+      _exePath,
+      argv,
+      runtime: _manifest.runtime,
+    );
+    if (_manifest.argMode == 'stdin') {
+      try {
+        proc.stdin.write(jsonEncode(args));
+        await proc.stdin.close();
+      } catch (_) {
+        // 进程可能已退出或 stdin 不可写：忽略，常驻进程仍以空参数运行。
+      }
+    }
+    agentProcessRegistry.attach(key, proc);
+    return '[后台已启动: $key] 输出将自动回填。'
+        '可用 list_processes 查看累积输出，或 kill_process 结束。';
   }
 
   List<String> _buildArgv(Map<String, dynamic> args) {

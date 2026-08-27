@@ -22,6 +22,7 @@ import 'package:flutter_math_fork/flutter_math.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart' as fp;
+import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:evergreen_base/core/config/config.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
@@ -36,6 +37,8 @@ import 'package:evergreen_base/core/agent/agent_runtime.dart'
 import 'package:evergreen_base/providers.dart';
 import 'package:evergreen_base/providers.dart' show agentControllerProvider;
 import 'package:evergreen_base/core/agent/session_manager.dart';
+import 'package:evergreen_base/core/utils/greenix_path.dart';
+import 'package:evergreen_base/renderer/components/shared/workspace_file_download.dart';
 import 'package:evergreen_base/renderer/components/shared/widgets/models.dart';
 import 'package:evergreen_base/renderer/components/shared/widgets/mindmap_widget.dart';
 import 'package:evergreen_base/renderer/components/shared/widgets/workspace_drawer.dart';
@@ -44,6 +47,7 @@ import 'package:evergreen_base/renderer/components/shared/widgets/system_drawer_
 import 'package:evergreen_base/renderer/page/file_viewer.dart';
 import 'package:evergreen_base/renderer/page/global_memory_view.dart';
 import 'package:evergreen_base/renderer/page/skill_management_view.dart';
+import 'package:evergreen_base/renderer/templates/v4_modle/components/interaction/chat/session_branch.dart';
 
 /// AI 助手工作区的统一模块 id——Agent 写入端（agent_factory / main 等）
 /// 与 UI 读取端（工作区抽屉 [WorkspaceDrawer]）都通过 [greenixWorkspaceDir] 指向同一目录。
@@ -74,6 +78,12 @@ class _AssemblySessionData {
 final _chatMessagesProvider =
     StateNotifierProvider<_LocalChatMessagesNotifier, List<ChatMessage>>(
         (ref) => _LocalChatMessagesNotifier());
+
+/// 后台 tool 进程数（Task 三决策 3.2 UI 侧）——响应式计数，由
+/// [_ChatControllerViewState._refreshBgProcessCount] 定时/事件刷新。
+/// 数据源是 core 全局单例 [agent.agentProcessRegistry]（agent.dart barrel 已导出）。
+final _bgProcessCountProvider =
+    StateProvider<int>((ref) => agent.agentProcessRegistry.activeNames().length);
 
 /// Chat 范式统一控制器视图——全屏 / 嵌入两用。
 ///
@@ -191,9 +201,13 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
   List<StreamSubscription<SlotEvent>>? _eventBusSubs;
 
   // ── 文件附件 ──
-  String? _attachedFilePath;
   String? _attachedFileName;
-  String? _attachedFileOcrText;
+
+  /// 附件复制进工作区后的相对路径（Task 四决策 4.1）。null = 复制失败或未复制。
+  String? _attachedRelPath;
+
+  /// 附件复制进工作区失败的原因（成功为 null）。
+  String? _attachedImportError;
   bool _attaching = false;
 
   @override
@@ -205,6 +219,9 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     );
     _elapsedTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (_isRunning && mounted) setState(() => _elapsedSeconds++);
+      // 后台 tool 进程数响应式刷新（Task 三决策 3.2 UI 侧）——复用既有 1s 定时器，
+      // 不新增 Timer；计数变化才写 provider，避免无谓重建。
+      if (mounted) _refreshBgProcessCount();
     });
 
     // 修复：把「联网搜索」开关（webSearchEnabledProvider）真正挂钩到全局工具
@@ -260,6 +277,14 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
           curve: Curves.easeOut,
         );
       });
+    }
+  }
+
+  /// 刷新「后台 tool 进程数」provider（计数变化才写，避免无谓重建）。
+  void _refreshBgProcessCount() {
+    final n = agent.agentProcessRegistry.activeNames().length;
+    if (ref.read(_bgProcessCountProvider) != n) {
+      ref.read(_bgProcessCountProvider.notifier).state = n;
     }
   }
 
@@ -337,6 +362,9 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
         case agent.EventKind.toolDispatch:
           if (event.tool != null) {
             _flushAnswerToTimeline();
+            // show_file4u：注入文件卡片标记（Task 七 9.2），
+            // 由 _MessageBubble 解析渲染「预览 + 下载」卡片。
+            _handleShowFile4u(event.tool!);
             final name = event.tool!.name;
             final isRead = name == 'read_global_memory';
             final isWrite = name == 'write_global_memory';
@@ -460,6 +488,35 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     }
   }
 
+  // ── show_file4u 文件卡片（Task 七 9.2） ──
+
+  /// 解析 show_file4u 工具参数（`arguments` 原始 JSON）→ 工作区相对路径。
+  /// 工具名不符 / 参数非法 / 无 file_path 时静默返回 null（缺省零行为变化）。
+  String? _parseShowFile4uPath(agent.ToolEventPayload tool) {
+    if (tool.name != 'show_file4u') return null;
+    try {
+      final decoded = jsonDecode(tool.arguments);
+      if (decoded is! Map<String, dynamic>) return null;
+      final raw = decoded['file_path'];
+      if (raw is! String || raw.trim().isEmpty) return null;
+      return raw.trim();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// show_file4u 事件处理：把文件卡片标记注入待展示内容，由 [_MessageBubble]
+  /// 解析渲染卡片（点击预览 → [FileViewer]，下载 → 共享固定目录下载函数）。
+  /// 文件不存在 / 参数非法时静默跳过——工具侧会给模型返回错误，UI 不渲染破损卡片。
+  void _handleShowFile4u(agent.ToolEventPayload tool) {
+    final rel = _parseShowFile4uPath(tool);
+    if (rel == null) return;
+    final full = p.join(greenixWorkspaceDir(aiAssistantWorkspaceModuleId), rel);
+    if (!File(full).existsSync()) return;
+    if (_pendingAnswer.toString().contains('[📄 工作区文件: $rel]')) return; // 同文件防重复
+    _pendingAnswer.write('\n[📄 工作区文件: $rel]');
+  }
+
   String _buildCombinedMessage() {
     final timeline = _pendingTimeline.toString().trim();
     final answer = _pendingAnswer.toString().trim();
@@ -554,7 +611,16 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     final msg = messages[msgIndex];
     if (!msg.isUser) return;
 
-    final text = msg.content;
+    // ── edit/branch 语义（Task 六 Bug 7）──
+    // 不再删除旧历史：以该 user 消息为分叉点 fork 出新分支（新分支继承
+    // [0..forkTurn) 即该消息之前的全部历史），旧会话（含该消息及其后回复）
+    // 完整保留在会话列表；该消息文本回填输入框供编辑，重新发送后写入新分支。
+    // 分支是纯会话层操作，不触碰工作区文件（rewind/edit 不撤销工作区变更）。
+    final sourceId = ref.read(activeSessionIdProvider);
+    if (sourceId == null) return;
+
+    // UI 列表（仅 user/assistant 气泡）与 Agent Session（含 tool_call/tool_result
+    // 消息）索引不对齐：按「该消息是第 N 个 user 消息」在 Session 中定位分叉点。
     final ctrl = ref.read(agentControllerProvider);
     final sessionMessages = ctrl.session.messages;
     int sessionUserIdx = -1;
@@ -568,13 +634,25 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
         userCount++;
       }
     }
-    if (sessionUserIdx >= 0) {
-      ctrl.session.removeFrom(sessionUserIdx);
-    }
-    ref.read(_chatMessagesProvider.notifier).removeFrom(msgIndex);
+    if (sessionUserIdx < 0) return;
+
+    // forkSessionProvider(sourceId, forkTurn)：新分支继承 [0..forkTurn) 并切换为
+    // 活动会话（内部先 saveCurrentSessionProvider 保存父会话，再写入新分支并
+    // 更新 activeSessionId → build 里的 activeSessionId 监听自动同步消息列表）。
+    ref.read(forkSessionProvider)(sourceId, sessionUserIdx);
+
+    // 回填原文供编辑（剥离附件标记，避免把 [📎 …] 伪标记当正文重发）。
+    final text = _stripAttachmentMarker(msg.content);
     _inputCtrl.text = text;
     _inputCtrl.selection = TextSelection.collapsed(offset: text.length);
     FocusScope.of(context).requestFocus();
+  }
+
+  /// 剥离用户消息末尾的附件标记 `[📎 ...]`（与 [_MessageBubble] 的展示逻辑一致）。
+  static String _stripAttachmentMarker(String content) {
+    final m = RegExp(r'\[📎 .+?\]$').firstMatch(content);
+    if (m == null) return content;
+    return content.substring(0, content.length - m.group(0)!.length).trim();
   }
 
   int _countUserMessagesBefore(List<ChatMessage> messages, int msgIndex) {
@@ -608,7 +686,8 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
       if (_embeddedMessages.isEmpty) return;
       final lastUserIdx = _embeddedMessages.lastIndexWhere((m) => m.isUser);
       if (lastUserIdx < 0) return;
-      final text = _embeddedMessages[lastUserIdx].content;
+      // 剥离附件标记（[📎 …]），避免把伪标记当正文回填到编辑框。
+      final text = _stripAttachmentMarker(_embeddedMessages[lastUserIdx].content);
       // 删除最后一条 assistant 回复 + 最后一条 user
       if (_embeddedMessages.isNotEmpty && _embeddedMessages.last.isAssistant) {
         _embeddedMessages.removeLast();
@@ -659,26 +738,35 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
       if (path == null) return;
 
       setState(() {
-        _attachedFilePath = path;
         _attachedFileName = file.name;
+        _attachedRelPath = null;
+        _attachedImportError = null;
         _attaching = true;
       });
 
-      // 文本文件直接读取，图片/PDF 尝试 OCR
-      final ext = file.name.split('.').last.toLowerCase();
-      final textExts = ['txt', 'md', 'json', 'csv', 'py', 'dart'];
-      String? content;
-      if (textExts.contains(ext)) {
-        try {
-          content = await File(path).readAsString();
-        } catch (_) {}
-      }
+      // Task 四决策 4.1：上传任意文件 = 字节拷贝到 AI 助手工作区
+      // （二进制/文本通吃；同名自动加时间戳/序号防覆盖；PathSandbox 校验）。
+      // 发送时不再内联全文——AI 通过 read_file / ocr_file 读取工作区文件。
+      final importResult = await agent.importToWorkspace(
+        sourcePath: path,
+        workspaceDir: greenixWorkspaceDir(aiAssistantWorkspaceModuleId),
+      );
+      if (!mounted) return;
       setState(() {
-        _attachedFileOcrText = content ?? '(无法读取文件内容)';
+        _attachedRelPath = importResult.ok ? importResult.relativePath : null;
+        _attachedImportError = importResult.ok ? null : importResult.error;
         _attaching = false;
       });
+      if (!importResult.ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('文件未能复制到工作区：${importResult.error}'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
     } catch (e) {
-      setState(() => _attaching = false);
+      if (mounted) setState(() => _attaching = false);
     }
   }
 
@@ -688,10 +776,32 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     var text = _inputCtrl.text.trim();
     if (text.isEmpty && _attachedFileName == null) return;
 
+    // Task 四决策 4.1：附件不再内联全文——发给 AI 的是「文件已入工作区」的位置提示，
+    // 气泡（displayText）保持 `[📎 文件名]` 文件夹伪装，用户看到「上传文件给 AI 看」的体感。
+    // 双轨：sendText（真实发给 AI 的 user message）与 displayText（UI 气泡）分离。
+    String sendText = text;
+    String displayText = text;
+    final attachedName = _attachedFileName;
+    if (attachedName != null) {
+      if (text.isEmpty) text = '(文件)';
+      final rel = _attachedRelPath;
+      if (rel != null && rel.isNotEmpty) {
+        sendText = '用户上传了文件: $attachedName，已保存到 AI 助手工作区：$rel。\n'
+            '请阅读该文件后回答：文本文件请用 read_file 工具读取；'
+            '图片/PDF 或扫描件请调用 ocr_file 工具识别内容。'
+            '${text != '(文件)' ? '\n\n用户需求: $text' : ''}';
+      } else {
+        sendText = '用户上传了文件: $attachedName，但未能复制到工作区'
+            '${_attachedImportError != null ? '（$_attachedImportError）' : ''}。'
+            '${text != '(文件)' ? '\n\n用户需求: $text' : ''}';
+      }
+      displayText = '$text\n\n[📎 $attachedName]';
+    }
+
     // AgentAssembly 模式（嵌入/全屏均可用）
     if (_embeddedCtrl != null) {
       if (_isRunning) return;
-      _sendEmbedded(text);
+      _sendEmbedded(sendText, bubbleText: displayText);
       return;
     }
 
@@ -699,18 +809,6 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
 
     if (ref.read(activeSessionIdProvider) == null) {
       ref.read(createSessionProvider)(null);
-    }
-
-    // 有附件时拼接 OCR 内容
-    String displayText = text;
-    if (_attachedFileName != null && _attachedFileOcrText != null) {
-      if (text.isEmpty) text = '(文件)';
-      final ext = _attachedFileName!.split('.').last.toLowerCase();
-      final textExts = ['txt', 'md', 'json', 'csv', 'py', 'dart'];
-      if (textExts.contains(ext)) {
-        text = '用户上传了文件: $_attachedFileName\n\n【文件内容】\n$_attachedFileOcrText\n\n用户需求: $text';
-      }
-      displayText = '$text\n\n[📎 $_attachedFileName]';
     }
 
     final messagesNotifier = ref.read(_chatMessagesProvider.notifier);
@@ -721,18 +819,18 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     _pendingAnswer.clear();
     _textThrottleCount = 0;
     _hasBubble = false;
-    _currentTurnUserText = text;
+    _currentTurnUserText = sendText;
     _seenNotices.clear();
 
     setState(() {
-      _attachedFilePath = null;
       _attachedFileName = null;
-      _attachedFileOcrText = null;
+      _attachedRelPath = null;
+      _attachedImportError = null;
     });
 
     final webSearch = ref.read(webSearchEnabledProvider);
     final ctrl = ref.read(agentControllerProvider);
-    ctrl.send(webSearch ? _withWebSearchDirective(text) : text);
+    ctrl.send(webSearch ? _withWebSearchDirective(sendText) : sendText);
   }
 
   /// 为「联网搜索」开启时的用户消息追加指令，确保 Agent 实际调用 web_search
@@ -744,14 +842,18 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
 
   // ── 嵌入模式：发送 ──
 
-  void _sendEmbedded(String text) {
+  /// 嵌入模式：发送。[text] 是发给 AI 的 user message；[bubbleText] 为 UI 气泡
+  /// 展示文本（Task 四决策 4.1 附件双轨：缺省同 [text]，附件时为「用户文本 +
+  /// [📎 文件名]」文件夹伪装）。
+  void _sendEmbedded(String text, {String? bubbleText}) {
     final ctrl = _embeddedCtrl;
     if (ctrl == null) return;
+    final bubble = bubbleText ?? text;
     setState(() {
-      _embeddedMessages.add(ChatMessage(role: 'user', content: text));
+      _embeddedMessages.add(ChatMessage(role: 'user', content: bubble));
       // 首条用户消息自动命名（仅一次）
       if (!_assemblySessionAutoTitled && _embeddedMessages.where((m) => m.isUser).length == 1) {
-        final t = text.replaceAll('\n', ' ').trim();
+        final t = bubble.replaceAll('\n', ' ').trim();
         _localSessionTitle = t.length > 30 ? '${t.substring(0, 30)}...' : t;
         _assemblySessionAutoTitled = true;
       }
@@ -791,6 +893,15 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
 
       final model = getSetting(prefs, 'DEEPSEEK_MODEL');
       final baseUrl = getSetting(prefs, 'DEEPSEEK_BASE_URL');
+      // A5 断链②接线：嵌入 Agent 创建时传入初始 thinking/effort——
+      // 设置（DEEPSEEK_THINKING / DEEPSEEK_REASONING_EFFORT）优先，
+      // effort 缺失/非法回退 UI 档位 _localEffort（与 AgentAssembly 面板一致）。
+      final thinkingEnabled =
+          getSetting(prefs, 'DEEPSEEK_THINKING').toLowerCase() != 'false';
+      final effortSetting = getSetting(prefs, 'DEEPSEEK_REASONING_EFFORT');
+      final initialEffort = validReasoningEfforts.contains(effortSetting)
+          ? effortSetting
+          : _localEffort;
 
       final provider = agent.DeepSeekProvider(
         dio: Dio(BaseOptions(
@@ -800,7 +911,12 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
         apiKey: apiKey,
         model: model.isNotEmpty ? model : 'deepseek-v4-flash',
         baseUrl: baseUrl,
+        thinking: thinkingEnabled ? 'enabled' : 'disabled',
       );
+      if (initialEffort == 'off') {
+        provider.setThinking('disabled');
+      }
+      provider.setReasoningEffort(initialEffort);
 
       final skillIdx = ref.read(skillIndexProvider);
       final memStore = ref.read(memoryStoreProvider);
@@ -812,6 +928,9 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
         provider: provider,
         skillIndex: skillIdx,
         orchestrator: ref.read(dataOrchestratorProvider),
+        // Task 四决策 4.2：嵌入 Agent 同样获得 ocr_file / check_ocr_ready 工具，
+        // OCR Key 从设置读取（缺省回退环境变量）。
+        ocrApiKey: getSetting(prefs, 'DEEPSEEK_OCR_API_KEY'),
       );
 
       final assembly = AgentAssembly.fromConfig(
@@ -976,6 +1095,8 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
             _currentTool = event.tool!.name;
             _statusText = '🔧 ${event.tool!.name}';
           });
+          // show_file4u：注入文件卡片标记（Task 七 9.2，嵌入模式同款）。
+          _handleShowFile4u(event.tool!);
           _pendingTimeline.writeln('\n🔧 调用 ${event.tool!.name}');
           _maybeUpdateEmbeddedBubble();
         }
@@ -1210,6 +1331,12 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
             tooltip: '工具选项',
             onTap: () => _showToolsPopup(context),
           ),
+          // Task 三决策 3.2：后台 tool 进程入口（嵌入紧凑工具栏，图标式）。
+          _ToolbarIconButton(
+            icon: Icons.ad_units,
+            tooltip: '后台 tool 进程',
+            onTap: () => _showProcessesPopup(context),
+          ),
           const Spacer(),
           if (cfg['multi_session'] != false)
             IconButton(
@@ -1303,15 +1430,19 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                         itemBuilder: (_, i) {
                           final s = sessions[i];
                           final isActive = s.id == activeId;
+                          // Task 六 Bug 7：会话行显示分支计数小标签（分支族 > 1 时）。
+                          final branchCount =
+                              branchFamilyOf(sessions, s.id).length;
                           return ListTile(
                             selected: isActive,
                             selectedTileColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
                             title: Text(s.title.isEmpty ? '新对话' : s.title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                            subtitle: Text('${s.messages.length} 条消息', style: const TextStyle(fontSize: 12)),
+                            subtitle: Text('${s.messages.length} 条消息${branchCount > 1 ? ' · 分支 $branchCount' : ''}', style: const TextStyle(fontSize: 12)),
                             dense: true,
                             onTap: () { ref.read(switchSessionProvider)(s.id); Navigator.pop(ctx); },
                             trailing: PopupMenuButton<String>(
                               icon: const Icon(Icons.more_horiz, size: 16),
+                              color: theme.colorScheme.surfaceContainerLowest,
                               onSelected: (action) {
                                 if (action == 'rename') _showRenameSheet(ctx, s.id, s.title);
                                 else if (action == 'delete') ref.read(deleteSessionProvider)(s.id);
@@ -1652,6 +1783,13 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     ref.listen<String?>(activeSessionIdProvider, (prev, next) {
       if (prev == next) return;
       _syncMessagesFromRuntime();
+      // Bug 8：切换/分叉/新建会话后自动滑到最新（_scrollToBottom 内置
+      // postFrameCallback）。长会话 ListView 懒加载下 maxScrollExtent 首次估算
+      // 可能偏小，延迟再滚一次确保到底。
+      _scrollToBottom();
+      Future<void>.delayed(const Duration(milliseconds: 120), () {
+        if (mounted) _scrollToBottom();
+      });
     });
 
     final messages = ref.watch(_chatMessagesProvider);
@@ -1669,10 +1807,21 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
           tooltip: '会话历史',
           onPressed: () => _scaffoldKey.currentState?.openDrawer(),
         ),
-        title: Text(
-          ref.watch(activeSessionTitleProvider),
-          style:
-              const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              ref.watch(activeSessionTitleProvider),
+              style:
+                  const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            // Task 六 Bug 7：分支切换「< 分支 i/n >」——当前会话有父/兄弟/子
+            // 分支时显示；旧会话（分支族大小 1）不显示，行为零变化。
+            _BranchSwitcher(sessionId: ref.watch(activeSessionIdProvider)),
+          ],
         ),
         centerTitle: false,
         actions: [
@@ -1960,6 +2109,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                     },
                     trailing: PopupMenuButton<String>(
                       icon: const Icon(Icons.more_vert, size: 16),
+                      color: theme.colorScheme.surfaceContainerLowest,
                       itemBuilder: (_) => [
                         const PopupMenuItem(
                             value: 'delete', child: Text('删除')),
@@ -2050,7 +2200,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                       value: false,
                       onChanged: (_) =>
                           _scaffoldKey.currentState?.openEndDrawer(),
-                      activeColor: const Color(0xFF1565C0),
+                      activeColor: theme.colorScheme.primary,
                     ),
                     const SizedBox(width: 6),
                   ],
@@ -2059,17 +2209,28 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                     label: '联网搜索',
                     value: ref.watch(webSearchEnabledProvider),
                     onChanged: (v) => _setWebSearchEnabled(v, ref),
-                    activeColor: const Color(0xFF1565C0),
+                    activeColor: theme.colorScheme.primary,
                   ),
                   const SizedBox(width: 6),
                   _EffortSelector(
                     effort: _localEffort,
-                    onChanged: (v) => setState(() {
-                      _localEffort = v;
-                      // AgentAssembly 的 effort 在创建时已配置，
-                      // 运行时修改 effort 需要重建 Provider；
-                      // 此处仅更新 UI 状态。
-                    }),
+                    onChanged: (v) {
+                      setState(() => _localEffort = v);
+                      // A5 断链②接线：同时驱动嵌入 Agent 的 provider
+                      // （_embeddedCtrl.provider 即 _initEmbeddedAgent 传入的共享
+                      // DeepSeekProvider 实例），使档位真实作用于请求参数。
+                      final ctrl = _embeddedCtrl;
+                      if (ctrl != null && ctrl.provider is agent.DeepSeekProvider) {
+                        final provider = ctrl.provider as agent.DeepSeekProvider;
+                        if (v == 'off') {
+                          provider.setThinking('disabled');
+                          provider.setReasoningEffort('off');
+                        } else {
+                          provider.setThinking('enabled');
+                          provider.setReasoningEffort(v);
+                        }
+                      }
+                    },
                   ),
                   const SizedBox(width: 6),
                   _ToggleChip(
@@ -2079,6 +2240,9 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                     onChanged: (_) => _showToolsPopup(context),
                     activeColor: const Color(0xFF2E7D32),
                   ),
+                  const SizedBox(width: 6),
+                  // Task 三决策 3.2：后台 tool 进程计数入口（点击弹窗管理）。
+                  const _BgProcessChip(),
                   const SizedBox(width: 6),
                   IconButton(
                     icon: const Icon(Icons.auto_fix_high, size: 18),
@@ -2132,7 +2296,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                   ),
                 ),
                 // 附件状态
-                if (_attachedFileOcrText != null)
+                if (_attachedFileName != null)
                   Padding(
                     padding: const EdgeInsets.only(right: 4),
                     child: Tooltip(
@@ -2149,9 +2313,9 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                         ),
                         onDeleted: () {
                           setState(() {
-                            _attachedFilePath = null;
                             _attachedFileName = null;
-                            _attachedFileOcrText = null;
+                            _attachedRelPath = null;
+                            _attachedImportError = null;
                           });
                         },
                         deleteIcon: const Icon(Icons.close,
@@ -2427,6 +2591,39 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     }
   }
 
+  /// 应用思考档位（Task 五 Bug 6 / A5 断链①运行期接线）：
+  /// ① 写全局 [reasoningEffortProvider]（UI 响应式真相源）；
+  /// ② 经 [agentProviderProvider]（app_bootstrap 注入的主 DeepSeekProvider，
+  /// 类型即 DeepSeekProvider，无需降级）同步 setThinking/setReasoningEffort，
+  /// 使档位真实作用于请求参数（agent_runtime 的 reasoningEffortProvider 监听
+  /// 只服务于 agentRuntimeProvider 自建实例，主路径不依赖它——见 A5 报告 §五-1）；
+  /// ③ 对齐 agent_runtime L169-176 的系统提示词强化（effortDescriptions）——
+  /// 主 Controller 创建时未自定义 systemPrompt，同步安全。
+  void _applyEffort(String v, WidgetRef ref) {
+    ref.read(reasoningEffortProvider.notifier).state = v;
+    final p = ref.read(agentProviderProvider);
+    if (v == 'off') {
+      p.setThinking('disabled');
+      p.setReasoningEffort('off');
+    } else {
+      p.setThinking('enabled');
+      p.setReasoningEffort(v);
+    }
+    final ctrl = ref.read(agentControllerProvider);
+    if (v == 'off') {
+      ctrl.setSystemPrompt(agent.defaultSystemPrompt);
+    } else {
+      const effortDescriptions = <String, String>{
+        'low': '请简要思考后回答。',
+        'medium': '请适度思考后回答。',
+        'high': '请深入思考后再回答。',
+        'max': '请做最全面的思考，考虑多种方案和边界情况后再回答。',
+      };
+      ctrl.setSystemPrompt(agent.defaultSystemPrompt +
+          '\n\n深度思考模式：$v 级。${effortDescriptions[v] ?? ''}');
+    }
+  }
+
   // ── 状态指示灯 ──
 
   Widget _buildStatusBar(ThemeData theme) {
@@ -2512,7 +2709,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                         value: false,
                         onChanged: (_) =>
                             _scaffoldKey.currentState?.openEndDrawer(),
-                        activeColor: const Color(0xFF1565C0),
+                        activeColor: theme.colorScheme.primary,
                       ),
                       const SizedBox(width: 6),
                     ],
@@ -2521,13 +2718,12 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                       label: '联网搜索',
                       value: webSearch,
                       onChanged: (v) => _setWebSearchEnabled(v, ref),
-                      activeColor: const Color(0xFF1565C0),
+                      activeColor: theme.colorScheme.primary,
                     ),
                     const SizedBox(width: 6),
                     _EffortSelector(
                       effort: effort,
-                      onChanged: (v) =>
-                          ref.read(reasoningEffortProvider.notifier).state = v,
+                      onChanged: (v) => _applyEffort(v, ref),
                     ),
                     const SizedBox(width: 6),
                     _ToggleChip(
@@ -2537,6 +2733,9 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                       onChanged: (_) => _showToolsPopup(context),
                       activeColor: const Color(0xFF2E7D32),
                     ),
+                    const SizedBox(width: 6),
+                    // Task 三决策 3.2：后台 tool 进程计数入口（点击弹窗管理）。
+                    const _BgProcessChip(),
                     const SizedBox(width: 6),
                     IconButton(
                       icon: const Icon(Icons.auto_fix_high, size: 18),
@@ -2597,7 +2796,7 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                   ),
                 ),
                 // 附件状态
-                if (_attachedFileOcrText != null)
+                if (_attachedFileName != null)
                   Padding(
                     padding: const EdgeInsets.only(right: 4),
                     child: Tooltip(
@@ -2615,9 +2814,9 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                         deleteIcon:
                             const Icon(Icons.close, size: 16),
                         onDeleted: () => setState(() {
-                          _attachedFilePath = null;
                           _attachedFileName = null;
-                          _attachedFileOcrText = null;
+                          _attachedRelPath = null;
+                          _attachedImportError = null;
                         }),
                         visualDensity: VisualDensity.compact,
                         padding: const EdgeInsets.symmetric(
@@ -2739,6 +2938,100 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
   }
 }
 
+// ═══════ 后台 tool 进程管理（Task 三决策 3.2 UI 侧） ═══════
+
+/// 「后台 N 个 tool 进程运行中」按钮的弹窗——列出全部已登记进程（含已退出），
+/// 每项显示名称/状态/累积输出摘要（截断 500 字符），可一键结束。
+///
+/// 复用 [_showToolsPopup] 的 showDialog 模式（避免 bottom sheet 拖拽手势吞点击）。
+/// 「结束」直接调 core 全局单例 [agent.agentProcessRegistry.kill]——与内置工具
+/// `kill_process`（KillProcessTool，见 core/agent/tools/agent_process_tools.dart）
+/// 等价：KillProcessTool 只是对同一注册表 kill 的薄包装，故 renderer 直调注册表
+/// 单例简化接线（分层红线例外：A3 已把注册表暴露为 core 顶层单例）。
+void _showProcessesPopup(BuildContext context) {
+  final theme = Theme.of(context);
+  showDialog(
+    context: context,
+    barrierDismissible: true,
+    builder: (dialogCtx) {
+      return StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final entries = agent.agentProcessRegistry.entries.toList()
+            ..sort((a, b) {
+              // 运行中的排前，其余按启动时间倒序。
+              if (a.isRunning != b.isRunning) return a.isRunning ? -1 : 1;
+              return b.startedAt.compareTo(a.startedAt);
+            });
+          final running = entries.where((e) => e.isRunning).length;
+          return Dialog(
+            insetPadding: const EdgeInsets.all(24),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: ConstrainedBox(
+              constraints:
+                  const BoxConstraints(maxWidth: 460, maxHeight: 520),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 8, 8),
+                    child: Row(
+                      children: [
+                        Icon(Icons.ad_units,
+                            size: 20, color: theme.colorScheme.primary),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text('后台 tool 进程（$running 个运行中）',
+                              style: theme.textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w600)),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 18),
+                          tooltip: '关闭',
+                          onPressed: () => Navigator.pop(dialogCtx),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(),
+                  if (entries.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Text('暂无后台 tool 进程',
+                          style: TextStyle(
+                              color: theme.colorScheme.onSurfaceVariant)),
+                    )
+                  else
+                    Flexible(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        itemCount: entries.length,
+                        itemBuilder: (ctx, i) {
+                          final e = entries[i];
+                          return _ProcessTile(
+                            entry: e,
+                            onKill: () async {
+                              await agent.agentProcessRegistry.kill(e.name);
+                              // 「结束」后刷新列表（StatefulBuilder 重建；
+                              // 弹窗若已关闭则跳过，避免对已卸载元素 setState）。
+                              if (ctx.mounted) setDialogState(() {});
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
 // ═══════ _MessageBubble ═══════
 
 class _MessageBubble extends StatefulWidget {
@@ -2834,6 +3127,16 @@ class _MessageBubbleState extends State<_MessageBubble> {
       content = content
           .substring(0, content.length - fileTagMatch.group(0)!.length)
           .trim();
+    }
+
+    // 检测 show_file4u 文件卡片标记（Task 七 9.2）——任意位置出现即提取并移除，
+    // 由下方 [_WorkspaceFileCard] 渲染「预览 + 下载」卡片。
+    String? fileCardRel;
+    final fileCardMatch =
+        RegExp(r'\[📄 工作区文件: (.+?)\]').firstMatch(content);
+    if (fileCardMatch != null) {
+      fileCardRel = fileCardMatch.group(1);
+      content = content.replaceFirst(fileCardMatch.group(0)!, '').trim();
     }
 
     // 检测 :::reasoning 标记
@@ -2950,6 +3253,10 @@ class _MessageBubbleState extends State<_MessageBubble> {
                     if (!isUser && reasoningContent != null)
                       _buildThinkingSection(reasoningContent!, s),
 
+                    // ── 文件卡片（show_file4u，Task 七 9.2） ──
+                    if (!isUser && fileCardRel != null)
+                      _WorkspaceFileCard(relativePath: fileCardRel!),
+
                     // ── 文件附件标记 ──
                     if (isUser && attachedFile != null)
                       Padding(
@@ -2996,7 +3303,11 @@ class _MessageBubbleState extends State<_MessageBubble> {
                                   .replaceAll('<br />', '\n'),
                               selectable: true,
                               builders: {
-                                'pre': _PreBlockBuilder(),
+                                'pre': _PreBlockBuilder(
+                                  codeBackground: Theme.of(context)
+                                      .colorScheme
+                                      .surfaceContainerLow,
+                                ),
                                 'code': _InlineMathBuilder(),
                               },
                               styleSheet: MarkdownStyleSheet(
@@ -3004,8 +3315,9 @@ class _MessageBubbleState extends State<_MessageBubble> {
                                 code: TextStyle(
                                   fontSize: 13 * s,
                                   fontFamily: 'monospace',
-                                  backgroundColor:
-                                      const Color(0xFFF5F5F5),
+                                  backgroundColor: Theme.of(context)
+                                      .colorScheme
+                                      .surfaceContainerLow,
                                   color: const Color(0xFFE53935),
                                 ),
                                 h1: TextStyle(
@@ -3081,10 +3393,10 @@ class _MessageBubbleState extends State<_MessageBubble> {
             constraints: const BoxConstraints(maxHeight: 280),
             margin: const EdgeInsets.only(top: 8),
             decoration: BoxDecoration(
-              color: const Color(0xFFFFF8E1),
+              color: Theme.of(context).colorScheme.tertiaryContainer,
               borderRadius: BorderRadius.circular(8),
-              border:
-                  Border.all(color: const Color(0xFFFFE082)),
+              border: Border.all(
+                  color: Theme.of(context).colorScheme.tertiary),
             ),
             child: SingleChildScrollView(
               controller: _thinkingScrollCtrl,
@@ -3240,8 +3552,8 @@ class _MessageBubbleState extends State<_MessageBubble> {
           ],
           if (isUser) ...[
             _ActionButton(
-              icon: Icons.undo,
-              tooltip: '撤回',
+              icon: Icons.edit_outlined,
+              tooltip: '编辑（保留原历史，另开分支）',
               size: 12 * s,
               onTap: () => widget.onEdit?.call(),
             ),
@@ -3306,6 +3618,122 @@ class _MessageBubbleState extends State<_MessageBubble> {
   }
 }
 
+// ═══════ _WorkspaceFileCard（show_file4u，Task 七 9.2） ═══════
+
+/// `show_file4u` 工具产出的文件卡片——显示文件名 + 大小，
+/// 右侧「下载」触发 9.1 的固定目录下载（成功弹窗路径+复制、失败报错），
+/// 点击卡片进入 [FileViewer] 预览（不支持预览的类型由 FileViewer 自行兜底）。
+class _WorkspaceFileCard extends StatelessWidget {
+  /// 工作区相对路径（来自 show_file4u 的 `file_path` 参数）。
+  final String relativePath;
+
+  const _WorkspaceFileCard({required this.relativePath});
+
+  /// 相对路径 → 绝对路径 + [WorkspaceFile]（与工作区抽屉同一路径契约）。
+  WorkspaceFile _resolveFile() {
+    final full =
+        p.join(greenixWorkspaceDir(aiAssistantWorkspaceModuleId), relativePath);
+    final f = File(full);
+    return WorkspaceFile(
+      name: relativePath.split('/').last,
+      path: full,
+      sizeBytes: f.existsSync() ? f.lengthSync() : 0,
+    );
+  }
+
+  static IconData _fileIcon(String name) {
+    final ext = name.split('.').last.toLowerCase();
+    return switch (ext) {
+      'dart' || 'py' || 'js' || 'ts' => Icons.code,
+      'md' || 'txt' => Icons.article,
+      'pdf' => Icons.picture_as_pdf,
+      'json' || 'yaml' || 'yml' => Icons.data_object,
+      'jpg' || 'jpeg' || 'png' || 'gif' || 'svg' || 'bmp' => Icons.image,
+      'html' || 'htm' => Icons.html,
+      'zip' || 'tar' || 'gz' || 'rar' => Icons.archive,
+      _ => Icons.insert_drive_file,
+    };
+  }
+
+  static String _formatSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final file = _resolveFile();
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant,
+          width: 0.5,
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(_fileIcon(file.name), size: 20, color: theme.colorScheme.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  file.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '工作区文件 · ${_formatSize(file.sizeBytes)}',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // 下载（复用 9.1 固定目录下载；成功弹窗路径+复制，失败报错）
+          IconButton(
+            icon: const Icon(Icons.download, size: 18),
+            tooltip: '下载',
+            visualDensity: VisualDensity.compact,
+            onPressed: () => _download(context, file),
+          ),
+          // 预览（FileViewer，同工作区点击文件）
+          TextButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => FileViewer(file: file)),
+            ),
+            child: const Text('预览'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _download(BuildContext context, WorkspaceFile file) async {
+    final r = await downloadWorkspaceFile(file);
+    if (!context.mounted) return;
+    if (r.ok) {
+      showWorkspaceDownloadSuccessDialog(context, [r.savedPath!]);
+    } else {
+      showWorkspaceDownloadErrorSnackBar(context, r.error!);
+    }
+  }
+}
+
 // ═══════ Markdown Builders ═══════
 
 /// 内联数学公式渲染器（`math:...` 语法）。
@@ -3331,6 +3759,11 @@ class _InlineMathBuilder extends MarkdownElementBuilder {
 
 /// 代码块构建器：处理 mindmap 和 math 代码块。
 class _PreBlockBuilder extends MarkdownElementBuilder {
+  /// 普通代码块背景色（由调用方注入主题色，深色模式自动适配）。
+  final Color? codeBackground;
+
+  _PreBlockBuilder({this.codeBackground});
+
   @override
   Widget? visitElementAfter(element, TextStyle? preferredStyle) {
     if (element.children == null || element.children!.isEmpty) {
@@ -3369,7 +3802,7 @@ class _PreBlockBuilder extends MarkdownElementBuilder {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF5F5F5),
+        color: codeBackground ?? const Color(0xFFF5F5F5),
         borderRadius: BorderRadius.circular(8),
       ),
       child: SelectableText(
@@ -3550,6 +3983,8 @@ class _ConversationHistoryPanel extends ConsumerWidget {
                           m.role == agent.Role.user ||
                           m.role == agent.Role.assistant)
                       .length;
+                  // Task 六 Bug 7：会话行显示分支计数小标签（分支族 > 1 时）。
+                  final branchCount = branchFamilyOf(sessions, s.id).length;
                   return ListTile(
                     selected: isActive,
                     selectedTileColor: theme
@@ -3575,7 +4010,8 @@ class _ConversationHistoryPanel extends ConsumerWidget {
                       ),
                     ),
                     subtitle: Text(
-                      '$msgCount 条消息 · ${_formatRelativeTime(s.updatedAt)}',
+                      '$msgCount 条消息 · ${_formatRelativeTime(s.updatedAt)}'
+                      '${branchCount > 1 ? ' · 分支 $branchCount' : ''}',
                       style: theme.textTheme.labelSmall?.copyWith(
                           color:
                               theme.colorScheme.onSurfaceVariant),
@@ -3589,6 +4025,7 @@ class _ConversationHistoryPanel extends ConsumerWidget {
                       icon: const Icon(Icons.more_horiz,
                           size: 16),
                       padding: EdgeInsets.zero,
+                      color: theme.colorScheme.surfaceContainerLowest,
                       onSelected: (action) {
                         if (action == 'rename') {
                           _showRenameDialog(
@@ -3627,6 +4064,59 @@ class _ConversationHistoryPanel extends ConsumerWidget {
           onTap: onGlobalMemory,
         ),
         const SizedBox(height: 4),
+      ],
+    );
+  }
+}
+
+// ═══════ _BranchSwitcher ═══════
+
+/// Task 六 Bug 7：分支切换控件「< 分支 i/n >」。
+///
+/// 读取 [sessionListProvider]（内部即 `sessionStoreProvider.listAll()`）过滤出
+/// 当前会话的分支族（自身 + 父会话 + 同父兄弟 + 子分支，见 session_branch.dart），
+/// 分支族大小 > 1 时显示序号与左右切换按钮；否则返回空（旧会话无分支元数据 →
+/// 零行为变化）。切换走 [switchSessionProvider]：纯会话层操作，不撤销工作区变更。
+class _BranchSwitcher extends ConsumerWidget {
+  final String? sessionId;
+
+  const _BranchSwitcher({this.sessionId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final id = sessionId ?? ref.watch(activeSessionIdProvider);
+    if (id == null) return const SizedBox.shrink();
+    final sessions =
+        ref.watch(sessionListProvider).valueOrNull ?? const <agent.Session>[];
+    final group = branchFamilyOf(sessions, id);
+    if (group.length <= 1) return const SizedBox.shrink();
+    final index = branchIndexIn(group, id);
+    final dim = Theme.of(context).colorScheme.onSurfaceVariant;
+
+    Widget arrow(IconData icon, bool next) {
+      return InkWell(
+        onTap: () {
+          final target = branchSwitchTo(group, id, next: next);
+          if (target != null) ref.read(switchSessionProvider)(target);
+        },
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.all(1),
+          child: Icon(icon, size: 14, color: dim),
+        ),
+      );
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        arrow(Icons.chevron_left, false),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: Text('分支 $index/${group.length}',
+              style: TextStyle(fontSize: 10, color: dim)),
+        ),
+        arrow(Icons.chevron_right, true),
       ],
     );
   }
@@ -3725,12 +4215,13 @@ class _EffortSelector extends StatelessWidget {
   };
 
   static const _levelColor = Color(0xFF7B1FA2);
-  static const _offColor = Color(0xFF757575);
 
   @override
   Widget build(BuildContext context) {
     final isOn = effort != 'off';
-    final color = isOn ? _levelColor : _offColor;
+    final color = isOn
+        ? _levelColor
+        : Theme.of(context).colorScheme.onSurfaceVariant;
     final label = _labels[effort] ?? '思考';
 
     return FilterChip(
@@ -3814,6 +4305,118 @@ class _EffortSelector extends StatelessWidget {
     ).then((selected) {
       if (selected != null) onChanged(selected);
     });
+  }
+}
+
+// ═══════ _BgProcessChip ═══════
+
+/// 工具区「后台 N」chip——Task 三决策 3.2 的 UI 入口：
+/// 显示当前后台 tool 进程数（[_bgProcessCountProvider] 响应式刷新），
+/// 点击弹出 [_showProcessesPopup] 管理列表。
+class _BgProcessChip extends ConsumerWidget {
+  const _BgProcessChip();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final n = ref.watch(_bgProcessCountProvider);
+    final theme = Theme.of(context);
+    final active = n > 0;
+    return Tooltip(
+      message: '后台 $n 个 tool 进程运行中，点击查看/结束',
+      child: FilterChip(
+        avatar: Icon(Icons.ad_units,
+            size: 16,
+            color: active
+                ? theme.colorScheme.onPrimary
+                : theme.colorScheme.onSurfaceVariant),
+        label: Text('后台 $n',
+            style: TextStyle(
+                fontSize: 12,
+                color: active ? theme.colorScheme.onPrimary : null)),
+        selected: active,
+        selectedColor: theme.colorScheme.primary,
+        checkmarkColor: theme.colorScheme.onPrimary,
+        showCheckmark: false,
+        onSelected: (_) => _showProcessesPopup(context),
+        visualDensity: VisualDensity.compact,
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      ),
+    );
+  }
+}
+
+// ═══════ _ProcessTile ═══════
+
+/// 后台进程列表条目：名称 + 状态（运行中/已退出）+ 累积输出摘要（截断 500
+/// 字符）+ 「结束」按钮（仅运行中显示）。
+class _ProcessTile extends StatelessWidget {
+  final agent.ResidentProcessEntry entry;
+  final VoidCallback onKill;
+
+  const _ProcessTile({required this.entry, required this.onKill});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isRunning = entry.isRunning;
+    final status = isRunning
+        ? '运行中'
+        : '已退出${entry.exitCode != null ? ' (exit=${entry.exitCode})' : ''}';
+    final raw = entry.output.trim();
+    final summary =
+        raw.length > 500 ? '${raw.substring(0, 500)}…' : raw;
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 3),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: ListTile(
+        leading: Icon(
+          isRunning ? Icons.ad_units : Icons.stop_circle_outlined,
+          size: 20,
+          color: isRunning
+              ? theme.colorScheme.primary
+              : theme.colorScheme.onSurfaceVariant,
+        ),
+        title: Text(entry.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodyMedium
+                ?.copyWith(fontWeight: FontWeight.w600, fontSize: 13)),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(status,
+                style: TextStyle(
+                    fontSize: 11,
+                    color: isRunning
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.onSurfaceVariant)),
+            if (summary.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(summary,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontFamily: 'monospace',
+                        color: theme.colorScheme.onSurfaceVariant)),
+              ),
+          ],
+        ),
+        trailing: isRunning
+            ? TextButton(
+                onPressed: onKill,
+                child: const Text('结束', style: TextStyle(fontSize: 12)),
+              )
+            : null,
+        dense: true,
+        visualDensity: VisualDensity.compact,
+      ),
+    );
   }
 }
 

@@ -28,14 +28,18 @@ import 'package:evergreen_base/core/agent/session_manager.dart';
 import 'package:evergreen_base/core/agent/skill/skill.dart';
 import 'package:evergreen_base/core/agent/tool.dart' as agent;
 import 'package:evergreen_base/core/agent/tools/agent_http_server.dart';
+import 'package:evergreen_base/core/agent/tools/agent_process_tools.dart';
 import 'package:evergreen_base/core/agent/tools/data_query.dart';
 import 'package:evergreen_base/core/agent/tools/file_info.dart';
 import 'package:evergreen_base/core/agent/tools/grep.dart';
 import 'package:evergreen_base/core/agent/tools/head_tail.dart';
+import 'package:evergreen_base/core/agent/tools/ocr_file_tool.dart';
 import 'package:evergreen_base/core/agent/tools/plugin_bridge.dart';
 import 'package:evergreen_base/core/agent/tools/python_runner_tool.dart';
 import 'package:evergreen_base/core/agent/tools/read_file.dart';
 import 'package:evergreen_base/core/agent/tools/read_global_memory.dart';
+import 'package:evergreen_base/core/agent/tools/show_file4u.dart';
+import 'package:evergreen_base/core/agent/tools/research_search.dart';
 import 'package:evergreen_base/core/agent/tools/run_skill.dart';
 import 'package:evergreen_base/core/agent/tools/web_search.dart';
 import 'package:evergreen_base/core/agent/tools/write_file.dart';
@@ -557,6 +561,22 @@ class AppBootstrap {
     toolRegistry = registry;
     // provider 暂存供 controller 步骤使用
     _agentProvider = provider;
+
+    // ── 接线：主 AI 助手初始 thinking/effort（Task 五 A5，断链①③修复）──
+    // DEEPSEEK_THINKING 设置项此前无人读取（断链③）；缺省 true = 现状
+    // thinking enabled，行为不变。
+    final thinkingSetting = getSetting(p, 'DEEPSEEK_THINKING');
+    final thinkingEnabled = thinkingSetting.toLowerCase() != 'false';
+    provider.setThinking(thinkingEnabled ? 'enabled' : 'disabled');
+    // DEEPSEEK_REASONING_EFFORT（新增可选设置，Task 五 A5）：读取失败/非法值
+    // 回退 'off' = 现状不发 effort，行为不变。off/low/medium/high/max 为 UI 档位语义，
+    // 发送时由 provider 按模型支持矩阵归一化（max → high）。
+    const validEfforts = ['off', 'low', 'medium', 'high', 'max'];
+    final effortSetting = getSetting(p, 'DEEPSEEK_REASONING_EFFORT');
+    final effort = validEfforts.contains(effortSetting) ? effortSetting : 'off';
+    provider.setReasoningEffort(effort);
+    Log().info('[BOOT] Agent Provider 初始: thinking=${thinkingEnabled ? 'enabled' : 'disabled'}'
+        ' effort=$effort model=$model');
     return _ok();
   }
 
@@ -570,12 +590,37 @@ class AppBootstrap {
     registry.register(ReadGlobalMemoryTool(memoryStore!));
     registry.register(WriteGlobalMemoryTool(memoryStore!));
     registry.register(WebSearchTool(_agentDio!));
+    // Task 二（A2）：主助手补齐 web_fetch 与三个专业检索工具——
+    // 与 agent_factory.buildStandardTools / agent_runtime.agentRuntimeProvider
+    // 三处注册点同步（skill-creator 轻量复用资产，零重依赖）。
+    registry.register(WebFetchTool(_agentDio!));
+    registry.register(ArxivSearchTool(_agentDio!));
+    registry.register(GithubSearchTool(_agentDio!));
+    registry.register(CrossrefSearchTool(_agentDio!));
     registry.register(ReadFileTool(workspaceDir: aiWorkspace));
     registry.register(WriteFileTool(workspaceDir: aiWorkspace));
     registry.register(GrepTool(workspaceDir: aiWorkspace));
     registry.register(ReadHeadTool(workspaceDir: aiWorkspace));
     registry.register(ReadTailTool(workspaceDir: aiWorkspace));
     registry.register(FileInfoTool(workspaceDir: aiWorkspace));
+    // OCR 工具（Task 四决策 4.2）——与 agent_runtime / agent_factory 同步注册；
+    // 真实能力走 core OcrPipeline（DeepSeek 云端 → Tesseract 本地两级降级），
+    // Key 优先读设置（DEEPSEEK_OCR_API_KEY），缺省回退环境变量（OcrPipeline 内部）。
+    final ocrPipeline = OcrPipeline(
+        _agentDio!, null, getSetting(prefs!, 'DEEPSEEK_OCR_API_KEY'));
+    registry.register(OcrFileTool(
+        recognize: ocrPipeline.recognizeFile, workspaceDir: aiWorkspace));
+    registry.register(CheckOcrReadyTool(readiness: () async {
+      final r = await ocrPipeline.checkReadiness();
+      return CheckOcrReadyTool.readinessMap(
+        summarize: r.summarize(),
+        python: r.pythonAvailable,
+        pdfScript: r.pdfScriptAvailable,
+        ocrScript: r.ocrFileScriptAvailable,
+        ocrKey: r.deepSeekKeyConfigured,
+        tesseract: r.tesseractAvailable,
+      );
+    }));
     registry.register(DataQueryTool(orchestrator: orchestrator));
     // Skill 工具 —— 与全局 agentRuntimeProvider / AgentAssembly.buildStandardTools 对齐
     final skillToolLoader = SkillLoader(
@@ -611,6 +656,14 @@ class AppBootstrap {
     }
     // 注册插件 Agent 工具
     PluginBridge.registerAll(registry, Directory(pluginsDir));
+    // 后台常驻进程管理工具（Task 三决策 3.2）——与 agent_runtime /
+    // agent_factory 同步注册；共享全局单例 agentProcessRegistry
+    // （list_processes 只读可并行；kill_process 写操作串行）。
+    registry.register(ListProcessesTool());
+    registry.register(KillProcessTool());
+    // 工作区文件展示工具（Task 七决策 9.2）——与 agent_runtime /
+    // agent_factory 同步注册；readOnly 纯展示，不列入 essentialToolNames。
+    registry.register(ShowFile4uTool(workspaceDir: aiWorkspace));
     Log().info('[BOOT] Agent 工具: ${registry.all().map((t) => t.name).toList()}');
     return _ok();
   }
@@ -844,6 +897,12 @@ class AppBootstrap {
 
           // Agent Controller——Chat 视图通过此 provider 发送消息
           agentControllerProvider.overrideWith((ref) => controller!),
+
+          // Agent Provider——主 AI 助手实际使用的 DeepSeekProvider。
+          // AI 面板调整 effort/thinking 时，渲染层经此 provider 直接调用
+          // setThinking/setReasoningEffort，避免 effort 落入无人消费的
+          // agentRuntimeProvider（Task 五 A5 断链①修复）。
+          agentProviderProvider.overrideWith((ref) => _agentProvider!),
 
           // Agent 工具注册表——供工具管理面板读取/控制
           toolRegistryProvider.overrideWith((ref) => toolRegistry!),

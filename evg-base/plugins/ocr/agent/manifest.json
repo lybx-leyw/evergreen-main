@@ -1,0 +1,18 @@
+{
+  "name": "ocr_file",
+  "description": "对扫描版 PDF / 图片文件运行 OCR（只读）。参数 file_path 为工作区相对路径或绝对路径。\nRun OCR on a scanned PDF or image file (read-only). Input: file_path (workspace-relative path preferred, absolute path allowed).",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "file_path": {
+        "type": "string",
+        "description": "工作区相对路径或绝对路径（扫描版 PDF / 图片文件）"
+      }
+    },
+    "required": ["file_path"]
+  },
+  "readOnly": true,
+  "runtime": "python",
+  "argMode": "stdin",
+  "lifetime": "once"
+}
