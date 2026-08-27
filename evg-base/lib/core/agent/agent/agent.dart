@@ -161,6 +161,10 @@ class Agent {
   bool _cancelled = false;
   int _step = 0;
 
+  /// 当前工作区绝对路径（由 Controller 注入，用于 system prompt 告知 AI
+  /// 工作区位置——vision 等文件解析工具需要绝对路径）。
+  final String? _workspaceDir;
+
   Agent({
     required Provider provider,
     required Registry registry,
@@ -169,13 +173,15 @@ class Agent {
     AgentOptions? options,
     Gate? gate,
     ToolHooks? hooks,
+    String? workspaceDir,
   })  : _provider = provider,
         _registry = registry,
         _session = session,
         _sink = sink,
         _options = options ?? const AgentOptions(),
         _gate = gate,
-        _hooks = hooks {
+        _hooks = hooks,
+        _workspaceDir = workspaceDir {
     if (_options.contextWindow > 0) {
       _compactor = Compactor(
         llm: _provider,
@@ -197,6 +203,19 @@ class Agent {
   void cancel() => _cancelled = true;
 
   // ── 主循环 ──
+
+  /// 在 system prompt 末尾追加工作区绝对路径提示（若已注入 workspaceDir），
+  /// 让 AI 知道文件类工具（尤其 vision OCR/读图）需要绝对路径。
+  String _withWorkspaceHint(String base) {
+    final ws = _workspaceDir;
+    if (ws == null || ws.isEmpty) return base;
+    return '$base\n\n## 工作区\n'
+        '当前 AI 助手的工作区绝对路径：`$ws`\n'
+        '文件类工具说明：\n'
+        '- 工作区工具（read_file / write_file 等）：文件参数可传工作区内相对路径或绝对路径。\n'
+        '- vision 工具（OCR 提取文字 / 读图描述）：`file_path` **必须传文件的绝对路径**'
+        '——工作区文件请用「工作区绝对路径 + 相对子路径」拼接后传入。\n';
+  }
 
   /// 运行一轮 Agent 交互。
   ///
@@ -250,7 +269,7 @@ class Agent {
       final tools = _registry.enabled();
       print('[Agent:D] compose() tools=${tools.length} session_msgs=${_session.messages.length}');
       final messages = compose(
-        systemPrompt: systemPrompt ?? defaultSystemPrompt,
+        systemPrompt: _withWorkspaceHint(systemPrompt ?? defaultSystemPrompt),
         tools: tools,
         session: _session,
         memoryContext: memoryContext,

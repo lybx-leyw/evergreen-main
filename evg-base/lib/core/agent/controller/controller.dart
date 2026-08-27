@@ -211,6 +211,9 @@ class Controller {
       sink: _sink,
       gate: _gate,
       hooks: _hooks,
+      // 注入工作区绝对路径 → system prompt 告知 AI（vision 等文件工具需绝对路径）。
+      workspaceDir:
+          _moduleId != null ? greenixWorkspaceDir(_moduleId!) : null,
     );
 
     _currentAgent = agent;
