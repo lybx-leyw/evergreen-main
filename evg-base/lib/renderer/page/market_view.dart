@@ -91,6 +91,7 @@ AbilityDim? _latticeDim(String? lattice) => switch (lattice) {
       'agent' || 'agent-tool' => AbilityDim.agent,
       'config' => AbilityDim.settings,
       'skill' => AbilityDim.skill,
+      'skin' => AbilityDim.skin,
       _ => null,
     };
 

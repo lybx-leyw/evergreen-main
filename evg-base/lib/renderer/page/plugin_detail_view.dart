@@ -320,6 +320,7 @@ class _PluginDetailViewState extends State<PluginDetailView> {
       case AbilityDim.theme: return '主题定制';
       case AbilityDim.settings: return '配置管理';
       case AbilityDim.skill: return '技能扩展';
+      case AbilityDim.skin: return 'AI 视图皮肤';
     }
   }
 }

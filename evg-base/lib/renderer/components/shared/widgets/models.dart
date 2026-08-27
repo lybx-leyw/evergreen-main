@@ -88,7 +88,8 @@ enum AbilityDim {
   data,
   theme,
   settings,
-  skill;
+  skill,
+  skin;
 
   String get label {
     switch (this) {
@@ -104,6 +105,8 @@ enum AbilityDim {
         return 'Settings';
       case AbilityDim.skill:
         return 'Skill';
+      case AbilityDim.skin:
+        return 'Skin';
     }
   }
 
@@ -121,6 +124,8 @@ enum AbilityDim {
         return '设置';
       case AbilityDim.skill:
         return '技能';
+      case AbilityDim.skin:
+        return '皮肤';
     }
   }
 }
