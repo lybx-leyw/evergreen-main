@@ -116,8 +116,16 @@ flutter:
     - assets/plugins_bundle/bright_brand_green/theme/theme.json
     - assets/plugins_bundle/data-dashboard/module/manifest.json
     - assets/plugins_bundle/dsh/module/manifest.json
+    - assets/plugins_bundle/example-skin-evergreen-logo/skin/avatar_user.svg
+    - assets/plugins_bundle/example-skin-evergreen-logo/skin/bg_desktop.svg
+    - assets/plugins_bundle/example-skin-evergreen-logo/skin/bg_mobile.svg
+    - assets/plugins_bundle/example-skin-evergreen-logo/skin/empty_icon.svg
+    - assets/plugins_bundle/example-skin-evergreen-logo/skin/manifest.json
     - assets/plugins_bundle/html-creator/module/manifest.json
     - assets/plugins_bundle/marketplace/module/manifest.json
+    - assets/plugins_bundle/ocr/agent/README.md
+    - assets/plugins_bundle/ocr/agent/manifest.json
+    - assets/plugins_bundle/ocr/agent/ocr_file.py
     - assets/plugins_bundle/python-runner/agent/manifest.json
     - assets/plugins_bundle/scraper/module/manifest.json
     - assets/plugins_bundle/settings/README.md
