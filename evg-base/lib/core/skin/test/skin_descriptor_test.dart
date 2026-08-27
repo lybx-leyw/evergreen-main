@@ -255,6 +255,20 @@ void main() {
       expect(s.emptyStateTitle, '你好呀');
     });
 
+    test('avatar 段：R2-3 补充 user 支持 SVG 图片引用（与 assistant 同构）', () {
+      final s = SkinDescriptor.fromJson({
+        ..._minimal(),
+        'avatar': {
+          'user': 'avatar_user.svg',
+          'userBackgroundColor': '#C8E6C9',
+          'assistant': 'empty_icon.svg',
+        },
+      });
+      expect(s.avatarUser, 'avatar_user.svg');
+      expect(s.avatarAssistant, 'empty_icon.svg');
+      expect(s.avatarUserBackgroundColor, '#C8E6C9'); // 无图片时底色兜底
+    });
+
     test('顶层功能色快捷覆盖', () {
       final s = SkinDescriptor.fromJson({
         ..._minimal(),

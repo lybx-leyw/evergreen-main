@@ -254,7 +254,8 @@ Widget? _skinBackgroundImageWidget(SkinDescriptor? skin, bool landscape) {
 bool _isSkinColorRef(String? v) => v != null && v.startsWith('#');
 
 /// 构建用户 / AI 头像（E）。默认渲染与现状一致；
-/// 皮肤配置 hex 颜色 → 换 CircleAvatar 底色；图片引用 → 渲染 logo 图片。
+/// 皮肤配置 hex 颜色 → 换 CircleAvatar 底色；图片引用（svg/png，与
+/// `avatar.assistant` 同构）→ 渲染皮肤内图片。
 Widget _buildSkinAvatar({
   required bool isUser,
   required double s,
@@ -269,12 +270,20 @@ Widget _buildSkinAvatar({
   // R2-3 用户头像底色：`avatar.userBackgroundColor`（专用 hex 键）优先，
   // 其次 `avatar.user` 的 hex 颜色，缺省保持现状
   // （用户 primary(0.7) / AI primaryContainer，零行为变化）。
-  final bg = _skinHex(skin?.avatarUserBackgroundColor) ??
-      color ??
+  final skinBg = _skinHex(skin?.avatarUserBackgroundColor) ?? color;
+  final bg = skinBg ??
       (isUser
           ? scheme.primary.withValues(alpha: 0.7)
           : scheme.primaryContainer);
-  final fg = isUser ? scheme.onPrimary : scheme.primary;
+  // R2-3 补充：皮肤把用户头像底色配成浅色时（默认皮肤淡蓝 #E3F2FD 等），
+  // onPrimary（浅色主题=白）图标会看不清 → 按底色亮度自适应：浅底用深灰蓝
+  // 图标。仅皮肤显式覆盖底色时生效；skin==null 时 fg 恒为 onPrimary（与
+  // 现状完全一致，零行为变化）。
+  final fg = isUser
+      ? (skinBg != null && skinBg.computeLuminance() > 0.5
+          ? const Color(0xFF37474F)
+          : scheme.onPrimary)
+      : scheme.primary;
   return CircleAvatar(
     radius: 14 * s,
     backgroundColor: bg,

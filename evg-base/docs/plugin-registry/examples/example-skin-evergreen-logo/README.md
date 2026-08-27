@@ -24,7 +24,7 @@ AI 视图皮肤包示例：`plugins/<id>/skin/manifest.json` + 图片资源（pn
 | C1 | 思考栏配色：`thinking.colors.*`（header/容器/边框/文本/四类 chip）+ 顶层 `effortColor`/`toolActiveColor` |
 | D1 / R2-3 | 气泡样式：`bubble.borderRadius` + 用户气泡底色/文字色（`userBackgroundColor`/`userTextColor`） |
 | E（R2-4） | 空状态装饰图标：`assets.emptyIcon`（**横竖屏一致的单一图标** `empty_icon.svg`）+ `emptyState.title` 自定义欢迎语 |
-| R2-3 | 用户头像底色：`avatar.userBackgroundColor`；AI 头像引用皮肤内图标 `avatar.assistant` |
+| R2-3 | 头像：**AI/用户头像均支持皮肤包内 SVG 图片或 hex 色配置**——`avatar.user`（`avatar_user.svg`）/ `avatar.assistant`（`empty_icon.svg`）为 SVG 演示（引用皮肤包内资源即渲染图片，hex 值如 `"#C8E6C9"` 则为底色着色），`avatar.userBackgroundColor` 为用户头像底色兜底（无图片时底色 + `Icons.person`） |
 
 ## 新语义速记（R2-4，避免语义漂移）
 

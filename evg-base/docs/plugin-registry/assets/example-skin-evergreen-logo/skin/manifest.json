@@ -58,6 +58,7 @@
   },
 
   "avatar": {
+    "user": "avatar_user.svg",
     "userBackgroundColor": "#C8E6C9",
     "assistant": "empty_icon.svg"
   },

@@ -32,6 +32,11 @@ const List<SkinDescriptor> builtinSkins = [
         'userBackgroundColor': '#E3F2FD',
         'userTextColor': '#0D47A1',
       },
+      // R2-3 补充：用户头像底色淡色（#E3F2FD 与气泡同系；不强制默认 SVG，
+      // 无图片时渲染层用浅底 + 深色 person 图标自适应）。
+      'avatar': {
+        'userBackgroundColor': '#E3F2FD',
+      },
     },
   ),
 ];

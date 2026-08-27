@@ -19,7 +19,7 @@
 /// | `buttons` | `inputBar.{workspace,webSearch,thinkingEffort,tools,bgProcess,skills,clear}`、`messageActions.{copy,regenerate,edit}` | 按钮显隐（B1/B2） | 工具栏 / 消息操作行 |
 /// | `thinking` | `title`、`visible`、`colors.{header,containerBackground,containerBorder,contentText,chipMemoryBg/Fg,chipSkillBg/Fg,chipToolBg/Fg,chipToolResultBg/Fg}` | 思考栏配色（C1）+ 标题（E） | 思考栏渲染点 |
 /// | `bubble` | `userBackground`/`userBackgroundColor`/`assistantBackground`/`userTextColor`/`assistantTextColor`/`borderRadius`/`maxWidthRatio` | 消息气泡样式（D1/R2-3） | 气泡 BoxDecoration / ConstrainedBox |
-/// | `avatar` | `user`/`assistant`（hex 颜色或图片资源引用）、`userBackgroundColor`（hex，R2-3） | 头像 DIY（E） | CircleAvatar |
+/// | `avatar` | `user`/`assistant`（hex 颜色**或皮肤内 SVG/图片资源引用**，两者同构，R2-3 补）、`userBackgroundColor`（hex，用户头像底色兜底） | 头像 DIY（E） | CircleAvatar |
 /// | `emptyState` | `logo`（hex 或图片引用）、`title` | 空状态欢迎区（E） | 空状态渲染 |
 /// | 顶层 | `effortColor`、`toolActiveColor`、`codeInline`、`codeBlockBackground` | 功能色快捷覆盖（C1） | 深度思考档位 / 工具激活 / 代码色 |
 ///
@@ -237,7 +237,10 @@ class SkinDescriptor {
   /// avatar 段通用取色（键：`user`/`assistant`/`userBackgroundColor` 等）。
   String? avatarColor(String key) => _str(avatar, key);
 
-  /// 用户头像：hex 颜色（`#` 开头）或图片资源引用（相对 manifest 路径）。
+  /// 用户头像：hex 颜色（`#` 开头）**或皮肤内 SVG/图片资源引用**
+  /// （相对 manifest 路径，如 `"avatar_user.svg"`，与 [avatarAssistant] 同构；
+  /// R2-3 补充）。无图片配置时渲染层用 [avatarUserBackgroundColor] 底色 +
+  /// `Icons.person` 兜底。
   String? get avatarUser => _str(avatar, 'user');
 
   /// AI 头像：hex 颜色（`#` 开头）或图片资源引用（相对 manifest 路径）。

@@ -106,6 +106,7 @@ flutter:
     - docs/plugin-registry/assets/warm_study/theme/theme.json
     - docs/plugin-registry/assets/example-skin-evergreen-logo/skin/manifest.json
     - docs/plugin-registry/assets/example-skin-evergreen-logo/skin/empty_icon.svg
+    - docs/plugin-registry/assets/example-skin-evergreen-logo/skin/avatar_user.svg
     - docs/plugin-registry/assets/example-skin-evergreen-logo/skin/bg_desktop.svg
     - docs/plugin-registry/assets/example-skin-evergreen-logo/skin/bg_mobile.svg
 
