@@ -255,15 +255,24 @@ class AgentAssembly {
     }
 
     // 注册 Python Runner — 统一解析（PythonInterpreter 同步探测嵌入式 Python，
-    // 与 resolvePythonExe 的 greenix 目录优先级一致：未找到嵌入式则不注册）。
-    final bundledPython = PythonInterpreter.bundledPathSync();
-    if (bundledPython != null) {
+    // 与 resolvePythonExe 的 greenix 目录优先级一致；安卓恒有进程内 Chaquopy
+    // 解释器 → isSupported=true，哨兵占位 + 执行时内部 sharedPluginRunner）。
+    if (PythonRunnerTool.isSupported) {
       if (!registry.has('python_runner')) {
-        registry.register(PythonRunnerTool(
-          pythonExePath: bundledPython,
-          pythonWorkDir: Directory(bundledPython).parent.path,
-          workspaceDir: greenixWorkspaceDir('ai-assistant'),
-        ));
+        if (Platform.isAndroid) {
+          registry.register(PythonRunnerTool(
+            pythonExePath: kChaquopySentinel,
+            pythonWorkDir: greenixWorkspaceDir('ai-assistant'),
+            workspaceDir: greenixWorkspaceDir('ai-assistant'),
+          ));
+        } else {
+          final bundledPython = PythonInterpreter.bundledPathSync()!;
+          registry.register(PythonRunnerTool(
+            pythonExePath: bundledPython,
+            pythonWorkDir: Directory(bundledPython).parent.path,
+            workspaceDir: greenixWorkspaceDir('ai-assistant'),
+          ));
+        }
       }
     }
 
