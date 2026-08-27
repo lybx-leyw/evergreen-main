@@ -1,29 +1,26 @@
 {
   "type": "skin",
-  "id": "example-skin-evergreen-logo",
+  "id": "evergreen-skin",
   "name": "绿意 Logo 皮肤",
   "version": "1.1.0",
   "description": "示例皮肤包：绿意不息 logo + 空状态图标（横竖屏一致）+ 分屏对话背景图（A/R2-4）+ 按钮显隐（B）+ 思考栏配色（C1）+ 头像/气泡颜色（R2-3）演示",
-
   "assets": {
     "emptyIcon": "empty_icon.svg"
   },
-
   "background": {
     "type": "image",
     "imageDesktop": "bg_desktop.svg",
     "imageMobile": "bg_mobile.svg"
   },
-
   "buttons": {
     "inputBar": {
-      "workspace": true,
+      "workspace": false,
       "webSearch": true,
       "thinkingEffort": true,
-      "tools": true,
+      "tools": false,
       "bgProcess": false,
-      "skills": true,
-      "clear": true
+      "skills": false,
+      "clear": false
     },
     "messageActions": {
       "copy": true,
@@ -31,7 +28,6 @@
       "edit": true
     }
   },
-
   "thinking": {
     "title": "思考过程",
     "colors": {
@@ -49,24 +45,20 @@
       "chipToolResultFg": "#1B5E20"
     }
   },
-
   "bubble": {
     "userBackgroundColor": "#DCEDC8",
     "userTextColor": "#33691E",
     "borderRadius": 18,
     "maxWidthRatio": 0.72
   },
-
   "avatar": {
     "user": "avatar_user.svg",
     "userBackgroundColor": "#C8E6C9",
     "assistant": "empty_icon.svg"
   },
-
   "emptyState": {
     "title": "我是你的绿意 AI 助手"
   },
-
   "effortColor": "#0F9D58",
   "toolActiveColor": "#0F9D58"
 }
