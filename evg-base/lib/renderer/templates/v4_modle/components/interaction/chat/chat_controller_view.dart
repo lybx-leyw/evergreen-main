@@ -181,6 +181,8 @@ Widget? _skinAssetImage(String? path, {double size = 28}) {
 /// 未配置 / 类型未知返回 null（保持现有默认背景，零行为变化）。
 ///
 /// 渐变角度约定：角度制，0° = 左→右，正值逆时针旋转；缺省 135°（斜向渐变）。
+/// `type=="image"` 的背景图不在此处理（svg 需要 SvgPicture 无法进
+/// DecorationImage，由 [_skinBackgroundImageWidget] 以 Stack 覆盖渲染）。
 Decoration? _skinBackground(SkinDescriptor? skin) {
   final type = skin?.backgroundType;
   if (type == 'solid') {
@@ -203,11 +205,57 @@ Decoration? _skinBackground(SkinDescriptor? skin) {
   return null;
 }
 
+/// R2-4 对话背景图资源引用——`background.type=="image"` 时按屏幕方向选择：
+/// 宽屏（宽 ≥ 高）用 `imageDesktop`，竖屏用 `imageMobile`；
+/// 缺省回退旧键 `assets.backgroundImage`（单图不分屏）。
+/// 非 image 类型 / 未配置返回 null。
+String? _skinBackgroundImageRef(SkinDescriptor? skin, bool landscape) {
+  if (skin?.backgroundType != 'image') return null;
+  return (landscape
+          ? skin?.backgroundImageDesktop
+          : skin?.backgroundImageMobile) ??
+      skin?.backgroundImage;
+}
+
+/// R2-4 对话背景图 Widget（`background.type=="image"`）。
+/// svg / png 均可，全屏覆盖 + 半透明白遮罩保证消息文字可读性；
+/// 无皮肤 / 无图 / 文件缺失返回 null（保持现有默认背景，零行为变化）。
+Widget? _skinBackgroundImageWidget(SkinDescriptor? skin, bool landscape) {
+  final path = _skinAssetPath(skin, _skinBackgroundImageRef(skin, landscape));
+  if (path == null) return null;
+  final file = File(path);
+  if (!file.existsSync()) return null;
+  final lower = path.toLowerCase();
+  final Widget img = lower.endsWith('.svg')
+      ? SvgPicture.file(
+          file,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+        )
+      : Image.file(
+          file,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+        );
+  return Stack(
+    fit: StackFit.expand,
+    children: [
+      img,
+      // 可读性遮罩：35% 白，浅色背景图下消息文字仍清晰。
+      const ColoredBox(color: Color(0x59FFFFFF)),
+    ],
+  );
+}
+
 /// E 头像 / 空状态 logo：`#` 开头 → hex 颜色；否则视为图片资源引用。
 bool _isSkinColorRef(String? v) => v != null && v.startsWith('#');
 
 /// 构建用户 / AI 头像（E）。默认渲染与现状一致；
-/// 皮肤配置 hex 颜色 → 换 CircleAvatar 底色；图片引用 → 渲染 logo 图片。
+/// 皮肤配置 hex 颜色 → 换 CircleAvatar 底色；图片引用（svg/png，与
+/// `avatar.assistant` 同构）→ 渲染皮肤内图片。
 Widget _buildSkinAvatar({
   required bool isUser,
   required double s,
@@ -219,11 +267,23 @@ Widget _buildSkinAvatar({
   final assetRef = _isSkinColorRef(raw) ? null : raw;
   final assetPath = _skinAssetPath(skin, assetRef);
   final image = _skinAssetImage(assetPath, size: 28 * s);
-  final bg = color ??
+  // R2-3 用户头像底色：`avatar.userBackgroundColor`（专用 hex 键）优先，
+  // 其次 `avatar.user` 的 hex 颜色，缺省保持现状
+  // （用户 primary(0.7) / AI primaryContainer，零行为变化）。
+  final skinBg = _skinHex(skin?.avatarUserBackgroundColor) ?? color;
+  final bg = skinBg ??
       (isUser
           ? scheme.primary.withValues(alpha: 0.7)
           : scheme.primaryContainer);
-  final fg = isUser ? scheme.onPrimary : scheme.primary;
+  // R2-3 补充：皮肤把用户头像底色配成浅色时（默认皮肤淡蓝 #E3F2FD 等），
+  // onPrimary（浅色主题=白）图标会看不清 → 按底色亮度自适应：浅底用深灰蓝
+  // 图标。仅皮肤显式覆盖底色时生效；skin==null 时 fg 恒为 onPrimary（与
+  // 现状完全一致，零行为变化）。
+  final fg = isUser
+      ? (skinBg != null && skinBg.computeLuminance() > 0.5
+          ? const Color(0xFF37474F)
+          : scheme.onPrimary)
+      : scheme.primary;
   return CircleAvatar(
     radius: 14 * s,
     backgroundColor: bg,
@@ -789,13 +849,13 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     _scrollToBottom();
   }
 
-  /// 渲染单条消息：气泡 + （user 消息所在轮有分支时）下方分支切换条
-  /// 「◀ i/n ▶」（R3：切换条在消息下面，不是会话名下面）。
+  /// 渲染单条消息：气泡 + （user 消息所在轮有分支时）操作行内分支切换条
+  /// 「◀ i/n ▶」（R2-2：切换条从消息下方移入 _buildActions，与 edit 并列）。
   Widget _buildMessageItem(
       ChatMessage msg, int index, List<ChatMessage> messages,
       [SkinDescriptor? skin]) {
     final lastAsstIdx = messages.lastIndexWhere((m) => m.isAssistant);
-    final bubble = _MessageBubble(
+    return _MessageBubble(
       message: msg,
       fontScale: widget.fontScale,
       messageIndex: index,
@@ -803,23 +863,12 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
       onEdit: msg.isUser ? () => _editUserMessage(index) : null,
       onRegenerate:
           msg.isAssistant && index == lastAsstIdx ? _regenerate : null,
-    );
-    final branchCount = msg.branchCount;
-    if (!msg.isUser || branchCount == null || branchCount <= 1) {
-      return bubble; // 无分叉 / 旧直线数据：零行为变化
-    }
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        bubble,
-        _BranchSwitcherBar(
-          branchIndex: msg.branchIndex ?? 1,
-          branchCount: branchCount,
-          onPrev: () => _switchBranchAt(msg.loopId ?? 0, next: false),
-          onNext: () => _switchBranchAt(msg.loopId ?? 0, next: true),
-        ),
-      ],
+      // R2-2 分支信息透传给操作行（edit 旁渲染切换条；无分叉时全为 null，
+      // _buildActions 不渲染，零行为变化）。
+      branchIndex: msg.branchIndex,
+      branchCount: msg.branchCount,
+      onPrevBranch: () => _switchBranchAt(msg.loopId ?? 0, next: false),
+      onNextBranch: () => _switchBranchAt(msg.loopId ?? 0, next: true),
     );
   }
 
@@ -2032,18 +2081,11 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
         children: [
           Expanded(
             child: Container(
-              // A1 对话背景：skin.background 段（纯色/渐变）；未配置时 null →
-              // Container 直通 child，与现状布局完全一致。
+              // A1/R2-4 对话背景：skin.background 段（纯色/渐变 decoration；
+              // type=="image" 由 _buildConversationArea 以 Stack 覆盖背景图）；
+              // 未配置时 null → Container 直通 child，与现状布局完全一致。
               decoration: _skinBackground(skin),
-              child: messages.isEmpty
-                  ? _buildEmptyState(skin)
-                  : ListView.builder(
-                      controller: _scrollCtrl,
-                      padding: const EdgeInsets.all(16),
-                      itemCount: messages.length,
-                      itemBuilder: (context, index) => _buildMessageItem(
-                          messages[index], index, messages, skin),
-                    ),
+              child: _buildConversationArea(skin, messages),
             ),
           ),
           if (_isRunning) _buildStatusBar(theme),
@@ -2122,17 +2164,9 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
         children: [
           Expanded(
             child: Container(
-              // A1 对话背景（皮肤包），同全屏模式。
+              // A1/R2-4 对话背景（皮肤包），同全屏模式。
               decoration: _skinBackground(skin),
-              child: messages.isEmpty
-                  ? _buildEmptyState(skin)
-                  : ListView.builder(
-                      controller: _scrollCtrl,
-                      padding: const EdgeInsets.all(16),
-                      itemCount: messages.length,
-                      itemBuilder: (context, index) => _buildMessageItem(
-                          messages[index], index, messages, skin),
-                    ),
+              child: _buildConversationArea(skin, messages),
             ),
           ),
           if (_isRunning) _buildStatusBar(theme),
@@ -3048,14 +3082,46 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     );
   }
 
+  // ── 对话消息区（空状态 / 消息列表 + 可选对话背景图）──
+
+  /// R2-4 对话消息区：空状态或消息列表，叠加 `background.type=="image"`
+  /// 的对话背景图（按屏幕宽高比分横竖屏：宽屏 imageDesktop / 竖屏
+  /// imageMobile）。无背景图时原样返回内容（与现状布局一致）。
+  Widget _buildConversationArea(
+      SkinDescriptor? skin, List<ChatMessage> messages) {
+    final size = MediaQuery.sizeOf(context);
+    final landscape = size.width >= size.height;
+    final bgImage = _skinBackgroundImageWidget(skin, landscape);
+    final content = messages.isEmpty
+        ? _buildEmptyState(skin)
+        : ListView.builder(
+            controller: _scrollCtrl,
+            padding: const EdgeInsets.all(16),
+            itemCount: messages.length,
+            itemBuilder: (context, index) =>
+                _buildMessageItem(messages[index], index, messages, skin),
+          );
+    if (bgImage == null) return content;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        bgImage,
+        content,
+      ],
+    );
+  }
+
   // ── 空状态 ──
 
   Widget _buildEmptyState([SkinDescriptor? skin]) {
-    // E 空状态欢迎区：logo（hex 着色 / 图片资源）与标题可配，缺省现有渲染。
+    // E/R2-4 空状态欢迎区：装饰图标（横竖屏一致的单一图标）与标题可配。
+    // 优先 `assets.emptyIcon`（R2-4 新语义，不区分方向），回退旧
+    // `emptyState.logo`（hex 着色 / 图片引用），缺省现有渲染。
     final scheme = Theme.of(context).colorScheme;
-    final logoRaw = skin?.emptyStateLogo;
-    final logoColor = _isSkinColorRef(logoRaw) ? _skinHex(logoRaw) : null;
-    final logoPath = _skinAssetPath(skin, _isSkinColorRef(logoRaw) ? null : logoRaw);
+    final iconRaw = skin?.emptyIcon ?? skin?.emptyStateLogo;
+    final logoColor = _isSkinColorRef(iconRaw) ? _skinHex(iconRaw) : null;
+    final logoPath =
+        _skinAssetPath(skin, _isSkinColorRef(iconRaw) ? null : iconRaw);
     final logoImage = _skinAssetImage(logoPath, size: 64);
     final title = skin?.emptyStateTitle ?? '我是你的 AI 教学助手';
 
@@ -3243,6 +3309,12 @@ class _MessageBubble extends StatefulWidget {
   /// 皮肤包描述符（Task 一）；null = 未装皮肤包，全部渲染点回退默认。
   final SkinDescriptor? skin;
 
+  // R2-2 分支切换信息（分叉 user 消息才非空；操作行内 edit 旁渲染切换条）。
+  final int? branchIndex;
+  final int? branchCount;
+  final VoidCallback? onPrevBranch;
+  final VoidCallback? onNextBranch;
+
   const _MessageBubble({
     required this.message,
     this.fontScale = 1.0,
@@ -3250,6 +3322,10 @@ class _MessageBubble extends StatefulWidget {
     this.skin,
     this.onEdit,
     this.onRegenerate,
+    this.branchIndex,
+    this.branchCount,
+    this.onPrevBranch,
+    this.onNextBranch,
   });
 
   @override
@@ -3407,10 +3483,10 @@ class _MessageBubbleState extends State<_MessageBubble> {
     final scheme = Theme.of(context).colorScheme;
     final skin = widget.skin;
 
-    // D1 消息气泡覆盖（皮肤包；未配置全部回退现有默认，零行为变化）。
+    // D1/R2-3 消息气泡覆盖（皮肤包；未配置全部回退现有默认，零行为变化）。
     final bubbleRadius = skin?.bubbleBorderRadius;
     final bubbleColor = isUser
-        ? (_skinHex(skin?.bubbleUserBackground) ?? scheme.primary)
+        ? (_skinHex(skin?.bubbleUserBackgroundColor) ?? scheme.primary)
         : (_skinHex(skin?.bubbleAssistantBackground) ??
             scheme.surfaceContainerHighest);
     final userTextColor =
@@ -3555,7 +3631,16 @@ class _MessageBubbleState extends State<_MessageBubble> {
                     // ── 操作按钮 ──
                     if (mainContent.isNotEmpty &&
                         mainContent != '_thinking_')
-                      _buildActions(isUser, mainContent, s, skin),
+                      _buildActions(
+                        isUser,
+                        mainContent,
+                        s,
+                        skin: skin,
+                        branchIndex: widget.branchIndex,
+                        branchCount: widget.branchCount,
+                        onPrevBranch: widget.onPrevBranch,
+                        onNextBranch: widget.onNextBranch,
+                      ),
                   ],
                 ),
               ),
@@ -3602,7 +3687,10 @@ class _MessageBubbleState extends State<_MessageBubble> {
               color: containerBg,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                  color: Theme.of(context).colorScheme.tertiary),
+                  // R2-1 思考框边框：皮肤包可覆盖（默认皮肤恢复历史橙黄
+                  // #FFE082）；未配置保持语义色 tertiary（深色适配不变）。
+                  color: _skinHex(skin?.thinkingColor('containerBorder')) ??
+                      Theme.of(context).colorScheme.tertiary),
             ),
             child: SingleChildScrollView(
               controller: _thinkingScrollCtrl,
@@ -3745,11 +3833,21 @@ class _MessageBubbleState extends State<_MessageBubble> {
   }
 
   Widget _buildActions(
-      bool isUser, String content, double s, [SkinDescriptor? skin]) {
+    bool isUser,
+    String content,
+    double s, {
+    SkinDescriptor? skin,
+    // R2-2 分支切换（分叉 user 消息：branchCount > 1 时在 edit 旁渲染切换条）。
+    int? branchIndex,
+    int? branchCount,
+    VoidCallback? onPrevBranch,
+    VoidCallback? onNextBranch,
+  }) {
     // B2 消息操作按钮显隐（皮肤包；缺省 null = 全部显示，零行为变化）。
     final showCopy = skin?.messageActionVisible('copy') ?? true;
     final showRegenerate = skin?.messageActionVisible('regenerate') ?? true;
     final showEdit = skin?.messageActionVisible('edit') ?? true;
+    final hasBranches = isUser && branchCount != null && branchCount > 1;
     return Padding(
       padding: const EdgeInsets.only(top: 4),
       child: Row(
@@ -3788,6 +3886,17 @@ class _MessageBubbleState extends State<_MessageBubble> {
               tooltip: '编辑（保留原历史，另开分支）',
               size: 12 * s,
               onTap: () => widget.onEdit?.call(),
+            ),
+          ],
+          // R2-2 分支切换条 ◀ i/n ▶：与 edit 并列（用户消息操作行内）。
+          // 紧凑尺寸（14px 图标 + 小号文字），操作行不溢出。
+          if (hasBranches) ...[
+            const SizedBox(width: 2),
+            _BranchSwitcherBar(
+              branchIndex: branchIndex ?? 1,
+              branchCount: branchCount!,
+              onPrev: onPrevBranch ?? () {},
+              onNext: onNextBranch ?? () {},
             ),
           ],
         ],
@@ -4304,13 +4413,14 @@ class _ConversationHistoryPanel extends ConsumerWidget {
 
 // ═══════ _BranchSwitcherBar ═══════
 
-/// R3 会话树分支切换条「◀ i/n ▶」——渲染在**分叉的 user 消息下方**（spec：
-/// 消息下面，不是会话名下面）。
+/// R3 会话树分支切换条「◀ i/n ▶」——渲染在**分叉 user 消息的操作行内、
+/// edit 按钮旁**（R2-2：从消息下方移入 _buildActions，与复制/重新生成/edit
+/// 并列，位置更合理）。
 ///
 /// 左右环绕切换同一会话内的兄弟分支（switch 即 i±1，见 session_branch.dart 的
 /// [switchSibling]）；切换是纯会话层操作：不改变会话 id、不产生新会话、
 /// 不撤销工作区变更。仅在消息所在轮有分支（branchCount > 1）时由
-/// [_ChatControllerViewState._buildMessageItem] 渲染。
+/// [_MessageBubbleState._buildActions] 渲染。
 class _BranchSwitcherBar extends StatelessWidget {
   final int branchIndex;
   final int branchCount;
@@ -4327,40 +4437,38 @@ class _BranchSwitcherBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dim = Theme.of(context).colorScheme.onSurfaceVariant;
-    return Padding(
-      padding: const EdgeInsets.only(top: 4, bottom: 4),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          InkWell(
-            onTap: onPrev,
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.all(2),
-              child: Icon(Icons.chevron_left, size: 16, color: dim),
+    // 操作行内使用：无上下外边距（_buildActions 已带 top:4），图标紧凑。
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        InkWell(
+          onTap: onPrev,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.all(2),
+            child: Icon(Icons.chevron_left, size: 14, color: dim),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Text(
+            '$branchIndex/$branchCount',
+            style: TextStyle(
+              fontSize: 11,
+              color: dim,
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Text(
-              '$branchIndex/$branchCount',
-              style: TextStyle(
-                fontSize: 11,
-                color: dim,
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
-            ),
+        ),
+        InkWell(
+          onTap: onNext,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.all(2),
+            child: Icon(Icons.chevron_right, size: 14, color: dim),
           ),
-          InkWell(
-            onTap: onNext,
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.all(2),
-              child: Icon(Icons.chevron_right, size: 16, color: dim),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

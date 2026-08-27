@@ -82,11 +82,22 @@ void main() {
         'assets': {
           'logoDesktop': 'logo_desktop.svg',
           'logoMobile': 'logo_mobile.svg',
+          'emptyIcon': 'empty_icon.svg',
+          'backgroundImage': 'bg_fallback.svg',
         },
       });
       expect(s.logoDesktop, 'logo_desktop.svg');
       expect(s.logoMobile, 'logo_mobile.svg');
-      expect(s.backgroundImage, isNull);
+      expect(s.emptyIcon, 'empty_icon.svg'); // R2-4 空状态图标（横竖屏一致）
+      expect(s.backgroundImage, 'bg_fallback.svg');
+    });
+
+    test('assets 段：R2-4 缺省 emptyIcon 为 null（空状态回退旧键）', () {
+      final s = SkinDescriptor.fromJson({
+        ..._minimal(),
+        'assets': {'logoDesktop': 'logo_desktop.svg'},
+      });
+      expect(s.emptyIcon, isNull);
     });
 
     test('background 段：solid', () {
@@ -97,6 +108,8 @@ void main() {
       expect(s.backgroundType, 'solid');
       expect(s.backgroundColor, '#FFFFFF');
       expect(s.backgroundGradientFrom, isNull);
+      expect(s.backgroundImageDesktop, isNull);
+      expect(s.backgroundImageMobile, isNull);
     });
 
     test('background 段：gradient', () {
@@ -111,6 +124,32 @@ void main() {
       expect(s.backgroundGradientFrom, '#E8F5E9');
       expect(s.backgroundGradientTo, '#FFFFFF');
       expect(s.backgroundGradientAngle, 135.0);
+    });
+
+    test('background 段：image 分横竖屏（R2-4）', () {
+      final s = SkinDescriptor.fromJson({
+        ..._minimal(),
+        'background': {
+          'type': 'image',
+          'imageDesktop': 'bg_desktop.svg',
+          'imageMobile': 'bg_mobile.svg',
+        },
+      });
+      expect(s.backgroundType, 'image');
+      expect(s.backgroundImageDesktop, 'bg_desktop.svg');
+      expect(s.backgroundImageMobile, 'bg_mobile.svg');
+      expect(s.backgroundColor, isNull); // image 与纯色互斥
+    });
+
+    test('background 段：image 缺省分屏键为 null（可回退 assets.backgroundImage）',
+        () {
+      final s = SkinDescriptor.fromJson({
+        ..._minimal(),
+        'background': {'type': 'image'},
+      });
+      expect(s.backgroundType, 'image');
+      expect(s.backgroundImageDesktop, isNull);
+      expect(s.backgroundImageMobile, isNull);
     });
 
     test('buttons 段：inputBar / messageActions', () {
@@ -140,6 +179,8 @@ void main() {
           'title': '推理过程',
           'colors': {
             'header': '#F57C00',
+            'containerBackground': '#FFF8E1',
+            'containerBorder': '#FFE082',
             'contentText': '#795548',
             'chipMemoryBg': '#F3E5F5',
           },
@@ -147,6 +188,8 @@ void main() {
       });
       expect(s.thinkingTitle, '推理过程');
       expect(s.thinkingColor('header'), '#F57C00');
+      expect(s.thinkingColor('containerBackground'), '#FFF8E1');
+      expect(s.thinkingColor('containerBorder'), '#FFE082');
       expect(s.thinkingColor('contentText'), '#795548');
       expect(s.thinkingColor('chipMemoryBg'), '#F3E5F5');
       expect(s.thinkingColor('chipSkillBg'), isNull); // 未配置
@@ -164,28 +207,66 @@ void main() {
       final s = SkinDescriptor.fromJson({
         ..._minimal(),
         'bubble': {
-          'userBackground': '#E07A3F',
+          'userBackgroundColor': '#E3F2FD',
           'assistantBackground': null,
           'borderRadius': 20,
           'maxWidthRatio': 0.8,
         },
       });
-      expect(s.bubbleUserBackground, '#E07A3F');
+      expect(s.bubbleUserBackgroundColor, '#E3F2FD');
+      expect(s.bubbleColor('userBackgroundColor'), '#E3F2FD');
       expect(s.bubbleAssistantBackground, isNull);
       expect(s.bubbleBorderRadius, 20.0);
       expect(s.bubbleMaxWidthRatio, 0.8);
     });
 
+    test('bubble 段：R2-3 新键优先，旧键 userBackground 向后兼容', () {
+      final legacy = SkinDescriptor.fromJson({
+        ..._minimal(),
+        'bubble': {'userBackground': '#E07A3F'},
+      });
+      expect(legacy.bubbleUserBackground, '#E07A3F');
+      expect(legacy.bubbleUserBackgroundColor, '#E07A3F'); // 兼容旧键
+      final both = SkinDescriptor.fromJson({
+        ..._minimal(),
+        'bubble': {
+          'userBackground': '#E07A3F',
+          'userBackgroundColor': '#E3F2FD',
+        },
+      });
+      expect(both.bubbleUserBackgroundColor, '#E3F2FD'); // 新键优先
+    });
+
     test('avatar / emptyState 段', () {
       final s = SkinDescriptor.fromJson({
         ..._minimal(),
-        'avatar': {'user': '#E07A3F', 'assistant': 'logo_desktop.svg'},
+        'avatar': {
+          'user': '#E07A3F',
+          'userBackgroundColor': '#C8E6C9',
+          'assistant': 'logo_desktop.svg',
+        },
         'emptyState': {'logo': 'logo_mobile.svg', 'title': '你好呀'},
       });
       expect(s.avatarUser, '#E07A3F');
+      expect(s.avatarUserBackgroundColor, '#C8E6C9');
+      expect(s.avatarColor('userBackgroundColor'), '#C8E6C9');
       expect(s.avatarAssistant, 'logo_desktop.svg');
       expect(s.emptyStateLogo, 'logo_mobile.svg');
       expect(s.emptyStateTitle, '你好呀');
+    });
+
+    test('avatar 段：R2-3 补充 user 支持 SVG 图片引用（与 assistant 同构）', () {
+      final s = SkinDescriptor.fromJson({
+        ..._minimal(),
+        'avatar': {
+          'user': 'avatar_user.svg',
+          'userBackgroundColor': '#C8E6C9',
+          'assistant': 'empty_icon.svg',
+        },
+      });
+      expect(s.avatarUser, 'avatar_user.svg');
+      expect(s.avatarAssistant, 'empty_icon.svg');
+      expect(s.avatarUserBackgroundColor, '#C8E6C9'); // 无图片时底色兜底
     });
 
     test('顶层功能色快捷覆盖', () {

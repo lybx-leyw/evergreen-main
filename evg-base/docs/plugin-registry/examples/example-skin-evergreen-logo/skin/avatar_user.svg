@@ -1,0 +1,25 @@
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="绿意用户头像 - 人形">
+  <!-- R2-3 补充：示例用户头像 SVG（avatar.user 图片引用演示）。
+       圆底人形剪影，浅绿底 + 深绿人形，28px 圆头像裁切下依然清晰。 -->
+  <defs>
+    <radialGradient id="auBg" cx="50%" cy="40%" r="65%">
+      <stop offset="0%" stop-color="#eafff3"/>
+      <stop offset="60%" stop-color="#c8f2da"/>
+      <stop offset="100%" stop-color="#9fe7bd"/>
+    </radialGradient>
+    <linearGradient id="auBody" x1="20%" y1="0%" x2="80%" y2="100%">
+      <stop offset="0%" stop-color="#2fbf71"/>
+      <stop offset="100%" stop-color="#0f9d58"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 圆底 -->
+  <circle cx="64" cy="64" r="60" fill="url(#auBg)"/>
+  <circle cx="64" cy="64" r="60" fill="none" stroke="#0f9d58" stroke-opacity="0.18" stroke-width="2"/>
+
+  <!-- 人形剪影（头 + 肩） -->
+  <g>
+    <circle cx="64" cy="50" r="19" fill="url(#auBody)"/>
+    <path d="M64 76 C 42 76, 28 88, 26 106 L 102 106 C 100 88, 86 76, 64 76 Z" fill="url(#auBody)"/>
+  </g>
+</svg>

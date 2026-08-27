@@ -2,8 +2,9 @@
 ///
 /// 决策 1.2：未加装任何皮肤包时可用——像现在的亮暗色 theme 一样直接编码内置。
 /// 内置 id 使用 `skin-default`（避免与主题的 dark/light/default 哨兵混淆）。
-/// 默认皮肤包**不声明任何 DIY 段**（全部 null）→ 渲染层所有消费点回退
-/// 现有默认值，保证「未装皮肤包时 UI 与行为与现在完全一致」。
+/// 默认皮肤包**只声明少数用户明确要求的覆盖**（R2-1 思考框橙黄、R2-3 用户气泡
+/// 调淡），其余 DIY 段全部 null → 渲染层其余消费点回退现有默认值，保证
+/// 「未装皮肤包时 UI 与行为与现状一致」。
 library;
 
 import 'skin_descriptor.dart';
@@ -15,7 +16,28 @@ const List<SkinDescriptor> builtinSkins = [
     id: 'skin-default',
     name: '默认皮肤',
     version: '1.0.0',
-    description: '内置默认皮肤包：不覆盖任何渲染点，跟随平台主题。',
+    description: '内置默认皮肤包：思考框恢复历史橙黄配色；用户气泡调淡；其余跟随平台主题。',
+    raw: {
+      // R2-1 思考框橙黄：AI 助手优化计划之前的思考气泡就是橙黄橙黄的
+      // （历史背景 0xFFFFF8E1 / 边框 0xFFFFE082），默认皮肤恢复该配色。
+      'thinking': {
+        'colors': {
+          'containerBackground': '#FFF8E1',
+          'containerBorder': '#FFE082',
+        },
+      },
+      // R2-3 用户气泡调淡：原来偏深（theme primary），默认皮肤改为
+      // 淡蓝 #E3F2FD + 深蓝文字 #0D47A1（保证浅底上的可读性）。
+      'bubble': {
+        'userBackgroundColor': '#E3F2FD',
+        'userTextColor': '#0D47A1',
+      },
+      // R2-3 补充：用户头像底色淡色（#E3F2FD 与气泡同系；不强制默认 SVG，
+      // 无图片时渲染层用浅底 + 深色 person 图标自适应）。
+      'avatar': {
+        'userBackgroundColor': '#E3F2FD',
+      },
+    },
   ),
 ];
 

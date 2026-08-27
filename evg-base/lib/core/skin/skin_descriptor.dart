@@ -14,12 +14,12 @@
 ///
 /// | 段 | 键 | 说明 | 渲染层消费 |
 /// |----|----|------|-----------|
-/// | `assets` | `logoDesktop`/`logoMobile`/`backgroundImage` | 图片资源引用（相对 manifest 路径） | 头像 / 空状态 logo 等 |
-/// | `background` | `type`(solid/gradient)、`color`、`gradient.from/to/angle` | 对话背景（A1） | 消息列表容器 decoration |
+/// | `assets` | `logoDesktop`/`logoMobile`（旧，向后兼容读）、`emptyIcon`（R2-4 空状态图标，横竖屏一致）、`backgroundImage` | 图片资源引用（相对 manifest 路径） | 头像 / 空状态 logo 等 |
+/// | `background` | `type`(solid/gradient/image)、`color`、`gradient.from/to/angle`、`imageDesktop`/`imageMobile`（R2-4 对话背景图，分横竖屏） | 对话背景（A1/R2-4） | 消息列表容器 decoration / 背景图 |
 /// | `buttons` | `inputBar.{workspace,webSearch,thinkingEffort,tools,bgProcess,skills,clear}`、`messageActions.{copy,regenerate,edit}` | 按钮显隐（B1/B2） | 工具栏 / 消息操作行 |
-/// | `thinking` | `title`、`visible`、`colors.{header,containerBackground,contentText,chipMemoryBg/Fg,chipSkillBg/Fg,chipToolBg/Fg,chipToolResultBg/Fg}` | 思考栏配色（C1）+ 标题（E） | 思考栏渲染点 |
-/// | `bubble` | `userBackground`/`assistantBackground`/`userTextColor`/`assistantTextColor`/`borderRadius`/`maxWidthRatio` | 消息气泡样式（D1） | 气泡 BoxDecoration / ConstrainedBox |
-/// | `avatar` | `user`/`assistant`（hex 颜色或图片资源引用） | 头像 DIY（E） | CircleAvatar |
+/// | `thinking` | `title`、`visible`、`colors.{header,containerBackground,containerBorder,contentText,chipMemoryBg/Fg,chipSkillBg/Fg,chipToolBg/Fg,chipToolResultBg/Fg}` | 思考栏配色（C1）+ 标题（E） | 思考栏渲染点 |
+/// | `bubble` | `userBackground`/`userBackgroundColor`/`assistantBackground`/`userTextColor`/`assistantTextColor`/`borderRadius`/`maxWidthRatio` | 消息气泡样式（D1/R2-3） | 气泡 BoxDecoration / ConstrainedBox |
+/// | `avatar` | `user`/`assistant`（hex 颜色**或皮肤内 SVG/图片资源引用**，两者同构，R2-3 补）、`userBackgroundColor`（hex，用户头像底色兜底） | 头像 DIY（E） | CircleAvatar |
 /// | `emptyState` | `logo`（hex 或图片引用）、`title` | 空状态欢迎区（E） | 空状态渲染 |
 /// | 顶层 | `effortColor`、`toolActiveColor`、`codeInline`、`codeBlockBackground` | 功能色快捷覆盖（C1） | 深度思考档位 / 工具激活 / 代码色 |
 ///
@@ -128,18 +128,24 @@ class SkinDescriptor {
   /// 取 `assets.<key>` 的图片资源引用（相对 manifest 路径）。
   String? asset(String key) => _str(assets, key);
 
-  /// 桌面/横板 logo 资源引用。
+  /// 桌面/横板 logo 资源引用（旧语义，R2-4 起空状态改用 [emptyIcon]；
+  /// 本键保留向后兼容读，示例与文档已迁移到新语义）。
   String? get logoDesktop => asset('logoDesktop');
 
-  /// 移动/竖板 logo 资源引用。
+  /// 移动/竖板 logo 资源引用（旧语义，同 [logoDesktop]，保留向后兼容读）。
   String? get logoMobile => asset('logoMobile');
 
-  /// 背景图资源引用（A2 图片背景预留；v1 不消费）。
+  /// 背景图资源引用（A2 图片背景旧键；R2-4 起分屏背景用
+  /// [backgroundImageDesktop]/[backgroundImageMobile]，本键作单图兜底）。
   String? get backgroundImage => asset('backgroundImage');
 
-  // ═══════ background 段（A1）═══════
+  /// 空状态装饰图标资源引用（R2-4；**横竖屏一致的单一图标**，不区分方向；
+  /// 渲染层优先于旧 `emptyState.logo`）。
+  String? get emptyIcon => asset('emptyIcon');
 
-  /// 背景类型：`solid` / `gradient`（未知值渲染层忽略 → 默认背景）。
+  // ═══════ background 段（A1 / R2-4）═══════
+
+  /// 背景类型：`solid` / `gradient` / `image`（未知值渲染层忽略 → 默认背景）。
   String? get backgroundType => _str(background, 'type');
 
   /// 纯色背景 hex（`#RRGGBB` / `#AARRGGBB`）。
@@ -156,6 +162,14 @@ class SkinDescriptor {
 
   /// 渐变角度（度，0=左→右；渲染层缺省 135）。
   double? get backgroundGradientAngle => _num(_backgroundGradient, 'angle');
+
+  /// 对话背景图（宽屏/横屏，`background.type=="image"` 时渲染层按屏幕
+  /// 宽高比选择本资源；相对 manifest 路径）。
+  String? get backgroundImageDesktop => _str(background, 'imageDesktop');
+
+  /// 对话背景图（竖屏，`background.type=="image"` 时渲染层按屏幕
+  /// 宽高比选择本资源；相对 manifest 路径）。
+  String? get backgroundImageMobile => _str(background, 'imageMobile');
 
   // ═══════ buttons 段（B1/B2）═══════
 
@@ -187,9 +201,19 @@ class SkinDescriptor {
   /// 思考栏是否显示（C2 预留；v1 渲染层不消费，保持现有行为）。
   bool? get thinkingVisible => _bool(thinking, 'visible');
 
-  // ═══════ bubble 段（D1）═══════
+  // ═══════ bubble 段（D1 / R2-3）═══════
 
-  /// 用户气泡底色 hex（null = 跟随 theme primary）。
+  /// bubble 段通用取色（键：`userBackground`/`userBackgroundColor`/
+  /// `assistantBackground`/`userTextColor`/`assistantTextColor` 等）。
+  String? bubbleColor(String key) => _str(bubble, key);
+
+  /// 用户气泡底色 hex（R2-3 新键 `userBackgroundColor` 优先，兼容旧键
+  /// `userBackground`；null = 跟随 theme primary）。
+  String? get bubbleUserBackgroundColor =>
+      _str(bubble, 'userBackgroundColor') ?? _str(bubble, 'userBackground');
+
+  /// 用户气泡底色 hex（旧键 `userBackground`，R2-3 起由
+  /// [bubbleUserBackgroundColor] 兼容读取，本 getter 保留向后兼容）。
   String? get bubbleUserBackground => _str(bubble, 'userBackground');
 
   /// AI 气泡底色 hex（null = 跟随 theme surfaceContainerHighest）。
@@ -208,13 +232,23 @@ class SkinDescriptor {
   /// 气泡最大宽度占比（缺省渲染层用 0.72）。
   double? get bubbleMaxWidthRatio => _num(bubble, 'maxWidthRatio');
 
-  // ═══════ avatar 段（E）═══════
+  // ═══════ avatar 段（E / R2-3）═══════
 
-  /// 用户头像：hex 颜色（`#` 开头）或图片资源引用（相对 manifest 路径）。
+  /// avatar 段通用取色（键：`user`/`assistant`/`userBackgroundColor` 等）。
+  String? avatarColor(String key) => _str(avatar, key);
+
+  /// 用户头像：hex 颜色（`#` 开头）**或皮肤内 SVG/图片资源引用**
+  /// （相对 manifest 路径，如 `"avatar_user.svg"`，与 [avatarAssistant] 同构；
+  /// R2-3 补充）。无图片配置时渲染层用 [avatarUserBackgroundColor] 底色 +
+  /// `Icons.person` 兜底。
   String? get avatarUser => _str(avatar, 'user');
 
   /// AI 头像：hex 颜色（`#` 开头）或图片资源引用（相对 manifest 路径）。
   String? get avatarAssistant => _str(avatar, 'assistant');
+
+  /// 用户头像底色 hex（R2-3 专用键，独立于可作图片引用的 `avatar.user`；
+  /// null = 跟随 theme primary(0.7) 现状）。
+  String? get avatarUserBackgroundColor => _str(avatar, 'userBackgroundColor');
 
   // ═══════ emptyState 段（E）═══════
 
