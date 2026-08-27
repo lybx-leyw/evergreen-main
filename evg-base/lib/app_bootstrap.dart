@@ -510,20 +510,6 @@ class AppBootstrap {
   /// 核心服务构造（installer/updater + 各 HttpServer 实例）。
   Future<Result<void>> _stepHttpServices() async {
     final dio = Dio();
-    // 安卓 OCR 降级链：绑定平台默认 Python 执行器（ChaquopyRunner 包装）。
-    // core 子包不可直接 import plugin_runner（flutter_stub 缺 services.dart），
-    // 由本层（可 import plugin_runner）注入；桌面不绑定 → OcrPipeline 缺省
-    // 走历史 runOcrProcess 子进程（零变化）。
-    if (Platform.isAndroid) {
-      bindOcrPlatformRunOnce(
-        (entry, args, {timeout, workingDirectory}) async {
-          final runner = await sharedPluginRunner;
-          final r = await runner.runOnce(entry, args,
-              workingDirectory: workingDirectory, timeout: timeout);
-          return (stdout: r.stdout, stderr: r.stderr, exitCode: r.exitCode);
-        },
-      );
-    }
     final installer = PluginInstaller(pluginsDir: pluginsDir, dio: dio);
     final updater = UpdateService(dio);
 
