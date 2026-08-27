@@ -512,6 +512,20 @@ class AppBootstrap {
   /// 核心服务构造（installer/ocr/updater + 各 HttpServer 实例）。
   Future<Result<void>> _stepHttpServices() async {
     final dio = Dio();
+    // 安卓 OCR 降级链：绑定平台默认 Python 执行器（ChaquopyRunner 包装）。
+    // core 子包不可直接 import plugin_runner（flutter_stub 缺 services.dart），
+    // 由本层（可 import plugin_runner）注入；桌面不绑定 → OcrPipeline 缺省
+    // 走历史 runOcrProcess 子进程（零变化）。
+    if (Platform.isAndroid) {
+      bindOcrPlatformRunOnce(
+        (entry, args, {timeout, workingDirectory}) async {
+          final runner = await sharedPluginRunner;
+          final r = await runner.runOnce(entry, args,
+              workingDirectory: workingDirectory, timeout: timeout);
+          return (stdout: r.stdout, stderr: r.stderr, exitCode: r.exitCode);
+        },
+      );
+    }
     final installer = PluginInstaller(pluginsDir: pluginsDir, dio: dio);
     final ocr = OcrPipeline(dio);
     final updater = UpdateService(dio);
@@ -657,19 +671,31 @@ class AppBootstrap {
     final bundledCandidate = p.join(greenixPythonDir, 'python.exe');
     final pyRt =
         await PythonInterpreter.instance.resolve(configuredPath: bundledCandidate);
-    if (pyRt.isAvailable && pyRt.exePath != null) {
-      // workDir: 嵌入式 Python 用其所在目录；系统 PATH 命令用 workspace
-      // （与旧 isBundled 判定等价：configured 绝对路径或嵌入式目录命中即 bundled）
-      final isBundled = pyRt.isBundled &&
-          (pyRt.exePath == bundledCandidate || p.isAbsolute(pyRt.exePath!));
-      final workDir =
-          isBundled ? Directory(pyRt.exePath!).parent.path : aiWorkspace;
-      registry.register(PythonRunnerTool(
-        pythonExePath: pyRt.exePath!,
-        pythonWorkDir: workDir,
-        workspaceDir: aiWorkspace,
-      ));
-      Log().info('[BOOT] PythonRunnerTool 已注册 (${pyRt.exePath}, workDir: $workDir)');
+    if (pyRt.isAvailable) {
+      if (pyRt.isAndroidChaquopy) {
+        // 安卓：进程内 Chaquopy 解释器（exePath=null，哨兵占位）——经
+        // sharedPluginRunner（MethodChannel('evergreen/python')）执行，
+        // runner 注入到工具；无运行时 pip，pip 模式返回构建期提示。
+        final tool = await PythonRunnerTool.build(
+          workspaceDir: aiWorkspace,
+          runner: await sharedPluginRunner,
+        );
+        registry.register(tool);
+        Log().info('[BOOT] PythonRunnerTool 已注册 (安卓 Chaquopy, workDir: $aiWorkspace)');
+      } else {
+        // workDir: 嵌入式 Python 用其所在目录；系统 PATH 命令用 workspace
+        // （与旧 isBundled 判定等价：configured 绝对路径或嵌入式目录命中即 bundled）
+        final isBundled = pyRt.isBundled &&
+            (pyRt.exePath == bundledCandidate || p.isAbsolute(pyRt.exePath!));
+        final workDir =
+            isBundled ? Directory(pyRt.exePath!).parent.path : aiWorkspace;
+        registry.register(PythonRunnerTool(
+          pythonExePath: pyRt.exePath!,
+          pythonWorkDir: workDir,
+          workspaceDir: aiWorkspace,
+        ));
+        Log().info('[BOOT] PythonRunnerTool 已注册 (${pyRt.isBundled ? '嵌入式' : '系统'} ${pyRt.exePath}, workDir: $workDir)');
+      }
     } else {
       Log().warn('[BOOT] ⚠ Python 解释器未找到——已尝试 .greenix/python/、系统 PATH。');
       Log().warn('[BOOT]    AI 将无法执行 Python 代码。安装 Python 3.8+ 或放置 python.exe 到 .greenix/python/。');
