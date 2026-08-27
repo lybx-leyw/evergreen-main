@@ -789,13 +789,13 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     _scrollToBottom();
   }
 
-  /// 渲染单条消息：气泡 + （user 消息所在轮有分支时）下方分支切换条
-  /// 「◀ i/n ▶」（R3：切换条在消息下面，不是会话名下面）。
+  /// 渲染单条消息：气泡 + （user 消息所在轮有分支时）操作行内分支切换条
+  /// 「◀ i/n ▶」（R2-2：切换条从消息下方移入 _buildActions，与 edit 并列）。
   Widget _buildMessageItem(
       ChatMessage msg, int index, List<ChatMessage> messages,
       [SkinDescriptor? skin]) {
     final lastAsstIdx = messages.lastIndexWhere((m) => m.isAssistant);
-    final bubble = _MessageBubble(
+    return _MessageBubble(
       message: msg,
       fontScale: widget.fontScale,
       messageIndex: index,
@@ -803,23 +803,12 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
       onEdit: msg.isUser ? () => _editUserMessage(index) : null,
       onRegenerate:
           msg.isAssistant && index == lastAsstIdx ? _regenerate : null,
-    );
-    final branchCount = msg.branchCount;
-    if (!msg.isUser || branchCount == null || branchCount <= 1) {
-      return bubble; // 无分叉 / 旧直线数据：零行为变化
-    }
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        bubble,
-        _BranchSwitcherBar(
-          branchIndex: msg.branchIndex ?? 1,
-          branchCount: branchCount,
-          onPrev: () => _switchBranchAt(msg.loopId ?? 0, next: false),
-          onNext: () => _switchBranchAt(msg.loopId ?? 0, next: true),
-        ),
-      ],
+      // R2-2 分支信息透传给操作行（edit 旁渲染切换条；无分叉时全为 null，
+      // _buildActions 不渲染，零行为变化）。
+      branchIndex: msg.branchIndex,
+      branchCount: msg.branchCount,
+      onPrevBranch: () => _switchBranchAt(msg.loopId ?? 0, next: false),
+      onNextBranch: () => _switchBranchAt(msg.loopId ?? 0, next: true),
     );
   }
 
@@ -3243,6 +3232,12 @@ class _MessageBubble extends StatefulWidget {
   /// 皮肤包描述符（Task 一）；null = 未装皮肤包，全部渲染点回退默认。
   final SkinDescriptor? skin;
 
+  // R2-2 分支切换信息（分叉 user 消息才非空；操作行内 edit 旁渲染切换条）。
+  final int? branchIndex;
+  final int? branchCount;
+  final VoidCallback? onPrevBranch;
+  final VoidCallback? onNextBranch;
+
   const _MessageBubble({
     required this.message,
     this.fontScale = 1.0,
@@ -3250,6 +3245,10 @@ class _MessageBubble extends StatefulWidget {
     this.skin,
     this.onEdit,
     this.onRegenerate,
+    this.branchIndex,
+    this.branchCount,
+    this.onPrevBranch,
+    this.onNextBranch,
   });
 
   @override
@@ -3555,7 +3554,16 @@ class _MessageBubbleState extends State<_MessageBubble> {
                     // ── 操作按钮 ──
                     if (mainContent.isNotEmpty &&
                         mainContent != '_thinking_')
-                      _buildActions(isUser, mainContent, s, skin),
+                      _buildActions(
+                        isUser,
+                        mainContent,
+                        s,
+                        skin: skin,
+                        branchIndex: widget.branchIndex,
+                        branchCount: widget.branchCount,
+                        onPrevBranch: widget.onPrevBranch,
+                        onNextBranch: widget.onNextBranch,
+                      ),
                   ],
                 ),
               ),
@@ -3748,11 +3756,21 @@ class _MessageBubbleState extends State<_MessageBubble> {
   }
 
   Widget _buildActions(
-      bool isUser, String content, double s, [SkinDescriptor? skin]) {
+    bool isUser,
+    String content,
+    double s, {
+    SkinDescriptor? skin,
+    // R2-2 分支切换（分叉 user 消息：branchCount > 1 时在 edit 旁渲染切换条）。
+    int? branchIndex,
+    int? branchCount,
+    VoidCallback? onPrevBranch,
+    VoidCallback? onNextBranch,
+  }) {
     // B2 消息操作按钮显隐（皮肤包；缺省 null = 全部显示，零行为变化）。
     final showCopy = skin?.messageActionVisible('copy') ?? true;
     final showRegenerate = skin?.messageActionVisible('regenerate') ?? true;
     final showEdit = skin?.messageActionVisible('edit') ?? true;
+    final hasBranches = isUser && branchCount != null && branchCount > 1;
     return Padding(
       padding: const EdgeInsets.only(top: 4),
       child: Row(
@@ -3791,6 +3809,17 @@ class _MessageBubbleState extends State<_MessageBubble> {
               tooltip: '编辑（保留原历史，另开分支）',
               size: 12 * s,
               onTap: () => widget.onEdit?.call(),
+            ),
+          ],
+          // R2-2 分支切换条 ◀ i/n ▶：与 edit 并列（用户消息操作行内）。
+          // 紧凑尺寸（14px 图标 + 小号文字），操作行不溢出。
+          if (hasBranches) ...[
+            const SizedBox(width: 2),
+            _BranchSwitcherBar(
+              branchIndex: branchIndex ?? 1,
+              branchCount: branchCount!,
+              onPrev: onPrevBranch ?? () {},
+              onNext: onNextBranch ?? () {},
             ),
           ],
         ],
@@ -4307,13 +4336,14 @@ class _ConversationHistoryPanel extends ConsumerWidget {
 
 // ═══════ _BranchSwitcherBar ═══════
 
-/// R3 会话树分支切换条「◀ i/n ▶」——渲染在**分叉的 user 消息下方**（spec：
-/// 消息下面，不是会话名下面）。
+/// R3 会话树分支切换条「◀ i/n ▶」——渲染在**分叉 user 消息的操作行内、
+/// edit 按钮旁**（R2-2：从消息下方移入 _buildActions，与复制/重新生成/edit
+/// 并列，位置更合理）。
 ///
 /// 左右环绕切换同一会话内的兄弟分支（switch 即 i±1，见 session_branch.dart 的
 /// [switchSibling]）；切换是纯会话层操作：不改变会话 id、不产生新会话、
 /// 不撤销工作区变更。仅在消息所在轮有分支（branchCount > 1）时由
-/// [_ChatControllerViewState._buildMessageItem] 渲染。
+/// [_MessageBubbleState._buildActions] 渲染。
 class _BranchSwitcherBar extends StatelessWidget {
   final int branchIndex;
   final int branchCount;
@@ -4330,40 +4360,38 @@ class _BranchSwitcherBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dim = Theme.of(context).colorScheme.onSurfaceVariant;
-    return Padding(
-      padding: const EdgeInsets.only(top: 4, bottom: 4),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          InkWell(
-            onTap: onPrev,
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.all(2),
-              child: Icon(Icons.chevron_left, size: 16, color: dim),
+    // 操作行内使用：无上下外边距（_buildActions 已带 top:4），图标紧凑。
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        InkWell(
+          onTap: onPrev,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.all(2),
+            child: Icon(Icons.chevron_left, size: 14, color: dim),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Text(
+            '$branchIndex/$branchCount',
+            style: TextStyle(
+              fontSize: 11,
+              color: dim,
+              fontFeatures: const [FontFeature.tabularFigures()],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: Text(
-              '$branchIndex/$branchCount',
-              style: TextStyle(
-                fontSize: 11,
-                color: dim,
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
-            ),
+        ),
+        InkWell(
+          onTap: onNext,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.all(2),
+            child: Icon(Icons.chevron_right, size: 14, color: dim),
           ),
-          InkWell(
-            onTap: onNext,
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.all(2),
-              child: Icon(Icons.chevron_right, size: 16, color: dim),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
