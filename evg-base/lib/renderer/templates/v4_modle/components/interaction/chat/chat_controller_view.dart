@@ -538,10 +538,21 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     final session = ctrl.session;
     final notifier = ref.read(_chatMessagesProvider.notifier);
     notifier.clear();
+    // R3 会话树：UI user 消息序号即轮次深度（loopId），据此填充分支切换条
+    // 信息（siblingsOf/branchIndexIn 纯函数，零 Flutter 依赖）。
+    var userOrdinal = 0;
     for (final m in session.messages) {
       if (m.content.isEmpty) continue;
       if (m.isUser) {
-        notifier.addUser(m.content);
+        final siblings = siblingsOf(session, userOrdinal);
+        notifier.addUser(
+          m.content,
+          loopId: userOrdinal,
+          branchCount: siblings.isEmpty ? null : siblings.length,
+          branchIndex:
+              siblings.isEmpty ? null : branchIndexIn(session, userOrdinal),
+        );
+        userOrdinal++;
       } else if (m.isAssistant) {
         notifier.addAssistant(
           _contentWithReasoning(m.reasoningContent, m.content),
@@ -611,38 +622,25 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     final msg = messages[msgIndex];
     if (!msg.isUser) return;
 
-    // ── edit/branch 语义（Task 六 Bug 7）──
-    // 不再删除旧历史：以该 user 消息为分叉点 fork 出新分支（新分支继承
-    // [0..forkTurn) 即该消息之前的全部历史），旧会话（含该消息及其后回复）
-    // 完整保留在会话列表；该消息文本回填输入框供编辑，重新发送后写入新分支。
-    // 分支是纯会话层操作，不触碰工作区文件（rewind/edit 不撤销工作区变更）。
-    final sourceId = ref.read(activeSessionIdProvider);
-    if (sourceId == null) return;
-
-    // UI 列表（仅 user/assistant 气泡）与 Agent Session（含 tool_call/tool_result
-    // 消息）索引不对齐：按「该消息是第 N 个 user 消息」在 Session 中定位分叉点。
+    // ── edit/branch 语义（R3 会话树形分支）──
+    // 不再删除旧历史、不再新建会话：以该 user 消息所在轮为分叉点，在同一
+    // 会话内 forkRound 出空 sibling（旧分支完整保留，可经分支切换条切回），
+    // 原文回填输入框供编辑，发送后由轮次感知 Session.add 写入新分支。
+    // 分叉是纯会话层操作，不触碰工作区文件（rewind/edit 不撤销工作区变更）。
     final ctrl = ref.read(agentControllerProvider);
-    final sessionMessages = ctrl.session.messages;
-    int sessionUserIdx = -1;
-    int userCount = 0;
-    for (int i = 0; i < sessionMessages.length; i++) {
-      if (sessionMessages[i].role == agent.Role.user) {
-        if (userCount == _countUserMessagesBefore(messages, msgIndex)) {
-          sessionUserIdx = i;
-          break;
-        }
-        userCount++;
-      }
-    }
-    if (sessionUserIdx < 0) return;
+    final session = ctrl.session;
+    // 该 user 消息的轮次深度：UI 列表 user 序号即 loopId（每轮恰含一条
+    // user 消息，见 session.dart 轮次边界约定）。
+    final loopId = _countUserMessagesBefore(messages, msgIndex);
+    final text = _stripAttachmentMarker(msg.content);
+    if (!session.forkRound(loopId, text)) return;
 
-    // forkSessionProvider(sourceId, forkTurn)：新分支继承 [0..forkTurn) 并切换为
-    // 活动会话（内部先 saveCurrentSessionProvider 保存父会话，再写入新分支并
-    // 更新 activeSessionId → build 里的 activeSessionId 监听自动同步消息列表）。
-    ref.read(forkSessionProvider)(sourceId, sessionUserIdx);
+    // 树内分叉：同一会话、不改变 activeSessionId —— 显式重建消息列表并
+    // 保存新活动路径（双写一致：messages 与 tree 同步落盘）。
+    _syncMessagesFromRuntime();
+    ref.read(saveCurrentSessionProvider)(session.id);
 
     // 回填原文供编辑（剥离附件标记，避免把 [📎 …] 伪标记当正文重发）。
-    final text = _stripAttachmentMarker(msg.content);
     _inputCtrl.text = text;
     _inputCtrl.selection = TextSelection.collapsed(offset: text.length);
     FocusScope.of(context).requestFocus();
@@ -661,6 +659,51 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
       if (messages[i].isUser) count++;
     }
     return count;
+  }
+
+  /// R3 会话树：树内切换兄弟分支（左右环绕）。
+  ///
+  /// 切换不改变 activeSessionId（同一会话）：显式重建消息列表并保存新活动
+  /// 路径（双写一致），随后滚到最新。
+  void _switchBranchAt(int loopId, {required bool next}) {
+    final ctrl = ref.read(agentControllerProvider);
+    final session = ctrl.session;
+    final target = switchSibling(session, loopId, next: next);
+    if (target == null) return;
+    _syncMessagesFromRuntime();
+    ref.read(saveCurrentSessionProvider)(session.id);
+    _scrollToBottom();
+  }
+
+  /// 渲染单条消息：气泡 + （user 消息所在轮有分支时）下方分支切换条
+  /// 「◀ i/n ▶」（R3：切换条在消息下面，不是会话名下面）。
+  Widget _buildMessageItem(ChatMessage msg, int index, List<ChatMessage> messages) {
+    final lastAsstIdx = messages.lastIndexWhere((m) => m.isAssistant);
+    final bubble = _MessageBubble(
+      message: msg,
+      fontScale: widget.fontScale,
+      messageIndex: index,
+      onEdit: msg.isUser ? () => _editUserMessage(index) : null,
+      onRegenerate:
+          msg.isAssistant && index == lastAsstIdx ? _regenerate : null,
+    );
+    final branchCount = msg.branchCount;
+    if (!msg.isUser || branchCount == null || branchCount <= 1) {
+      return bubble; // 无分叉 / 旧直线数据：零行为变化
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        bubble,
+        _BranchSwitcherBar(
+          branchIndex: msg.branchIndex ?? 1,
+          branchCount: branchCount,
+          onPrev: () => _switchBranchAt(msg.loopId ?? 0, next: false),
+          onNext: () => _switchBranchAt(msg.loopId ?? 0, next: true),
+        ),
+      ],
+    );
   }
 
   /// 格式化日期为简短展示（今日 → 时间，昨日 → "昨天"，其他 → 月/日）。
@@ -706,11 +749,18 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     final messages = ref.read(_chatMessagesProvider);
     if (messages.isEmpty) return;
     final ctrl = ref.read(agentControllerProvider);
-    final lastUserContent = ctrl.session.removeLastTurn();
-    if (lastUserContent == null) return;
-    final notifier = ref.read(_chatMessagesProvider.notifier);
-    notifier.removeLastTurn();
-    _editUserText(lastUserContent);
+    final session = ctrl.session;
+    final lastUserIdx = messages.lastIndexWhere((m) => m.isUser);
+    if (lastUserIdx < 0) return;
+    // R3：非破坏性重新生成——以最后一轮为分叉点开 sibling（旧回复完整保留
+    // 在树中，可经分支切换条切回），原文本回填后重发。纯会话层操作，
+    // 不触碰工作区。
+    final loopId = _countUserMessagesBefore(messages, lastUserIdx);
+    final text = _stripAttachmentMarker(messages[lastUserIdx].content);
+    if (!session.forkRound(loopId, text)) return;
+    _syncMessagesFromRuntime();
+    ref.read(saveCurrentSessionProvider)(session.id);
+    _editUserText(text);
     await _sendMessage();
   }
 
@@ -812,7 +862,19 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     }
 
     final messagesNotifier = ref.read(_chatMessagesProvider.notifier);
-    messagesNotifier.addUser(displayText);
+    // R3 会话树：新 user 消息的分支切换条信息——发送后所在轮 = 当前 user 序号
+    // （分叉续写时该轮已是活动 sibling，切换条立即可用；普通续写无兄弟 → null）。
+    final session = ref.read(agentControllerProvider).session;
+    final userOrdinal =
+        messagesNotifier.state.where((m) => m.isUser).length;
+    final siblings = siblingsOf(session, userOrdinal);
+    messagesNotifier.addUser(
+      displayText,
+      loopId: userOrdinal,
+      branchCount: siblings.isEmpty ? null : siblings.length,
+      branchIndex:
+          siblings.isEmpty ? null : branchIndexIn(session, userOrdinal),
+    );
     _inputCtrl.clear();
 
     _pendingTimeline.clear();
@@ -1254,23 +1316,8 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                     padding:
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                     itemCount: messages.length,
-                    itemBuilder: (context, index) {
-                      final msg = messages[index];
-                      final lastAsstIdx =
-                          messages.lastIndexWhere((m) => m.isAssistant);
-                      return _MessageBubble(
-                        message: msg,
-                        fontScale: widget.fontScale,
-                        messageIndex: index,
-                        onEdit: msg.isUser
-                            ? () => _editUserMessage(index)
-                            : null,
-                        onRegenerate: msg.isAssistant &&
-                                index == lastAsstIdx
-                            ? _regenerate
-                            : null,
-                      );
-                    },
+                    itemBuilder: (context, index) =>
+                        _buildMessageItem(messages[index], index, messages),
                   ),
           ),
           _buildEmbeddedInputBar(theme),
@@ -1430,9 +1477,9 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                         itemBuilder: (_, i) {
                           final s = sessions[i];
                           final isActive = s.id == activeId;
-                          // Task 六 Bug 7：会话行显示分支计数小标签（分支族 > 1 时）。
-                          final branchCount =
-                              branchFamilyOf(sessions, s.id).length;
+                          // R3 会话树：会话行分支标签 = 树内分支计数（旧 A6
+                          // fork 数据走 branchFamilyOf 兜底）。
+                          final branchCount = branchLabelCount(sessions, s);
                           return ListTile(
                             selected: isActive,
                             selectedTileColor: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
@@ -1818,9 +1865,8 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            // Task 六 Bug 7：分支切换「< 分支 i/n >」——当前会话有父/兄弟/子
-            // 分支时显示；旧会话（分支族大小 1）不显示，行为零变化。
-            _BranchSwitcher(sessionId: ref.watch(activeSessionIdProvider)),
+            // R3 会话树：分支切换条不再放在会话名下面，改在分叉的 user
+            // 消息下方渲染（见 _buildMessageItem / _BranchSwitcherBar）。
           ],
         ),
         centerTitle: false,
@@ -1872,23 +1918,8 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                     controller: _scrollCtrl,
                     padding: const EdgeInsets.all(16),
                     itemCount: messages.length,
-                    itemBuilder: (context, index) {
-                      final msg = messages[index];
-                      final lastAsstIdx =
-                          messages.lastIndexWhere((m) => m.isAssistant);
-                      return _MessageBubble(
-                        message: msg,
-                        fontScale: widget.fontScale,
-                        messageIndex: index,
-                        onEdit: msg.isUser
-                            ? () => _editUserMessage(index)
-                            : null,
-                        onRegenerate: msg.isAssistant &&
-                                index == lastAsstIdx
-                            ? _regenerate
-                            : null,
-                      );
-                    },
+                    itemBuilder: (context, index) =>
+                        _buildMessageItem(messages[index], index, messages),
                   ),
           ),
           if (_isRunning) _buildStatusBar(theme),
@@ -1971,23 +2002,8 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
                     controller: _scrollCtrl,
                     padding: const EdgeInsets.all(16),
                     itemCount: messages.length,
-                    itemBuilder: (context, index) {
-                      final msg = messages[index];
-                      final lastAsstIdx =
-                          messages.lastIndexWhere((m) => m.isAssistant);
-                      return _MessageBubble(
-                        message: msg,
-                        fontScale: widget.fontScale,
-                        messageIndex: index,
-                        onEdit: msg.isUser
-                            ? () => _editUserMessage(index)
-                            : null,
-                        onRegenerate: msg.isAssistant &&
-                                index == lastAsstIdx
-                            ? _regenerate
-                            : null,
-                      );
-                    },
+                    itemBuilder: (context, index) =>
+                        _buildMessageItem(messages[index], index, messages),
                   ),
           ),
           if (_isRunning) _buildStatusBar(theme),
@@ -3983,8 +3999,9 @@ class _ConversationHistoryPanel extends ConsumerWidget {
                           m.role == agent.Role.user ||
                           m.role == agent.Role.assistant)
                       .length;
-                  // Task 六 Bug 7：会话行显示分支计数小标签（分支族 > 1 时）。
-                  final branchCount = branchFamilyOf(sessions, s.id).length;
+                  // R3 会话树：会话行分支标签 = 树内分支计数（旧 A6 fork
+                  // 数据走 branchFamilyOf 兜底）。
+                  final branchCount = branchLabelCount(sessions, s);
                   return ListTile(
                     selected: isActive,
                     selectedTileColor: theme
@@ -4069,55 +4086,65 @@ class _ConversationHistoryPanel extends ConsumerWidget {
   }
 }
 
-// ═══════ _BranchSwitcher ═══════
+// ═══════ _BranchSwitcherBar ═══════
 
-/// Task 六 Bug 7：分支切换控件「< 分支 i/n >」。
+/// R3 会话树分支切换条「◀ i/n ▶」——渲染在**分叉的 user 消息下方**（spec：
+/// 消息下面，不是会话名下面）。
 ///
-/// 读取 [sessionListProvider]（内部即 `sessionStoreProvider.listAll()`）过滤出
-/// 当前会话的分支族（自身 + 父会话 + 同父兄弟 + 子分支，见 session_branch.dart），
-/// 分支族大小 > 1 时显示序号与左右切换按钮；否则返回空（旧会话无分支元数据 →
-/// 零行为变化）。切换走 [switchSessionProvider]：纯会话层操作，不撤销工作区变更。
-class _BranchSwitcher extends ConsumerWidget {
-  final String? sessionId;
+/// 左右环绕切换同一会话内的兄弟分支（switch 即 i±1，见 session_branch.dart 的
+/// [switchSibling]）；切换是纯会话层操作：不改变会话 id、不产生新会话、
+/// 不撤销工作区变更。仅在消息所在轮有分支（branchCount > 1）时由
+/// [_ChatControllerViewState._buildMessageItem] 渲染。
+class _BranchSwitcherBar extends StatelessWidget {
+  final int branchIndex;
+  final int branchCount;
+  final VoidCallback onPrev;
+  final VoidCallback onNext;
 
-  const _BranchSwitcher({this.sessionId});
+  const _BranchSwitcherBar({
+    required this.branchIndex,
+    required this.branchCount,
+    required this.onPrev,
+    required this.onNext,
+  });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final id = sessionId ?? ref.watch(activeSessionIdProvider);
-    if (id == null) return const SizedBox.shrink();
-    final sessions =
-        ref.watch(sessionListProvider).valueOrNull ?? const <agent.Session>[];
-    final group = branchFamilyOf(sessions, id);
-    if (group.length <= 1) return const SizedBox.shrink();
-    final index = branchIndexIn(group, id);
+  Widget build(BuildContext context) {
     final dim = Theme.of(context).colorScheme.onSurfaceVariant;
-
-    Widget arrow(IconData icon, bool next) {
-      return InkWell(
-        onTap: () {
-          final target = branchSwitchTo(group, id, next: next);
-          if (target != null) ref.read(switchSessionProvider)(target);
-        },
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.all(1),
-          child: Icon(icon, size: 14, color: dim),
-        ),
-      );
-    }
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        arrow(Icons.chevron_left, false),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 2),
-          child: Text('分支 $index/${group.length}',
-              style: TextStyle(fontSize: 10, color: dim)),
-        ),
-        arrow(Icons.chevron_right, true),
-      ],
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            onTap: onPrev,
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.all(2),
+              child: Icon(Icons.chevron_left, size: 16, color: dim),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              '$branchIndex/$branchCount',
+              style: TextStyle(
+                fontSize: 11,
+                color: dim,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ),
+          InkWell(
+            onTap: onNext,
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.all(2),
+              child: Icon(Icons.chevron_right, size: 16, color: dim),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -4462,8 +4489,20 @@ class _LocalChatMessagesNotifier
     extends StateNotifier<List<ChatMessage>> {
   _LocalChatMessagesNotifier() : super([]);
 
-  void addUser(String text) {
-    state = [...state, ChatMessage(role: 'user', content: text)];
+  /// [loopId]/[branchCount]/[branchIndex]：R3 会话树分支切换条信息
+  /// （缺省 null → 不渲染切换条，零行为变化）。
+  void addUser(String text,
+      {int? loopId, int? branchCount, int? branchIndex}) {
+    state = [
+      ...state,
+      ChatMessage(
+        role: 'user',
+        content: text,
+        loopId: loopId,
+        branchCount: branchCount,
+        branchIndex: branchIndex,
+      ),
+    ];
   }
 
   void addNotice(String text) {

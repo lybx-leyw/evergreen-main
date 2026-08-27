@@ -12,6 +12,15 @@ class ChatMessage {
   final List<ToolCallData> toolCalls;
   final DateTime timestamp;
 
+  /// 消息所属轮次深度（会话树 R3；null = 无分支信息，不渲染分支切换条）。
+  final int? loopId;
+
+  /// 该轮兄弟分支数（> 1 时在消息下方渲染「◀ i/n ▶」切换条）。
+  final int? branchCount;
+
+  /// 当前活动分支 1-based 序号（切换条「◀ i/n ▶」的 i）。
+  final int? branchIndex;
+
   ChatMessage({
     String? id,
     required this.role,
@@ -19,6 +28,9 @@ class ChatMessage {
     this.thinkingContent,
     this.toolCalls = const [],
     DateTime? timestamp,
+    this.loopId,
+    this.branchCount,
+    this.branchIndex,
   })  : id = id ?? DateTime.now().microsecondsSinceEpoch.toString(),
         timestamp = timestamp ?? DateTime.now();
 
