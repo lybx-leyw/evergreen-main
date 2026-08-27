@@ -35,7 +35,6 @@ flowchart LR
 | `html-creator` | module | **HTML 插件创作中心**：三栏 IDE + 预览 + AI 辅助生成 + 导出 |
 | `marketplace` | module | 插件市场：浏览、搜索、启用/停用、卸载 |
 | `python-runner` | agent | Python 运行器：Agent 可调用的本地 Python 3.10 环境（**内置 Dart 工具** `PythonRunnerTool`，本目录 manifest 为声明镜像，含 `runtime:"python"`，无独立入口文件） |
-| `ocr` | agent | OCR 工具插件**格式示例**（Task 四决策 4.2）：真实 OCR 由内置 Dart 工具 `ocr_file` / `check_ocr_ready` 提供（OcrPipeline 两级降级），本目录 manifest + ocr_file.py 为「标准插件格式」文档示例 / 未来 Python 化占位，运行期因同名内置工具已被 PluginBridge 跳过 |
 | `scraper` | module | 所见即所得爬虫：抓包 + AI 生成 Python 爬虫 |
 | `settings` | module + config | 设置面板：API Key、模型、主题等全局配置（v4 Dart 设置页；遗留 exe 形态已清理） |
 | `skill-creator` | module | Skill 创作中心：多 Agent 流水线生成/导出 Skill |
@@ -45,9 +44,8 @@ flowchart LR
 > 的 manifest 带 `template` 字段（依次为 `dsh` / `html` / `scraper` / `skill-creator` / `theme-creator`），
 > 走专用模板渲染；其余内置模块走 v4 组件式渲染。新增内置插件后请同步登记本清单。
 
-> **插件清单口径**：本目录 11 个内置插件（含 `ocr` 格式示例，运行期不注册独立工具——
-> 同名内置 `ocr_file` 已被 PluginBridge 跳过）+ `view` / `warm_study` / `zju_autosign` 3 个
-> registry 托管插件（见下）= 全平台 **14 个插件身份**。
+> **插件清单口径**：本目录 10 个内置插件 + `view` / `warm_study` / `zju_autosign` 3 个
+> registry 托管插件（见下）= 全平台 **13 个插件身份**。
 >
 > **2026-08-25（t19）**：`pdf_translate` 内置插件已移除（PDF 翻译功能撤销，用户决定无内置
 > 必要；渲染层 `translate` 组件与 core 翻译服务由对应 OWNER 同步下线，`pdf2zh_next` 引擎

@@ -123,9 +123,6 @@ flutter:
     - assets/plugins_bundle/example-skin-evergreen-logo/skin/manifest.json
     - assets/plugins_bundle/html-creator/module/manifest.json
     - assets/plugins_bundle/marketplace/module/manifest.json
-    - assets/plugins_bundle/ocr/agent/README.md
-    - assets/plugins_bundle/ocr/agent/manifest.json
-    - assets/plugins_bundle/ocr/agent/ocr_file.py
     - assets/plugins_bundle/python-runner/agent/manifest.json
     - assets/plugins_bundle/scraper/module/manifest.json
     - assets/plugins_bundle/settings/README.md
@@ -141,10 +138,7 @@ flutter:
     - assets/scripts_bundle/evg_lib/cas.py
     - assets/scripts_bundle/evg_lib/config.py
     - assets/scripts_bundle/evg_lib/jsonio.py
-    - assets/scripts_bundle/ocr_file.py
-    - assets/scripts_bundle/ocr_slides.py
     - assets/scripts_bundle/paper_reader.py
-    - assets/scripts_bundle/pdf_to_images.py
     - assets/scripts_bundle/requirements.txt
 
     # <<<SCRIPTS_ASSETS_END<<<

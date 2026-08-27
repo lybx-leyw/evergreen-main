@@ -303,7 +303,7 @@ runtime.events.listen((event) {
 
 | 方法 | 说明 |
 |------|------|
-| `controller.send(text, {attachments})` | 入: `String`, `String?` / 发送消息（可选附件 OCR 上下文） |
+| `controller.send(text, {attachments})` | 入: `String`, `String?` / 发送消息（可选附件上下文） |
 | `controller.activateSkill(id)` | 入: `String` / 出: `bool` / 激活 Skill |
 | `controller.deactivateSkill(id)` | 入: `String` / 出: `bool` / 停用 Skill |
 | `controller.activeSkillIds` | 出: `List<String>` / 当前激活的 Skill ID |
@@ -405,20 +405,6 @@ await for (final event in MockEventStream.generate()) {
 |------|------|
 | `MockEventStream.generate({delay})` | 出: `Stream<AgentEvent>` / 覆盖全部 EventKind 的模拟流 |
 | `MockEventStream.eventKindReference` | 出: `List<Map>` / 全部 EventKind 的描述和 payload 参考表 |
-
-### OcrAttachmentHandler
-
-```dart
-final handler = OcrAttachmentHandler(recognize: pipeline.recognizeFile, sink: eventSink);
-final results = await handler.process(['/path/to/image.png']);
-final ctx = handler.toContextString(results);
-controller.send('分析这张图片', attachments: ctx);
-```
-
-| 方法 | 说明 |
-|------|------|
-| `process(filePaths)` | 入: `List<String>` / 出: `Future<List<OcrResult>>` / 批量 OCR |
-| `toContextString(results)` | 入: `List<OcrResult>` / 出: `String` / 格式化为 context 注入文本 |
 
 ### ScriptedAgentHttpServer（集成测试）
 

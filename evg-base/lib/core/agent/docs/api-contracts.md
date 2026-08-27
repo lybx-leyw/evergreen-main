@@ -131,7 +131,7 @@ await for (final event in MockEventStream.generate()) { ... }
 ```dart
 /// 发送用户消息并启动 Agent 运行。
 ///
-/// [attachments] 可选附件上下文文本（OCR 处理结果），
+/// [attachments] 可选附件上下文文本，
 /// 注入本轮 system prompt（单轮有效，run 结束后自动清空）。
 void send(String input, {String? attachments})
 ```
@@ -139,7 +139,7 @@ void send(String input, {String? attachments})
 | 参数 | 类型 | 说明 |
 |------|------|------|
 | `input` | `String` | 用户输入文本（非空） |
-| `attachments` | `String?` | OCR 或文件解析上下文，注入 system prompt |
+| `attachments` | `String?` | 文件解析上下文，注入 system prompt |
 | 副作用 | — | 启动 Agent 主循环，emit turnStarted 事件 |
 
 **状态机：**
@@ -258,14 +258,6 @@ allowed_tools: ["search", "read_file"]
 | 429 | `AiUnavailableException.rateLimited()` | true |
 | 500/502/503 | `AiUnavailableException.serverError()` | true |
 | 其他 | `AiUnavailableException.fromStatusCode(code)` | code >= 500 |
-
-### OCR 附件管线
-
-```
-用户选文件 → OcrAttachmentHandler.process(paths) → toContextString(results)
-→ controller.send(text, attachments: context)
-→ _buildSystemPrompt 注入 → Agent 基于 OCR 内容回答
-```
 
 ---
 

@@ -39,9 +39,8 @@ Future<void> main() async {
   _installer.onInstall = (_) => print('  [系统] 插件已安装，请各 Loader 刷新注册表');
   _installer.onUninstall = (_) => print('  [系统] 插件已卸载，请各 Loader 刷新注册表');
 
-  final ocrPipeline = OcrPipeline(dio);
   final updateService = UpdateService(dio);
-  _coreServer = CoreHttpServer(_installer, ocrPipeline, updateService);
+  _coreServer = CoreHttpServer(_installer, updateService);
 
   // 自动启动 CoreHttpServer——模拟启动管线第 4 步
   final corePort = await _coreServer.start();
@@ -62,8 +61,8 @@ Future<void> main() async {
     print('║  1.浏览模块    2.模块详情    3.渲染 UI       ║');
     print('║  4.数据交互    5.AI工具调用  6.主题配色      ║');
     print('║  7.联动图      8.目录树      9.JSON源码      ║');
-    print('║ 10.安装插件   11.卸载插件   12.OCR识别       ║');
-    print('║ 13.更新检查   14.插件列表   15.🌐 微服务网格 ║');
+    print('║ 10.安装插件   11.卸载插件   12.更新检查      ║');
+    print('║ 13.插件列表   14.🌐 微服务网格              ║');
     print('║  0.退出                                      ║');
     print('╚══════════════════════════════════════════════╝');
 
@@ -82,10 +81,8 @@ Future<void> main() async {
       case '9': _raw(); break;
       case '10': await _installDemo(); break;
       case '11': await _uninstallDemo(); break;
-      case '12': await _ocrDemo(); break;
-      case '13': await _updateDemo(); break;
-      case '14': _pluginList(); break;
-      case '15': await _httpServerDemo(); break;
+      case '12': await _updateDemo(); break;
+      case '14': await _httpServerDemo(); break;
       case '0':
       case 'q':
         await _coreServer.stop();
@@ -363,24 +360,6 @@ Future<void> _uninstallDemo() async {
   );
 }
 
-// ═══ 12. OCR 识别 ═══
-Future<void> _ocrDemo() async {
-  stdout.write('图片路径 > ');
-  final path = stdin.readLineSync()?.trim() ?? '';
-  if (path.isEmpty) { print('已取消\n'); return; }
-
-  print('OCR 识别中（DeepSeek → Tesseract 两级降级）...');
-  final ocrPipeline = OcrPipeline(Dio());
-  final text = await ocrPipeline.recognizeFile(path);
-  if (text != null && text.isNotEmpty) {
-    print('═══ 识别结果 ═══');
-    print(text);
-  } else {
-    print('❌ 识别失败（文件不存在或 OCR 服务不可用）');
-  }
-  print('');
-}
-
 // ═══ 13. 更新检查 ═══
 Future<void> _updateDemo() async {
   final updateService = UpdateService(Dio());
@@ -432,7 +411,6 @@ void _pluginList() {
 ///   3. GET  /core/plugins        → 查看已安装插件
 ///   4. POST /core/install        → 从 URL 安装插件
 ///   5. GET  /core/update/check   → 检查宿主更新
-///   6. GET  /core/ocr/status     → OCR 状态
 ///   7. POST /core/uninstall/:id  → 卸载插件
 ///
 /// 这就是插件 .exe 看到的平台：一个本地微服务网格，
@@ -476,7 +454,6 @@ Future<void> _httpServerDemo() async {
     final health = await _get('/core/health');
     print('   status: ${health['status']}');
     print('   pluginsCount: ${health['pluginsCount']}');
-    print('   ocrAvailable: ${health['ocrAvailable']}');
 
     // ── 3. 查看已安装插件 ──
     print('\n═══ 3. GET /core/plugins ═══');
@@ -512,27 +489,7 @@ Future<void> _httpServerDemo() async {
       print('   latestVersion: ${hostUpdate['latestVersion']}');
     }
 
-    // ── 6. OCR 状态 + 演示 ──
-    print('\n═══ 6. GET /core/ocr/status ═══');
-    final ocrStatus = await _get('/core/ocr/status');
-    print('   deepseekAvailable: ${ocrStatus['deepseekAvailable']}');
-    print('   tesseractAvailable: ${ocrStatus['tesseractAvailable']}');
-
-    stdout.write('\n─── 7. OCR 识别 (回车跳过) ───\n   图片路径 > ');
-    final imagePath = stdin.readLineSync()?.trim() ?? '';
-    if (imagePath.isNotEmpty) {
-      print('   POST /core/ocr {path: "$imagePath"} ...');
-      final ocrResult = await _post('/core/ocr', {'path': imagePath});
-      final text = ocrResult['text'] as String?;
-      if (text != null && text.isNotEmpty) {
-        print('   识别结果 (前 200 字符):');
-        print('   ${text.substring(0, text.length > 200 ? 200 : text.length)}');
-      } else {
-        print('   ❌ 未识别到文字');
-      }
-    }
-
-    // ── 8. 卸载演示 ──
+    // ── 6. 卸载演示 ──
     final currentPlugins = (_installer.listPlugins().map((p) => p.id)).toList();
     if (currentPlugins.isNotEmpty) {
       stdout.write('\n─── 8. 卸载插件 (回车跳过) ───\n   已安装: ${currentPlugins.join(", ")}\n   插件 id > ');
@@ -550,7 +507,7 @@ Future<void> _httpServerDemo() async {
 
     // ── 9. 微服务网格总览 ──
     print('\n╔══════════════════════════════════════════════╗');
-    print('║   Core 微服务网格 —— 8 端点全部可用          ║');
+    print('║   Core 微服务网格 —— 6 端点全部可用          ║');
     print('╠══════════════════════════════════════════════╣');
     print('║  GET  /core/health           健康检查        ║');
     print('║  POST /core/install          安装插件        ║');
@@ -558,8 +515,6 @@ Future<void> _httpServerDemo() async {
     print('║  GET  /core/plugins          列出插件        ║');
     print('║  GET  /core/update/check/:id 检查插件更新    ║');
     print('║  GET  /core/update/check     检查宿主更新    ║');
-    print('║  POST /core/ocr              OCR 识别        ║');
-    print('║  GET  /core/ocr/status       OCR 状态        ║');
     print('╚══════════════════════════════════════════════╝');
     print('\n   插件 .exe 视角：读取 .core_port → HTTP → 获得全部能力');
   } finally {

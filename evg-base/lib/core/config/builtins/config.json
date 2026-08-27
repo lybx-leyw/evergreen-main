@@ -20,7 +20,6 @@
     {"key":"VIDEO_OPENER",         "label":"视频播放器路径",      "type":"path"},
     {"key":"TRANSLATE_LANG_OUT",   "label":"翻译目标语言",        "type":"string", "default":"zh"},
     {"key":"TRANSLATE_LANG_IN",    "label":"翻译源语言",          "type":"string", "default":"en"},
-    {"key":"PYTHON_EXE",           "label":"Python 解释器路径",   "type":"path"},
-    {"key":"DEEPSEEK_OCR_API_KEY", "label":"DeepSeek OCR Key",  "type":"string", "isSecure":true}
+    {"key":"PYTHON_EXE",           "label":"Python 解释器路径",   "type":"path"}
   ]
 }

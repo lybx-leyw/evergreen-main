@@ -9,7 +9,7 @@
 | 适用 | 插件打包作者 |
 
 > **面向**：插件开发者 / 插件商城工程师
-> **关联**：`PluginInstaller` / `UpdateService` / `OcrPipeline`
+> **关联**：`PluginInstaller` / `UpdateService`
 > **定位**：本指南不是插件"撰写"规范（撰写规范见各维度详细指南），而是插件**打包、签名、分发、安装**的操作指南。
 
 ---
@@ -18,10 +18,9 @@
 
 Evergreen 平台通过 `.plugin` 包分发插件。插件安装后，Core 层的 `PluginInstaller` 自动完成下载、签名校验、解压和注册。插件开发者无需关心这些底层细节，只需按规范打包即可。
 
-本文档涵盖插件开发中涉及 Core 服务的三个主要场景：
+本文档涵盖插件开发中涉及 Core 服务的两个主要场景：
 1. **PluginInstaller** — 插件的安装/卸载/更新机制
 2. **UpdateService** — 宿主和插件的版本检查
-3. **OcrPipeline** — 在插件中调用 OCR 能力
 
 ---
 
@@ -164,57 +163,6 @@ if (hasUpdate) {
 - 支持标准语义化版本：`1.2.3`
 - pre-release 后缀被忽略：`1.0.0-beta` 视为 `1.0.0`
 - 缺失段视为 0：`1` = `1.0.0`
-
----
-
-## 四、OCR Pipeline 调用指南
-
-### 4.1 插件内调用 OCR
-
-插件 `.exe` 通过 CoreHttpServer 的 HTTP API 调用 OCR：
-
-```bash
-# 读取 .core_port 发现服务
-PORT=$(cat .core_port)
-
-# OCR 识别本地文件
-curl -X POST http://127.0.0.1:$PORT/core/ocr \
-  -H "Content-Type: application/json" \
-  -d '{"path": "/path/to/image.png"}'
-
-# 返回: {"text": "识别到的文字内容"}
-```
-
-### 4.2 OCR 服务状态检查
-
-```bash
-curl http://127.0.0.1:$PORT/core/ocr/status
-# 返回: {"deepseekAvailable": true, "tesseractAvailable": true}
-```
-
-### 4.3 降级策略
-
-OCR 管线自动执行两级降级：
-
-1. **Level 1: DeepSeek-OCR**（云端，高精度）
-   - 需要配置环境变量 `DEEPSEEK_OCR_API_KEY`
-   - 支持格式：jpg / png / bmp / webp / tiff / pdf
-   
-2. **Level 2: Tesseract**（本地，离线可用）
-   - 自动检测 Python 环境和依赖
-   - 支持格式：图片文件 + PDF
-
-### 4.4 依赖要求（Level 2）
-
-| 依赖 | 说明 |
-|------|------|
-| Python 3.8+ | 系统 PATH，或嵌入式 Python 运行时（由安装包预置 / 资产释放提供） |
-| pytesseract | `pip install pytesseract` |
-| Pillow | `pip install Pillow` |
-| pdf2image | `pip install pdf2image`（PDF 支持） |
-| Tesseract-OCR | 系统级安装 |
-
-平台在首次 OCR 调用时自动检查和安装 Python 依赖。
 
 ---
 
