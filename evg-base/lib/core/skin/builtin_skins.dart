@@ -26,6 +26,12 @@ const List<SkinDescriptor> builtinSkins = [
           'containerBorder': '#FFE082',
         },
       },
+      // R2-3 用户气泡调淡：原来偏深（theme primary），默认皮肤改为
+      // 淡蓝 #E3F2FD + 深蓝文字 #0D47A1（保证浅底上的可读性）。
+      'bubble': {
+        'userBackgroundColor': '#E3F2FD',
+        'userTextColor': '#0D47A1',
+      },
     },
   ),
 ];

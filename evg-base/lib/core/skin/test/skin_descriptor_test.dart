@@ -168,25 +168,49 @@ void main() {
       final s = SkinDescriptor.fromJson({
         ..._minimal(),
         'bubble': {
-          'userBackground': '#E07A3F',
+          'userBackgroundColor': '#E3F2FD',
           'assistantBackground': null,
           'borderRadius': 20,
           'maxWidthRatio': 0.8,
         },
       });
-      expect(s.bubbleUserBackground, '#E07A3F');
+      expect(s.bubbleUserBackgroundColor, '#E3F2FD');
+      expect(s.bubbleColor('userBackgroundColor'), '#E3F2FD');
       expect(s.bubbleAssistantBackground, isNull);
       expect(s.bubbleBorderRadius, 20.0);
       expect(s.bubbleMaxWidthRatio, 0.8);
     });
 
+    test('bubble 段：R2-3 新键优先，旧键 userBackground 向后兼容', () {
+      final legacy = SkinDescriptor.fromJson({
+        ..._minimal(),
+        'bubble': {'userBackground': '#E07A3F'},
+      });
+      expect(legacy.bubbleUserBackground, '#E07A3F');
+      expect(legacy.bubbleUserBackgroundColor, '#E07A3F'); // 兼容旧键
+      final both = SkinDescriptor.fromJson({
+        ..._minimal(),
+        'bubble': {
+          'userBackground': '#E07A3F',
+          'userBackgroundColor': '#E3F2FD',
+        },
+      });
+      expect(both.bubbleUserBackgroundColor, '#E3F2FD'); // 新键优先
+    });
+
     test('avatar / emptyState 段', () {
       final s = SkinDescriptor.fromJson({
         ..._minimal(),
-        'avatar': {'user': '#E07A3F', 'assistant': 'logo_desktop.svg'},
+        'avatar': {
+          'user': '#E07A3F',
+          'userBackgroundColor': '#C8E6C9',
+          'assistant': 'logo_desktop.svg',
+        },
         'emptyState': {'logo': 'logo_mobile.svg', 'title': '你好呀'},
       });
       expect(s.avatarUser, '#E07A3F');
+      expect(s.avatarUserBackgroundColor, '#C8E6C9');
+      expect(s.avatarColor('userBackgroundColor'), '#C8E6C9');
       expect(s.avatarAssistant, 'logo_desktop.svg');
       expect(s.emptyStateLogo, 'logo_mobile.svg');
       expect(s.emptyStateTitle, '你好呀');

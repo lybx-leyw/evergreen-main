@@ -50,12 +50,14 @@
   },
 
   "bubble": {
+    "userBackgroundColor": "#DCEDC8",
+    "userTextColor": "#33691E",
     "borderRadius": 18,
     "maxWidthRatio": 0.72
   },
 
   "avatar": {
-    "user": null,
+    "userBackgroundColor": "#C8E6C9",
     "assistant": "logo_mobile.svg"
   },
 

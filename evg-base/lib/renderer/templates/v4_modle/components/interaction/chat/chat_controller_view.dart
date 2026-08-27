@@ -219,7 +219,11 @@ Widget _buildSkinAvatar({
   final assetRef = _isSkinColorRef(raw) ? null : raw;
   final assetPath = _skinAssetPath(skin, assetRef);
   final image = _skinAssetImage(assetPath, size: 28 * s);
-  final bg = color ??
+  // R2-3 用户头像底色：`avatar.userBackgroundColor`（专用 hex 键）优先，
+  // 其次 `avatar.user` 的 hex 颜色，缺省保持现状
+  // （用户 primary(0.7) / AI primaryContainer，零行为变化）。
+  final bg = _skinHex(skin?.avatarUserBackgroundColor) ??
+      color ??
       (isUser
           ? scheme.primary.withValues(alpha: 0.7)
           : scheme.primaryContainer);
@@ -3406,10 +3410,10 @@ class _MessageBubbleState extends State<_MessageBubble> {
     final scheme = Theme.of(context).colorScheme;
     final skin = widget.skin;
 
-    // D1 消息气泡覆盖（皮肤包；未配置全部回退现有默认，零行为变化）。
+    // D1/R2-3 消息气泡覆盖（皮肤包；未配置全部回退现有默认，零行为变化）。
     final bubbleRadius = skin?.bubbleBorderRadius;
     final bubbleColor = isUser
-        ? (_skinHex(skin?.bubbleUserBackground) ?? scheme.primary)
+        ? (_skinHex(skin?.bubbleUserBackgroundColor) ?? scheme.primary)
         : (_skinHex(skin?.bubbleAssistantBackground) ??
             scheme.surfaceContainerHighest);
     final userTextColor =

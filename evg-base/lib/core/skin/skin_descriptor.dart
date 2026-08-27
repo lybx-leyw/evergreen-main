@@ -18,8 +18,8 @@
 /// | `background` | `type`(solid/gradient)、`color`、`gradient.from/to/angle` | 对话背景（A1） | 消息列表容器 decoration |
 /// | `buttons` | `inputBar.{workspace,webSearch,thinkingEffort,tools,bgProcess,skills,clear}`、`messageActions.{copy,regenerate,edit}` | 按钮显隐（B1/B2） | 工具栏 / 消息操作行 |
 /// | `thinking` | `title`、`visible`、`colors.{header,containerBackground,containerBorder,contentText,chipMemoryBg/Fg,chipSkillBg/Fg,chipToolBg/Fg,chipToolResultBg/Fg}` | 思考栏配色（C1）+ 标题（E） | 思考栏渲染点 |
-/// | `bubble` | `userBackground`/`assistantBackground`/`userTextColor`/`assistantTextColor`/`borderRadius`/`maxWidthRatio` | 消息气泡样式（D1） | 气泡 BoxDecoration / ConstrainedBox |
-/// | `avatar` | `user`/`assistant`（hex 颜色或图片资源引用） | 头像 DIY（E） | CircleAvatar |
+/// | `bubble` | `userBackground`/`userBackgroundColor`/`assistantBackground`/`userTextColor`/`assistantTextColor`/`borderRadius`/`maxWidthRatio` | 消息气泡样式（D1/R2-3） | 气泡 BoxDecoration / ConstrainedBox |
+/// | `avatar` | `user`/`assistant`（hex 颜色或图片资源引用）、`userBackgroundColor`（hex，R2-3） | 头像 DIY（E） | CircleAvatar |
 /// | `emptyState` | `logo`（hex 或图片引用）、`title` | 空状态欢迎区（E） | 空状态渲染 |
 /// | 顶层 | `effortColor`、`toolActiveColor`、`codeInline`、`codeBlockBackground` | 功能色快捷覆盖（C1） | 深度思考档位 / 工具激活 / 代码色 |
 ///
@@ -187,9 +187,19 @@ class SkinDescriptor {
   /// 思考栏是否显示（C2 预留；v1 渲染层不消费，保持现有行为）。
   bool? get thinkingVisible => _bool(thinking, 'visible');
 
-  // ═══════ bubble 段（D1）═══════
+  // ═══════ bubble 段（D1 / R2-3）═══════
 
-  /// 用户气泡底色 hex（null = 跟随 theme primary）。
+  /// bubble 段通用取色（键：`userBackground`/`userBackgroundColor`/
+  /// `assistantBackground`/`userTextColor`/`assistantTextColor` 等）。
+  String? bubbleColor(String key) => _str(bubble, key);
+
+  /// 用户气泡底色 hex（R2-3 新键 `userBackgroundColor` 优先，兼容旧键
+  /// `userBackground`；null = 跟随 theme primary）。
+  String? get bubbleUserBackgroundColor =>
+      _str(bubble, 'userBackgroundColor') ?? _str(bubble, 'userBackground');
+
+  /// 用户气泡底色 hex（旧键 `userBackground`，R2-3 起由
+  /// [bubbleUserBackgroundColor] 兼容读取，本 getter 保留向后兼容）。
   String? get bubbleUserBackground => _str(bubble, 'userBackground');
 
   /// AI 气泡底色 hex（null = 跟随 theme surfaceContainerHighest）。
@@ -208,13 +218,20 @@ class SkinDescriptor {
   /// 气泡最大宽度占比（缺省渲染层用 0.72）。
   double? get bubbleMaxWidthRatio => _num(bubble, 'maxWidthRatio');
 
-  // ═══════ avatar 段（E）═══════
+  // ═══════ avatar 段（E / R2-3）═══════
+
+  /// avatar 段通用取色（键：`user`/`assistant`/`userBackgroundColor` 等）。
+  String? avatarColor(String key) => _str(avatar, key);
 
   /// 用户头像：hex 颜色（`#` 开头）或图片资源引用（相对 manifest 路径）。
   String? get avatarUser => _str(avatar, 'user');
 
   /// AI 头像：hex 颜色（`#` 开头）或图片资源引用（相对 manifest 路径）。
   String? get avatarAssistant => _str(avatar, 'assistant');
+
+  /// 用户头像底色 hex（R2-3 专用键，独立于可作图片引用的 `avatar.user`；
+  /// null = 跟随 theme primary(0.7) 现状）。
+  String? get avatarUserBackgroundColor => _str(avatar, 'userBackgroundColor');
 
   // ═══════ emptyState 段（E）═══════
 
