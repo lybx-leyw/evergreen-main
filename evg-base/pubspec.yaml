@@ -105,8 +105,9 @@ flutter:
     - docs/plugin-registry/assets/view/module/manifest.json
     - docs/plugin-registry/assets/warm_study/theme/theme.json
     - docs/plugin-registry/assets/example-skin-evergreen-logo/skin/manifest.json
-    - docs/plugin-registry/assets/example-skin-evergreen-logo/skin/logo_desktop.svg
-    - docs/plugin-registry/assets/example-skin-evergreen-logo/skin/logo_mobile.svg
+    - docs/plugin-registry/assets/example-skin-evergreen-logo/skin/empty_icon.svg
+    - docs/plugin-registry/assets/example-skin-evergreen-logo/skin/bg_desktop.svg
+    - docs/plugin-registry/assets/example-skin-evergreen-logo/skin/bg_mobile.svg
 
     # 查老师（zju teachers）：内置完整教师评分数据集（chalaoshi.top 抓取）。
     # 注意：勿放入下方 >>>PLUGIN_ASSETS_START>>> 标记块（该块由 bundle_plugins.dart 自动生成）。

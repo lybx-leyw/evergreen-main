@@ -65,8 +65,8 @@
     {
       "id": "example-skin-evergreen-logo",
       "name": "绿意 Logo 皮肤",
-      "description": "AI 助手皮肤包示例：绿意不息 logo + 对话背景 / 按钮显隐 / 思考栏配色 DIY",
-      "longDescription": "「绿意 Logo」内置 AI 视图皮肤包（agent 皮肤包，lattice:skin）：type:\"skin\" 的 manifest 声明对话背景渐变（A1）、工具栏按钮显隐（B1/B2）、思考栏配色（C1）、气泡圆角（D1）、AI 头像与空状态 logo（E）；绿意不息 logo 以 svg 资源随包分发，安装后经设置面板「外观 · 皮肤包」一键切换，ChangeNotifier 热生效。皮肤包只覆盖 AI 视图内部消费点的功能色，不触碰主题语义色。",
+      "description": "AI 助手皮肤包示例：绿意不息 logo + 空状态图标（横竖屏一致）+ 分屏对话背景 / 按钮显隐 / 思考栏配色 DIY",
+      "longDescription": "「绿意 Logo」内置 AI 视图皮肤包（agent 皮肤包，lattice:skin）：type:\"skin\" 的 manifest 声明空状态装饰图标（assets.emptyIcon，横竖屏一致）、分屏对话背景图（background.type:\"image\" + imageDesktop/imageMobile，R2-4）、工具栏按钮显隐（B1/B2）、思考栏配色（C1）、气泡样式与用户气泡底色（D1/R2-3）、用户头像底色与 AI 头像（R2-3）；绿意主题 svg（空状态图标/横屏背景/竖屏背景）随包分发，安装后经设置面板「外观 · 皮肤包」一键切换，ChangeNotifier 热生效。皮肤包只覆盖 AI 视图内部消费点的功能色，不触碰主题语义色。",
       "author": "lybx-leyw",
       "version": "1.0.0",
       "repo": "https://github.com/lybx-leyw/evergreen-main",

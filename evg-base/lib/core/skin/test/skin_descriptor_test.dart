@@ -82,11 +82,22 @@ void main() {
         'assets': {
           'logoDesktop': 'logo_desktop.svg',
           'logoMobile': 'logo_mobile.svg',
+          'emptyIcon': 'empty_icon.svg',
+          'backgroundImage': 'bg_fallback.svg',
         },
       });
       expect(s.logoDesktop, 'logo_desktop.svg');
       expect(s.logoMobile, 'logo_mobile.svg');
-      expect(s.backgroundImage, isNull);
+      expect(s.emptyIcon, 'empty_icon.svg'); // R2-4 空状态图标（横竖屏一致）
+      expect(s.backgroundImage, 'bg_fallback.svg');
+    });
+
+    test('assets 段：R2-4 缺省 emptyIcon 为 null（空状态回退旧键）', () {
+      final s = SkinDescriptor.fromJson({
+        ..._minimal(),
+        'assets': {'logoDesktop': 'logo_desktop.svg'},
+      });
+      expect(s.emptyIcon, isNull);
     });
 
     test('background 段：solid', () {
@@ -97,6 +108,8 @@ void main() {
       expect(s.backgroundType, 'solid');
       expect(s.backgroundColor, '#FFFFFF');
       expect(s.backgroundGradientFrom, isNull);
+      expect(s.backgroundImageDesktop, isNull);
+      expect(s.backgroundImageMobile, isNull);
     });
 
     test('background 段：gradient', () {
@@ -111,6 +124,32 @@ void main() {
       expect(s.backgroundGradientFrom, '#E8F5E9');
       expect(s.backgroundGradientTo, '#FFFFFF');
       expect(s.backgroundGradientAngle, 135.0);
+    });
+
+    test('background 段：image 分横竖屏（R2-4）', () {
+      final s = SkinDescriptor.fromJson({
+        ..._minimal(),
+        'background': {
+          'type': 'image',
+          'imageDesktop': 'bg_desktop.svg',
+          'imageMobile': 'bg_mobile.svg',
+        },
+      });
+      expect(s.backgroundType, 'image');
+      expect(s.backgroundImageDesktop, 'bg_desktop.svg');
+      expect(s.backgroundImageMobile, 'bg_mobile.svg');
+      expect(s.backgroundColor, isNull); // image 与纯色互斥
+    });
+
+    test('background 段：image 缺省分屏键为 null（可回退 assets.backgroundImage）',
+        () {
+      final s = SkinDescriptor.fromJson({
+        ..._minimal(),
+        'background': {'type': 'image'},
+      });
+      expect(s.backgroundType, 'image');
+      expect(s.backgroundImageDesktop, isNull);
+      expect(s.backgroundImageMobile, isNull);
     });
 
     test('buttons 段：inputBar / messageActions', () {

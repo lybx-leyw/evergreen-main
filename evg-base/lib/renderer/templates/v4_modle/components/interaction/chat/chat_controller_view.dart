@@ -181,6 +181,8 @@ Widget? _skinAssetImage(String? path, {double size = 28}) {
 /// 未配置 / 类型未知返回 null（保持现有默认背景，零行为变化）。
 ///
 /// 渐变角度约定：角度制，0° = 左→右，正值逆时针旋转；缺省 135°（斜向渐变）。
+/// `type=="image"` 的背景图不在此处理（svg 需要 SvgPicture 无法进
+/// DecorationImage，由 [_skinBackgroundImageWidget] 以 Stack 覆盖渲染）。
 Decoration? _skinBackground(SkinDescriptor? skin) {
   final type = skin?.backgroundType;
   if (type == 'solid') {
@@ -201,6 +203,51 @@ Decoration? _skinBackground(SkinDescriptor? skin) {
     );
   }
   return null;
+}
+
+/// R2-4 对话背景图资源引用——`background.type=="image"` 时按屏幕方向选择：
+/// 宽屏（宽 ≥ 高）用 `imageDesktop`，竖屏用 `imageMobile`；
+/// 缺省回退旧键 `assets.backgroundImage`（单图不分屏）。
+/// 非 image 类型 / 未配置返回 null。
+String? _skinBackgroundImageRef(SkinDescriptor? skin, bool landscape) {
+  if (skin?.backgroundType != 'image') return null;
+  return (landscape
+          ? skin?.backgroundImageDesktop
+          : skin?.backgroundImageMobile) ??
+      skin?.backgroundImage;
+}
+
+/// R2-4 对话背景图 Widget（`background.type=="image"`）。
+/// svg / png 均可，全屏覆盖 + 半透明白遮罩保证消息文字可读性；
+/// 无皮肤 / 无图 / 文件缺失返回 null（保持现有默认背景，零行为变化）。
+Widget? _skinBackgroundImageWidget(SkinDescriptor? skin, bool landscape) {
+  final path = _skinAssetPath(skin, _skinBackgroundImageRef(skin, landscape));
+  if (path == null) return null;
+  final file = File(path);
+  if (!file.existsSync()) return null;
+  final lower = path.toLowerCase();
+  final Widget img = lower.endsWith('.svg')
+      ? SvgPicture.file(
+          file,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+        )
+      : Image.file(
+          file,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+        );
+  return Stack(
+    fit: StackFit.expand,
+    children: [
+      img,
+      // 可读性遮罩：35% 白，浅色背景图下消息文字仍清晰。
+      const ColoredBox(color: Color(0x59FFFFFF)),
+    ],
+  );
 }
 
 /// E 头像 / 空状态 logo：`#` 开头 → hex 颜色；否则视为图片资源引用。
@@ -2025,18 +2072,11 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
         children: [
           Expanded(
             child: Container(
-              // A1 对话背景：skin.background 段（纯色/渐变）；未配置时 null →
-              // Container 直通 child，与现状布局完全一致。
+              // A1/R2-4 对话背景：skin.background 段（纯色/渐变 decoration；
+              // type=="image" 由 _buildConversationArea 以 Stack 覆盖背景图）；
+              // 未配置时 null → Container 直通 child，与现状布局完全一致。
               decoration: _skinBackground(skin),
-              child: messages.isEmpty
-                  ? _buildEmptyState(skin)
-                  : ListView.builder(
-                      controller: _scrollCtrl,
-                      padding: const EdgeInsets.all(16),
-                      itemCount: messages.length,
-                      itemBuilder: (context, index) => _buildMessageItem(
-                          messages[index], index, messages, skin),
-                    ),
+              child: _buildConversationArea(skin, messages),
             ),
           ),
           if (_isRunning) _buildStatusBar(theme),
@@ -2115,17 +2155,9 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
         children: [
           Expanded(
             child: Container(
-              // A1 对话背景（皮肤包），同全屏模式。
+              // A1/R2-4 对话背景（皮肤包），同全屏模式。
               decoration: _skinBackground(skin),
-              child: messages.isEmpty
-                  ? _buildEmptyState(skin)
-                  : ListView.builder(
-                      controller: _scrollCtrl,
-                      padding: const EdgeInsets.all(16),
-                      itemCount: messages.length,
-                      itemBuilder: (context, index) => _buildMessageItem(
-                          messages[index], index, messages, skin),
-                    ),
+              child: _buildConversationArea(skin, messages),
             ),
           ),
           if (_isRunning) _buildStatusBar(theme),
@@ -3041,14 +3073,46 @@ class _ChatControllerViewState extends ConsumerState<ChatControllerView>
     );
   }
 
+  // ── 对话消息区（空状态 / 消息列表 + 可选对话背景图）──
+
+  /// R2-4 对话消息区：空状态或消息列表，叠加 `background.type=="image"`
+  /// 的对话背景图（按屏幕宽高比分横竖屏：宽屏 imageDesktop / 竖屏
+  /// imageMobile）。无背景图时原样返回内容（与现状布局一致）。
+  Widget _buildConversationArea(
+      SkinDescriptor? skin, List<ChatMessage> messages) {
+    final size = MediaQuery.sizeOf(context);
+    final landscape = size.width >= size.height;
+    final bgImage = _skinBackgroundImageWidget(skin, landscape);
+    final content = messages.isEmpty
+        ? _buildEmptyState(skin)
+        : ListView.builder(
+            controller: _scrollCtrl,
+            padding: const EdgeInsets.all(16),
+            itemCount: messages.length,
+            itemBuilder: (context, index) =>
+                _buildMessageItem(messages[index], index, messages, skin),
+          );
+    if (bgImage == null) return content;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        bgImage,
+        content,
+      ],
+    );
+  }
+
   // ── 空状态 ──
 
   Widget _buildEmptyState([SkinDescriptor? skin]) {
-    // E 空状态欢迎区：logo（hex 着色 / 图片资源）与标题可配，缺省现有渲染。
+    // E/R2-4 空状态欢迎区：装饰图标（横竖屏一致的单一图标）与标题可配。
+    // 优先 `assets.emptyIcon`（R2-4 新语义，不区分方向），回退旧
+    // `emptyState.logo`（hex 着色 / 图片引用），缺省现有渲染。
     final scheme = Theme.of(context).colorScheme;
-    final logoRaw = skin?.emptyStateLogo;
-    final logoColor = _isSkinColorRef(logoRaw) ? _skinHex(logoRaw) : null;
-    final logoPath = _skinAssetPath(skin, _isSkinColorRef(logoRaw) ? null : logoRaw);
+    final iconRaw = skin?.emptyIcon ?? skin?.emptyStateLogo;
+    final logoColor = _isSkinColorRef(iconRaw) ? _skinHex(iconRaw) : null;
+    final logoPath =
+        _skinAssetPath(skin, _isSkinColorRef(iconRaw) ? null : iconRaw);
     final logoImage = _skinAssetImage(logoPath, size: 64);
     final title = skin?.emptyStateTitle ?? '我是你的 AI 教学助手';
 

@@ -2,17 +2,17 @@
   "type": "skin",
   "id": "example-skin-evergreen-logo",
   "name": "绿意 Logo 皮肤",
-  "version": "1.0.0",
-  "description": "示例皮肤包：绿意不息 logo + 绿意对话背景（A1）+ 按钮显隐（B1）+ 思考栏配色（C1）演示",
+  "version": "1.1.0",
+  "description": "示例皮肤包：绿意不息 logo + 空状态图标（横竖屏一致）+ 分屏对话背景图（A/R2-4）+ 按钮显隐（B）+ 思考栏配色（C1）+ 头像/气泡颜色（R2-3）演示",
 
   "assets": {
-    "logoDesktop": "logo_desktop.svg",
-    "logoMobile": "logo_mobile.svg"
+    "emptyIcon": "empty_icon.svg"
   },
 
   "background": {
-    "type": "gradient",
-    "gradient": { "from": "#E8F5E9", "to": "#FFFFFF", "angle": 135 }
+    "type": "image",
+    "imageDesktop": "bg_desktop.svg",
+    "imageMobile": "bg_mobile.svg"
   },
 
   "buttons": {
@@ -37,6 +37,7 @@
     "colors": {
       "header": "#1B8A4F",
       "containerBackground": "#F0F9F2",
+      "containerBorder": "#A5D6A7",
       "contentText": "#3E7C55",
       "chipMemoryBg": "#E8F5E9",
       "chipMemoryFg": "#1B5E20",
@@ -50,17 +51,18 @@
   },
 
   "bubble": {
+    "userBackgroundColor": "#DCEDC8",
+    "userTextColor": "#33691E",
     "borderRadius": 18,
     "maxWidthRatio": 0.72
   },
 
   "avatar": {
-    "user": null,
-    "assistant": "logo_mobile.svg"
+    "userBackgroundColor": "#C8E6C9",
+    "assistant": "empty_icon.svg"
   },
 
   "emptyState": {
-    "logo": "logo_desktop.svg",
     "title": "我是你的绿意 AI 助手"
   },
 
