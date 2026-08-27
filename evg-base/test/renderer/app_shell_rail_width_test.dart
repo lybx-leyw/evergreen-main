@@ -153,7 +153,8 @@ void main() {
     debugDefaultTargetPlatformOverride = null;
   });
 
-  testWidgets('AI 视图推入设置面板：出现浮动返回按钮，点击回到 AI 视图', (tester) async {
+  testWidgets('AI 视图推入设置面板：壳层出现同款返回 AppBar，点击回到 AI 视图',
+      (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;
     final prefs = await SharedPreferences.getInstance();
 
@@ -192,7 +193,10 @@ void main() {
                   ),
                   GoRoute(
                     path: '/discover',
-                    builder: (c, s) => const Scaffold(body: SizedBox()),
+                    builder: (c, s) => Scaffold(
+                      appBar: AppBar(title: const Text('发现插件')),
+                      body: const SizedBox(),
+                    ),
                   ),
                 ],
               ),
@@ -203,28 +207,37 @@ void main() {
     );
     await tester.pump();
 
-    // AI 视图初始（非推入页）：无返回按钮。
-    expect(find.byTooltip('返回'), findsNothing);
+    // AI 视图初始（非推入页）：壳层无返回 AppBar。
+    expect(find.byType(AppBar), findsNothing);
 
-    // 推入 /settings（白名单面板）→ 出现浮动返回按钮。
+    // 推入 /settings（白名单面板）→ 壳层出现同款返回 AppBar。
     final router = GoRouter.of(tester.element(find.byType(AppShell)));
     router.push('/settings');
     await tester.pumpAndSettle();
+    expect(find.byType(AppBar), findsOneWidget);
     expect(find.byTooltip('返回'), findsOneWidget);
 
-    // 点击返回 → 回到 AI 视图，按钮随之消失。
+    // 返回 AppBar 样式对齐 AI 助手（经验 2 三件套）：显式背景色、
+    // 无 tint 叠加、scrolledUnder 不切换背景（内容可滚动时不回退近黑）。
+    final theme = Theme.of(tester.element(find.byType(AppBar)));
+    final backBar = tester.widget<AppBar>(find.byType(AppBar));
+    expect(backBar.backgroundColor, theme.colorScheme.surfaceContainerLowest);
+    expect(backBar.surfaceTintColor, Colors.transparent);
+    expect(backBar.scrolledUnderElevation, 0);
+
+    // 点击返回 → 回到 AI 视图，返回条随之消失。
     await tester.tap(find.byTooltip('返回'));
     await tester.pumpAndSettle();
     expect(
       GoRouterState.of(tester.element(find.byType(AppShell))).uri.path,
       '/ai-assistant',
     );
-    expect(find.byTooltip('返回'), findsNothing);
+    expect(find.byType(AppBar), findsNothing);
 
     debugDefaultTargetPlatformOverride = null;
   });
 
-  testWidgets('AI 视图推入非白名单路由（/discover）：不出现浮动返回按钮', (tester) async {
+  testWidgets('AI 视图推入非白名单路由（/discover）：壳层无返回 AppBar', (tester) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;
     final prefs = await SharedPreferences.getInstance();
 
@@ -253,9 +266,14 @@ void main() {
                     path: '/ai-assistant',
                     builder: (c, s) => const Scaffold(body: SizedBox()),
                   ),
+                  // /discover 真实实现自带 AppBar（discovered_plugins_view），
+                  // stub 同样自带 AppBar，用于区分「壳层返回条」与「页面自带 AppBar」。
                   GoRoute(
                     path: '/discover',
-                    builder: (c, s) => const Scaffold(body: SizedBox()),
+                    builder: (c, s) => Scaffold(
+                      appBar: AppBar(title: const Text('发现插件')),
+                      body: const SizedBox(),
+                    ),
                   ),
                 ],
               ),
@@ -270,8 +288,11 @@ void main() {
     router.push('/discover');
     await tester.pumpAndSettle();
 
-    // 非白名单路由：不显示浮动返回按钮（discover 自带 AppBar 返回）。
+    // 非白名单路由：壳层不渲染返回 AppBar（无 '返回' 条）；
+    // 树中仅剩 discover 页面自带的 AppBar（页面级返回语义，非壳层提供）。
     expect(find.byTooltip('返回'), findsNothing);
+    expect(find.byType(AppBar), findsOneWidget);
+    expect(find.text('发现插件'), findsOneWidget);
 
     debugDefaultTargetPlatformOverride = null;
   });
