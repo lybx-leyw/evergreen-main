@@ -130,6 +130,10 @@ flutter:
     - assets/plugins_bundle/settings/module/manifest.json
     - assets/plugins_bundle/skill-creator/module/manifest.json
     - assets/plugins_bundle/theme-creator/module/manifest.json
+    - assets/plugins_bundle/vision/README.md
+    - assets/plugins_bundle/vision/agent/manifest.json
+    - assets/plugins_bundle/vision/agent/vision.py
+    - assets/plugins_bundle/vision/config/config.json
 
     # <<<PLUGIN_ASSETS_END<<<
 

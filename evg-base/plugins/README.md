@@ -39,13 +39,14 @@ flowchart LR
 | `settings` | module + config | 设置面板：API Key、模型、主题等全局配置（v4 Dart 设置页；遗留 exe 形态已清理） |
 | `skill-creator` | module | Skill 创作中心：多 Agent 流水线生成/导出 Skill |
 | `theme-creator` | module | 主题创作中心：8 色语义色板可视化编辑 + 导出 |
+| `vision` | agent + config | **多模态视觉工具**（Task R3-5）：Agent 工具 `vision`（stdin JSON，mode=ocr 提取图片/PDF/PPT 文字 / describe 读图描述 / generate 生图占位），OpenAI 兼容 chat/completions API；同包 `config/config.json` 提供 6 个设置项（OCR_API_* / VISION_API_*），由 `_stepSettings` 扫描自动注册进设置面板 |
 
 > **模板路由**：`dsh`、`html-creator`、`scraper`、`skill-creator`、`theme-creator`
 > 的 manifest 带 `template` 字段（依次为 `dsh` / `html` / `scraper` / `skill-creator` / `theme-creator`），
 > 走专用模板渲染；其余内置模块走 v4 组件式渲染。新增内置插件后请同步登记本清单。
 
-> **插件清单口径**：本目录 10 个内置插件 + `view` / `warm_study` / `zju_autosign` 3 个
-> registry 托管插件（见下）= 全平台 **13 个插件身份**。
+> **插件清单口径**：本目录 11 个内置插件 + `view` / `warm_study` / `zju_autosign` 3 个
+> registry 托管插件（见下）= 全平台 **14 个插件身份**。
 >
 > **2026-08-25（t19）**：`pdf_translate` 内置插件已移除（PDF 翻译功能撤销，用户决定无内置
 > 必要；渲染层 `translate` 组件与 core 翻译服务由对应 OWNER 同步下线，`pdf2zh_next` 引擎
