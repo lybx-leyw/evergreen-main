@@ -22,6 +22,7 @@ import 'package:evergreen_base/core/agent/skill/skill.dart';
 import 'package:evergreen_base/core/agent/tools/file_info.dart';
 import 'package:evergreen_base/core/agent/tools/head_tail.dart';
 import 'package:evergreen_base/core/agent/tools/python_runner_tool.dart';
+import 'package:evergreen_base/core/plugin/plugin_runner.dart';
 import 'package:evergreen_base/core/agent/tools/read_file.dart';
 import 'package:evergreen_base/core/agent/tools/web_search.dart';
 import 'package:evergreen_base/core/agent/tools/write_file.dart';
@@ -218,22 +219,31 @@ class DeepSearchRunner {
       CheckOcrReadyTool(ocrPipeline),
     ];
 
-    // 注册嵌入式 Python runner（若存在），供 agent 执行辅助脚本
-    // Windows：统一走 PythonInterpreter 同步探测（单一真理来源，
-    // 与 resolvePythonExe 的 greenix 目录优先级一致）；Unix：保持历史多候选
-    // （greenix 目录内 python3 形态，未随统一解析迁移——遗留点见 t9 报告）。
-    final bundledPython = Platform.isWindows
-        ? (PythonInterpreter.bundledPathSync() ?? '')
-        : [p.join(greenixPythonDir, 'bin', 'python3'),
-           p.join(greenixPythonDir, 'python3'),
-           p.join(greenixPythonDir, 'python')]
-            .firstWhere((path) => File(path).existsSync(), orElse: () => '');
-    if (bundledPython.isNotEmpty) {
-      seedTools.add(PythonRunnerTool(
-        pythonExePath: bundledPython,
-        pythonWorkDir: greenixPythonDir,
+    // 注册 Python runner，供 agent 执行辅助脚本。
+    // 安卓：进程内 Chaquopy（isSupported=true）→ build() 哨兵占位 +
+    // sharedPluginRunner（MethodChannel）；桌面：保持历史逻辑
+    // （Windows 统一走 PythonInterpreter 同步探测，单一真理来源，与
+    // resolvePythonExe 的 greenix 目录优先级一致；Unix 保持历史多候选
+    // greenix 目录内 python3 形态，未随统一解析迁移——遗留点见 t9 报告）。
+    if (Platform.isAndroid) {
+      seedTools.add(await PythonRunnerTool.build(
         workspaceDir: agentWs,
+        runner: await sharedPluginRunner,
       ));
+    } else {
+      final bundledPython = Platform.isWindows
+          ? (PythonInterpreter.bundledPathSync() ?? '')
+          : [p.join(greenixPythonDir, 'bin', 'python3'),
+             p.join(greenixPythonDir, 'python3'),
+             p.join(greenixPythonDir, 'python')]
+              .firstWhere((path) => File(path).existsSync(), orElse: () => '');
+      if (bundledPython.isNotEmpty) {
+        seedTools.add(PythonRunnerTool(
+          pythonExePath: bundledPython,
+          pythonWorkDir: greenixPythonDir,
+          workspaceDir: agentWs,
+        ));
+      }
     }
 
     final provider = buildDeepSeekProvider(
