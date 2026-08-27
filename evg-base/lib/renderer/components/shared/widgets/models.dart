@@ -81,7 +81,7 @@ class WorkspaceFile {
 
 // ═══════ Sprint 2: 页面数据模型 ═══════
 
-/// 能力维度——对应六色标签体系。
+/// 能力维度——对应七色标签体系。
 enum AbilityDim {
   agent,
   ui,
