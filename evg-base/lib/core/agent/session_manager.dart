@@ -34,7 +34,7 @@ final createSessionProvider = Provider<void Function(String? title)>((ref) {
     final session = agent.Session(title: title ?? '新对话');
     // ✅ 修复：使用 agentControllerProvider.session（main.dart 中注入的实际 session）
     final ctrl = ref.read(agentControllerProvider);
-    ctrl.session.messages.clear();
+    ctrl.session.clearMessages();
     ctrl.session.id = session.id;
     ctrl.session.title = title ?? '新对话';
     // 新会话为根会话：重置派生元数据（防上次会话残留的 parent_id/fork_turn）
@@ -68,20 +68,18 @@ final switchSessionProvider = Provider<void Function(String id)>((ref) {
     final ctrl = ref.read(agentControllerProvider);
     final msgs = ref.read(chatMessagesProvider.notifier);
     msgs.clear();
-    ctrl.session.messages.clear();
     if (target != null) {
-      ctrl.session.messages.addAll(target.messages);
-      ctrl.session.id = target.id;
-      ctrl.session.title = target.title;
-      // 同步派生元数据（防 ctrl.session 残留上一会话的 parent_id/fork_turn）
-      ctrl.session.parentId = target.parentId;
-      ctrl.session.forkTurn = target.forkTurn;
+      // 整体采纳目标会话（含树与活动路径，双写一致），而非仅拷贝 messages。
+      ctrl.session.adoptFrom(target);
       for (final m in target.messages) {
         if (m.content.trim().isEmpty) continue;
         if (m.role == agent.Role.user) msgs.addUser(m.content);
         else if (m.role == agent.Role.assistant) msgs.addAssistant(m.content, reasoning: m.reasoningContent);
       }
       debugPrint('[SESSION:SWITCH] loaded ${target.messages.length} msgs → notifier now has ${msgs.state.length}');
+    } else {
+      // 目标不存在：清空当前会话（与旧行为一致）。
+      ctrl.session.clearMessages();
     }
     // 最后才更新 activeSessionId，触发 UI 同步
     ref.read(activeSessionIdProvider.notifier).state = id;
@@ -89,13 +87,16 @@ final switchSessionProvider = Provider<void Function(String id)>((ref) {
   };
 });
 
-/// 从已有会话在指定消息索引处分叉出一个新会话（「从此处继续」/ 多 Agent fork）。
+/// ⚠️ **Legacy 入口（R3 起弃用，仅保留旧数据懒迁移读兼容）**：
+/// 从已有会话在指定消息索引处分叉出一个**新会话**（「分支 = 独立会话」的旧语义）。
 ///
 /// - 新会话 id 重新生成；`parent_id` = 源会话 id；`fork_turn` = 分叉点索引
 ///   （0-based，clamp 到 [0, 源消息数]）。
 /// - 消息继承源会话 `messages[0..forkTurn)`，之后由用户/模型走新路径（分化）。
 /// - 语义见 `docs/superpowers/specs/egsync-sync-center-spec-v1.md` §七：fork_turn 非空
 ///   且分叉点后消息不同 → 合并时父子**都保留**（路径分化都保留）。
+/// - **R3 起新分叉一律走树内 [agent.Session.forkRound]（同一会话），本入口不再
+///   被 UI 调用**，保留仅为兼容旧调用方与旧 fork 数据。
 final forkSessionProvider =
     Provider<void Function(String sourceId, int forkTurn, {String? title})>((ref) {
   return (String sourceId, int forkTurn, {String? title}) async {
@@ -116,8 +117,10 @@ final forkSessionProvider =
       forkTurn: clampTurn,
     );
     child.messages.addAll(source.messages.take(clampTurn));
+    // 懒迁移：由继承的消息推导单路径树，保证后续树操作（续写/分叉）双写一致。
+    child.rebuildTreeFromMessages();
     final ctrl = ref.read(agentControllerProvider);
-    ctrl.session.messages.clear();
+    ctrl.session.clearMessages();
     ctrl.session.id = child.id;
     ctrl.session.title = child.title;
     ctrl.session.parentId = sourceId;
@@ -175,7 +178,7 @@ final deleteSessionProvider = Provider<void Function(String id)>((ref) {
       // 先清空所有消息状态，再重置 activeSessionId，
       // 确保 listener 回调看到的是已清空的数据。
       ref.read(chatMessagesProvider.notifier).clear();
-      ref.read(agentControllerProvider).session.messages.clear();
+      ref.read(agentControllerProvider).session.clearMessages();
       ref.read(activeSessionIdProvider.notifier).state = null;
     }
     final store = ref.read(sessionStoreProvider);
