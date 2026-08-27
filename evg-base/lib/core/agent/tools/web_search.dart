@@ -1,14 +1,29 @@
 /// Agent 工具：网络搜索与网页获取。
 library;
 
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
 
 import '../tool.dart';
+import 'research_search.dart';
 
 // ═══════ WebSearchTool ═══════
+
+/// web_search 的搜索来源 mode（Task 二 R2 多来源召回）。
+enum WebSearchMode {
+  /// 网络搜索（缺省值——行为与返工前完全一致）。
+  network,
+
+  /// arXiv 论文检索（复用 research_search.dart 的共享逻辑）。
+  arxiv,
+
+  /// GitHub 仓库检索（复用 research_search.dart 的共享逻辑）。
+  github,
+
+  /// 三来源（网络 + arxiv + github）三合一一并召回，结果区分来源。
+  all,
+}
 
 /// 使用搜索引擎查询信息。
 class WebSearchTool extends Tool {
@@ -28,11 +43,43 @@ class WebSearchTool extends Tool {
   /// HTML 抓取上限（保留现状 8MiB 截断）。
   static const int htmlCap = 8 * 1024 * 1024;
 
+  /// mode=all 时 max_results 的分配策略（文档化）：
+  /// 三来源均分，余数优先给网络、其次 arxiv、最后 github；
+  /// 分配为 0 的来源直接跳过（不发起请求）。
+  /// 例：max_results=5 → 网络 2 / arxiv 2 / github 1；=10 → 4/3/3；=1 → 1/0/0。
+  static (int, int, int) _splitForAll(int maxResults) {
+    final per = maxResults ~/ 3;
+    final rem = maxResults % 3;
+    return (
+      per + (rem > 0 ? 1 : 0),
+      per + (rem > 1 ? 1 : 0),
+      per,
+    );
+  }
+
+  /// 解析 mode：缺省/非法值静默回退到 [WebSearchMode.network]（未知静默忽略原则）；
+  /// 字符串忽略大小写与首尾空白。
+  static WebSearchMode _parseMode(dynamic raw) {
+    if (raw is String) {
+      switch (raw.trim().toLowerCase()) {
+        case 'arxiv':
+          return WebSearchMode.arxiv;
+        case 'github':
+          return WebSearchMode.github;
+        case 'all':
+          return WebSearchMode.all;
+        case 'network':
+          return WebSearchMode.network;
+      }
+    }
+    return WebSearchMode.network;
+  }
+
   @override
   String get name => 'web_search';
 
   @override
-  String get description => '搜索网络获取最新信息。当你需要回答用户关于实时事件、最新新闻、学术资料等需要联网获取的内容时使用。参数 query 为搜索关键词，max_results 为返回结果条数（1-10，默认 5）。';
+  String get description => '搜索获取最新信息（多来源）。当你需要回答用户关于实时事件、最新新闻、学术资料、开源代码等需要联网获取的内容时使用。参数 query 为搜索关键词，max_results 为返回结果条数（1-10，默认 5），mode 为搜索来源：network（默认，网络搜索）/ arxiv（arXiv 论文）/ github（GitHub 仓库）/ all（三来源合并召回，结果带 [网络]/[arxiv]/[github] 来源标记）。';
 
   @override
   Map<String, dynamic> get schema => {
@@ -46,7 +93,13 @@ class WebSearchTool extends Tool {
             'type': 'integer',
             'minimum': 1,
             'maximum': 10,
-            'description': '返回结果条数（1-10，默认 5）',
+            'description': '返回结果条数（1-10，默认 5）；mode=all 时三来源均分',
+          },
+          'mode': {
+            'type': 'string',
+            'enum': ['network', 'arxiv', 'github', 'all'],
+            'description':
+                '搜索来源：network（默认，网络搜索）/ arxiv（arXiv 论文）/ github（GitHub 仓库）/ all（三来源合并召回，结果带来源标记）',
           },
         },
         'required': ['query'],
@@ -57,12 +110,20 @@ class WebSearchTool extends Tool {
     final query = args['query']?.toString() ?? '';
     if (query.isEmpty) return '[error: 搜索关键词为空]';
     final maxResults = _parseMaxResults(args);
+    final mode = _parseMode(args['mode']);
 
-    // 直接使用 Bing 搜索（国内可访问），跳过 DuckDuckGo（被屏蔽）
-    try {
-      return await _searchBing(query, maxResults);
-    } catch (e) {
-      return '[搜索失败: $e]';
+    switch (mode) {
+      case WebSearchMode.arxiv:
+        return _searchArxiv(query, maxResults);
+      case WebSearchMode.github:
+        return _searchGithub(query, maxResults);
+      case WebSearchMode.all:
+        return _searchAll(query, maxResults);
+      case WebSearchMode.network:
+        // 缺省 / 非法 mode → 现状网络搜索（铁律：零行为变化）。
+        final (entries, err) = await _fetchBingEntries(query);
+        if (err != null) return '[搜索失败: $err]';
+        return '搜索 "$query" 的结果:\n\n${entries.take(maxResults).join('\n\n')}';
     }
   }
 
@@ -78,6 +139,112 @@ class WebSearchTool extends Tool {
     return maxResultsDefault;
   }
 
+  /// mode=arxiv 单来源：复用 research_search.dart 的 [arxivSearchShared]，
+  /// 结果以 web_search 文本条目格式输出，每条带 [arxiv] 来源标记。
+  Future<String> _searchArxiv(String query, int maxResults) async {
+    final (entries, err) = await arxivSearchShared(_dio, query, maxResults);
+    if (err != null) return '[搜索失败: $err]';
+    if (entries.isEmpty) return '[搜索失败: 未找到结果]';
+    final body = entries.take(maxResults).map(_arxivEntryToText).join('\n\n');
+    return '搜索 "$query" 的结果（来源: arxiv）:\n\n$body';
+  }
+
+  /// mode=github 单来源：复用 research_search.dart 的 [githubSearchShared]，
+  /// 结果以 web_search 文本条目格式输出，每条带 [github] 来源标记。
+  Future<String> _searchGithub(String query, int maxResults) async {
+    final (entries, err) = await githubSearchShared(_dio, query, maxResults);
+    if (err != null) return '[搜索失败: $err]';
+    if (entries.isEmpty) return '[搜索失败: 未找到结果]';
+    final body = entries.take(maxResults).map(_githubEntryToText).join('\n\n');
+    return '搜索 "$query" 的结果（来源: github）:\n\n$body';
+  }
+
+  /// mode=all 三合一召回：网络 + arxiv + github 一并召回，max_results 按
+  /// [_splitForAll] 均分；每条结果带来源标记；单来源失败不阻塞其余来源，
+  /// 全部失败才返回整体失败。
+  Future<String> _searchAll(String query, int maxResults) async {
+    final (netN, arxN, gitN) = _splitForAll(maxResults);
+    final sections = <String>[];
+    final failures = <String>[];
+
+    if (netN > 0) {
+      final (entries, err) = await _fetchBingEntries(query);
+      if (err != null) {
+        failures.add('网络: $err');
+      } else if (entries.isEmpty) {
+        failures.add('网络: 未找到结果');
+      } else {
+        sections.add(entries.take(netN).map((e) => '[网络] $e').join('\n\n'));
+      }
+    }
+
+    if (arxN > 0) {
+      final (entries, err) = await arxivSearchShared(_dio, query, arxN);
+      if (err != null) {
+        failures.add('arxiv: $err');
+      } else if (entries.isEmpty) {
+        failures.add('arxiv: 未找到结果');
+      } else {
+        sections.add(entries.take(arxN).map(_arxivEntryToText).join('\n\n'));
+      }
+    }
+
+    if (gitN > 0) {
+      final (entries, err) = await githubSearchShared(_dio, query, gitN);
+      if (err != null) {
+        failures.add('github: $err');
+      } else if (entries.isEmpty) {
+        failures.add('github: 未找到结果');
+      } else {
+        sections.add(entries.take(gitN).map(_githubEntryToText).join('\n\n'));
+      }
+    }
+
+    if (sections.isEmpty) {
+      return '[搜索失败: ${failures.join('；')}]';
+    }
+    final header = '搜索 "$query" 的结果（来源: 网络+arxiv+github）:';
+    final body = sections.join('\n\n');
+    if (failures.isEmpty) return '$header\n\n$body';
+    return '$header\n\n$body\n\n[部分来源失败: ${failures.join('；')}]';
+  }
+
+  /// arXiv 条目 → web_search 文本条目（带 [arxiv] 标记，摘要截断到 300 字符）。
+  static String _arxivEntryToText(Map<String, dynamic> r) {
+    final buf = StringBuffer('[arxiv] ${r['title'] ?? ''}');
+    final authors = (r['authors'] ?? '').toString();
+    if (authors.isNotEmpty) buf.write('\n  作者: $authors');
+    final summary = (r['summary'] ?? '').toString();
+    if (summary.isNotEmpty) buf.write('\n  摘要: ${_truncate(summary, 300)}');
+    final url = (r['url'] ?? '').toString();
+    if (url.isNotEmpty) buf.write('\n  $url');
+    return buf.toString();
+  }
+
+  /// GitHub 条目 → web_search 文本条目（带 [github] 标记，描述截断到 200 字符）。
+  static String _githubEntryToText(Map<String, dynamic> r) {
+    final buf = StringBuffer('[github] ${r['name'] ?? ''}');
+    final desc = (r['description'] ?? '').toString();
+    if (desc.isNotEmpty) buf.write('\n  描述: ${_truncate(desc, 200)}');
+    final meta = <String>[];
+    final lang = (r['language'] ?? '').toString();
+    if (lang.isNotEmpty) meta.add('语言: $lang');
+    final stars = r['stars'];
+    if (stars is num) meta.add('★ $stars');
+    final updated = (r['updatedAt'] ?? '').toString();
+    if (updated.isNotEmpty) meta.add('更新: $updated');
+    if (meta.isNotEmpty) buf.write('\n  ${meta.join(' | ')}');
+    final url = (r['url'] ?? '').toString();
+    if (url.isNotEmpty) buf.write('\n  $url');
+    return buf.toString();
+  }
+
+  /// 截断到 [max] 字符（按字符数，避免截断半个代理对），超过加省略号。
+  static String _truncate(String s, int max) {
+    if (s.length <= max) return s;
+    return '${s.substring(0, max)}…';
+  }
+
   /// 从结果 URL 提取来源域名，供 LLM 判断来源可信度（轻量，不搬整套证据层）。
   static String _hostOf(String url) {
     final uri = Uri.tryParse(url);
@@ -85,7 +252,10 @@ class WebSearchTool extends Tool {
     return uri.host;
   }
 
-  Future<String> _searchBing(String query, int maxResults) async {
+  /// 网络搜索核心：Bing 抓取 + 结果提取，返回 (条目列表, 错误原因?)。
+  /// 错误原因非 null 表示失败（裸原因，不含「[搜索失败: ...]」外壳——
+  /// 由调用方按场景包装，缺省 mode 包装后与返工前输出逐字节一致）。
+  Future<(List<String>, String?)> _fetchBingEntries(String query) async {
     try {
       // 先用 cn.bing.com（国内镜像），失败再试 www.bing.com
       final hosts = ['https://cn.bing.com', 'https://www.bing.com'];
@@ -118,7 +288,7 @@ class WebSearchTool extends Tool {
 
       // 结构化错误 ①：网络失败（双 host 均不可达/无响应体）。
       if (html == null || html.isEmpty) {
-        return '[搜索失败: 无法连接搜索服务]';
+        return (const <String>[], '无法连接搜索服务');
       }
       if (html.length > htmlCap) {
         html = html.substring(0, htmlCap);
@@ -162,18 +332,16 @@ class WebSearchTool extends Tool {
         }
       }
 
-      if (results.isNotEmpty) {
-        return '搜索 "$query" 的结果:\n\n${results.take(maxResults).join('\n\n')}';
-      }
+      if (results.isNotEmpty) return (results, null);
       // 结构化错误 ②③：无 b_algo 结果块时，按页面长度区分
       // 「未找到结果」与「被反爬/异常页面（可能被限流）」。长度异常 = 过短
       // （跳转/验证页）或达到 8MiB 截断上限（JS 渲染/验证大页）。
       if (html.length < minNormalPageLength || html.length >= htmlCap) {
-        return '[搜索失败: 搜索服务返回异常页面（可能被限流），请稍后重试]';
+        return (const <String>[], '搜索服务返回异常页面（可能被限流），请稍后重试');
       }
-      return '[搜索失败: 未找到结果]';
+      return (const <String>[], '未找到结果');
     } catch (e) {
-      return '[搜索失败: $e]';
+      return (const <String>[], '$e');
     }
   }
 
