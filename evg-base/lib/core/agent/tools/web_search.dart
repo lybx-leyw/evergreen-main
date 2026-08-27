@@ -10,7 +10,7 @@ import 'research_search.dart';
 
 // ═══════ WebSearchTool ═══════
 
-/// web_search 的搜索来源 mode（Task 二 R2 多来源召回）。
+/// web_search 的搜索来源 mode（Task 二 R2 多来源召回 + R2-5 统一入口）。
 enum WebSearchMode {
   /// 网络搜索（缺省值——行为与返工前完全一致）。
   network,
@@ -21,7 +21,10 @@ enum WebSearchMode {
   /// GitHub 仓库检索（复用 research_search.dart 的共享逻辑）。
   github,
 
-  /// 三来源（网络 + arxiv + github）三合一一并召回，结果区分来源。
+  /// Crossref 学术出版物检索（复用 research_search.dart 的共享逻辑）。
+  crossref,
+
+  /// 四来源（网络 + arxiv + github + crossref）四合一一并召回，结果区分来源。
   all,
 }
 
@@ -43,16 +46,18 @@ class WebSearchTool extends Tool {
   /// HTML 抓取上限（保留现状 8MiB 截断）。
   static const int htmlCap = 8 * 1024 * 1024;
 
-  /// mode=all 时 max_results 的分配策略（文档化）：
-  /// 三来源均分，余数优先给网络、其次 arxiv、最后 github；
-  /// 分配为 0 的来源直接跳过（不发起请求）。
-  /// 例：max_results=5 → 网络 2 / arxiv 2 / github 1；=10 → 4/3/3；=1 → 1/0/0。
-  static (int, int, int) _splitForAll(int maxResults) {
-    final per = maxResults ~/ 3;
-    final rem = maxResults % 3;
+  /// mode=all 时 max_results 的分配策略（文档化，Task 二 R2-5 四来源）：
+  /// 四来源均分（maxResults ~/ 4），余数全部优先给网络；分配为 0 的来源
+  /// 直接跳过（不发起请求）。
+  /// 例：max_results=5 → 网络 2 / arxiv 1 / github 1 / crossref 1；
+  ///     =10 → 4/2/2/2；=1 → 1/0/0/0；=4 → 1/1/1/1。
+  static (int, int, int, int) _splitForAll(int maxResults) {
+    final per = maxResults ~/ 4;
+    final rem = maxResults % 4;
     return (
-      per + (rem > 0 ? 1 : 0),
-      per + (rem > 1 ? 1 : 0),
+      per + rem,
+      per,
+      per,
       per,
     );
   }
@@ -66,6 +71,8 @@ class WebSearchTool extends Tool {
           return WebSearchMode.arxiv;
         case 'github':
           return WebSearchMode.github;
+        case 'crossref':
+          return WebSearchMode.crossref;
         case 'all':
           return WebSearchMode.all;
         case 'network':
@@ -79,7 +86,7 @@ class WebSearchTool extends Tool {
   String get name => 'web_search';
 
   @override
-  String get description => '搜索获取最新信息（多来源）。当你需要回答用户关于实时事件、最新新闻、学术资料、开源代码等需要联网获取的内容时使用。参数 query 为搜索关键词，max_results 为返回结果条数（1-10，默认 5），mode 为搜索来源：network（默认，网络搜索）/ arxiv（arXiv 论文）/ github（GitHub 仓库）/ all（三来源合并召回，结果带 [网络]/[arxiv]/[github] 来源标记）。';
+  String get description => '搜索获取最新信息（多来源统一入口）。当你需要回答用户关于实时事件、最新新闻、学术资料、开源代码等需要联网获取的内容时使用。参数 query 为搜索关键词，max_results 为返回结果条数（1-10，默认 5），mode 为搜索来源：network（默认，网络搜索）/ arxiv（arXiv 论文）/ github（GitHub 仓库）/ crossref（Crossref 学术出版物）/ all（四来源合并召回，结果带 [网络]/[arxiv]/[github]/[crossref] 来源标记）。';
 
   @override
   Map<String, dynamic> get schema => {
@@ -93,13 +100,13 @@ class WebSearchTool extends Tool {
             'type': 'integer',
             'minimum': 1,
             'maximum': 10,
-            'description': '返回结果条数（1-10，默认 5）；mode=all 时三来源均分',
+            'description': '返回结果条数（1-10，默认 5）；mode=all 时四来源均分，余数优先网络',
           },
           'mode': {
             'type': 'string',
-            'enum': ['network', 'arxiv', 'github', 'all'],
+            'enum': ['network', 'arxiv', 'github', 'crossref', 'all'],
             'description':
-                '搜索来源：network（默认，网络搜索）/ arxiv（arXiv 论文）/ github（GitHub 仓库）/ all（三来源合并召回，结果带来源标记）',
+                '搜索来源：network（默认，网络搜索）/ arxiv（arXiv 论文）/ github（GitHub 仓库）/ crossref（Crossref 学术出版物）/ all（四来源合并召回，结果带来源标记）',
           },
         },
         'required': ['query'],
@@ -117,6 +124,8 @@ class WebSearchTool extends Tool {
         return _searchArxiv(query, maxResults);
       case WebSearchMode.github:
         return _searchGithub(query, maxResults);
+      case WebSearchMode.crossref:
+        return _searchCrossref(query, maxResults);
       case WebSearchMode.all:
         return _searchAll(query, maxResults);
       case WebSearchMode.network:
@@ -159,11 +168,21 @@ class WebSearchTool extends Tool {
     return '搜索 "$query" 的结果（来源: github）:\n\n$body';
   }
 
-  /// mode=all 三合一召回：网络 + arxiv + github 一并召回，max_results 按
-  /// [_splitForAll] 均分；每条结果带来源标记；单来源失败不阻塞其余来源，
-  /// 全部失败才返回整体失败。
+  /// mode=crossref 单来源：复用 research_search.dart 的 [crossrefSearchShared]，
+  /// 结果以 web_search 文本条目格式输出，每条带 [crossref] 来源标记。
+  Future<String> _searchCrossref(String query, int maxResults) async {
+    final (entries, err) = await crossrefSearchShared(_dio, query, maxResults);
+    if (err != null) return '[搜索失败: $err]';
+    if (entries.isEmpty) return '[搜索失败: 未找到结果]';
+    final body = entries.take(maxResults).map(_crossrefEntryToText).join('\n\n');
+    return '搜索 "$query" 的结果（来源: crossref）:\n\n$body';
+  }
+
+  /// mode=all 四合一召回：网络 + arxiv + github + crossref 一并召回，max_results
+  /// 按 [_splitForAll] 均分（余数优先网络）；每条结果带来源标记；单来源失败
+  /// 不阻塞其余来源，全部失败才返回整体失败。
   Future<String> _searchAll(String query, int maxResults) async {
-    final (netN, arxN, gitN) = _splitForAll(maxResults);
+    final (netN, arxN, gitN, crfN) = _splitForAll(maxResults);
     final sections = <String>[];
     final failures = <String>[];
 
@@ -200,10 +219,21 @@ class WebSearchTool extends Tool {
       }
     }
 
+    if (crfN > 0) {
+      final (entries, err) = await crossrefSearchShared(_dio, query, crfN);
+      if (err != null) {
+        failures.add('crossref: $err');
+      } else if (entries.isEmpty) {
+        failures.add('crossref: 未找到结果');
+      } else {
+        sections.add(entries.take(crfN).map(_crossrefEntryToText).join('\n\n'));
+      }
+    }
+
     if (sections.isEmpty) {
       return '[搜索失败: ${failures.join('；')}]';
     }
-    final header = '搜索 "$query" 的结果（来源: 网络+arxiv+github）:';
+    final header = '搜索 "$query" 的结果（来源: 网络+arxiv+github+crossref）:';
     final body = sections.join('\n\n');
     if (failures.isEmpty) return '$header\n\n$body';
     return '$header\n\n$body\n\n[部分来源失败: ${failures.join('；')}]';
@@ -235,6 +265,21 @@ class WebSearchTool extends Tool {
     if (updated.isNotEmpty) meta.add('更新: $updated');
     if (meta.isNotEmpty) buf.write('\n  ${meta.join(' | ')}');
     final url = (r['url'] ?? '').toString();
+    if (url.isNotEmpty) buf.write('\n  $url');
+    return buf.toString();
+  }
+
+  /// Crossref 条目 → web_search 文本条目（带 [crossref] 标记，作者截断到 200 字符）。
+  static String _crossrefEntryToText(Map<String, dynamic> r) {
+    final buf = StringBuffer('[crossref] ${r['title'] ?? ''}');
+    final authors = (r['authors'] ?? '').toString();
+    if (authors.isNotEmpty) buf.write('\n  作者: ${_truncate(authors, 200)}');
+    final container = (r['container'] ?? '').toString();
+    if (container.isNotEmpty) buf.write('\n  期刊: $container');
+    final doi = (r['doi'] ?? '').toString();
+    if (doi.isNotEmpty) buf.write('\n  DOI: $doi');
+    var url = (r['url'] ?? '').toString();
+    if (url.isEmpty && doi.isNotEmpty) url = 'https://doi.org/$doi';
     if (url.isNotEmpty) buf.write('\n  $url');
     return buf.toString();
   }

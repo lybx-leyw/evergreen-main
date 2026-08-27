@@ -24,7 +24,6 @@ import 'package:evergreen_base/core/agent/tools/head_tail.dart';
 import 'package:evergreen_base/core/agent/tools/python_runner_tool.dart';
 import 'package:evergreen_base/core/agent/tools/read_file.dart';
 import 'package:evergreen_base/core/agent/tools/web_search.dart';
-import 'package:evergreen_base/core/agent/tools/research_search.dart';
 import 'package:evergreen_base/core/agent/tools/write_file.dart';
 import 'package:evergreen_base/core/services/ocr_pipeline.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
@@ -206,9 +205,8 @@ class DeepSearchRunner {
     final seedTools = <agent.Tool>[
       WebSearchTool(dio),
       WebFetchTool(dio),
-      ArxivSearchTool(dio),
-      GithubSearchTool(dio),
-      CrossrefSearchTool(dio),
+      // Task 二（R2-5）：搜索统一入口——web_search 经 mode 调用 arxiv/github/
+      // crossref（四来源召回），与主助手注册点对齐；web_fetch 保留独立注册。
       ReadFileTool(workspaceDir: agentWs),
       WriteFileTool(workspaceDir: agentWs),
       FileInfoTool(workspaceDir: agentWs),

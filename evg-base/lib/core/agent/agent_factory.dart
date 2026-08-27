@@ -45,7 +45,6 @@ import 'package:evergreen_base/core/agent/tools/python_runner_tool.dart';
 import 'package:evergreen_base/core/agent/tools/read_file.dart';
 import 'package:evergreen_base/core/agent/tools/read_global_memory.dart';
 import 'package:evergreen_base/core/agent/tools/show_file4u.dart';
-import 'package:evergreen_base/core/agent/tools/research_search.dart';
 import 'package:evergreen_base/core/agent/tools/run_skill.dart';
 import 'package:evergreen_base/core/agent/tools/user_info.dart';
 import 'package:evergreen_base/core/agent/tools/web_search.dart';
@@ -240,10 +239,9 @@ class AgentAssembly {
       ListSkillsTool(loader, skillIndex),
       WebSearchTool(Dio()),
       WebFetchTool(Dio()),
-      // 三个专业检索工具（Task 二 A2）——与 app_bootstrap / agent_runtime 同步注册。
-      ArxivSearchTool(Dio()),
-      GithubSearchTool(Dio()),
-      CrossrefSearchTool(Dio()),
+      // Task 二（R2-5）：搜索统一入口——web_search 经 mode 调用 arxiv/github/
+      // crossref（四来源召回）；三个专业检索工具不再独立注册（与 app_bootstrap /
+      // agent_runtime / skill-creator 对齐）。
       DataQueryTool(orchestrator: orchestrator),
       // 后台常驻进程管理工具（Task 三决策 3.2）——与 app_bootstrap /
       // agent_runtime 同步注册；共享全局单例 agentProcessRegistry。

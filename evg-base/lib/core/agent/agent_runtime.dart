@@ -17,7 +17,6 @@ import 'package:evergreen_base/core/agent/tools/agent_process_registry.dart';
 import 'package:evergreen_base/core/agent/tools/agent_process_tools.dart';
 import 'package:evergreen_base/core/agent/tools/plugin_bridge.dart';
 import 'package:evergreen_base/core/agent/tools/read_global_memory.dart';
-import 'package:evergreen_base/core/agent/tools/research_search.dart';
 import 'package:evergreen_base/core/agent/tools/run_skill.dart';
 import 'package:evergreen_base/core/agent/tools/web_search.dart';
 import 'package:evergreen_base/core/agent/tools/user_info.dart';
@@ -122,10 +121,9 @@ final agentRuntimeProvider = Provider<AgentRuntime>((ref) {
     ListSkillsTool(loader, skillIndex),
     WebSearchTool(Dio()),
     WebFetchTool(Dio()),
-    // 三个专业检索工具（Task 二 A2）——与 app_bootstrap / agent_factory 同步注册。
-    ArxivSearchTool(Dio()),
-    GithubSearchTool(Dio()),
-    CrossrefSearchTool(Dio()),
+    // Task 二（R2-5）：搜索统一入口——web_search 经 mode 调用 arxiv/github/
+    // crossref（四来源召回）；三个专业检索工具不再独立注册（与 app_bootstrap /
+    // agent_factory / skill-creator 对齐）。
     // 后台常驻进程管理工具（Task 三决策 3.2）——与 app_bootstrap /
     // agent_factory 同步注册；共享全局单例 agentProcessRegistry。
     ListProcessesTool(),
@@ -182,15 +180,10 @@ final agentRuntimeProvider = Provider<AgentRuntime>((ref) {
   httpServer.start(); // fire-and-forget: 异步启动，不阻塞 Provider 构造
 
   ref.listen<bool>(webSearchEnabledProvider, (prev, enabled) {
-    // 联网搜索开关统一管控：web_search/web_fetch + 三个专业检索工具
-    // （arxiv/github/crossref，Task 二 A2——与 app_bootstrap / agent_factory 对齐）。
-    const searchTools = [
-      'web_search',
-      'web_fetch',
-      'arxiv_search',
-      'github_search',
-      'crossref_search',
-    ];
+    // 联网搜索开关统一管控：web_search（含 mode 四来源）+ web_fetch。
+    // （Task 二 R2-5：arxiv/github/crossref 已收编进 web_search mode，
+    //   不再独立注册，故不再列入禁用名单。）
+    const searchTools = ['web_search', 'web_fetch'];
     for (final name in searchTools) {
       if (enabled) {
         registry.enable(name);
