@@ -1,0 +1,64 @@
+{
+  "type": "skin",
+  "id": "example-skin-evergreen-logo",
+  "name": "绿意 Logo 皮肤",
+  "version": "1.1.0",
+  "description": "示例皮肤包：绿意不息 logo + 空状态图标（横竖屏一致）+ 分屏对话背景图（A/R2-4）+ 按钮显隐（B）+ 思考栏配色（C1）+ 头像/气泡颜色（R2-3）演示",
+  "assets": {
+    "emptyIcon": "empty_icon.svg"
+  },
+  "background": {
+    "type": "image",
+    "imageDesktop": "bg_desktop.svg",
+    "imageMobile": "bg_mobile.svg"
+  },
+  "buttons": {
+    "inputBar": {
+      "workspace": false,
+      "webSearch": true,
+      "thinkingEffort": true,
+      "tools": false,
+      "bgProcess": false,
+      "skills": false,
+      "clear": false
+    },
+    "messageActions": {
+      "copy": true,
+      "regenerate": true,
+      "edit": true
+    }
+  },
+  "thinking": {
+    "title": "思考过程",
+    "colors": {
+      "header": "#1B8A4F",
+      "containerBackground": "#F0F9F2",
+      "containerBorder": "#A5D6A7",
+      "contentText": "#3E7C55",
+      "chipMemoryBg": "#E8F5E9",
+      "chipMemoryFg": "#1B5E20",
+      "chipSkillBg": "#E0F2F1",
+      "chipSkillFg": "#00695C",
+      "chipToolBg": "#E3F2FD",
+      "chipToolFg": "#1565C0",
+      "chipToolResultBg": "#E8F5E9",
+      "chipToolResultFg": "#1B5E20"
+    }
+  },
+  "bubble": {
+    "userBackgroundColor": "#DCEDC8",
+    "userTextColor": "#33691E",
+    "borderRadius": 18,
+    "maxWidthRatio": 0.72
+  },
+  "avatar": {
+    "user": "avatar_user.svg",
+    "userBackgroundColor": "#C8E6C9",
+    "assistant": "empty_icon.svg"
+  },
+  "emptyState": {
+    "title": "我是你的教学 AI 助手"
+  },
+  "effortColor": "#0F9D58",
+  "toolActiveColor": "#0F9D58"
+}
