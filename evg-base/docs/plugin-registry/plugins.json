@@ -88,6 +88,26 @@
         "path": "assets/evergreen-skin"
       },
       "stars": 0
+    },
+    {
+      "id": "bright_brand_green",
+      "name": "品牌绿（亮）",
+      "description": "品牌绿色主题（亮色）：扁平 8 色语义色板",
+      "longDescription": "「品牌绿（亮）」主题插件：声明扁平 8 色语义色板（background / surface / border / text / textSecondary / accent / error / others）的品牌绿亮色配色，由平台主题系统实时加载与切换。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evergreen-main",
+      "homepage": "https://github.com/lybx-leyw/evergreen-main",
+      "license": "MIT",
+      "lattice": "theme",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/bright_brand_green"
+      },
+      "stars": 0
     }
   ]
 }
