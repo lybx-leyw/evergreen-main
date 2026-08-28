@@ -139,7 +139,20 @@ final agentRuntimeProvider = Provider<AgentRuntime>((ref) {
   // 插件嫁接桥——自动扫描 plugins/<name>/.exe 并注册
   final pluginsDirObj = Directory(pluginsDir);
   if (!pluginsDirObj.existsSync()) pluginsDirObj.createSync(recursive: true);
-  PluginBridge.registerAll(registry, pluginsDirObj);
+  // 安卓：注入 --project-root / --greenix-config（Kotlin 侧从 argv 提取后设置
+  // Python 环境变量，vision 等插件读取 .greenix/config.json；对齐 scraper_tools
+  // 与 app_bootstrap 主路径）。PROJECT_ROOT 兜底当前目录（Chaquopy CWD=/，
+  // 真实路径以 GREENIX_CONFIG_PATH 为准）。
+  PluginBridge.registerAll(
+    registry,
+    pluginsDirObj,
+    platformArgs: Platform.isAndroid
+        ? [
+            '--project-root', resolveProjectRoot() ?? Directory.current.path,
+            '--greenix-config', greenixConfigPath,
+          ]
+        : const [],
+  );
 
   final eventSink = agent.StreamEventSink();
   final session = agent.Session();

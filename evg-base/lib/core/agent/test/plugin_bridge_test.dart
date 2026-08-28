@@ -404,6 +404,75 @@ void main() {
       expect(pt.readOnly, isTrue);
     });
 
+    test('platformArgs 注入：stdin 模式 argv 透传 --project-root / --greenix-config'
+        '（安卓 vision 配置读取机制）', () async {
+      // 真实 python 子进程回显 sys.argv：验证 platformArgs 在 stdin 模式也进入 argv
+      // （Kotlin 侧从 argv 提取后设置 Python 环境变量）。
+      final py = Platform.isWindows ? 'python' : 'python3';
+      final scriptPath = '${Directory.systemTemp.path}'
+          '${Platform.pathSeparator}argv_echo_test.py';
+      File(scriptPath).writeAsStringSync(
+        'import sys, json\n'
+        'print("ARGS=" + json.dumps(sys.argv[1:]))\n',
+      );
+
+      final m = PluginManifest.fromJson('''
+{
+  "name": "argv_echo",
+  "description": "e",
+  "schema": {"type": "object", "properties": {"q": {"type": "string"}}},
+  "readOnly": true,
+  "runtime": "python",
+  "argMode": "stdin",
+  "lifetime": "once"
+}''');
+      final pt = PluginTool(
+        exePath: scriptPath,
+        manifest: m,
+        runner: SubprocessRunner(py),
+        platformArgs: const [
+          '--project-root', '/data/evergreen',
+          '--greenix-config', '/data/evergreen/.greenix/config.json',
+        ],
+      );
+      final res = await pt.execute({'q': 'x'});
+      expect(res, contains('--project-root'));
+      expect(res, contains('/data/evergreen'));
+      expect(res, contains('--greenix-config'));
+      expect(res, contains('/data/evergreen/.greenix/config.json'));
+      File(scriptPath).deleteSync();
+    });
+
+    test('platformArgs 缺省为空：stdin 模式 argv 不含平台参数（桌面零行为变化）',
+        () async {
+      final py = Platform.isWindows ? 'python' : 'python3';
+      final scriptPath = '${Directory.systemTemp.path}'
+          '${Platform.pathSeparator}argv_echo_default_test.py';
+      File(scriptPath).writeAsStringSync(
+        'import sys, json\n'
+        'print("ARGS=" + json.dumps(sys.argv[1:]))\n',
+      );
+
+      final m = PluginManifest.fromJson('''
+{
+  "name": "argv_echo2",
+  "description": "e",
+  "schema": {"type": "object", "properties": {}},
+  "readOnly": true,
+  "runtime": "python",
+  "argMode": "stdin",
+  "lifetime": "once"
+}''');
+      final pt = PluginTool(
+        exePath: scriptPath,
+        manifest: m,
+        runner: SubprocessRunner(py),
+      );
+      final res = await pt.execute({});
+      expect(res, contains('ARGS=[]'));
+      File(scriptPath).deleteSync();
+    });
+
     test('preprocess=pdf_split：非安卓（测试环境）原参透传——fail-open，'
         '桌面零行为变化', () async {
       // 真实 python 子进程回显 stdin JSON：验证预拆分钩子未改动参数

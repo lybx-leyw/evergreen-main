@@ -666,7 +666,16 @@ class AppBootstrap {
       Log().warn('[BOOT]    AI 将无法执行 Python 代码。安装 Python 3.8+ 或放置 python.exe 到 .greenix/python/。');
     }
     // 注册插件 Agent 工具
-    PluginBridge.registerAll(registry, Directory(pluginsDir));
+    // 安卓：注入 --project-root / --greenix-config 平台参数（Kotlin 侧从 argv
+    // 提取并设置 Python 环境变量，vision 等插件据此读取 .greenix/config.json；
+    // 对齐 scraper_tools 同款机制——Chaquopy 进程 CWD=/ 无法自行定位）。
+    PluginBridge.registerAll(
+      registry,
+      Directory(pluginsDir),
+      platformArgs: Platform.isAndroid
+          ? ['--project-root', projectRoot, '--greenix-config', greenixConfigPath]
+          : const [],
+    );
     // 后台常驻进程管理工具（Task 三决策 3.2）——与 agent_runtime /
     // agent_factory 同步注册；共享全局单例 agentProcessRegistry
     // （list_processes 只读可并行；kill_process 写操作串行）。
