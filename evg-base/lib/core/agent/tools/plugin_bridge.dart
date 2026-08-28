@@ -14,6 +14,7 @@ import 'dart:io';
 import 'package:evergreen_base/core/plugin/plugin_runner.dart';
 import '../tool.dart';
 import 'agent_process_registry.dart';
+import 'vision_pdf_preprocess.dart';
 
 // ═══════ ArgSpec ═══════
 
@@ -75,6 +76,14 @@ class PluginManifest {
   /// 解析：缺省 → `once`；未知值 → 静默回退 `once`（项目铁律「未知静默忽略」）。
   final String lifetime;
 
+  /// 执行前预处理声明（Task R3-6，可选）：
+  /// - `pdf_split`：vision 等文件类插件——python 执行前，Dart 侧识别
+  ///   file_path=*.pdf 时预拆分（安卓经系统 PdfRenderer 渲染 pages_dir 注入；
+  ///   桌面不触发，vision.py 内部 fitz 路径不变）。
+  ///
+  /// 解析：缺省/未知值 → `''`（不预处理，向后兼容旧插件；未知静默忽略）。
+  final String preprocess;
+
   const PluginManifest({
     required this.name,
     required this.description,
@@ -84,6 +93,7 @@ class PluginManifest {
     this.argSpec = const ArgSpec(),
     this.runtime = 'native',
     this.lifetime = 'once',
+    this.preprocess = '',
   });
 
   /// 从 JSON 字符串解析。
@@ -105,6 +115,7 @@ class PluginManifest {
       argSpec: argSpec,
       runtime: map['runtime'] as String? ?? 'native',
       lifetime: _parseLifetime(map['lifetime']),
+      preprocess: map['preprocess']?.toString() ?? '',
     );
   }
 
@@ -155,12 +166,35 @@ class PluginTool extends Tool {
   Future<String> execute(Map<String, dynamic> args) async {
     try {
       final runner = await _ensureRunner();
-      // 常驻插件（lifetime:"resident"）：startLong 常驻 + 登记后台注册表，
-      // execute 立即返回「已后台启动」占位文本。
-      final result = (_manifest.lifetime == 'resident')
-          ? await _executeResident(runner, args)
-          : await _executeOnce(runner, args);
-      return result;
+      // 执行前预处理（Task R3-6）：manifest 声明 `preprocess:"pdf_split"` 时，
+      // 安卓侧在 python 执行前用系统 PdfRenderer 预拆分 PDF → 注入 pages_dir；
+      // 失败/非安卓 → 原参透传（fail-open，vision.py 内部兜底：桌面 fitz /
+      // 安卓降级提示——零行为变化）。
+      var effectiveArgs = args;
+      String? pagesDir;
+      if (_manifest.preprocess == 'pdf_split') {
+        final outcome = await VisionPdfPreprocess.trySplitPdf(args);
+        if (outcome != null) {
+          effectiveArgs = outcome.args;
+          pagesDir = outcome.pagesDir;
+        }
+      }
+      try {
+        // 常驻插件（lifetime:"resident"）：startLong 常驻 + 登记后台注册表，
+        // execute 立即返回「已后台启动」占位文本。
+        return (_manifest.lifetime == 'resident')
+            ? await _executeResident(runner, effectiveArgs)
+            : await _executeOnce(runner, effectiveArgs);
+      } finally {
+        // 预拆分页图片目录在 python 执行结束后回收（vision 为 once 生命周期，
+        // python 进程内已读入字节；resident 常驻进程可能在执行返回后异步读目录，
+        // 故不清理）。删除失败静默忽略——系统 cache 目录兜底回收。
+        if (pagesDir != null && _manifest.lifetime != 'resident') {
+          try {
+            Directory(pagesDir).deleteSync(recursive: true);
+          } catch (_) {}
+        }
+      }
     } catch (e) {
       return '[plugin "${_manifest.name}" error: $e]';
     }

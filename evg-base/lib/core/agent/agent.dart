@@ -19,6 +19,7 @@ export 'output_style/style.dart';
 export 'evidence/evidence.dart';
 export 'compact/compact.dart';
 export 'tools/plugin_bridge.dart';
+export 'tools/vision_pdf_preprocess.dart';
 export 'tools/agent_process_registry.dart';
 export 'tools/agent_process_tools.dart';
 export 'tools/show_file4u.dart';

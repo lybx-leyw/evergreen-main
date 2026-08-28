@@ -1,6 +1,9 @@
 package com.example.evergreen_base
 
+import android.graphics.Bitmap
+import android.graphics.pdf.PdfRenderer
 import android.os.Build
+import android.os.ParcelFileDescriptor
 import android.util.Log
 import com.chaquo.python.PyException
 import com.chaquo.python.Python
@@ -10,6 +13,8 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -40,6 +45,12 @@ class MainActivity : FlutterActivity() {
         private const val CHANNEL = "evergreen/python"
         /// 长驻 server（方案 A）stdout/stderr 流式回传通道。
         private const val STREAM_CHANNEL = "evergreen/python_stream"
+        /// PDF 预渲染通道（Task R3-6）：Dart 侧（VisionPdfPreprocess）经
+        /// `renderPdfToPngs` 调系统 PdfRenderer 逐页渲染 PNG——安卓 pymupdf 平替。
+        private const val PDF_CHANNEL = "evergreen/pdf"
+        /// 渲染页最长边上限（px）：防止超大页面（扫描件/图纸）Bitmap OOM；
+        /// 超出时等比缩小（对齐常见 OCR 输入上限）。
+        private const val MAX_PDF_PAGE_DIM = 4096
     }
 
     // ── 长驻 server（方案 A）流式回传状态 ──
@@ -130,6 +141,33 @@ class MainActivity : FlutterActivity() {
                     // 不依赖硬编码路径，递归搜索 filesDir/chaquopy/ 子树。
                     val name = call.argument<String>("name") ?: ""
                     result.success(resolveAssetPath(name))
+                } else {
+                    result.notImplemented()
+                }
+            }
+
+        // ── PDF 预渲染通道（Task R3-6）──
+        // 对应 Dart 侧 VisionPdfPreprocess（lib/core/agent/tools/vision_pdf_preprocess.dart）。
+        // 协议：invokeMethod('renderPdfToPngs', { pdfPath, outputDir, dpi })
+        //   → Future<Map> { pages: [绝对路径…], outputDir: String }
+        // 渲染可能耗时（数百页），放后台线程避免阻塞 UI（与 runScript 同模式）。
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, PDF_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                if (call.method == "renderPdfToPngs") {
+                    Thread {
+                        try {
+                            val resp = renderPdfToPngs(
+                                pdfPath = call.argument<String>("pdfPath") ?: "",
+                                outputDir = call.argument<String>("outputDir") ?: "",
+                                dpi = (call.argument<Number>("dpi")?.toDouble()) ?: 150.0,
+                            )
+                            runOnUiThread { result.success(resp) }
+                        } catch (e: Exception) {
+                            runOnUiThread {
+                                result.error("PDF_RENDER", e.message, e.stackTraceToString())
+                            }
+                        }
+                    }.start()
                 } else {
                     result.notImplemented()
                 }
@@ -322,6 +360,94 @@ class MainActivity : FlutterActivity() {
         resp["stderr"] = err
         resp["exitCode"] = exitCode
         return resp
+    }
+
+    // ═══════ PDF 预渲染（Task R3-6）：系统 PdfRenderer 逐页渲染 PNG ═══════
+
+    /**
+     * 用 Android 系统内置 PdfRenderer（API 21+，零第三方依赖）把 PDF 逐页渲染为
+     * PNG，写入 [outputDir]/page_%04d.png（页号零填充，vision.py 按数字排序）。
+     *
+     * 缩放：PdfRenderer 页面尺寸为 72dpi 点阵，按 [dpi]/72 放大（默认 150，
+     * 对齐桌面 fitz dpi=150）；最长边超过 [MAX_PDF_PAGE_DIM] 时等比缩小防 OOM。
+     *
+     * 返回 { pages: [绝对路径…], outputDir: String }；异常向上抛，由通道处理器
+     * 转 result.error（Dart 侧 fail-open：原参透传，vision.py 兜底报错）。
+     */
+    private fun renderPdfToPngs(pdfPath: String, outputDir: String, dpi: Double): Map<String, Any> {
+        val pdfFile = File(pdfPath)
+        if (!pdfFile.isFile) {
+            throw IllegalArgumentException("PDF 文件不存在: $pdfPath")
+        }
+        val outDir = File(outputDir)
+        if (!outDir.exists() && !outDir.mkdirs()) {
+            throw IllegalStateException("无法创建输出目录: $outputDir")
+        }
+
+        val fd = ParcelFileDescriptor.open(pdfFile, ParcelFileDescriptor.MODE_READ_ONLY)
+        val renderer = try {
+            PdfRenderer(fd)
+        } catch (e: Exception) {
+            // PdfRenderer 构造失败（非 PDF / 损坏）：fd 不再被使用，立即关闭。
+            fd.close()
+            throw e
+        }
+        try {
+            val pages = mutableListOf<String>()
+            var scale = (dpi / 72.0).toFloat()
+            if (scale < 1.0f) scale = 1.0f
+            for (i in 0 until renderer.pageCount) {
+                val page = renderer.openPage(i)
+                try {
+                    var w = (page.width * scale).toInt()
+                    var h = (page.height * scale).toInt()
+                    val maxDim = maxOf(w, h)
+                    if (maxDim > MAX_PDF_PAGE_DIM) {
+                        val f = MAX_PDF_PAGE_DIM.toFloat() / maxDim.toFloat()
+                        w = (w * f).toInt()
+                        h = (h * f).toInt()
+                    }
+                    if (w < 1) w = 1
+                    if (h < 1) h = 1
+
+                    val bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+                    // PdfRenderer 输出透明底，OCR/读图前铺白底避免黑块。
+                    bmp.eraseColor(android.graphics.Color.WHITE)
+                    page.render(bmp, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+
+                    val name = "page_%04d.png".format(i + 1)
+                    val outFile = File(outDir, name)
+                    FileOutputStream(outFile).use { os ->
+                        if (!bmp.compress(Bitmap.CompressFormat.PNG, 100, os)) {
+                            throw IOException("PNG 编码失败: page ${i + 1}")
+                        }
+                        os.flush()
+                    }
+                    if (outFile.length() == 0L) {
+                        throw IOException("PNG 写入为空: page ${i + 1}")
+                    }
+                    pages.add(outFile.absolutePath)
+                    bmp.recycle()
+                } finally {
+                    page.close()
+                }
+            }
+            val resp = HashMap<String, Any>()
+            resp["pages"] = pages
+            resp["outputDir"] = outDir.absolutePath
+            return resp
+        } finally {
+            // 资源释放：renderer.close() 会释放底层 fd，随后 fd.close() 幂等；
+            // close 异常不掩盖主流程错误（渲染异常已在循环体内抛出）。
+            try {
+                renderer.close()
+            } catch (_: Exception) {
+            }
+            try {
+                fd.close()
+            } catch (_: Exception) {
+            }
+        }
     }
 
     // ═══════ 长驻 server（方案 A）支持 ═══════
