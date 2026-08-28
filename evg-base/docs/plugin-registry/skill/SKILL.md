@@ -3,9 +3,9 @@ name: evergreen-plugin-author
 description: >
   为 Evergreen Multi-Tools 平台（本地优先的 Flutter 桌面微工具平台）创作并上架第三方插件。
   当用户要求「写一个 Evergreen 插件」「给 Evergreen 市场开发插件」「让某个外部仓库被 Evergreen 市场收录」，
-  或需要生成 plugin manifest.json / 适配壳（scraper.py）/ registry 条目时使用。
+  或需要生成 plugin manifest.json / 适配壳（scraper.py / fetch.py / tool.py）/ registry 条目时使用。
   本 Skill 是 Evergreen 插件上架协议（docs/plugin-registry/plugin-registry-spec-v1.md）的可执行化身，
-  指导 AI 从零产出三类插件（theme / module / data-source）的完整、可被市场自动发现的文件。
+  指导 AI 从零产出五类插件（theme / module / data-source / agent / skin）的完整、可被市场自动发现的文件。
 ---
 
 # Evergreen 插件创作 Skill
@@ -32,9 +32,10 @@ description: >
 
 - **核心原则**：registry 条目是「协议声明」，不是「代码」。你只需声明
   「我的插件从哪下载、manifest 从哪来」，Evergreen 就能自动完成下载与加载。
-- 权威规范文档：`docs/plugin-registry/plugin-registry-spec-v1.md`（上架协议）；
+- 权威规范文档：`docs/plugin-registry/plugin-registry-spec-v1.md`（上架协议，含 agent 型契约）；
   `lib/core/module/docs/plugin-module.md`（module manifest 全字段）；
-  `lib/core/config/docs/plugin-authoring-guide-config.md`（config 设置项与权限声明）。
+  `lib/core/config/docs/plugin-authoring-guide-config.md`（config 设置项与权限声明）；
+  `lib/core/agent/docs/plugin-agent-tool.md`（agent 工具 manifest 契约，.py 统一主路径）。
 
 ---
 
@@ -48,7 +49,10 @@ description: >
 |--------|-----------|
 | registry 条目解析 / `PluginManifest` / `installStrategy` | `lib/core/module/plugin_registry.dart` |
 | module manifest 全字段（`ModuleDescriptor`） | `lib/core/module/` + `lib/core/module/docs/plugin-module.md` |
-| data-source 注册 / 适配壳加载 | `lib/core/module/`（`registerDataSourcesFromManifest`） |
+| data-source manifest 契约（含 `auth`/`stream`/`file` 可选段） | `lib/core/data/plugin/data_source_manifest.dart` |
+| data-source 注册 / 适配壳加载 | `lib/core/data/`（`register_data_source.dart` + `plugin/data_source_loader.dart`） |
+| agent 工具 manifest（`lifetime` 一次性/常驻、argMode/argSpec） | `lib/core/agent/docs/plugin-agent-tool.md` + `lib/core/agent/tools/plugin_bridge.dart` |
+| skin 皮肤包 manifest（DIY 段） | `lib/core/skin/skin_descriptor.dart` + `lib/core/skin/skin_loader.dart` |
 | 配置设置项 + 权限声明 | `lib/core/config/docs/plugin-authoring-guide-config.md` + `lib/core/config/builtins/config.json` |
 | release 下载 / assetPattern 匹配 | `lib/core/services/release_downloader.dart` |
 | GitHub 克隆 / star / manifest 下载 | `lib/core/services/github_clone.dart` / `github_metadata.dart` |
@@ -63,21 +67,23 @@ description: >
 
 ---
 
-## 三种插件形态（先选型）
+## 五种插件形态（先选型）
 
 | 形态 | `type` | 落盘路径 | 适用 |
 |------|--------|---------|------|
 | **theme** | `theme` | `plugins/<id>/theme/theme.json` | 换肤主题 |
 | **module** | `module` | `plugins/<id>/module/manifest.json` | UI 模块 / 导出工具 |
 | **data-source** | `data-source` | `plugins/<id>/data/manifest.json` | 数据爬虫 / API 封装 |
+| **agent** | 无 `type`（`name` 必填） | `plugins/<id>/agent/manifest.json` | AI 助手可调用工具（.py 统一主路径） |
+| **skin** | `skin` | `plugins/<id>/skin/manifest.json` | AI 视图皮肤包（DIY 外观） |
 
-> 完整参考实现见本 Skill 的 `examples/` 目录（三类各一份），可直接复制对应目录为模板起手。
+> 完整参考实现见本 Skill 的 `examples/` 目录（五类各一份），可直接复制对应目录为模板起手。
 
 ---
 
 ## 工作流程
 
-1. **确认形态**：问清（或根据需求判断）要 theme / module / data-source 中的哪一种。
+1. **确认形态**：问清（或根据需求判断）要 theme / module / data-source / agent / skin 中的哪一种。
 2. **产出插件本体文件**（见下文各形态契约）。
 3. **产出 registry 条目**（`plugins.json` 里 `plugins` 数组新增一项，声明 `install` + `manifest`）。
 4. **自检**：按「上架清单」逐项核对。
@@ -124,13 +130,17 @@ description: >
 }
 ```
 
+- `schemaVersion`：声明式 schema 版本，缺省 `"2.0"`；**HTML 模块（`template:"html"`）必须
+  显式声明 `"schemaVersion": "2.0"`**——应用启动时仅提取 `schemaVersion=="2.0"` 的 module
+  manifest 进入 HTML 渲染路径（`app_bootstrap.dart`），缺失则页面不渲染。
 - 落盘：`plugins/<id>/module/manifest.json`。
 - **全字段参考**：`lib/core/module/docs/plugin-module.md`（含 `ui` 范式、`chat`/`spreadsheet`/
   `document`/`presentation` 专属配置、`layout`、`data`、`actions`、`input`、`media`、`process`、
   `activateSkills`、`pages[]`+`slots` composite 模式、`secondaryNavs` 子导航等）。
-- **HTML 模块**（`template:"html"`）：`module/manifest.json` 声明 `"template":"html"` +
-  `module/index.html` 自包含网页。网页内用 `--evg-*` 主题变量换肤，`platform.*` bridge
-  读数据/调 AI/跑 exe。参考：`examples/example-html-view/`。
+- **HTML 模块**（`template:"html"`）：`module/manifest.json` 声明
+  `"schemaVersion":"2.0"` + `"template":"html"` + `module/index.html` 自包含网页。
+  网页内用 `--evg-*` 主题变量换肤，`platform.*` bridge 读数据/调 AI/跑 exe。
+  参考：`examples/example-html-view/`。
 
 ### 2.1 `process`：后端进程（支持 Python 常驻 / 一次性执行）
 
@@ -214,6 +224,10 @@ HTML 模块（`template:"html"`）是「全面替代 Dart 路线」的载体，b
   "script": "<适配壳文件名>",
   "runtime": "python",
   "androidSupport": false,
+  "auth": {
+    "sessionProvider": "zju",
+    "credentialKeys": ["ZJU_USERNAME", "ZJU_PASSWORD"]
+  },
   "requirements": ["aiohttp", "pytz", "selenium>=4.0"],
   "dataTypes": [
     {
@@ -221,13 +235,33 @@ HTML 模块（`template:"html"`）是「全面替代 Dart 路线」的载体，b
       "typeArg": "<传给适配壳的 --type 值>",
       "category": "<分类>",
       "displayName": "<显示名>",
-      "ttl": "30m"
+      "ttl": "30m",
+      "persistentKey": "<持久化缓存 key>",
+      "stream": { "enabled": true, "protocol": "hls", "mime": "application/vnd.apple.mpegurl", "credentialed": true },
+      "file": { "enabled": true, "downloadEndpoint": "/file" },
+      "fallbackJson": { "items": [] }
     }
   ]
 }
 ```
 
-落盘：`plugins/<id>/data/manifest.json`。参考：`examples/example-data-zju_grades/`。
+落盘：`plugins/<id>/data/manifest.json`。参考：`examples/example-data-zju_grades/`（模型 A + 登录）、
+`examples/example-data-video_stream/`（模型 A + `auth`/`stream` 声明）。
+
+**可选段说明**（缺省零行为变化，详见 `lib/core/data/plugin/data_source_manifest.dart`）：
+- `androidSupport`：**严格 bool**（仅真实 `true`/`false` 有效），缺省 `true`；字符串/数字等
+  非 bool 值一律视为 `false`——Android 上该数据源被跳过（fail-closed）。依赖 C 扩展的插件
+  （OCR/翻译/PDF/ML）应显式置 `false`，纯 Python 数据源用 `true`。
+- `auth`：`{sessionProvider:"zju", credentialKeys:[...]}`——仅**引用** `config/config.json` 已声明的
+  凭据 key（复用 `isSecure`），不在此重复声明凭据值（避免双真相源）。
+- `dataTypes[].stream`：声明为「可播放视频流」。`protocol` 可选：`hls`（`.m3u8`，配
+  `mime:"application/vnd.apple.mpegurl"`）/ `mp4` / `http-flv`（配 `mime:"video/x-flv"`）/ `sse` /
+  `stdio-jsonl`；`credentialed:true` = 拉流需携带凭据头。
+- `dataTypes[].file`：声明文件下载能力，`downloadEndpoint` 含 `{port}` 占位符（平台替换实际端口）。
+- `dataTypes[].fallbackJson`：拉取失败且无旧缓存时由 orchestrator 返回的静态兜底 JSON。
+- `dataTypes[].persistentKey`：持久化缓存键。
+- `script` 与顶层 `process` 互斥二选一：模型 A = CLI 一次性脚本（`script`）；模型 B = HTTP 常驻进程
+  （`process`，`dataTypes[].endpoint` 必填）。
 
 **`requirements`（可选，Python 依赖声明）**：适配壳若依赖第三方 Python 包（如 `aiohttp`、
 `selenium`），在 manifest 顶层声明 `requirements` 数组。安装器会在插件落盘后自动
@@ -267,8 +301,9 @@ HTML 模块（`template:"html"`）是「全面替代 Dart 路线」的载体，b
 |-----|------|------|
 | `DEEPSEEK_API_KEY` | string(secure) | DeepSeek API Key（AI 对话/翻译/生成通用） |
 | `DEEPSEEK_MODEL` | string | DeepSeek 模型名，默认 `deepseek-v4-flash` |
-| `DEEPSEEK_BASE_URL` | string | DeepSeek API 地址（自定义端点时） |
+| `DEEPSEEK_BASE_URL` | string | DeepSeek API 地址（自定义端点时），默认 `https://api.deepseek.com/v1` |
 | `DEEPSEEK_THINKING` | bool | 深度思考开关 |
+| `DEEPSEEK_REASONING_EFFORT` | option | 推理强度档位：`off`/`low`/`medium`/`high`/`max`（OpenAI o 系列映射顶层 `reasoning_effort`；DeepSeek 不发送该参数） |
 
 **浙大统一认证（zju）**：
 
@@ -296,19 +331,23 @@ HTML 模块（`template:"html"`）是「全面替代 Dart 路线」的载体，b
 | `TRANSLATE_LANG_IN` | string | 翻译源语言，默认 `en` |
 | `PYTHON_EXE` | path | Python 解释器路径 |
 
-> ⚠️ **注意**：`DEEPSEEK_MODEL` / `DEEPSEEK_THINKING` 等部分 key 已在 `builtins/config.json` 声明，
-> 但 `ZJU_USERNAME` / `ZJU_PASSWORD` 走的是**应用启动时兜底注入**（`app_bootstrap.dart`），
-> 具体注册路径以源码为准。凡是要**新增** key，必须走下一节「config.json 声明」。
+> ⚠️ **注意**：AI 相关 key 在 `lib/core/module/builtins/agent/config/config.json` 声明
+> （`DEEPSEEK_*` + `OUTPUT_STYLE` + `DEEP_THINKING` + `WEB_SEARCH_ENABLED`），其余内置项在
+> `lib/core/config/builtins/config.json` 声明；`ZJU_USERNAME` / `ZJU_PASSWORD` 走的是**应用启动时兜底注入**
+> （`app_bootstrap.dart`），确保两 key 一定存在。具体注册路径以源码为准。凡是要**新增** key，必须走下一节「config.json 声明」。
 
 ### 3.5 新增 key：config.json 声明机制
 
 若内置 key 不满足需求，需要**新增设置项**，必须在插件的 `config/config.json`（或根目录 `config.json`）
 里声明，否则平台不注册该 key，`_get_config` 三级降级会全失败。
 
-**config.json 结构**：
+**config.json 结构**（顶层 `schemaVersion: "2.0"` 为约定标记——本 Skill 的 `examples/`
+config.json 均带此字段；解析器 `_tryLoad`（`settings.dart`）只消费 `settings`/`permissions`/
+`id`，不读取 `schemaVersion`，缺失不影响注册；`id`/`name` 可选）：
 
 ```json
 {
+  "schemaVersion": "2.0",
   "id": "my_plugin",
   "name": "我的插件",
   "settings": [
@@ -357,11 +396,126 @@ HTML 模块（`template:"html"`）是「全面替代 Dart 路线」的载体，b
 
 ---
 
-## 四、registry 条目（plugins.json）
+## 四、agent 形态（AI 助手可调用工具）
+
+agent 型插件把「工具脚本」暴露给 AI 助手：放入 `plugins/<id>/agent/` 后由 `PluginBridge`
+在启动及刷新时**自动扫描注册**为 Agent 工具（`PluginTool`），无需重启。AI 决定何时调用，
+平台运行并把 stdout 返回给 AI。
+
+### 4.1 目录结构（.py 统一主路径）
+
+```
+plugins/<id>/agent/
+  manifest.json    # 工具元数据（必写）
+  tool.py          # Python 脚本（统一主路径；.exe 仅存量 legacy，新插件不要产出）
+  README.md        # 插件说明（可选）
+```
+
+- 入口：必须有至少一个入口文件，**`.py` 优先**（同名 `<目录名>.py` 最高优先）；
+  仅当无任何 `.py` 且 manifest 未声明 `"runtime":"python"` 时才回退 `.exe` legacy。
+- manifest 建议显式声明 `"runtime":"python"`（亦可由 `.py` 扩展名自动推断）。
+
+### 4.2 manifest 契约（`PluginManifest`）
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `name` | string | ✅ | — | 蛇形命名，Agent 调用的工具标识符。空字符串 → 插件被跳过 |
+| `description` | string | ✅ | — | 给 LLM 看的用途说明，决定 AI 何时调用 |
+| `schema` | object | ✅ | — | JSON Schema 参数定义，`type:"object"` + `properties` + `required` |
+| `readOnly` | bool | — | `false` | `true`=只读（可并行）；`false`=写操作（串行） |
+| `argMode` | string | — | `"stdin"` | `"stdin"`：JSON 写入标准输入；`"args"`：命令行参数传递 |
+| `argSpec` | object | — | `{"style":"json"}` | 仅 `argMode="args"` 时生效，控制命令行构造方式（flag/positional/json） |
+| `runtime` | string | — | `"native"` | `"native"`=直接执行（legacy .exe）；`"python"`=用 Python 解释器执行（`.py`，推荐） |
+| `lifetime` | string | — | `"once"` | `"once"`=一次性（AI 调用后进程即被回收，默认，向后兼容）；`"resident"`=常驻（持续运行并登记到后台进程注册表，直到 `kill_process` 结束）。缺省/未知值静默回退 `"once"` |
+
+最小示例（stdin 模式）：
+
+```json
+{
+  "name": "date",
+  "description": "返回当前日期。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "format": { "type": "string", "description": "日期格式：cn=中文, iso=ISO8601" }
+    }
+  },
+  "readOnly": true,
+  "runtime": "python",
+  "argMode": "stdin",
+  "lifetime": "once"
+}
+```
+
+调用方式：Agent 启动 `date.py`（`runtime:"python"`），将 `{"format":"cn"}` 写入 stdin，读取 stdout。
+
+### 4.3 `lifetime`：一次性 vs 常驻
+
+| 值 | 语义 | 行为 |
+|----|------|------|
+| `"once"`（**默认**） | 一次性 | AI 调用该 tool 后走 `runOnce`：进程运行、收集 stdout 返回给 AI，进程随即被回收 |
+| `"resident"` | 常驻 | AI 调用后走 `startLong`：进程持续运行并登记到**后台进程注册表**（`AgentProcessRegistry`）；`execute` 立即返回「已后台启动」占位文本，输出在后台累积，AI 可经内置工具 `list_processes` 查看累积输出、`kill_process` 结束 |
+
+- **缺省 = `once`，未知值静默回退 `once`**（项目铁律「未知静默忽略」）——旧插件不声明该字段行为不变。
+- 两种形态的 `tool.py` 写法差异：一次性脚本打印结果后正常退出；常驻脚本在打印首行后保持运行
+  （如 `while True: time.sleep(1)`），直到被 `kill_process` 结束。
+
+### 4.4 stdout 约定
+
+- 成功：exit code 0，stdout 内容即返回给 Agent 的文本（无输出显示 `_(no output)_`）。
+- 失败：非零 exit code → Agent 报告 `[plugin "name" exited with code N]`；stderr 自动追加到输出末尾。
+- 建议纯文本 / Markdown，避免超长（>4096 字符可能被截断）；中文输出用 UTF-8
+  （`sys.stdout.reconfigure(encoding='utf-8')`）。
+
+落盘：`plugins/<id>/agent/manifest.json` + `tool.py`。参考：`examples/example-agent-current_time/`。
+完整规范：`lib/core/agent/docs/plugin-agent-tool.md`。
+
+---
+
+## 五、skin 形态（AI 视图皮肤包）
+
+skin 型插件声明「DIY your own greenix」外观 DIY 段，**只覆盖 AI 视图内部消费点的功能色与
+局部渲染，绝不触碰 `ThemeData`/`ColorScheme` 语义色**。放入 `plugins/<id>/skin/` 后由
+`SkinLoader` 扫描加载，设置面板「外观 · 皮肤包」一键切换，ChangeNotifier 热生效。
+
+### 5.1 manifest 契约（`SkinDescriptor`）
+
+`type:"skin"` 必填，其余 DIY 段全部可选，未知键静默忽略（未配置 → 渲染层回退默认值）：
+
+| 段 | 键 | 说明 |
+|----|----|------|
+| `assets` | `emptyIcon`（横竖屏一致的单一图标）、`logoDesktop`/`logoMobile`（旧，向后兼容读）、`backgroundImage` | 图片资源引用（相对 manifest 路径） |
+| `background` | `type`(`solid`/`gradient`/`image`)、`color`、`gradient.from/to/angle`、`imageDesktop`/`imageMobile` | 对话背景（分横竖屏） |
+| `buttons` | `inputBar.{workspace,webSearch,thinkingEffort,tools,bgProcess,skills,clear}`、`messageActions.{copy,regenerate,edit}` | 按钮显隐（`null`=未配置→显示） |
+| `thinking` | `title`、`visible`、`colors.{header,containerBackground,containerBorder,contentText,chipMemoryBg/Fg,chipSkillBg/Fg,chipToolBg/Fg,chipToolResultBg/Fg}` | 思考栏配色 + 标题 |
+| `bubble` | `userBackgroundColor`/`userTextColor`/`assistantBackground`/`assistantTextColor`/`borderRadius`/`maxWidthRatio` | 消息气泡样式 |
+| `avatar` | `user`/`assistant`（hex 颜色**或皮肤内 SVG/图片资源引用**）、`userBackgroundColor` | 头像 DIY |
+| `emptyState` | `logo`（hex 或图片引用）、`title` | 空状态欢迎区 |
+| 顶层 | `effortColor`、`toolActiveColor`、`codeInline`、`codeBlockBackground` | 功能色快捷覆盖 |
+
+最小声明：
+
+```json
+{
+  "type": "skin",
+  "id": "my-skin",
+  "name": "我的皮肤",
+  "background": { "type": "gradient", "gradient": { "from": "#1B8A4F", "to": "#0F9D58" } },
+  "bubble": { "userBackgroundColor": "#DCEDC8", "borderRadius": 18 },
+  "avatar": { "user": "avatar_user.svg", "userBackgroundColor": "#C8E6C9" }
+}
+```
+
+落盘：`plugins/<id>/skin/manifest.json` + 引用的 SVG/图片资源（相对 manifest 路径）。
+参考：`examples/example-skin-evergreen-logo/`（含 SVG 资源）。解析源码：`lib/core/skin/skin_descriptor.dart`。
+
+---
+
+## 六、registry 条目（plugins.json）
 
 在 `docs/plugin-registry/plugins.json` 的 `plugins` 数组新增一项。
 
-### 4.1 条目字段
+### 6.1 条目字段
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
@@ -374,13 +528,13 @@ HTML 模块（`template:"html"`）是「全面替代 Dart 路线」的载体，b
 | `repo` | `string` | — | GitHub 仓库 URL |
 | `homepage` | `string` | — | 主页 |
 | `license` | `string` | — | 许可证 |
-| `lattice` | `string` | — | 格：`module` / `data-source` / `agent` 等 |
+| `lattice` | `string` | — | 格：`module` / `data-source` / `theme` / `skin` / `agent` 等（plugins.json 现有取值见下） |
 | `dimensions` | `string[]` | — | 能力维度：`data` / `agent` / `ui` 等 |
-| `install` | `object` | — | **下载办法**（见 4.2） |
-| `manifest` | `object` | — | **manifest 获取办法**（见 4.3） |
+| `install` | `object` | — | **下载办法**（见 6.2） |
+| `manifest` | `object` | — | **manifest 获取办法**（见 6.3） |
 | `stars` | `int` | — | 静态 star 数 |
 
-### 4.2 `install`：下载办法
+### 6.2 `install`：下载办法
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
@@ -419,7 +573,7 @@ HTML 模块（`template:"html"`）是「全面替代 Dart 路线」的载体，b
 - `platforms` 白名单：当前平台不在白名单内时**安装直接报错**。
 - `assetPattern` 为空时，下载器按当前平台推断。
 
-### 4.3 `manifest`：manifest 获取办法
+### 6.3 `manifest`：manifest 获取办法
 
 **这是解决「外部仓库没有 Evergreen manifest」协议鸿沟的关键**——外部仓库本身不是 Evergreen 插件，
 作者通过本字段声明一份 manifest，Evergreen 据此把它变成插件。
@@ -466,7 +620,7 @@ HTML 模块（`template:"html"`）是「全面替代 Dart 路线」的载体，b
 
 ---
 
-## 五、落盘与生命周期（理解即可）
+## 七、落盘与生命周期（理解即可）
 
 1. **下载**：按 `install.strategy` 拉取到 `plugins/<id>/`（source → clone；release → 下载 asset）。
 2. **manifest 落盘**：按 `manifest.source` 得到 manifest → 写到 `plugins/<id>/<type>/manifest.json`。
@@ -475,7 +629,7 @@ HTML 模块（`template:"html"`）是「全面替代 Dart 路线」的载体，b
 
 ---
 
-## 六、上架清单（交付前逐项核对）
+## 八、上架清单（交付前逐项核对）
 
 - [ ] 在 `plugins.json` 的 `plugins` 数组里新增一个条目
 - [ ] 填 `id` / `name` / `author` / `repo` / `description`
@@ -484,7 +638,9 @@ HTML 模块（`template:"html"`）是「全面替代 Dart 路线」的载体，b
 - [ ] 若仓库是「库」形态，额外提供适配壳（符合 data-source CLI 契约）
 - [ ] theme：`theme/theme.json` 含 `type` + 8 个语义色
 - [ ] module：`module/manifest.json` 含 `type`/`id`/`name` 必填项
-- [ ] data-source：`data/manifest.json` + 适配壳 + （如需）`config/config.json`
+- [ ] data-source：`data/manifest.json` + 适配壳 + （如需）`config/config.json`；`script` 与 `process` 二选一
+- [ ] agent：`agent/manifest.json`（`name`/`description`/`schema` 必填，`runtime:"python"`，`lifetime` 一次性/常驻）+ `tool.py`
+- [ ] skin：`skin/manifest.json`（`type:"skin"` + DIY 段）+ 引用的 SVG/图片资源
 - [ ] 凭证：适配壳走 `_get_config` 三级降级，不硬编码；优先复用内置 key
 - [ ] 新增设置项：在 `config/config.json` 声明 `settings[]`（key 全局唯一 + 前缀）
 - [ ] Python 依赖：manifest 顶层声明 `requirements`（安装器自动 pip 装）
@@ -509,6 +665,10 @@ HTML 模块（`template:"html"`）是「全面替代 Dart 路线」的载体，b
 - ❌ 常驻进程**不提供 `GET /health`**——health check 3 次失败 → 被杀。
 - ❌ `runtime:"python"` 但 exe 写编译二进制（或反之）——首参拼接错误，进程起不来。
 - ❌ HTML 插件 `process.run` 调**未在 manifest 声明的 exe**——白名单 fail-closed，直接抛异常。
+- ❌ agent manifest 缺 `name` / `description` / `schema`——插件被跳过（fail 可见而非误跑）。
+- ❌ agent manifest 声明 `"runtime":"python"` 却只提供 `.exe`——声明错配，插件被跳过。
+- ❌ 新 agent 工具产出 `.exe`——统一 `.py` 主路径（.exe 仅存量 legacy）。
+- ❌ skin manifest `type` 不是 `"skin"`——`SkinDescriptor` 抛 `FormatException`。
 
 ---
 
@@ -519,5 +679,8 @@ HTML 模块（`template:"html"`）是「全面替代 Dart 路线」的载体，b
 | `examples/example-theme-warm_study/` | theme | `theme/theme.json` |
 | `examples/example-html-view/` | module（HTML） | `module/manifest.json` + `module/index.html` |
 | `examples/example-data-zju_grades/` | data-source | `data/manifest.json` + `data/scraper.py` + `config/config.json` |
+| `examples/example-data-video_stream/` | data-source（auth + stream） | `data/manifest.json` + `data/fetch.py` + `config/config.json` |
+| `examples/example-agent-current_time/` | agent | `agent/manifest.json` + `agent/tool.py` |
+| `examples/example-skin-evergreen-logo/` | skin | `skin/manifest.json` + `skin/*.svg` |
 
 > 创作新插件时，优先复制对应 `examples/` 目录为模板，替换 `id`/`name` 与业务逻辑，避免从零拼字段。
