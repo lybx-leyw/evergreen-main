@@ -138,7 +138,12 @@ Future<CloneResult> cloneGithubViaZipball(
           _errorTypeFor(resp.statusCode));
     }
 
-    final archive = ZipDecoder().decodeBytes(resp.data!);
+    final bytes = resp.data!;
+    if (bytes.isEmpty) {
+      return CloneResult.fail('zipball 内容为空', CloneErrorType.unknown);
+    }
+
+    final archive = ZipDecoder().decodeBytes(bytes);
     final topLevel = _zipTopLevel(archive);
     if (topLevel == null) {
       return CloneResult.fail('zipball 内容为空', CloneErrorType.unknown);
