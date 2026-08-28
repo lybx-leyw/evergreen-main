@@ -138,13 +138,21 @@ class PluginTool extends Tool {
   final PluginManifest _manifest;
   PluginRunner? _runner;
 
+  /// 附加 CLI 参数（前缀注入，stdin 模式也透传 argv）——供安卓平台注入
+  /// `--project-root` / `--greenix-config`（Kotlin 侧从 argv 提取后设置
+  /// Python 环境变量，vision 等插件据此读取 .greenix/config.json；
+  /// 对齐 scraper_tools 的同款机制）。桌面/缺省为空列表，零行为变化。
+  final List<String> _platformArgs;
+
   PluginTool({
     required String exePath,
     required PluginManifest manifest,
     PluginRunner? runner,
+    List<String> platformArgs = const [],
   })  : _exePath = exePath,
         _manifest = manifest,
-        _runner = runner;
+        _runner = runner,
+        _platformArgs = platformArgs;
 
   @override
   String get name => _manifest.name;
@@ -206,13 +214,13 @@ class PluginTool extends Tool {
     if (_manifest.argMode == 'args') {
       res = await runner.runOnce(
         _exePath,
-        _buildArgv(args),
+        [..._platformArgs, ..._buildArgv(args)],
         runtime: _manifest.runtime,
       );
     } else {
       res = await runner.runOnce(
         _exePath,
-        const [],
+        _platformArgs,
         stdinJson: args,
         runtime: _manifest.runtime,
       );
@@ -242,8 +250,8 @@ class PluginTool extends Tool {
           '可用 list_processes 查看累积输出，或 kill_process 结束。';
     }
     final argv = _manifest.argMode == 'args'
-        ? _buildArgv(args)
-        : const <String>[];
+        ? [..._platformArgs, ..._buildArgv(args)]
+        : _platformArgs;
     final proc = await runner.startLong(
       _exePath,
       argv,
@@ -310,7 +318,11 @@ class PluginTool extends Tool {
 /// 扫描 plugins/<name>/agent/ 目录，发现 .py（统一主路径）或 .exe（legacy）并注册为 Tool。
 class PluginBridge {
   /// 扫描目录，返回发现的所有 PluginTool。
-  static List<Tool> discover(Directory pluginsDir) {
+  ///
+  /// [platformArgs] 透传给每个 [PluginTool]（安卓注入 --project-root /
+  /// --greenix-config 平台参数，见 PluginTool.platformArgs 注释）。
+  static List<Tool> discover(Directory pluginsDir,
+      {List<String> platformArgs = const []}) {
     if (!pluginsDir.existsSync()) return [];
     final tools = <Tool>[];
     for (final entry in pluginsDir.listSync()) {
@@ -319,21 +331,26 @@ class PluginBridge {
       if (!manifest.isValid) continue;
       final entryFile = _findEntry(entry, manifest);
       if (entryFile == null) continue;
-      tools.add(PluginTool(exePath: entryFile.path, manifest: manifest));
+      tools.add(PluginTool(
+          exePath: entryFile.path,
+          manifest: manifest,
+          platformArgs: platformArgs));
     }
     return tools;
   }
 
   /// 扫描并注册到 Registry（已注册的跳过）。
-  static void registerAll(Registry registry, Directory pluginsDir) {
-    for (final t in discover(pluginsDir)) {
+  static void registerAll(Registry registry, Directory pluginsDir,
+      {List<String> platformArgs = const []}) {
+    for (final t in discover(pluginsDir, platformArgs: platformArgs)) {
       if (!registry.has(t.name)) registry.register(t);
     }
   }
 
   /// 重新扫描并同步 Registry（新增注册，已删除的移除）。
-  static void refresh(Registry registry, Directory pluginsDir) {
-    final tools = discover(pluginsDir);
+  static void refresh(Registry registry, Directory pluginsDir,
+      {List<String> platformArgs = const []}) {
+    final tools = discover(pluginsDir, platformArgs: platformArgs);
     final names = tools.map((t) => t.name).toSet();
     for (final t in registry.all()) {
       if (t is PluginTool && !names.contains(t.name)) registry.remove(t.name);

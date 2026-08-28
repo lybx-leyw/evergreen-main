@@ -104,6 +104,7 @@ flutter:
     - docs/plugin-registry/assets/view/module/index.html
     - docs/plugin-registry/assets/view/module/manifest.json
     - docs/plugin-registry/assets/warm_study/theme/theme.json
+    - docs/plugin-registry/assets/bright_brand_green/theme/theme.json
     - docs/plugin-registry/assets/evergreen-skin/skin/manifest.json
     - docs/plugin-registry/assets/evergreen-skin/skin/empty_icon.svg
     - docs/plugin-registry/assets/evergreen-skin/skin/avatar_user.svg
