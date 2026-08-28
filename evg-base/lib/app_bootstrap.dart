@@ -714,6 +714,10 @@ class AppBootstrap {
       session: session,
       skillIndex: skillIndex,
       skillIndexText: skillIndex?.indexText() ?? '',
+      // 注入工作区绝对路径 → system prompt 的「## 工作区」段（vision 等
+      // 文件类工具需绝对路径；安卓上 Python 无法自行推断工作区路径，
+      // 必须由 Dart 端注入）。moduleId 与工具注册的工作区保持一致。
+      moduleId: 'ai-assistant',
     );
 
     agentServer = AgentHttpServer(

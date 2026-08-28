@@ -4,6 +4,8 @@ library;
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:path/path.dart' as p;
+
 import '../message.dart';
 import '../tool.dart';
 import '../event.dart';
@@ -209,12 +211,17 @@ class Agent {
   String _withWorkspaceHint(String base) {
     final ws = _workspaceDir;
     if (ws == null || ws.isEmpty) return base;
+    // 归一化为绝对路径：initGreenixPaths 未运行时 _greenixBaseDir 可能仍是
+    // 相对 `.greenix`，注入相对路径会导致 vision 等工具无法解析。
+    final abs = p.normalize(p.absolute(ws));
     return '$base\n\n## 工作区\n'
-        '当前 AI 助手的工作区绝对路径：`$ws`\n'
+        '当前 AI 助手的工作区绝对路径：`$abs`\n'
         '文件类工具说明：\n'
         '- 工作区工具（read_file / write_file 等）：文件参数可传工作区内相对路径或绝对路径。\n'
         '- vision 工具（OCR 提取文字 / 读图描述）：`file_path` **必须传文件的绝对路径**'
-        '——工作区文件请用「工作区绝对路径 + 相对子路径」拼接后传入。\n';
+        '——工作区文件请用「工作区绝对路径 + 相对子路径」拼接后传入。\n'
+        '- 注意：工作区路径由宿主（Dart）注入，Python 环境无法自行推断'
+        '（尤其安卓 Chaquopy），请始终使用上方绝对路径拼接文件参数。\n';
   }
 
   /// 运行一轮 Agent 交互。
