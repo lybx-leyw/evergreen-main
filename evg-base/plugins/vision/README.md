@@ -48,11 +48,13 @@ stdout 纯文本（Agent 工具可解析）；错误统一 `[error: vision: ...]
 ## 依赖与打包
 
 - **零新增 pub 依赖**；Python 侧仅请求库 requests（嵌入式 Python 与安卓 Chaquopy 均已
-  内置，缺失时回退 stdlib urllib）与 **pymupdf(fitz)**（PDF 渲染）。
+  内置，缺失时回退 stdlib urllib）与 **pymupdf(fitz)**（PDF 拆分，仅桌面）。
 - **桌面**：pymupdf 已在 `scripts/requirements.txt` 声明（paper_reader.py 共用），
   `setup_python.cmd` 预装到嵌入式 Python。
-- **安卓**：`android/app/build.gradle.kts` 的 `chaquopy.pip` 新增 `install("pymupdf")`
-  （构建期打包；**pymupdf 安卓 wheel 需真机构建验证**，若不可用 PDF 模式返回明确错误提示）。
+- **安卓**：**不支持 PDF 拆分**——Chaquopy Android 索引无 pymupdf wheel
+  （2026-08 CI `assembleRelease` 验证 `No matching distribution found for pymupdf`），
+  故未加入 `chaquopy.pip`；安卓端 PDF 模式由 vision.py 的 ImportError 降级返回
+  「请上传图片或使用桌面端处理 PDF」，图片 OCR/读图不受影响。
 - **打包镜像**：`assets/plugins_bundle/vision/` 由 `tool/bundle_plugins.dart` 生成
   （gitignored 产物），pubspec `>>>PLUGIN_ASSETS_START>>>` 标记块自动重写。
 

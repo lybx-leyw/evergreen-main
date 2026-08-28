@@ -101,14 +101,15 @@ chaquopy {
         // 已手动放入 src/main/python/（纯 Python 源码，构建期由 buildPython 编译打包）。
         // pycryptodome 含 C 扩展（无法手动拷贝源码），必须由 chaquopy 构建期装 wheel 进 APK，
         // 供爬虫脚本 `import Crypto.*`（RSA/AES 加密登录）使用。
-        // pymupdf（fitz，Task R3-5）：vision 插件 PDF 渲染依赖（有 Android wheel，
-        // 需真机构建验证）；桌面端由 scripts/requirements.txt 声明预装。
+        // 注：pymupdf（fitz）在 Chaquopy Android 索引中**无 wheel**（2026-08 CI 验证
+        // `No matching distribution found for pymupdf`）——vision 插件 PDF 拆分在安卓
+        // 不可用（vision.py 已内置 ImportError 降级提示）；桌面端由 scripts/requirements.txt
+        // 声明 pymupdf，不影响。
         // 注：PDF 翻译与论文阅读已撤销（2026-08-25），pdf2zh_next 引擎及
         // openai/httpx/pydantic/tomlkit/peewee/tenacity/rich、pdfminer.six/reportlab/pypdf
         // 不再打包；src/main/python 仅保留 requests 全家桶（爬虫用）。
         pip {
             install("pycryptodome")
-            install("pymupdf")
         }
     }
     // Python 源目录默认 src/main/python（动态插件由 MethodChannel 从设备路径按需加载，无需打包进 APK）。

@@ -152,10 +152,10 @@ def _pdf_to_pages(path):
     try:
         import fitz
     except ImportError:
-        return None, ('PDF 需要 pymupdf（fitz）：桌面嵌入式 Python 已含'
-                      '（scripts/requirements.txt 声明）；安卓需在 '
-                      'android/app/build.gradle.kts 的 chaquopy.pip 加装 '
-                      'pymupdf（构建期打包，安卓 wheel 待真机验证）')
+        return None, ('PDF 拆分需要 pymupdf（fitz）：桌面嵌入式 Python 已含'
+                      '（scripts/requirements.txt 声明）；安卓 Chaquopy 索引无'
+                      ' pymupdf wheel（2026-08 CI 验证），安卓端暂不支持 PDF'
+                      ' 拆分——请上传图片或使用桌面端处理 PDF')
     try:
         pages = []
         doc = fitz.open(path)
@@ -262,8 +262,8 @@ def _self_check():
         import fitz
         info.append('  pymupdf(fitz): 可用')
     except ImportError:
-        info.append('  pymupdf(fitz): 未安装（PDF 模式不可用——桌面 requirements.txt 已声明，'
-                    '安卓需 chaquopy.pip 打包）')
+        info.append('  pymupdf(fitz): 未安装（PDF 拆分不可用——桌面 requirements.txt 已声明，'
+                    '安卓 Chaquopy 无 wheel，PDF 模式返回降级提示）')
     info.append('  requests: ' + ('可用' if _requests is not None
                                   else '未安装（使用 stdlib urllib 兜底）'))
     for k in ('OCR_API_BASE_URL', 'OCR_API_KEY', 'OCR_API_MODEL',
