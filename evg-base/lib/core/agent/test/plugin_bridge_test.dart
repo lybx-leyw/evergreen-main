@@ -136,6 +136,31 @@ void main() {
           '{"name": "t", "description": "d", "schema": {}, "lifetime": 123}';
       expect(PluginManifest.fromJson(json).lifetime, 'once');
     });
+
+    // ═══════ preprocess（Task R3-6） ═══════
+
+    test('preprocess "pdf_split" 解析（vision 插件声明）', () {
+      const json =
+          '{"name":"vision","description":"d","schema":{},"preprocess":"pdf_split"}';
+      expect(PluginManifest.fromJson(json).preprocess, 'pdf_split');
+    });
+
+    test('preprocess 缺省 → ""（旧插件无字段行为不变，不预处理）', () {
+      expect(
+        PluginManifest.fromJson('{"name":"t","description":"d","schema":{}}')
+            .preprocess,
+        '',
+      );
+    });
+
+    test('preprocess 未知值原样保留（仅 pdf_split 触发预处理，其余不处理）', () {
+      expect(
+        PluginManifest.fromJson(
+                '{"name":"t","description":"d","schema":{},"preprocess":"other"}')
+            .preprocess,
+        'other',
+      );
+    });
   });
 
   // ═══════ ArgSpec ═══════
@@ -377,6 +402,44 @@ void main() {
       expect(pt.name, 'test');
       expect(pt.description, 'desc');
       expect(pt.readOnly, isTrue);
+    });
+
+    test('preprocess=pdf_split：非安卓（测试环境）原参透传——fail-open，'
+        '桌面零行为变化', () async {
+      // 真实 python 子进程回显 stdin JSON：验证预拆分钩子未改动参数
+      // （测试环境 Platform.isAndroid=false → trySplitPdf 返回 null）。
+      final py = Platform.isWindows ? 'python' : 'python3';
+      final scriptPath = '${Directory.systemTemp.path}'
+          '${Platform.pathSeparator}vision_echo_pdf_test.py';
+      File(scriptPath).writeAsStringSync(
+        'import sys, json\n'
+        'd = json.loads(sys.stdin.read())\n'
+        'print(json.dumps(d, ensure_ascii=False))\n',
+      );
+
+      final m = PluginManifest.fromJson('''
+{
+  "name": "vision",
+  "description": "v",
+  "schema": {"type": "object", "properties": {"mode": {"type": "string"}, "file_path": {"type": "string"}}},
+  "readOnly": true,
+  "runtime": "python",
+  "argMode": "stdin",
+  "lifetime": "once",
+  "preprocess": "pdf_split"
+}''');
+      final pt = PluginTool(
+        exePath: scriptPath,
+        manifest: m,
+        runner: SubprocessRunner(py),
+      );
+      final res =
+          await pt.execute({'mode': 'ocr', 'file_path': '/tmp/doc.pdf'});
+      expect(res, contains('"mode"'));
+      expect(res, contains('"file_path"'));
+      expect(res, contains('/tmp/doc.pdf'));
+      expect(res, isNot(contains('pages_dir'))); // 未注入 pages_dir
+      File(scriptPath).deleteSync();
     });
 
     test('schema is forwarded from manifest', () {

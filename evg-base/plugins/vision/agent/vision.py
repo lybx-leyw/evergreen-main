@@ -1,13 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""vision — 多模态视觉 Agent 工具插件（Task R3-5）。
+"""vision — 多模态视觉 Agent 工具插件（Task R3-5 / R3-6）。
 
-stdin JSON 参数：{"mode": "ocr|describe|generate", "file_path": "..."}
+stdin JSON 参数：{"mode": "ocr|describe|generate", "file_path": "...", "pages_dir": "..."}
 
 模式：
 - ocr      ：提取图片 / PDF / PPT 中的文字（OCR_API_* 配置，OpenAI 兼容 chat/completions）
 - describe ：详细描述图片内容（VISION_API_* 配置）
 - generate ：生图（占位，即将上线——不调 API、不进设置）
+
+可选输入 pages_dir（Task R3-6）：平台侧（安卓系统 PdfRenderer / 未来其他平台）
+预拆分 PDF 后注入的页图片目录，存在时按页读取并**跳过本地 PDF 拆分**——安卓
+Chaquopy 无 pymupdf wheel，PDF 拆分由 Dart/Kotlin 侧完成（MethodChannel
+`evergreen/pdf`）；桌面 PDF 仍走 pymupdf(fitz)（零行为变化）。该字段为内部
+协议，不进 manifest schema（LLM 不感知）。
 
 API 配置从平台设置读取（.greenix/config.json 镜像机制，GREENIX_CONFIG_PATH
 环境变量桌面/安卓已注入；三级降级：config.json → CWD/PROJECT_ROOT 搜索 → 环境变量）：
@@ -15,9 +21,9 @@ API 配置从平台设置读取（.greenix/config.json 镜像机制，GREENIX_CO
   VISION_API_BASE_URL / VISION_API_KEY / VISION_API_MODEL
 
 输出约定：stdout 纯文本（Agent 工具可解析）；错误统一 `[error: vision: ...]`
-前缀，不崩溃。PDF 经 pymupdf(fitz) 渲染；PPT/PPTX 经 zipfile 纯标准库解包
-内嵌图片（不引 python-pptx）；多页并发调 API（max_workers=4，429 退避，
-单页失败不阻塞整篇，汇总标注页码）。
+前缀，不崩溃。PDF 经 pymupdf(fitz) 渲染（桌面）或 pages_dir 预拆分（安卓）；
+PPT/PPTX 经 zipfile 纯标准库解包内嵌图片（不引 python-pptx）；多页并发调 API
+（max_workers=4，429 退避，单页失败不阻塞整篇，汇总标注页码）。
 
 请求库：优先使用已打包的 requests（嵌入式 Python / 安卓 Chaquopy 均内置），
 缺失时回退标准库 urllib——零新增依赖。
@@ -27,6 +33,7 @@ import concurrent.futures
 import json
 import mimetypes
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -138,7 +145,8 @@ def _call_with_retry(base_url, api_key, model, image_b64, mime, prompt, timeout=
 
 # ═══════ 文件处理 ═══════
 
-_PPT_MEDIA_EXTS = {'.png', '.jpg', '.jpeg', '.bmp', '.gif', '.webp', '.tiff'}
+# 图片扩展名（PPT 媒体解包与 pages_dir 页图片共用）。
+_IMAGE_EXTS = {'.png', '.jpg', '.jpeg', '.bmp', '.gif', '.webp', '.tiff'}
 
 
 def _image_to_data(path):
@@ -152,10 +160,9 @@ def _pdf_to_pages(path):
     try:
         import fitz
     except ImportError:
-        return None, ('PDF 拆分需要 pymupdf（fitz）：桌面嵌入式 Python 已含'
-                      '（scripts/requirements.txt 声明）；安卓 Chaquopy 索引无'
-                      ' pymupdf wheel（2026-08 CI 验证），安卓端暂不支持 PDF'
-                      ' 拆分——请上传图片或使用桌面端处理 PDF')
+        return None, ('PDF 拆分不可用（桌面需 pymupdf/fitz，见 scripts/requirements.txt；'
+                      '安卓需平台侧系统 PdfRenderer 预拆分并注入 pages_dir，但未生效）'
+                      '——请上传图片或使用桌面端处理 PDF')
     try:
         pages = []
         doc = fitz.open(path)
@@ -170,6 +177,33 @@ def _pdf_to_pages(path):
         return None, f'PDF 渲染失败: {e}'
 
 
+def _page_sort_key(name):
+    """页文件名数字排序键：page_0001.png → (1, 'page_0001.png')；无数字兜底排末尾。"""
+    m = re.search(r'(\d+)', name)
+    return (int(m.group(1)), name) if m else (1 << 30, name)
+
+
+def _load_pages_from_dir(pages_dir):
+    """从平台侧预拆分目录加载页图片（安卓 PdfRenderer 产出 page_NNNN.png）。
+
+    返回 ([(label, bytes)], error)。按页号数字排序；单页读取失败即整体报错。
+    """
+    d = Path(pages_dir)
+    if not d.is_dir():
+        return None, f'pages_dir 不是有效目录: {pages_dir}'
+    items = []
+    for f in sorted(d.iterdir(), key=lambda p: _page_sort_key(p.name)):
+        if not f.is_file() or f.suffix.lower() not in _IMAGE_EXTS:
+            continue
+        try:
+            items.append((f.name, f.read_bytes()))
+        except OSError as e:
+            return None, f'页图片读取失败 {f.name}: {e}'
+    if not items:
+        return None, f'pages_dir 中没有可识别的图片: {pages_dir}'
+    return items, None
+
+
 def _pptx_to_pages(path):
     """zipfile 纯标准库解包 ppt/slides/media/* 内嵌图片。返回 ([(label, bytes)], error)。"""
     try:
@@ -178,7 +212,7 @@ def _pptx_to_pages(path):
             for name in zf.namelist():
                 if name.startswith('ppt/slides/media/') and not name.endswith('/'):
                     ext = Path(name).suffix.lower()
-                    if ext in _PPT_MEDIA_EXTS:
+                    if ext in _IMAGE_EXTS:
                         pages.append((name.rsplit('/', 1)[-1], zf.read(name)))
         return pages, None
     except Exception as e:
@@ -252,6 +286,10 @@ _USAGE = """vision — 多模态视觉工具（OCR / 读图描述 / 生图占位
   describe 详细描述图片内容（VISION_API_BASE_URL/VISION_API_KEY/VISION_API_MODEL）
   generate 生图（占位，即将上线）
 
+可选输入 pages_dir：平台侧（安卓系统 PdfRenderer）预拆分 PDF 后的页图片目录，
+存在时按页读取并跳过本地 PDF 拆分（内部协议，由 Dart 侧注入；桌面 PDF 仍走
+pymupdf/fitz，安卓未注入时返回降级提示）。
+
 输出：stdout 纯文本；错误统一 `[error: vision: ...]` 前缀，退出码 0。
 """
 
@@ -260,10 +298,10 @@ def _self_check():
     info = ['vision 自检:']
     try:
         import fitz
-        info.append('  pymupdf(fitz): 可用')
+        info.append('  pymupdf(fitz): 可用（桌面 PDF 拆分）')
     except ImportError:
-        info.append('  pymupdf(fitz): 未安装（PDF 拆分不可用——桌面 requirements.txt 已声明，'
-                    '安卓 Chaquopy 无 wheel，PDF 模式返回降级提示）')
+        info.append('  pymupdf(fitz): 未安装（桌面 PDF 拆分不可用——scripts/requirements.txt 已声明；'
+                    '安卓由平台侧系统 PdfRenderer 预拆分替代，经 pages_dir 注入）')
     info.append('  requests: ' + ('可用' if _requests is not None
                                   else '未安装（使用 stdlib urllib 兜底）'))
     for k in ('OCR_API_BASE_URL', 'OCR_API_KEY', 'OCR_API_MODEL',
@@ -289,6 +327,7 @@ def main():
 
     mode = str(args.get('mode') or 'ocr').strip().lower()
     path = str(args.get('file_path') or '').strip()
+    pages_dir = str(args.get('pages_dir') or '').strip()
 
     if mode == 'generate':
         print('生图功能即将上线，敬请期待')
@@ -296,15 +335,27 @@ def main():
     if mode not in ('ocr', 'describe'):
         print(f'[error: vision: 未知模式 "{mode}"，支持 ocr/describe/generate]')
         return 0
-    if not path:
-        print('[error: vision: file_path 必填。示例: {"mode":"ocr","file_path":"scan.png"}]')
+    if not path and not pages_dir:
+        print('[error: vision: file_path 必填（或平台侧预拆分的 pages_dir）。'
+              '示例: {"mode":"ocr","file_path":"scan.png"}]')
         return 0
-    if not Path(path).is_file():
-        cand = Path.cwd() / path
-        if cand.is_file():
-            path = str(cand)
-        else:
-            print(f'[error: vision: 文件不存在: {path}]')
+    # pages_dir 模式（平台侧预拆分）不校验 file_path 存在性——以页图片目录为准。
+    if not pages_dir:
+        if not Path(path).is_file():
+            cand = Path.cwd() / path
+            if cand.is_file():
+                path = str(cand)
+            else:
+                print(f'[error: vision: 文件不存在: {path}]')
+                return 0
+
+    # 输入分派准备：pages_dir（平台侧预拆分，安卓 PdfRenderer）先行加载校验，
+    # 与 file_path 存在性校验同一时机（先于 API 配置检查，错误信息更精准）。
+    pages = None
+    if pages_dir:
+        pages, err = _load_pages_from_dir(pages_dir)
+        if err:
+            print(f'[error: vision: {err}]')
             return 0
 
     if mode == 'ocr':
@@ -325,6 +376,11 @@ def main():
         return 0
 
     cfg = {'base_url': base_url, 'api_key': api_key, 'model': model}
+
+    # 输入分派：pages_dir（平台侧预拆分）> PDF(fitz) > PPT(zipfile) > 图片。
+    if pages is not None:
+        print(_compose_output(pages, cfg, prompt, empty_msg))
+        return 0
 
     ext = Path(path).suffix.lower()
     if ext == '.pdf':
