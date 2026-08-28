@@ -59,6 +59,26 @@ String _bingHtml(int count,
   return buf.toString();
 }
 
+/// 构造含 count 个 item 的模拟 Bing RSS（format=rss 标准 XML）。
+/// 标题/链接/摘要分别带 HTML 实体与 CDATA 变体，验证 XML 解析反转义。
+String _bingRss(int count) {
+  final buf = StringBuffer('<?xml version="1.0" encoding="utf-8"?>'
+      '<rss version="2.0"><channel><title>必应：query</title>');
+  for (var i = 1; i <= count; i++) {
+    final snippet = i.isEven
+        ? '<![CDATA[摘要 <b>$i</b> 带实体 &amp; 标签]]>'
+        : '摘要 $i &amp; 实体';
+    buf.write('<item>'
+        '<title>RSS 标题 $i</title>'
+        '<link>https://docs.example.net/page$i</link>'
+        '<description>$snippet</description>'
+        '<pubDate>周四, 27 8月 2026 10:00:00 GMT</pubDate>'
+        '</item>');
+  }
+  buf.write('</channel></rss>');
+  return buf.toString();
+}
+
 /// 统计 web_search 成功输出中的条目数。
 int _entryCount(String out) {
   final idx = out.indexOf('\n\n');
@@ -303,6 +323,48 @@ void main() {
         ]);
       final out = await WebSearchTool(dio).execute({'query': 'flutter'});
       expect(_entryCount(out), 3);
+    });
+
+    test('RSS 响应（format=rss XML）→ XML 解析出条目', () async {
+      final dio = _StubDio()
+        ..responses.add(Response(statusCode: 200, data: _bingRss(4)));
+      final out = await WebSearchTool(dio).execute({'query': 'flutter'});
+      expect(out, startsWith('搜索 "flutter" 的结果:'));
+      expect(_entryCount(out), 4);
+      expect(out, contains('RSS 标题 1'));
+      expect(out, contains('https://docs.example.net/page1'));
+      expect(out, contains('来源: docs.example.net'));
+    });
+
+    test('RSS XML 实体与 CDATA 反转义/剥标签', () async {
+      final dio = _StubDio()
+        ..responses.add(Response(statusCode: 200, data: _bingRss(2)));
+      final out = await WebSearchTool(dio).execute({'query': 'flutter'});
+      // 奇数条：`摘要 1 &amp; 实体` → `摘要 1 & 实体`
+      expect(out, contains('摘要 1 & 实体'));
+      // 偶数条：CDATA `<b>2</b>` 剥标签 + `&amp;` → `摘要 2 带实体 & 标签`
+      expect(out, contains('摘要 2 带实体 & 标签'));
+    });
+
+    test('RSS 响应但 0 条目 → 未找到结果（不判反爬）', () async {
+      final dio = _StubDio()
+        ..responses.add(Response(
+            statusCode: 200,
+            data: '<?xml version="1.0"?><rss version="2.0"><channel>'
+                '<title>必应：nonexistent</title></channel></rss>'));
+      final out = await WebSearchTool(dio).execute({'query': 'nonexistent'});
+      expect(out, '[搜索失败: 未找到结果]');
+    });
+
+    test('请求带 format=rss 参数；max_results 不进请求参数', () async {
+      final dio = _StubDio()
+        ..responses.add(Response(statusCode: 200, data: _bingRss(3)));
+      await WebSearchTool(dio)
+          .execute({'query': 'flutter', 'max_results': 3});
+      final params = dio.queryParams.single;
+      expect(params['q'], 'flutter');
+      expect(params['format'], 'rss', reason: '应请求 Bing RSS 通道');
+      expect(params.containsKey('max_results'), isFalse);
     });
   });
 

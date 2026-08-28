@@ -300,6 +300,13 @@ class WebSearchTool extends Tool {
   /// 网络搜索核心：Bing 抓取 + 结果提取，返回 (条目列表, 错误原因?)。
   /// 错误原因非 null 表示失败（裸原因，不含「[搜索失败: ...]」外壳——
   /// 由调用方按场景包装，缺省 mode 包装后与返工前输出逐字节一致）。
+  ///
+  /// 抓取策略（Task R3-7 修复 network 模式反爬失效）：
+  /// 1. 请求统一带 `format=rss`——Bing 返回标准 XML（title/link/description/
+  ///    pubDate），结构稳定，不受 HTML 改版与反爬页影响；
+  /// 2. 响应含 RSS 标记（`<item>` / `<rss`）→ XML 解析；
+  /// 3. 否则降级原 HTML `b_algo` 正则解析（兼容某些环境忽略 format 参数、
+  ///    或代理改写响应的情况）——请求次数不变（每 host 一次）。
   Future<(List<String>, String?)> _fetchBingEntries(String query) async {
     try {
       // 先用 cn.bing.com（国内镜像），失败再试 www.bing.com
@@ -310,7 +317,7 @@ class WebSearchTool extends Tool {
         try {
           final response = await _dio.get(
             '$host/search',
-            queryParameters: {'q': query, 'cc': 'cn'},
+            queryParameters: {'q': query, 'cc': 'cn', 'format': 'rss'},
             options: Options(
               connectTimeout: const Duration(seconds: 10),
               receiveTimeout: const Duration(seconds: 10),
@@ -339,7 +346,15 @@ class WebSearchTool extends Tool {
         html = html.substring(0, htmlCap);
       }
 
-      // 提取搜索结果——适应多种 HTML 结构
+      // 优先 RSS 解析（Bing format=rss 标准 XML；HTML 被反爬/改版时仍稳定）。
+      if (html.contains('<item>') || html.contains('<rss')) {
+        final rssEntries = _parseBingRss(html);
+        if (rssEntries.isNotEmpty) return (rssEntries, null);
+        // RSS 响应但 0 条目 → 未找到结果（RSS 是标准接口，不判反爬）。
+        return (const <String>[], '未找到结果');
+      }
+
+      // 降级：提取搜索结果——适应多种 HTML 结构
       final results = <String>[];
 
       // Bing 新版：<li class="b_algo"> 或者 <li class="b_algo_">
@@ -388,6 +403,51 @@ class WebSearchTool extends Tool {
     } catch (e) {
       return (const <String>[], '$e');
     }
+  }
+
+  /// 解析 Bing RSS（`format=rss`）——标准 XML，结构稳定。
+  ///
+  /// 每个 `<item>` 提取 title / link / description，输出与 HTML 解析
+  /// 相同的条目文本格式（`标题\n  摘要\n  url\n  来源: host`）。
+  /// 返回空列表 = 响应不是 RSS 或没有条目。
+  static List<String> _parseBingRss(String xml) {
+    final entries = <String>[];
+    final itemRegex = RegExp(r'<item>(.*?)</item>', dotAll: true);
+    for (final match in itemRegex.allMatches(xml)) {
+      final block = match.group(1) ?? '';
+      final title = _rssField(block, 'title');
+      final link = _rssField(block, 'link');
+      final snippet = _rssField(block, 'description');
+      if (title.isEmpty) continue;
+      var entry = title;
+      if (snippet.isNotEmpty) entry += '\n  $snippet';
+      if (link.isNotEmpty) {
+        entry += '\n  $link';
+        final host = _hostOf(link);
+        if (host.isNotEmpty) entry += '\n  来源: $host';
+      }
+      entries.add(entry);
+    }
+    return entries;
+  }
+
+  /// 提取 RSS 单字段（`<tag>...</tag>`，支持 CDATA），剥 HTML 标签并反转义
+  /// 常见 XML 实体（未知实体静默保留）。
+  static String _rssField(String block, String tag) {
+    final m = RegExp('<$tag>(.*?)</$tag>', dotAll: true).firstMatch(block);
+    if (m == null) return '';
+    var s = m.group(1) ?? '';
+    if (s.startsWith('<![CDATA[') && s.endsWith(']]>')) {
+      s = s.substring(9, s.length - 3);
+    }
+    s = s.replaceAll(RegExp(r'<[^>]*>'), '').trim();
+    return s
+        .replaceAll('&amp;', '&')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#39;', "'")
+        .replaceAll('&nbsp;', ' ');
   }
 
   @override

@@ -153,6 +153,9 @@ final agentRuntimeProvider = Provider<AgentRuntime>((ref) {
     session: session, memory: memory, memoryAgent: memoryAgent,
     skillIndexText: skillIndex.indexText(),
     skillIndex: skillIndex,
+    // 与主路径 app_bootstrap 一致：注入工作区绝对路径 → system prompt
+    // 「## 工作区」段（vision 等文件工具需绝对路径，安卓 Python 无法自行推断）。
+    moduleId: 'ai-assistant',
   );
 
   // Agent HTTP Server —— 供插件 .exe 桥接到 core/agent
