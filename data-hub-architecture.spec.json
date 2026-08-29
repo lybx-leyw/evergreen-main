@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Evergreen 数据中枢：声明拉取 · 按需调度",
+    "output": "data-hub-architecture.html",
+    "quality_profile": "showcase",
+    "viewBox": [1440, 720],
+    "views": [
+      { "id": "static-serve", "label": "同平台静态数据直出", "focus": ["builtin", "scheduler", "cache", "html-plugin"], "note": "内置 fetcher、缓存命中、静态兜底——不跨网络的三条直出路径。" },
+      { "id": "fetch-dispatch", "label": "拉取调度", "focus": ["registry", "scheduler", "cli-source", "http-source"], "note": "注册表解析 DataType，按声明选择 CLI 脚本或 HTTP 长驻拉取。" },
+      { "id": "guard-and-notify", "label": "守护与变更通知", "focus": ["scheduler", "session", "cache", "diff", "ext-http"], "note": "会话重登、缓存降级、diff 后的事件通知。" }
+    ]
+  },
+  "components": [
+    { "id": "cli-source", "type": "external", "label": "模型 A · CLI 脚本", "sublabel": "跨平台 .py · 一次性", "tag": "主流契约", "pos": [40, 70], "size": [210, 56] },
+    { "id": "builtin", "type": "backend", "label": "内置数据源", "sublabel": "同平台 Dart fetcher", "tag": "静态 · 零网络", "pos": [40, 210], "size": [210, 56] },
+    { "id": "http-source", "type": "external", "label": "模型 B · HTTP 长驻", "sublabel": "legacy .exe · PORT:/health", "tag": "仅同平台", "pos": [40, 350], "size": [210, 56] },
+    { "id": "registry", "type": "backend", "label": "DataType 注册表", "sublabel": "register / registerStream / registerFile", "tag": "声明即拉取办法", "pos": [470, 70], "size": [240, 56] },
+    { "id": "scheduler", "type": "backend", "label": "调度引擎", "sublabel": "get · fastRead · refresh · refreshAllStale", "tag": "缓存优先 · 降级链：旧缓存 > 静态兜底", "pos": [470, 210], "size": [240, 56] },
+    { "id": "cache", "type": "database", "label": "两级缓存", "sublabel": "磁盘 Cache + 内存快读", "tag": "同平台静态直出 · 过期也返回", "pos": [470, 420], "size": [240, 56] },
+    { "id": "session", "type": "security", "label": "会话协调器", "sublabel": "SessionCoordinator 登录锁", "tag": "单点重登", "pos": [800, 70], "size": [190, 56] },
+    { "id": "diff", "type": "messagebus", "label": "变更引擎", "sublabel": "data_diff → DataChangeEvent", "tag": "忽略易变字段", "pos": [800, 420], "size": [190, 56] },
+    { "id": "renderer-ui", "type": "frontend", "label": "Renderer / Module 页面", "sublabel": "状态面板 · 订阅变更刷新", "tag": "消费方", "pos": [1140, 70], "size": [210, 56] },
+    { "id": "html-plugin", "type": "frontend", "label": "HTML 插件", "sublabel": "platform.data.* JS Bridge", "tag": "消费方", "pos": [1140, 210], "size": [210, 56] },
+    { "id": "agent-tool", "type": "backend", "label": "Agent 工具", "sublabel": "getByName / refreshByName", "tag": "消费方", "pos": [1140, 350], "size": [210, 56] },
+    { "id": "ext-http", "type": "external", "label": "外部 HTTP 消费者", "sublabel": "REST 端点 · SSE 订阅", "tag": "消费方", "pos": [1140, 490], "size": [210, 56] }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "数据源插件（只声明拉取办法）", "wraps": ["cli-source", "builtin", "http-source"] },
+    { "kind": "region", "label": "数据中枢 DataOrchestrator（谱仪核心）", "wraps": ["registry", "scheduler", "cache", "session", "diff"] },
+    { "kind": "region", "label": "消费方", "wraps": ["renderer-ui", "html-plugin", "agent-tool", "ext-http"] }
+  ],
+  "connections": [
+    { "id": "declaration", "from": "cli-source", "to": "registry", "label": "manifest 声明 dataTypes", "variant": "dashed", "labelAt": [360, 82] },
+    { "id": "resolve", "from": "registry", "to": "scheduler", "label": "解析 DataType · 取 fetcher", "variant": "emphasis", "labelAt": [590, 168] },
+    { "id": "call-cli", "from": "scheduler", "to": "cli-source", "label": "Process.run script --type", "variant": "emphasis", "fromSide": "left", "toSide": "right", "labelAt": [360, 170] },
+    { "id": "call-builtin", "from": "scheduler", "to": "builtin", "label": "同平台直接调用", "fromSide": "left", "toSide": "right", "labelAt": [425, 222] },
+    { "id": "call-http", "from": "scheduler", "to": "http-source", "label": "HTTP {port}/endpoint", "fromSide": "left", "toSide": "right", "labelAt": [360, 320] },
+    { "id": "cache-rw", "from": "scheduler", "to": "cache", "label": "缓存读写（命中直出）", "variant": "emphasis", "fromSide": "bottom", "toSide": "top", "labelAt": [644, 343] },
+    { "id": "diff-check", "from": "scheduler", "to": "diff", "label": "覆写后 diff 对比", "fromSide": "right", "toSide": "left", "labelAt": [755, 328] },
+    { "id": "relogin", "from": "scheduler", "to": "session", "label": "会话失效 → 重登重拉", "variant": "security", "fromSide": "right", "toSide": "left", "labelAt": [755, 178] },
+    { "id": "serve-renderer", "from": "scheduler", "to": "renderer-ui", "label": "get / fastRead / 状态", "fromSide": "right", "toSide": "left", "labelAt": [925, 152] },
+    { "id": "serve-html", "from": "scheduler", "to": "html-plugin", "label": "platform.data.*", "variant": "emphasis", "fromSide": "right", "toSide": "left", "labelAt": [925, 226] },
+    { "id": "serve-agent", "from": "scheduler", "to": "agent-tool", "label": "getByName / refresh", "fromSide": "right", "toSide": "left", "labelAt": [925, 322] },
+    { "id": "serve-http", "from": "scheduler", "to": "ext-http", "label": "REST /data/types/:name", "fromSide": "right", "toSide": "left", "labelAt": [925, 394] },
+    { "id": "event-sse", "from": "diff", "to": "ext-http", "label": "SSE /data/events · 变更事件", "fromSide": "bottom", "toSide": "bottom", "via": [[895, 476], [895, 580], [1245, 580], [1245, 546]], "labelAt": [1070, 566] }
+  ],
+  "cards": [
+    { "dot": "cyan", "title": "声明即调度", "items": ["数据源插件只声明拉取办法：script / endpoint / stream / file", "DataType 声明需求：ttl · persistentKey · fallbackJson · auth", "中枢统一注册调度，重复注册覆盖旧 fetcher"] },
+    { "dot": "emerald", "title": "同平台静态数据三通道", "items": ["内置数据源：Dart fetcher 同平台直接调用，零网络", "两级缓存：fastRead 内存零 I/O；get 磁盘命中直出（过期也返回）", "静态兜底：拉取失败且无旧缓存 → 返回 fallbackJson"] },
+    { "dot": "amber", "title": "守护与变更通知", "items": ["CLI 60s 超时；模型 B 崩溃退避重启 1s/3s/9s ×3", "会话失效 → SessionCoordinator 单点重登后重拉一次", "后台刷新 diff 后发 DataChangeEvent（SSE /data/events）"] }
+  ]
+}
