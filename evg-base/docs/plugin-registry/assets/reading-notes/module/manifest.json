@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "reading-notes",
+  "name": "读书笔记",
+  "description": "管理书架与阅读笔记：按书分组记录摘录金句、读后感想与阅读进度，支持标签、搜索、编辑与文本导出，数据保存在本机。",
+  "template": "html",
+  "version": "1.0.0",
+  "icon": "menu_book",
+  "route": "/reading-notes",
+  "nav": {
+    "sidebar": {
+      "section": "学习",
+      "sectionOrder": 10,
+      "order": 3
+    }
+  }
+}

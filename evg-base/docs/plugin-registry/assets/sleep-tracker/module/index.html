@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>睡眠记录</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+/* ── 主题接入：只引用平台注入的 --evg-* 变量（带兜底），禁止在 :root 重定义 --evg-* ──
+   明暗主题由平台实时注入 --evg-*（theme.getColors），本页只做别名映射，夜间深色自动适配。 */
+:root {
+  --bg: var(--evg-background, #edeff7);
+  --card: var(--evg-surface, #ffffff);
+  --ink: var(--evg-text, #232a44);
+  --ink-soft: var(--evg-text-secondary, #67708f);
+  --accent: var(--evg-accent, #5a6bd0);
+  --accent-bg: var(--evg-accent-bg, #e7eafb);
+  --accent-border: var(--evg-accent-border, #c5ccf2);
+  --line: var(--evg-border, rgba(35, 42, 68, .09));
+  --error: var(--evg-error, #d64545);
+}
+html { font-size: 16px; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, sans-serif;
+  background: var(--bg); color: var(--ink); min-height: 100vh; line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; clip: rect(0 0 0 0); overflow: hidden; white-space: nowrap; }
+:focus-visible { outline: 2px solid var(--accent-border); outline-offset: 2px; }
+
+.topbar { display: flex; align-items: center; gap: .75rem; padding: 1.1rem 1.5rem; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--card) 72%, transparent); backdrop-filter: blur(.875rem); -webkit-backdrop-filter: blur(.875rem); position: sticky; top: 0; z-index: 5; }
+.topbar .ico { font-size: 1.5rem; }
+.topbar h1 { font-size: 1.15rem; font-weight: 700; }
+.topbar .sub { font-size: .72rem; color: var(--ink-soft); }
+.badge { margin-left: auto; font-size: .68rem; color: var(--ink-soft); border: 1px solid var(--line); border-radius: 999px; padding: .18rem .6rem; white-space: nowrap; }
+
+.container { max-width: 46rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 1rem; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+.card h2 { font-size: .95rem; font-weight: 700; margin-bottom: .9rem; display: flex; align-items: center; justify-content: space-between; gap: .6rem; flex-wrap: wrap; }
+.card h2 .f { font-size: .72rem; color: var(--ink-soft); font-weight: 500; }
+
+/* 统计 */
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: .75rem; }
+.stat { text-align: center; padding: .8rem; border-radius: .85rem; background: color-mix(in srgb, var(--bg) 55%, transparent); border: 1px solid var(--line); }
+.stat .v { font-size: 1.25rem; font-weight: 700; line-height: 1.3; }
+.stat .v small { font-size: .72rem; font-weight: 500; color: var(--ink-soft); }
+.stat .l { font-size: .7rem; color: var(--ink-soft); margin-top: .15rem; }
+
+/* 表单 */
+.form-row { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: .55rem; align-items: end; }
+.field label { display: block; font-size: .72rem; color: var(--ink-soft); margin-bottom: .25rem; }
+.field input, .field select { width: 100%; padding: .5rem .6rem; border-radius: .6rem; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--ink); font-family: inherit; font-size: .85rem; }
+.field input:focus, .field select:focus { outline: 2px solid var(--accent-border); border-color: var(--accent-border); }
+.form-ops { display: flex; gap: .45rem; }
+.note-field { margin-top: .55rem; }
+.note-field input { max-width: 100%; }
+.status { min-height: 1.1rem; font-size: .78rem; color: var(--ink-soft); margin-top: .5rem; }
+.status.error { color: var(--error); }
+
+.btn { appearance: none; border: none; cursor: pointer; font-family: inherit; font-size: .85rem; font-weight: 600; padding: .55rem 1.1rem; border-radius: .7rem; color: #fff; background: var(--accent); transition: transform .15s ease, opacity .15s ease; }
+.btn:hover { transform: translateY(-1px); opacity: .92; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn.danger { background: transparent; color: var(--error); border: 1px solid color-mix(in srgb, var(--error) 45%, transparent); }
+.btn.danger-solid { background: var(--error); color: #fff; }
+.btn.sm { padding: .4rem .8rem; font-size: .78rem; }
+
+/* 图表 */
+.chart-toggle { display: inline-flex; border: 1px solid var(--line); border-radius: .6rem; overflow: hidden; }
+.vt { appearance: none; border: none; background: transparent; color: var(--ink-soft); font-family: inherit; font-size: .72rem; padding: .28rem .6rem; cursor: pointer; }
+.vt[aria-pressed="true"] { background: var(--accent-bg); color: var(--accent); font-weight: 600; }
+.chart-box { margin: .5rem 0 1rem; }
+.chart { width: 100%; height: auto; display: block; }
+.chart-grid { stroke: color-mix(in srgb, var(--ink-soft) 16%, transparent); stroke-width: 1; }
+.chart-axis { fill: var(--ink-soft); font-size: 11; }
+.chart-bar { fill: var(--accent); opacity: .8; }
+.chart-line { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.chart-label { fill: var(--ink-soft); font-size: 10; text-anchor: middle; }
+
+/* 记录列表 */
+.records { display: flex; flex-direction: column; gap: .5rem; max-height: 16rem; overflow: auto; overscroll-behavior: contain; }
+.rec { display: flex; align-items: center; justify-content: space-between; gap: .6rem; background: color-mix(in srgb, var(--bg) 48%, transparent); border: 1px solid var(--line); border-radius: .7rem; padding: .55rem .8rem; font-size: .84rem; }
+.rec .d { display: flex; flex-direction: column; min-width: 0; }
+.rec .d .t { font-weight: 600; }
+.rec .d .s { font-size: .7rem; color: var(--ink-soft); overflow-wrap: anywhere; word-break: break-word; }
+.rec .v { font-weight: 700; color: var(--accent); white-space: nowrap; }
+.rec .ops { display: flex; gap: .2rem; flex-shrink: 0; }
+.icon-btn { appearance: none; border: none; background: transparent; color: var(--ink-soft); cursor: pointer; font-family: inherit; font-size: .85rem; padding: .15rem .3rem; border-radius: .4rem; white-space: nowrap; }
+.icon-btn:hover { background: var(--accent-bg); color: var(--accent); }
+.icon-btn.danger { color: var(--error); }
+.icon-btn.danger-solid { background: var(--error); color: #fff; border-radius: .5rem; }
+.clear-row { margin-top: .8rem; }
+.empty { text-align: center; color: var(--ink-soft); font-size: .85rem; padding: 1.2rem 0; }
+
+/* 清空确认弹窗（页内 dialog，替代 confirm） */
+.overlay { position: fixed; inset: 0; background: rgba(10, 12, 24, .45); display: flex; align-items: center; justify-content: center; z-index: 20; padding: 1rem; }
+.dialog { background: var(--card); border: 1px solid var(--line); border-radius: 1rem; padding: 1.3rem 1.4rem; width: 100%; max-width: 21rem; box-shadow: 0 8px 30px rgba(0,0,0,.18); }
+.dialog h3 { font-size: .95rem; font-weight: 700; margin-bottom: .5rem; }
+.dialog p { font-size: .82rem; color: var(--ink-soft); margin-bottom: 1rem; }
+.dialog-ops { display: flex; justify-content: flex-end; gap: .55rem; }
+
+.foot { text-align: center; font-size: .7rem; color: var(--ink-soft); margin-top: 1rem; }
+.hidden { display: none !important; }
+
+@media (max-width: 40rem) {
+  .form-row { grid-template-columns: 1fr 1fr; }
+  .form-ops { grid-column: 1 / -1; }
+  .stats { grid-template-columns: 1fr 1fr; gap: .6rem; }
+}
+@media (max-width: 30rem) {
+  .topbar { padding: .8rem .9rem; }
+  .container { padding: 1rem .75rem 2.5rem; }
+  .stat .v { font-size: 1.1rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <span class="ico" aria-hidden="true">🌙</span>
+  <div><h1>睡眠记录</h1><div class="sub">入睡/起床时间 · 睡眠时长 · 质量与趋势</div></div>
+  <span class="badge" title="记录仅保存在本机插件存储中，不会上传">🔒 本机保存</span>
+</header>
+<main class="container">
+  <section class="card" aria-labelledby="stats-title">
+    <h2><span id="stats-title">睡眠概览</span> <span class="f">近 7 天</span></h2>
+    <div class="stats">
+      <div class="stat"><div class="v" id="st-nights">0<small> 条</small></div><div class="l">记录总数</div></div>
+      <div class="stat"><div class="v" id="st-avg">—</div><div class="l">近 7 天日均</div></div>
+      <div class="stat"><div class="v" id="st-best">—</div><div class="l">最长睡眠</div></div>
+      <div class="stat"><div class="v" id="st-quality">—</div><div class="l">近 7 天质量</div></div>
+    </div>
+  </section>
+
+  <section class="card" id="form-card" aria-labelledby="form-title">
+    <h2><span id="form-title">➕ 记录一晚</span></h2>
+    <div class="form-row">
+      <div class="field"><label for="f-in">入睡时间</label><input type="datetime-local" id="f-in" aria-label="入睡时间"></div>
+      <div class="field"><label for="f-out">醒来时间</label><input type="datetime-local" id="f-out" aria-label="醒来时间"></div>
+      <div class="field"><label for="f-quality">质量</label><select id="f-quality" aria-label="睡眠质量">
+        <option value="good">😊 好</option><option value="ok">😐 一般</option><option value="bad">😣 差</option>
+      </select></div>
+      <div class="form-ops">
+        <button type="button" class="btn" id="b-add">记录</button>
+        <button type="button" class="btn ghost hidden" id="b-cancel-edit">取消</button>
+      </div>
+    </div>
+    <div class="field note-field"><label for="f-note">备注</label><input type="text" id="f-note" maxlength="200" placeholder="备注（可选），如：睡前喝了咖啡"></div>
+    <div id="status" class="status" role="status" aria-live="polite"></div>
+  </section>
+
+  <section class="card" aria-labelledby="chart-title">
+    <h2>
+      <span id="chart-title">📈 睡眠时长</span>
+      <span class="chart-toggle" role="group" aria-label="统计范围">
+        <button type="button" class="vt" id="vt-7" aria-pressed="true">近 7 天</button>
+        <button type="button" class="vt" id="vt-30" aria-pressed="false">近 30 天</button>
+      </span>
+    </h2>
+    <div class="chart-box" id="chart-box"></div>
+    <h2>📋 最近记录 <span class="f" id="rcount">0 条</span></h2>
+    <div class="records" id="records"></div>
+    <div class="clear-row"><button type="button" class="btn danger" id="b-clear">清空全部记录</button></div>
+  </section>
+</main>
+<footer class="foot">数据保存在本机 · 不上传云端</footer>
+
+<div class="overlay hidden" id="dlg-clear">
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-title">
+    <h3 id="dlg-title">清空全部记录？</h3>
+    <p>将删除全部 <span id="dlg-count">0 条</span> 睡眠记录，此操作不可撤销。</p>
+    <div class="dialog-ops">
+      <button type="button" class="btn ghost" id="dlg-cancel">取消</button>
+      <button type="button" class="btn danger-solid" id="dlg-confirm">清空</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ── 平台与存储接入 ──────────────────────────────────────────────
+  // localStorage 由平台 bridge 的 polyfill 接管（同步内存 + 异步落盘到插件私有
+  // storage/storage.json，与 platform.storage.* 同一后端）。因 polyfill 预载是
+  // 异步的，页面脚本首次同步读取可能拿到空态；若直接覆盖写入，会把远端已存
+  // 记录冲掉。因此：
+  //   1) 初始同步读 localStorage 仅作「即时渲染」；
+  //   2) bridge 就绪后经 platform.storage.list() 重读远端并按 uid 去重合并
+  //      （会话内新记录优先），合并结果回写收敛；
+  //   3) 首次落盘前等待上述合并完成（persistSafely 门闩），杜绝「先写后并」
+  //      导致远端旧记录被覆盖；写路径同时走 localStorage 与
+  //      platform.storage.set（await 落盘），即便页面立即关闭也不丢数据。
+  var P = (typeof window !== 'undefined' && window.platform) ? window.platform : null;
+  var KEY = 'evg.sleep-tracker';
+  var LS = null;
+  try { LS = window.localStorage; } catch (e) { LS = null; }
+
+  var QUALITIES = { good: { e: '😊', l: '好' }, ok: { e: '😐', l: '一般' }, bad: { e: '😣', l: '差' } };
+  var MAX_HOURS = 24;          // 单次睡眠超过 24h 视为时间输入错误，拒绝保存
+
+  var store = { records: [] }; // records: [{uid, date, start, end, hours, quality, note}]
+  var editingUid = null;       // 正在编辑的记录 uid（null = 新增）
+  var chartDays = 7;           // 图表统计范围
+  var syncDone = false;        // 首次远端重读合并是否已完成
+  var syncPromise = null;      // 首次合并的 Promise（persistSafely 门闩）
+  var armedDelete = null;      // 删除二次确认状态
+  var statusTimer = null;
+
+  // ── 基础工具（日期一律本地时区，禁止 UTC 方法）─────────────────
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function dateKey(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  function el(id) { return document.getElementById(id); }
+  function genUid() { return Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8); }
+
+  // ── 数据清洗 / 合并（保证完整性）────────────────────────────────
+  function isValidDateKey(s) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+    var y = +s.slice(0, 4), m = +s.slice(5, 7), d = +s.slice(8, 10);
+    if (m < 1 || m > 12 || d < 1 || d > 31) return false;
+    var dt = new Date(y, m - 1, d);   // 本地时区构造；Date 会归一化非法日（如 2 月 30 日）
+    return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
+  }
+
+  function sanitizeRecords(list) {
+    if (!Array.isArray(list)) return [];
+    var seen = {};   // uid → 已入列下标；同 uid 保留靠后者（会话内/较新写入优先）
+    var out = [];
+    list.forEach(function (raw) {
+      if (!raw || typeof raw !== 'object') return;
+      var date = typeof raw.date === 'string' ? raw.date : '';
+      if (!isValidDateKey(date)) return;
+      var start = typeof raw.start === 'string' ? raw.start : '';
+      var end = typeof raw.end === 'string' ? raw.end : '';
+      var ms = end && start ? (new Date(end) - new Date(start)) : NaN;
+      if (!isFinite(ms) || ms <= 0) return;
+      var hours = ms / 36e5;
+      var quality = (typeof raw.quality === 'string' && Object.prototype.hasOwnProperty.call(QUALITIES, raw.quality)) ? raw.quality : 'ok';
+      var note = typeof raw.note === 'string' ? raw.note : '';
+      var uid = (typeof raw.uid === 'string' && raw.uid) ? raw.uid : '';
+      var rec = { uid: uid, date: date, start: start, end: end, hours: hours, quality: quality, note: note };
+      if (uid) {
+        if (seen[uid] !== undefined) { out[seen[uid]] = rec; return; }
+        seen[uid] = out.length;
+      }
+      out.push(rec);
+    });
+    return out;
+  }
+
+  function parseStore(raw) {
+    if (typeof raw !== 'string' || !raw) return { records: [] };
+    try {
+      var o = JSON.parse(raw);
+      if (!o || typeof o !== 'object') return { records: [] };
+      return { records: sanitizeRecords(o.records) };
+    } catch (e) { return { records: [] }; }
+  }
+
+  function readLocal() {
+    if (!LS) return { records: [] };
+    try { return parseStore(LS.getItem(KEY)); } catch (e) { return { records: [] }; }
+  }
+
+  function mergeRecords(local, remote) {
+    // 按 uid 去重合并：同 uid 保留较新（remote 在前、local 在后 → 本会话优先）；
+    // 无 uid 的历史记录原样保留（无法安全去重）。
+    return sanitizeRecords(local.concat(remote));
+  }
+
+  // ── 状态提示（aria-live，替代 alert）────────────────────────────
+  function showStatus(msg) {
+    var s = el('status');
+    s.classList.remove('error');
+    s.textContent = msg;
+    if (statusTimer) { clearTimeout(statusTimer); statusTimer = null; }
+    statusTimer = setTimeout(function () { if (s) s.textContent = ''; }, 2600);
+  }
+  function showError(msg) {
+    var s = el('status');
+    s.textContent = msg;
+    s.classList.add('error');
+    if (statusTimer) { clearTimeout(statusTimer); statusTimer = null; }
+  }
+
+  // ── 持久化：localStorage（polyfill 同步内存 + 异步落盘）+ 平台直写（await）──
+  function persist() {
+    var json = JSON.stringify(store);
+    if (LS) { try { LS.setItem(KEY, json); } catch (e) {} }
+    if (P && P.storage && P.storage.set) {
+      return P.storage.set(KEY, json).then(function () { return true; }, function () {
+        showError('保存失败：本地存储暂不可用，本次记录仅当前页面有效');
+        return false;
+      });
+    }
+    return Promise.resolve(true);
+  }
+
+  function persistSafely() {
+    // 首次落盘前等待初始「重读合并」完成（syncPromise 在超时/失败时也会 settle）
+    if (syncDone) return persist();
+    return Promise.resolve(syncPromise).then(function () { return persist(); });
+  }
+
+  // ── 竞态防护：bridge 就绪后重读远端并合并 ──────────────────────
+  function whenPlatformReady(fn) {
+    if (P && P.storage) { fn(P); return; }
+    var tries = 0;
+    var t = setInterval(function () {
+      if (window.platform && window.platform.storage) {
+        clearInterval(t);
+        P = window.platform;
+        fn(P);
+      } else if (++tries > 20) {
+        clearInterval(t); // ~1s 未就绪：静默降级（内存态继续可用）
+      }
+    }, 50);
+  }
+
+  function syncFromPlatform() {
+    return new Promise(function (resolve) {
+      whenPlatformReady(function (PP) {
+        if (!PP.storage || !PP.storage.list) { resolve(); return; }
+        PP.storage.list().then(function (map) {
+          var remote = (map && typeof map === 'object') ? parseStore(map[KEY]) : { records: [] };
+          var merged = mergeRecords(store.records, remote.records);
+          var changed = JSON.stringify(merged) !== JSON.stringify(store.records);
+          store.records = merged;
+          if (changed) {
+            persist().then(function () { renderAll(); resolve(); }, function () { resolve(); });
+          } else {
+            resolve();
+          }
+        }, function () { resolve(); });
+      });
+    }).then(function () { syncDone = true; });
+  }
+
+  // ── 表单：新增 / 编辑 ───────────────────────────────────────────
+  function validateInputs() {
+    var a = el('f-in').value;
+    var b = el('f-out').value;
+    if (!a || !b) return { err: '请填写入睡时间和醒来时间' };
+    var ms = new Date(b) - new Date(a);
+    if (ms <= 0) return { err: '醒来时间应晚于入睡时间（可跨午夜）' };
+    if (ms / 36e5 > MAX_HOURS) return { err: '睡眠时长超过 24 小时，请检查入睡 / 醒来时间' };
+    return { start: a, end: b, hours: ms / 36e5 };
+  }
+
+  function submitForm() {
+    var v = validateInputs();
+    if (v.err) { showError(v.err); return; }
+    var quality = el('f-quality').value;
+    var note = el('f-note').value;
+    var wasEditing = !!editingUid;
+    if (wasEditing) {
+      var rec = null;
+      for (var i = 0; i < store.records.length; i++) {
+        if (store.records[i].uid === editingUid) { rec = store.records[i]; break; }
+      }
+      if (rec) {
+        rec.start = v.start; rec.end = v.end; rec.hours = v.hours;
+        rec.date = dateKey(new Date(v.start));
+        rec.quality = quality; rec.note = note;
+      }
+    }
+    if (!wasEditing || !rec) {
+      store.records.push({
+        uid: genUid(), date: dateKey(new Date(v.start)),
+        start: v.start, end: v.end, hours: v.hours, quality: quality, note: note
+      });
+    }
+    store.records = sanitizeRecords(store.records);
+    persistSafely().then(function (ok) {
+      if (ok) showStatus(wasEditing ? '已修改 ✓' : '已记录 ✓');
+      exitEdit();
+      renderAll();
+    });
+  }
+
+  function exitEdit() {
+    editingUid = null;
+    el('form-title').textContent = '➕ 记录一晚';
+    el('b-add').textContent = '记录';
+    el('b-cancel-edit').classList.add('hidden');
+    el('f-note').value = '';
+  }
+
+  function startEdit(uid) {
+    var rec = null;
+    for (var i = 0; i < store.records.length; i++) {
+      if (store.records[i].uid === uid) { rec = store.records[i]; break; }
+    }
+    if (!rec) return;
+    editingUid = uid;
+    el('f-in').value = rec.start;
+    el('f-out').value = rec.end;
+    el('f-quality').value = rec.quality;
+    el('f-note').value = rec.note;
+    el('form-title').textContent = '✏️ 编辑记录';
+    el('b-add').textContent = '保存修改';
+    el('b-cancel-edit').classList.remove('hidden');
+    var card = el('form-card');
+    if (card && card.scrollIntoView) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ── 删除（二次确认，可键盘操作；Esc 或 3 秒后自动撤销）────────────
+  function disarmDelete() {
+    if (!armedDelete) return;
+    clearTimeout(armedDelete.timer);
+    if (armedDelete.btn && armedDelete.btn.classList) {
+      armedDelete.btn.textContent = '🗑 删除';
+      armedDelete.btn.classList.remove('danger-solid');
+    }
+    armedDelete = null;
+  }
+  function handleDelete(btn, uid) {
+    if (armedDelete && armedDelete.uid === uid) {
+      clearTimeout(armedDelete.timer);
+      armedDelete = null;
+      doDelete(uid);
+      return;
+    }
+    disarmDelete();
+    armedDelete = { uid: uid, btn: btn, timer: null };
+    btn.textContent = '再点一次确认';
+    btn.classList.add('danger-solid');
+    armedDelete.timer = setTimeout(disarmDelete, 3000);
+  }
+  function doDelete(uid) {
+    var before = store.records.length;
+    store.records = store.records.filter(function (r) { return r.uid !== uid; });
+    if (store.records.length === before) return;
+    persistSafely().then(function (ok) {
+      if (ok) showStatus('已删除');
+      renderAll();
+    });
+  }
+
+  // ── 清空全部（页内确认弹窗，替代 confirm）───────────────────────
+  function openClearModal() {
+    el('dlg-count').textContent = store.records.length + ' 条';
+    el('dlg-clear').classList.remove('hidden');
+    var c = el('dlg-confirm');
+    if (c && c.focus) c.focus();
+  }
+  function closeClearModal() {
+    el('dlg-clear').classList.add('hidden');
+  }
+  function confirmClear() {
+    closeClearModal();
+    var n = store.records.length;
+    store.records = [];
+    persistSafely().then(function (ok) {
+      if (ok) showStatus('已清空 ' + n + ' 条记录');
+      renderAll();
+    });
+  }
+
+  // ── 渲染 ────────────────────────────────────────────────────────
+  function lastNDayKeys(n) {
+    var keys = [];
+    for (var i = n - 1; i >= 0; i--) {
+      var d = new Date();
+      d.setDate(d.getDate() - i);
+      keys.push(dateKey(d));
+    }
+    return keys;
+  }
+
+  function renderStats() {
+    el('st-nights').innerHTML = store.records.length + '<small> 条</small>';
+    var keys7 = lastNDayKeys(7);
+    var recent = store.records.filter(function (r) { return keys7.indexOf(r.date) >= 0; });
+    // 近 7 天日均 = 窗口内有记录的天数里，每天睡眠总时长的平均值
+    var totals = {};
+    recent.forEach(function (r) { totals[r.date] = (totals[r.date] || 0) + r.hours; });
+    var dayCount = Object.keys(totals).length;
+    var avg = dayCount ? recent.reduce(function (s, r) { return s + r.hours; }, 0) / dayCount : 0;
+    el('st-avg').textContent = dayCount ? avg.toFixed(1) + ' h' : '—';
+    var best = store.records.reduce(function (m, r) { return Math.max(m, r.hours); }, 0);
+    el('st-best').textContent = best ? best.toFixed(1) + ' h' : '—';
+    var qc = { good: 0, ok: 0, bad: 0 };
+    recent.forEach(function (r) { qc[r.quality] = (qc[r.quality] || 0) + 1; });
+    el('st-quality').textContent = dayCount ? ('😊 ' + qc.good + ' · 😐 ' + qc.ok + ' · 😣 ' + qc.bad) : '—';
+  }
+
+  function renderChart() {
+    var box = el('chart-box');
+    var days = lastNDayKeys(chartDays);
+    var totals = {};
+    store.records.forEach(function (r) {
+      if (days.indexOf(r.date) >= 0) totals[r.date] = (totals[r.date] || 0) + r.hours;
+    });
+    var vals = days.map(function (d) { return totals[d] !== undefined ? totals[d] : null; });
+    var label = chartDays === 7 ? '近 7 天睡眠时长' : '近 30 天睡眠时长';
+    var any = vals.some(function (v) { return v !== null; });
+    if (!any) {
+      box.innerHTML = '<div class="empty">' + label + '，暂无记录</div>';
+      return;
+    }
+    var W = 700, H = 200, padL = 34, padR = 16, padT = 16, padB = 30;
+    var cw = W - padL - padR, ch = H - padT - padB;
+    var maxV = 0;
+    vals.forEach(function (v) { if (v !== null && v > maxV) maxV = v; });
+    var yMax = Math.max(8, Math.ceil((maxV * 1.15) / 2) * 2);
+    function X(i) { return padL + (cw * i) / (days.length - 1); }
+    function Y(v) { return padT + ch * (1 - v / yMax); }
+    var grid = '';
+    for (var g = 0; g <= 3; g++) {
+      var gy = padT + (ch * g) / 3;
+      var gv = yMax * (1 - g / 3);
+      grid += '<line class="chart-grid" x1="' + padL + '" y1="' + gy + '" x2="' + (W - padR) + '" y2="' + gy + '"></line>' +
+        '<text class="chart-axis" x="' + (padL - 6) + '" y="' + (gy + 4) + '" text-anchor="end">' + gv.toFixed(1) + '</text>';
+    }
+    var bars = '', linePts = [];
+    days.forEach(function (d, i) {
+      var v = vals[i];
+      var bw = (cw / days.length) * 0.5;
+      var cx = X(i);
+      if (v !== null) {
+        bars += '<rect class="chart-bar" x="' + (cx - bw / 2) + '" y="' + Y(v) + '" width="' + bw + '" height="' + (padT + ch - Y(v)) + '" rx="4"></rect>';
+        linePts.push(cx + ',' + Y(v));
+      }
+      bars += '<text class="chart-label" x="' + cx + '" y="' + (H - padB + 16) + '">' + d.slice(5) + '</text>';
+    });
+    var line = linePts.length >= 2 ? '<polyline class="chart-line" points="' + linePts.join(' ') + '"></polyline>' : '';
+    box.innerHTML = '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + label + '">' + grid + bars + line + '</svg>';
+  }
+
+  function renderRecords() {
+    var box = el('records');
+    el('rcount').textContent = store.records.length + ' 条';
+    var list = store.records.slice().sort(function (a, b) { return a.start < b.start ? 1 : -1; });
+    if (!list.length) {
+      box.innerHTML = '<div class="empty">还没有睡眠记录，记录今晚吧 🌙</div>';
+      return;
+    }
+    box.innerHTML = list.slice(0, 50).map(function (r) {
+      var q = QUALITIES[r.quality] || QUALITIES.ok;
+      var sub = esc(r.start.replace('T', ' ')) + ' → ' + esc(r.end.replace('T', ' '));
+      if (r.note) sub += ' · ' + esc(r.note);
+      return '<div class="rec"><div class="d"><span class="t">' + r.date + ' · ' + q.e + ' ' + q.l + '</span>' +
+        '<span class="s">' + sub + '</span></div>' +
+        '<span class="v">' + r.hours.toFixed(1) + ' h</span>' +
+        '<span class="ops">' +
+        '<button type="button" class="icon-btn" data-action="edit" data-uid="' + esc(r.uid) + '" title="编辑" aria-label="编辑">✏️</button>' +
+        '<button type="button" class="icon-btn danger" data-action="delete" data-uid="' + esc(r.uid) + '" title="删除" aria-label="删除">🗑 删除</button>' +
+        '</span></div>';
+    }).join('');
+  }
+
+  function setChartToggle() {
+    el('vt-7').setAttribute('aria-pressed', chartDays === 7 ? 'true' : 'false');
+    el('vt-30').setAttribute('aria-pressed', chartDays === 30 ? 'true' : 'false');
+  }
+
+  function renderAll() { renderStats(); renderChart(); renderRecords(); setChartToggle(); }
+
+  // ── 事件绑定 ────────────────────────────────────────────────────
+  el('b-add').addEventListener('click', submitForm);
+  el('b-cancel-edit').addEventListener('click', exitEdit);
+
+  el('records').addEventListener('click', function (e) {
+    var b = e.target && e.target.closest ? e.target.closest('[data-action]') : null;
+    if (!b) return;
+    var uid = b.getAttribute('data-uid');
+    if (b.getAttribute('data-action') === 'edit') startEdit(uid);
+    else if (b.getAttribute('data-action') === 'delete') handleDelete(b, uid);
+  });
+
+  el('b-clear').addEventListener('click', openClearModal);
+  el('dlg-confirm').addEventListener('click', confirmClear);
+  el('dlg-cancel').addEventListener('click', closeClearModal);
+  el('dlg-clear').addEventListener('click', function (e) {
+    if (e.target === el('dlg-clear')) closeClearModal();
+  });
+
+  el('vt-7').addEventListener('click', function () { chartDays = 7; setChartToggle(); renderChart(); });
+  el('vt-30').addEventListener('click', function () { chartDays = 30; setChartToggle(); renderChart(); });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    disarmDelete();
+    if (!el('dlg-clear').classList.contains('hidden')) closeClearModal();
+    if (editingUid) exitEdit();
+  });
+
+  // ── 初始化 ──────────────────────────────────────────────────────
+  store = readLocal();
+  syncPromise = syncFromPlatform();   // 竞态防护：异步重读合并；首次落盘经 persistSafely 等待
+  renderAll();
+})();
+</script>
+</body>
+</html>

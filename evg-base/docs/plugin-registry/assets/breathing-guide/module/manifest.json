@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "breathing-guide",
+  "name": "呼吸引导",
+  "description": "正念呼吸引导小工具：4-7-8 放松、盒式呼吸与谐振呼吸三种模式，精准计时、真实暂停/继续、练习统计（今日轮数/连续天数/累计）与主题自适应。",
+  "template": "html",
+  "version": "1.1.0",
+  "icon": "air",
+  "route": "/breathing-guide",
+  "nav": {
+    "sidebar": {
+      "section": "健康",
+      "sectionOrder": 30,
+      "order": 2
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "type": "data-source",
+  "id": "zju-schedule",
+  "name": "浙大课表",
+  "script": "scraper.py",
+  "runtime": "python",
+  "androidSupport": true,
+  "dataTypes": [
+    {
+      "name": "zju_schedule",
+      "typeArg": "zju_schedule",
+      "category": "教务",
+      "displayName": "课表",
+      "ttl": "6h",
+      "persistentKey": "zju_schedule",
+      "fallbackJson": {
+        "sessions": [],
+        "year": null,
+        "semester": null,
+        "count": 0,
+        "fallback": true,
+        "note": "课表需登录浙大教务系统（zdbk）。未配置 ZJU_USERNAME/ZJU_PASSWORD 或拉取失败且无缓存时返回此静态兜底（空课表，不含任何伪造数据），请配置凭证后刷新。"
+      }
+    }
+  ]
+}

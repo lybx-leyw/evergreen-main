@@ -1,0 +1,12 @@
+<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="深夜书桌头像">
+  <defs>
+    <linearGradient id="ag" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F0B35A"/>
+      <stop offset="100%" stop-color="#E8EAF0"/>
+    </linearGradient>
+  </defs>
+  <circle cx="128" cy="128" r="118" fill="url(#ag)"/>
+  <circle cx="128" cy="128" r="118" fill="none" stroke="#1E2430" stroke-width="6" opacity="0.35"/>
+  <circle cx="128" cy="108" r="42" fill="#1E2430" opacity="0.92"/>
+  <path d="M66 210 q62 -58 124 0 q-20 22 -62 22 q-42 0 -62 -22z" fill="#1E2430" opacity="0.92"/>
+</svg>

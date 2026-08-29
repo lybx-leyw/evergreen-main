@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "sleep-tracker",
+  "name": "睡眠记录",
+  "description": "记录入睡与起床时间、睡眠时长与质量，自动统计近 7 天日均与趋势，数据保存在本机。",
+  "template": "html",
+  "version": "1.0.0",
+  "icon": "nightlight",
+  "route": "/sleep-tracker",
+  "nav": {
+    "sidebar": {
+      "section": "健康",
+      "sectionOrder": 30,
+      "order": 5
+    }
+  }
+}

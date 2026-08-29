@@ -1,0 +1,25 @@
+{
+  "name": "bmi_calc",
+  "description": "根据身高体重计算 BMI 与体型建议；只读工具。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "height_cm": {
+        "type": "number",
+        "description": "身高（厘米）。"
+      },
+      "weight_kg": {
+        "type": "number",
+        "description": "体重（千克）。"
+      }
+    },
+    "required": [
+      "height_cm",
+      "weight_kg"
+    ]
+  },
+  "readOnly": true,
+  "argMode": "stdin",
+  "runtime": "python",
+  "lifetime": "once"
+}

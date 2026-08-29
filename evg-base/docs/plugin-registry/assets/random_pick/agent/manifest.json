@@ -1,0 +1,27 @@
+{
+  "name": "random_pick",
+  "description": "从给定候选项中随机抽取指定个数（食堂选餐、学什么等）；只读工具。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "候选列表，至少 1 项。"
+      },
+      "count": {
+        "type": "integer",
+        "description": "抽取个数，默认 1。"
+      }
+    },
+    "required": [
+      "items"
+    ]
+  },
+  "readOnly": true,
+  "argMode": "stdin",
+  "runtime": "python",
+  "lifetime": "once"
+}

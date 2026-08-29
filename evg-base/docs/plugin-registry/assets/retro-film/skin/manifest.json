@@ -1,0 +1,39 @@
+{
+  "type": "skin",
+  "id": "retro-film",
+  "name": "复古胶片",
+  "version": "1.0.0",
+  "description": "「复古胶片」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+  "background": {
+    "type": "image",
+    "imageDesktop": "bg_desktop.svg",
+    "imageMobile": "bg_mobile.svg"
+  },
+  "bubble": {
+    "userBackgroundColor": "#EADFCE",
+    "borderRadius": 18
+  },
+  "avatar": {
+    "user": "avatar_user.svg",
+    "userBackgroundColor": "#7F5228"
+  },
+  "thinking": {
+    "title": "思考过程",
+    "colors": {
+      "header": "#7F5228",
+      "containerBackground": "#EADFCE",
+      "containerBorder": "#3D3226",
+      "contentText": "#3D3226",
+      "chipMemoryBg": "#EADFCE",
+      "chipMemoryFg": "#7F5228",
+      "chipSkillBg": "#EADFCE",
+      "chipSkillFg": "#7F5228",
+      "chipToolBg": "#EADFCE",
+      "chipToolFg": "#7F5228",
+      "chipToolResultBg": "#EADFCE",
+      "chipToolResultFg": "#7F5228"
+    }
+  },
+  "effortColor": "#7F5228",
+  "toolActiveColor": "#7F5228"
+}

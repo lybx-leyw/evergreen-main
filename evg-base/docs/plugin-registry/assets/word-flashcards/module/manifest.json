@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "word-flashcards",
+  "name": "单词卡片",
+  "description": "单词记忆卡片：正面单词/背面释义，认识/模糊/忘记三档标记，按记忆度筛选复习，支持添加、编辑、删除卡片与示例词库；数据仅保存在本机，不上传云端。",
+  "template": "html",
+  "version": "1.0.0",
+  "icon": "style",
+  "route": "/word-flashcards",
+  "nav": {
+    "sidebar": {
+      "section": "学习",
+      "sectionOrder": 10,
+      "order": 1
+    }
+  }
+}

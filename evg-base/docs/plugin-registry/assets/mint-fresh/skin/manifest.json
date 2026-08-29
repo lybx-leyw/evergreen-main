@@ -1,0 +1,39 @@
+{
+  "type": "skin",
+  "id": "mint-fresh",
+  "name": "薄荷清新",
+  "version": "1.0.0",
+  "description": "「薄荷清新」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+  "background": {
+    "type": "image",
+    "imageDesktop": "bg_desktop.svg",
+    "imageMobile": "bg_mobile.svg"
+  },
+  "bubble": {
+    "userBackgroundColor": "#DCF3EA",
+    "borderRadius": 18
+  },
+  "avatar": {
+    "user": "avatar_user.svg",
+    "userBackgroundColor": "#106B56"
+  },
+  "thinking": {
+    "title": "思考过程",
+    "colors": {
+      "header": "#106B56",
+      "containerBackground": "#DCF3EA",
+      "containerBorder": "#1E3A31",
+      "contentText": "#1E3A31",
+      "chipMemoryBg": "#DCF3EA",
+      "chipMemoryFg": "#106B56",
+      "chipSkillBg": "#DCF3EA",
+      "chipSkillFg": "#106B56",
+      "chipToolBg": "#DCF3EA",
+      "chipToolFg": "#106B56",
+      "chipToolResultBg": "#DCF3EA",
+      "chipToolResultFg": "#106B56"
+    }
+  },
+  "effortColor": "#106B56",
+  "toolActiveColor": "#106B56"
+}

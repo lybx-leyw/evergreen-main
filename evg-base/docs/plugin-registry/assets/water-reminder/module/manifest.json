@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "water-reminder",
+  "name": "喝水提醒",
+  "description": "每日饮水目标管理：一键记录喝水、进度条与按日统计（今日/累计/连续天数）、页内定时提醒，数据保存在本机。",
+  "template": "html",
+  "version": "1.0.0",
+  "icon": "water_drop",
+  "route": "/water-reminder",
+  "nav": {
+    "sidebar": {
+      "section": "健康",
+      "sectionOrder": 30,
+      "order": 3
+    }
+  }
+}

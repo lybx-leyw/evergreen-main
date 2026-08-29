@@ -1,0 +1,24 @@
+{
+  "type": "data-source",
+  "id": "stock-quote",
+  "name": "股票行情",
+  "script": "fetch.py",
+  "runtime": "python",
+  "androidSupport": true,
+  "dataTypes": [
+    {
+      "name": "stock_quote",
+      "typeArg": "stock_quote",
+      "category": "财经",
+      "displayName": "实时行情",
+      "ttl": "5m",
+      "persistentKey": "stock_quote",
+      "fallbackJson": {
+        "type": "stock_quote",
+        "symbol": "sh600519",
+        "source": "fallback",
+        "note": "行情数据暂不可用，请稍后重试或检查网络连接"
+      }
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "name": "password_generator",
+  "description": "生成指定长度的随机强密码（大小写字母+数字+符号），一次性工具。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "length": {
+        "type": "integer",
+        "description": "密码长度，8-64，默认 16。"
+      },
+      "symbols": {
+        "type": "boolean",
+        "description": "是否含特殊符号，默认 true。"
+      },
+      "readable": {
+        "type": "boolean",
+        "description": "是否使用可读字符集（去除 Il1O0o 等易混淆字符），默认 false。"
+      }
+    },
+    "required": []
+  },
+  "readOnly": false,
+  "argMode": "stdin",
+  "runtime": "python",
+  "lifetime": "once"
+}

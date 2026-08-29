@@ -1,0 +1,15 @@
+{
+  "type": "theme",
+  "id": "qiushi-blue",
+  "name": "求是蓝",
+  "colors": {
+    "background": "#F4F8FC",
+    "surface": "#FFFFFF",
+    "border": "#D6E4F0",
+    "text": "#0B2447",
+    "textSecondary": "#4A6FA5",
+    "accent": "#0057A8",
+    "error": "#D32F2F",
+    "others": "#7FB3E8"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "random-dinner",
+  "name": "今天吃什么",
+  "description": "随机选餐小工具：内嵌菜谱库、分类筛选与最近选择记录，一键决定今天吃什么。",
+  "template": "html",
+  "version": "1.0.0",
+  "icon": "restaurant",
+  "route": "/random-dinner",
+  "nav": {
+    "sidebar": {
+      "section": "生活",
+      "sectionOrder": 40,
+      "order": 1
+    }
+  }
+}

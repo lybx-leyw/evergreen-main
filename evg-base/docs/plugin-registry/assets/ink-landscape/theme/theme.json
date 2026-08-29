@@ -1,0 +1,15 @@
+{
+  "type": "theme",
+  "id": "ink-landscape",
+  "name": "水墨丹青",
+  "colors": {
+    "background": "#F5F4F0",
+    "surface": "#FCFBF8",
+    "border": "#D8D4C9",
+    "text": "#2B2B28",
+    "textSecondary": "#6B6A63",
+    "accent": "#4C4A45",
+    "error": "#8C4A3F",
+    "others": "#A8A496"
+  }
+}

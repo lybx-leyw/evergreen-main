@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "class-schedule",
+  "name": "课程表",
+  "description": "周视图课程表：优先接入平台数据中枢的真实课表（zju_timetable / zju_schedule，未注册时自动降级为手动课表，不报错），支持手动增删改课程、颜色标签、本地持久化，适配明暗主题。",
+  "template": "html",
+  "version": "1.1.0",
+  "icon": "calendar_view_day",
+  "route": "/class-schedule",
+  "nav": {
+    "sidebar": {
+      "section": "学习",
+      "sectionOrder": 10,
+      "order": 2
+    }
+  }
+}

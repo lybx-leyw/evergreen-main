@@ -1,0 +1,396 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>喝水提醒</title><style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+/* 主题：只消费平台注入的 --evg-* 变量（var(--evg-x, 兜底)），不在 :root 重定义 --evg-*。
+   平台主题色存在时自动生效（明暗自适应由平台色板驱动）；无平台时用下方兜底色。 */
+:root {
+  --bg: var(--evg-background, #eef4fb);
+  --card: var(--evg-surface, #ffffff);
+  --ink: var(--evg-text, #17324d);
+  --ink-soft: var(--evg-text-secondary, #5d7f9e);
+  --accent: var(--evg-accent, #2f8fd0);
+  --accent-bg: var(--evg-accent-bg, #e2effb);
+  --accent-border: var(--evg-accent-border, #bcdcf4);
+  --line: var(--evg-border, rgba(23, 50, 77, .09));
+  --err: var(--evg-error, #d64545);
+}
+/* 无平台主题时的暗色兜底（仅兜底值，不触碰 --evg-*） */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #101a24; --card: #1b2836; --ink: #e8f0f8;
+    --ink-soft: #9db4c9; --accent: #4da8e8; --accent-bg: #1e3347;
+    --accent-border: #3a6488; --line: rgba(232, 240, 248, .12);
+    --err: #e88f8f;
+  }
+}
+html { font-size: 16px; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, sans-serif; background: var(--bg); color: var(--ink); min-height: 100vh; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+:focus-visible { outline: 2px solid var(--accent-border); outline-offset: 2px; border-radius: 2px; }
+.topbar { display: flex; align-items: center; gap: .75rem; padding: 1.1rem 1.5rem; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--card) 72%, transparent); backdrop-filter: blur(.875rem); -webkit-backdrop-filter: blur(.875rem); position: sticky; top: 0; z-index: 5; }
+.topbar .ico { font-size: 1.5rem; }
+.topbar h1 { font-size: 1.15rem; font-weight: 700; }
+.topbar .sub { font-size: .72rem; color: var(--ink-soft); }
+.container { max-width: 42rem; margin: 0 auto; padding: 1rem 1.25rem 3rem; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 1rem; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+.card h2 { font-size: .95rem; font-weight: 700; margin-bottom: .9rem; }
+.banner { display: flex; align-items: center; gap: .6rem; background: color-mix(in srgb, var(--accent-bg) 80%, transparent); border: 1px solid var(--accent-border); color: var(--accent); border-radius: .8rem; padding: .7rem .9rem; margin-bottom: 1rem; font-size: .88rem; font-weight: 600; }
+.banner .banner-x { margin-left: auto; appearance: none; border: none; background: transparent; color: inherit; cursor: pointer; font-size: 1rem; line-height: 1; padding: .2rem .35rem; border-radius: .4rem; }
+.today-box { text-align: center; padding: .5rem 0 .75rem; }
+.glass { position: relative; width: 9rem; height: 11rem; margin: 0 auto .9rem; }
+.glass svg { width: 100%; height: 100%; }
+.glass .water { transition: y .4s ease, height .4s ease; }
+.glass .waterfill { transition: all .4s ease; }
+.amount { font-size: 2rem; font-weight: 700; letter-spacing: -.02em; }
+.amount .unit { font-size: .9rem; font-weight: 500; color: var(--ink-soft); margin-left: .2rem; }
+.pct { font-size: .85rem; color: var(--ink-soft); margin-top: .2rem; }
+.quick { display: flex; gap: .6rem; justify-content: center; flex-wrap: wrap; margin: 1rem 0; }
+.qbtn { appearance: none; border: 1px solid var(--accent-border); background: var(--accent-bg); color: var(--accent); font-family: inherit; font-size: .95rem; font-weight: 700; width: 4.4rem; height: 4.4rem; border-radius: 1rem; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .15rem; transition: transform .15s ease; }
+.qbtn:hover { transform: translateY(-2px); }
+.qbtn .ml { font-size: .68rem; font-weight: 600; opacity: .8; }
+.ctrl { display: flex; gap: .6rem; justify-content: center; flex-wrap: wrap; }
+.btn { appearance: none; border: none; cursor: pointer; font-family: inherit; font-size: .85rem; font-weight: 600; padding: .55rem 1.1rem; border-radius: .7rem; color: #fff; background: var(--accent); transition: transform .15s ease, opacity .15s ease; }
+.btn:hover { transform: translateY(-1px); opacity: .92; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn.danger { background: transparent; color: var(--err); border: 1px solid color-mix(in srgb, var(--err) 45%, transparent); }
+.btn:disabled { opacity: .45; cursor: default; }
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: .75rem; }
+.stat { text-align: center; padding: .75rem; border-radius: .8rem; background: color-mix(in srgb, var(--bg) 55%, transparent); border: 1px solid var(--line); }
+.stat .v { font-size: 1.3rem; font-weight: 700; }
+.stat .l { font-size: .7rem; color: var(--ink-soft); margin-top: .15rem; }
+.settings { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem; }
+.field label { display: block; font-size: .75rem; color: var(--ink-soft); margin-bottom: .25rem; }
+.field input, .field select { width: 100%; padding: .5rem .65rem; border-radius: .6rem; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--ink); font-family: inherit; font-size: .85rem; }
+.field input:focus, .field select:focus { outline: 2px solid var(--accent-border); border-color: var(--accent-border); }
+.err { margin-top: .7rem; font-size: .8rem; color: var(--err); }
+.tip { margin-left: .6rem; font-size: .8rem; color: var(--accent); }
+.list { display: flex; flex-direction: column; gap: .4rem; max-height: 13rem; overflow: auto; }
+.log-item { display: flex; align-items: center; justify-content: space-between; background: color-mix(in srgb, var(--bg) 48%, transparent); border: 1px solid var(--line); border-radius: .65rem; padding: .45rem .7rem; font-size: .8rem; }
+.log-item .t { color: var(--ink-soft); }
+.log-item .v { font-weight: 700; color: var(--accent); }
+.empty { text-align: center; color: var(--ink-soft); font-size: .85rem; padding: 1rem 0; }
+.foot { text-align: center; font-size: .72rem; color: var(--ink-soft); padding: .5rem 0 1rem; }
+@media (max-width: 40rem) { .stats { grid-template-columns: 1fr 1fr 1fr; } .settings { grid-template-columns: 1fr; } }
+</style></head><body>
+<header class="topbar">
+  <span class="ico">💧</span>
+  <div><h1>喝水提醒</h1><div class="sub">每日饮水目标 · 一键记录 · 养成好习惯</div></div>
+</header>
+<main class="container">
+  <div id="banner" class="banner" role="alert" hidden>
+    <span>⏰</span><span id="banner-text">该喝水啦</span>
+    <button id="banner-close" class="banner-x" aria-label="关闭提醒">✕</button>
+  </div>
+  <section class="card">
+    <div class="today-box">
+      <div class="glass">
+        <svg viewBox="0 0 144 176" role="img" aria-label="今日饮水进度">
+          <path d="M40 20 h64 l-6 138 a8 8 0 0 1 -8 7 h-36 a8 8 0 0 1 -8 -7 Z" fill="var(--accent-bg)" stroke="var(--accent-border)" stroke-width="3"/>
+          <rect x="38" y="10" width="68" height="14" rx="7" fill="var(--accent-border)"/>
+          <clipPath id="glassClip"><path d="M42 24 h60 l-5.5 132 a7 7 0 0 1 -7 6 h-35 a7 7 0 0 1 -7 -6 Z"/></clipPath>
+          <g clip-path="url(#glassClip)">
+            <rect class="waterfill" id="waterfill" x="42" y="150" width="60" height="0" fill="var(--accent)" opacity=".55"/>
+          </g>
+        </svg>
+      </div>
+      <div class="amount"><span id="amt">0</span><span class="unit">ml</span></div>
+      <div class="pct" id="pct">目标 2000 ml · 0%</div>
+    </div>
+    <div class="quick">
+      <button class="qbtn" data-ml="100" type="button">🥛<span class="ml">100ml</span></button>
+      <button class="qbtn" data-ml="200" type="button">🥤<span class="ml">200ml</span></button>
+      <button class="qbtn" data-ml="300" type="button">🧋<span class="ml">300ml</span></button>
+      <button class="qbtn" data-ml="500" type="button">🍶<span class="ml">500ml</span></button>
+    </div>
+    <div class="ctrl">
+      <button class="btn" id="b-undo" type="button">↩ 撤销上一杯</button>
+      <button class="btn danger" id="b-reset" type="button">重置今日</button>
+    </div>
+  </section>
+  <section class="card">
+    <h2>今日统计</h2>
+    <div class="stats">
+      <div class="stat"><div class="v" id="stat-today">0</div><div class="l">今日（ml）</div></div>
+      <div class="stat"><div class="v" id="stat-total">0</div><div class="l">累计（ml）</div></div>
+      <div class="stat"><div class="v" id="stat-streak">0</div><div class="l">连续天数</div></div>
+    </div>
+  </section>
+  <section class="card">
+    <h2>今日记录</h2>
+    <div class="list" id="log"></div>
+  </section>
+  <section class="card">
+    <h2>目标设置</h2>
+    <div class="settings">
+      <div class="field"><label for="set-goal">每日目标（ml）</label><input type="number" id="set-goal" min="100" max="5000" step="50"></div>
+      <div class="field"><label for="set-interval">提醒间隔（分钟）</label><select id="set-interval"><option value="0">不提醒</option><option value="30">30 分钟</option><option value="60">60 分钟</option><option value="90">90 分钟</option><option value="120">120 分钟</option></select></div>
+    </div>
+    <div id="set-err" class="err" role="alert" hidden></div>
+    <div style="margin-top:.7rem;"><button class="btn" id="b-save" type="button">保存设置</button><span id="save-tip" class="tip" hidden>已保存 ✓</span></div>
+  </section>
+  <footer class="foot">💾 数据保存在本机 · 仅本插件可见，不会上传</footer>
+</main>
+<script>
+(function () {
+  'use strict';
+  var P = (typeof platform !== 'undefined' && platform) ? platform : null;
+  var KEY = 'evg.water-reminder';
+  var DEFAULTS = { goal: 2000, interval: 60, days: {} };
+
+  var store = null;          // 内存状态（唯一读写入口）
+  var today = '';            // 当前日 key（跨天时滚动）
+  var booted = false;        // 权威重读完成
+  var bootQueue = [];        // 启动期间用户操作队列（防止竞态覆盖）
+  var bootTimer = null;
+  var reminderTimer = null;
+  var bannerTimer = null;
+
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function dayKey(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function nowDay() { return dayKey(new Date()); }
+  function num(v, lo, hi, fb) {
+    var n = Number(v);
+    if (!isFinite(n)) return fb;
+    if (lo != null && n < lo) return lo;
+    if (hi != null && n > hi) return hi;
+    return n;
+  }
+  function sanitizeRecords(arr) {
+    return (Array.isArray(arr) ? arr : []).filter(function (r) {
+      return r && typeof r === 'object' && Number(r.ml) > 0;
+    }).map(function (r) {
+      var t = new Date(r.t);
+      if (isNaN(t.getTime())) t = new Date();
+      return { ml: Math.round(Number(r.ml)), t: t };
+    });
+  }
+
+  // 归一化：字段范围钳制 + 旧数据裁剪（>90 天），保证存储结构合法
+  function normalize() {
+    if (!store || typeof store !== 'object') store = {};
+    store.goal = Math.round(num(store.goal, 100, 5000, DEFAULTS.goal));
+    store.interval = Math.round(num(store.interval, 0, 1440, DEFAULTS.interval));
+    if (!store.days || typeof store.days !== 'object') store.days = {};
+    var cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 90);
+    var ck = dayKey(cutoff);
+    var days = store.days;
+    Object.keys(days).forEach(function (k) {
+      if (k.length === 10 && k < ck) delete days[k];
+    });
+    today = nowDay();
+    if (!Array.isArray(days[today])) days[today] = [];
+    else days[today] = sanitizeRecords(days[today]);
+  }
+
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) { /* 会话内有效 */ }
+  }
+
+  // ── 启动：同步快读 + 权威重读合并（预载竞态防护，绝不覆盖丢失） ──
+  function bootLoad() {
+    var local = null;
+    try { local = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
+    store = (local && typeof local === 'object') ? local : {};
+    normalize();
+    render(); // 同步快读先行渲染：boot 完成前 UI 即可见可交互（权威重读后会自动刷新）
+
+    if (P && P.storage && typeof P.storage.get === 'function') {
+      var settled = false;
+      function done() { if (!settled) { settled = true; finishBoot(); } }
+      P.storage.get(KEY).then(function (raw) {
+        var persisted = null;
+        try { persisted = (raw == null || raw === '') ? null : JSON.parse(raw); } catch (e) {}
+        if (persisted && typeof persisted === 'object') mergePersisted(persisted);
+        done();
+      }).catch(function () { done(); });
+      // 兜底：storage 桥异常/挂起时 800ms 后放行，保证 UI 不卡死
+      bootTimer = setTimeout(done, 800);
+    } else {
+      finishBoot(); // 无 storage 桥：仅同步快读（会话内有效）
+    }
+  }
+
+  // 合并已持久化数据：逐字段/逐日合入，绝不因快读为空而丢弃既有数据
+  function mergePersisted(persisted) {
+    Object.keys(persisted).forEach(function (k) {
+      if (k === 'days') {
+        var pd = persisted.days;
+        if (pd && typeof pd === 'object') {
+          Object.keys(pd).forEach(function (dk) {
+            if (dk.length !== 10) return;
+            var pr = sanitizeRecords(pd[dk]);
+            var sr = sanitizeRecords(store.days[dk]);
+            if (pr.length && (!sr.length || pr.length > sr.length)) {
+              store.days[dk] = pr;
+            }
+          });
+        }
+      } else if (k === 'goal' || k === 'interval') {
+        store[k] = persisted[k];
+      }
+    });
+    normalize();
+  }
+
+  function finishBoot() {
+    if (booted) return;
+    booted = true;
+    if (bootTimer) { clearTimeout(bootTimer); bootTimer = null; }
+    var q = bootQueue; bootQueue = [];
+    q.forEach(function (fn) { try { fn(); } catch (e) {} });
+    save();
+    render();
+    setupReminder();
+  }
+
+  // 变更入口：未启动完成前排队，启动后顺序应用（防覆盖竞态）；
+  // 先做跨天滚动，确保新记录归入正确的日期
+  function mutate(fn) {
+    if (!booted) { bootQueue.push(fn); return; }
+    var rolled = rollover();
+    fn();
+    save();
+    render();
+    if (rolled) save(); // 跨天滚动落盘（记录已写入新日期）
+  }
+
+  // ── 跨天重置：每次渲染/提醒前检查日期滚动 ──
+  function rollover() {
+    var k = nowDay();
+    if (k === today) return false;
+    today = k;
+    if (!Array.isArray(store.days[today])) store.days[today] = [];
+    return true;
+  }
+
+  function totalOf(arr) { return (Array.isArray(arr) ? arr : []).reduce(function (s, r) { return s + (Number(r.ml) || 0); }, 0); }
+  function totalToday() { return totalOf(store.days[today]); }
+  function totalAll() {
+    var sum = 0;
+    Object.keys(store.days).forEach(function (k) { sum += totalOf(store.days[k]); });
+    return sum;
+  }
+  function streakDays() {
+    var d = new Date();
+    var n = 0, started = false, skipped = 0;
+    while (n < 3660) {
+      var k = dayKey(d);
+      var has = Array.isArray(store.days[k]) && store.days[k].length > 0;
+      if (!started) {
+        if (!has) {
+          if (++skipped > 1) break; // 今天与昨天均无记录 → 0
+          d.setDate(d.getDate() - 1);
+          continue;
+        }
+        started = true;
+      }
+      if (!has) break;
+      n++;
+      d.setDate(d.getDate() - 1);
+    }
+    return n;
+  }
+
+  function render() {
+    var rolled = rollover();
+    var total = totalToday();
+    var pct = store.goal > 0 ? Math.min(100, Math.round(total / store.goal * 100)) : 0;
+    document.getElementById('amt').textContent = total;
+    document.getElementById('pct').textContent = '目标 ' + store.goal + ' ml · ' + pct + '%';
+    var wf = document.getElementById('waterfill');
+    var h = Math.max(0, Math.min(108, pct / 100 * 108));
+    wf.setAttribute('height', h);
+    wf.setAttribute('y', 150 - h);
+    document.getElementById('stat-today').textContent = total;
+    document.getElementById('stat-total').textContent = totalAll();
+    document.getElementById('stat-streak').textContent = streakDays();
+    var log = document.getElementById('log');
+    var list = store.days[today].slice().reverse();
+    if (!list.length) {
+      log.innerHTML = '<div class="empty">今天还没喝水，来一杯吧 💧</div>';
+    } else {
+      log.innerHTML = list.map(function (x) {
+        var t = (x.t instanceof Date && !isNaN(x.t.getTime())) ? x.t : new Date();
+        return '<div class="log-item"><span class="t">' + pad(t.getHours()) + ':' + pad(t.getMinutes()) + '</span><span class="v">+' + esc(x.ml) + ' ml</span></div>';
+      }).join('');
+    }
+    document.getElementById('set-goal').value = store.goal;
+    document.getElementById('set-interval').value = String(store.interval);
+    if (rolled) save(); // 跨天滚动后落盘
+  }
+
+  // ── 页内提醒（纯前端无系统通知） ──
+  function showBanner(text) {
+    var b = document.getElementById('banner');
+    if (!b) return;
+    document.getElementById('banner-text').textContent = text;
+    b.hidden = false;
+    if (bannerTimer) clearTimeout(bannerTimer);
+    bannerTimer = setTimeout(function () { b.hidden = true; }, 10000);
+  }
+
+  function setupReminder() {
+    if (reminderTimer) { clearInterval(reminderTimer); reminderTimer = null; }
+    if (store.interval > 0) {
+      reminderTimer = setInterval(function () {
+        if (rollover()) { save(); render(); }
+        var total = totalToday();
+        if (total < store.goal) {
+          showBanner('该喝水啦！今日还差 ' + (store.goal - total) + ' ml');
+          if (P && P.emit) { try { P.emit('water-reminder:notify', { goal: store.goal, current: total }); } catch (e) {} }
+        }
+      }, Math.min(store.interval, 1440) * 60000);
+    }
+  }
+
+  // ── 记录操作 ──
+  function addWater(ml) {
+    ml = Math.max(1, Math.round(Number(ml) || 0));
+    if (ml <= 0) return;
+    var before = totalToday();
+    store.days[today].push({ ml: ml, t: new Date() });
+    if (before < store.goal && totalToday() >= store.goal) {
+      showBanner('🎉 今日目标 ' + store.goal + ' ml 已达成！');
+      if (P && P.emit) { try { P.emit('water-reminder:goal', { goal: store.goal }); } catch (e) {} }
+      if (P && P.ai && P.ai.chat) { try { P.ai.chat('喝水目标已达成，请用一句话简短鼓励用户，语气轻松。'); } catch (e) {} }
+    }
+    if (P && P.emit) { try { P.emit('water-reminder:add', { ml: ml }); } catch (e) {} }
+  }
+
+  // ── 事件绑定 ──
+  document.querySelectorAll('.qbtn').forEach(function (b) {
+    b.addEventListener('click', function () { mutate(function () { addWater(+b.getAttribute('data-ml')); }); });
+  });
+  document.getElementById('b-undo').addEventListener('click', function () {
+    mutate(function () { var arr = store.days[today]; if (arr.length) arr.pop(); });
+  });
+  document.getElementById('b-reset').addEventListener('click', function () {
+    mutate(function () { store.days[today] = []; });
+  });
+  document.getElementById('banner-close').addEventListener('click', function () {
+    document.getElementById('banner').hidden = true;
+    if (bannerTimer) { clearTimeout(bannerTimer); bannerTimer = null; }
+  });
+  document.getElementById('b-save').addEventListener('click', function () {
+    var gv = document.getElementById('set-goal').value;
+    var g = parseInt(gv, 10);
+    var err = document.getElementById('set-err');
+    if (!gv || isNaN(g) || g < 100 || g > 5000) {
+      err.textContent = '每日目标需为 100–5000 ml 之间的整数';
+      err.hidden = false;
+      return;
+    }
+    err.hidden = true;
+    var iv = parseInt(document.getElementById('set-interval').value, 10);
+    mutate(function () {
+      store.goal = g;
+      store.interval = isFinite(iv) && iv >= 0 ? iv : 0;
+    });
+    setupReminder();
+    var tip = document.getElementById('save-tip');
+    tip.hidden = false;
+    setTimeout(function () { tip.hidden = true; }, 2000);
+  });
+
+  bootLoad();
+})();
+</script></body></html>

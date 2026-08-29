@@ -1,0 +1,20 @@
+{
+  "name": "qr_encode",
+  "description": "把短文本（UTF-8 不超过 14 字节，如短链接/短语/学号）编码成合法可扫描的 QR 码 v1 SVG（纯标准库实现，符合 ISO/IEC 18004；超长返回错误）；输出 SVG 字符串。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "要编码的文本，UTF-8 不超过 14 字节。"
+      }
+    },
+    "required": [
+      "text"
+    ]
+  },
+  "readOnly": true,
+  "argMode": "stdin",
+  "runtime": "python",
+  "lifetime": "once"
+}

@@ -1,0 +1,24 @@
+{
+  "type": "data-source",
+  "id": "news-headlines",
+  "name": "新闻头条",
+  "script": "fetch.py",
+  "runtime": "python",
+  "androidSupport": true,
+  "dataTypes": [
+    {
+      "name": "news_headlines",
+      "category": "资讯",
+      "displayName": "新闻头条",
+      "ttl": "15m",
+      "persistentKey": "news_headlines",
+      "fallbackJson": {
+        "type": "news_headlines",
+        "source": "fallback",
+        "count": 0,
+        "items": [],
+        "note": "网络不可用且无本地缓存"
+      }
+    }
+  ]
+}

@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>课程表</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  /* 平台注入 --evg-* 变量；此处为独立预览兜底值 */
+  --evg-background: #eef3f8; --evg-surface: #ffffff; --evg-text: #1c2f45;
+  --evg-text-secondary: #60758c; --evg-accent: #2f6fd0; --evg-accent-bg: #e6eefb;
+  --evg-accent-border: #c3d6f4; --evg-border: rgba(28, 47, 69, .09);
+  --evg-error: #d64545;
+  --bg: var(--evg-background); --card: var(--evg-surface); --ink: var(--evg-text);
+  --ink-soft: var(--evg-text-secondary); --accent: var(--evg-accent); --line: var(--evg-border);
+}
+html { font-size: 16px; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, sans-serif; background: var(--bg); color: var(--ink); min-height: 100vh; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+.topbar { display: flex; align-items: center; gap: .75rem; padding: 1.1rem 1.5rem; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--card) 72%, transparent); backdrop-filter: blur(.875rem); -webkit-backdrop-filter: blur(.875rem); position: sticky; top: 0; z-index: 5; }
+.topbar .ico { font-size: 1.5rem; }
+.topbar h1 { font-size: 1.15rem; font-weight: 700; }
+.topbar .sub { font-size: .72rem; color: var(--ink-soft); }
+.source-bar { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; max-width: 64rem; margin: 1rem auto 0; padding: .7rem 1.1rem; background: var(--card); border: 1px solid var(--line); border-radius: .9rem; }
+.source-bar .source-info { display: flex; align-items: center; gap: .5rem; font-size: .8rem; min-width: 0; }
+.source-bar .source-info .dot { width: .6rem; height: .6rem; border-radius: 50%; flex: none; }
+.source-bar .source-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+.container { max-width: 64rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 1rem; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+.card h2 { font-size: .95rem; font-weight: 700; margin-bottom: .9rem; display: flex; align-items: center; justify-content: space-between; gap: .5rem; flex-wrap: wrap; }
+.legend { font-size: .72rem; color: var(--ink-soft); display: flex; gap: .4rem; align-items: center; }
+.legend .dot { width: .55rem; height: .55rem; border-radius: 50%; display: inline-block; }
+.timetable { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: .82rem; min-width: 52rem; }
+th, td { border: 1px solid var(--line); padding: .45rem .5rem; vertical-align: top; }
+th { background: color-mix(in srgb, var(--bg) 60%, transparent); font-weight: 700; color: var(--ink-soft); font-size: .75rem; text-align: center; position: sticky; top: 0; }
+td.time { text-align: center; color: var(--ink-soft); font-size: .7rem; white-space: nowrap; width: 4.5rem; }
+td.slot { height: 3.6rem; }
+.cell { border-radius: .5rem; padding: .3rem .4rem; font-size: .74rem; line-height: 1.35; cursor: pointer; border: 1px solid transparent; transition: transform .12s ease, box-shadow .12s ease; }
+.cell:hover { transform: translateY(-1px); box-shadow: 0 3px 8px rgba(0,0,0,.12); }
+.cell .cn { font-weight: 700; }
+.cell .cd { opacity: .85; font-size: .68rem; }
+.cell .tag { display: inline-block; margin-top: .2rem; font-size: .6rem; line-height: 1; padding: .16rem .34rem; border-radius: .3rem; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 38%, transparent); font-weight: 600; }
+.days { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.day-tab { appearance: none; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 50%, transparent); color: var(--ink-soft); font-family: inherit; font-size: .83rem; font-weight: 600; padding: .45rem .95rem; border-radius: .7rem; cursor: pointer; }
+.day-tab.active { color: #fff; background: var(--accent); border-color: var(--accent); }
+.day-view { display: grid; grid-template-columns: repeat(2, 1fr); gap: .6rem; }
+.day-card { background: color-mix(in srgb, var(--bg) 48%, transparent); border: 1px solid var(--line); border-radius: .7rem; padding: .55rem .7rem; font-size: .8rem; display: flex; justify-content: space-between; align-items: center; gap: .5rem; }
+.day-card .dc-main { min-width: 0; }
+.day-card .t { font-weight: 600; }
+.day-card .s { font-size: .7rem; color: var(--ink-soft); overflow-wrap: anywhere; }
+.empty { text-align: center; color: var(--ink-soft); font-size: .85rem; padding: 1.2rem 0; }
+.form-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 1fr; gap: .6rem; }
+.field label { display: block; font-size: .72rem; color: var(--ink-soft); margin-bottom: .25rem; }
+.field input, .field select { width: 100%; padding: .5rem .6rem; border-radius: .6rem; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--ink); font-family: inherit; font-size: .83rem; }
+.field input:focus, .field select:focus { outline: 2px solid var(--evg-accent-border); border-color: var(--evg-accent-border); }
+.btn { appearance: none; border: none; cursor: pointer; font-family: inherit; font-size: .85rem; font-weight: 600; padding: .55rem 1.1rem; border-radius: .7rem; color: #fff; background: var(--accent); transition: transform .15s ease, opacity .15s ease; }
+.btn:hover { transform: translateY(-1px); opacity: .92; }
+.btn:active { transform: translateY(0); }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn.danger { background: transparent; color: var(--evg-error); border: 1px solid color-mix(in srgb, var(--evg-error) 45%, transparent); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.sm { padding: .35rem .7rem; font-size: .78rem; }
+.color-row { display: flex; gap: .4rem; flex-wrap: wrap; }
+.cpick { width: 1.5rem; height: 1.5rem; border-radius: .4rem; border: 2px solid transparent; cursor: pointer; }
+.cpick.active { border-color: var(--ink); }
+.modal { position: fixed; inset: 0; background: rgba(10, 18, 28, .45); display: flex; align-items: center; justify-content: center; z-index: 30; padding: 1rem; }
+.modal[hidden] { display: none; }
+.modal-card { background: var(--card); border: 1px solid var(--line); border-radius: 1rem; padding: 1.25rem; width: 100%; max-width: 22rem; box-shadow: 0 10px 30px rgba(0,0,0,.2); }
+.modal-card h3 { font-size: 1rem; margin-bottom: .9rem; }
+.m-row { display: flex; gap: .75rem; padding: .35rem 0; font-size: .83rem; border-bottom: 1px dashed var(--line); }
+.m-row:last-child { border-bottom: none; }
+.m-k { flex: none; width: 3.2rem; color: var(--ink-soft); }
+.m-v { flex: 1; word-break: break-all; }
+.modal-close { margin-top: 1rem; text-align: right; }
+@media (max-width: 40rem) {
+  .form-grid { grid-template-columns: 1fr 1fr; }
+  .day-view { grid-template-columns: 1fr; }
+  .topbar { flex-wrap: wrap; }
+  .source-bar { align-items: flex-start; }
+}
+@media (max-width: 26rem) { .form-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <span class="ico">📅</span>
+  <div><h1>课程表</h1><div class="sub">周视图 · 真实/手动课表 · 本地保存</div></div>
+</header>
+
+<section class="source-bar" id="source-bar" hidden>
+  <div class="source-info"><span class="dot" id="src-dot"></span><span id="src-text"></span></div>
+  <div class="source-actions">
+    <button class="btn ghost sm" id="b-real" hidden>显示真实课表</button>
+    <button class="btn ghost sm" id="b-manual" hidden>显示手动课表</button>
+    <button class="btn ghost sm" id="b-refresh" hidden>刷新</button>
+  </div>
+</section>
+
+<main class="container">
+  <section class="card">
+    <h2>本周课表 <span class="legend" id="table-legend"><span class="dot" style="background:var(--accent)"></span> 我的课程</span></h2>
+    <div class="timetable">
+      <table id="table">
+        <thead><tr><th>时间</th><th>周一</th><th>周二</th><th>周三</th><th>周四</th><th>周五</th><th>周六</th><th>周日</th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>某天课表 <span class="legend" id="day-name"></span></h2>
+    <div class="days" id="days"></div>
+    <div class="day-view" id="day-view"></div>
+  </section>
+
+  <section class="card">
+    <h2>添加 / 编辑课程 <span class="legend" id="form-hint"></span></h2>
+    <div class="form-grid">
+      <div class="field"><label>课程名称</label><input id="f-name" placeholder="高等数学"></div>
+      <div class="field"><label>星期</label><select id="f-day"><option value="1">周一</option><option value="2">周二</option><option value="3">周三</option><option value="4">周四</option><option value="5">周五</option><option value="6">周六</option><option value="7">周日</option></select></div>
+      <div class="field"><label>开始节次</label><select id="f-start"></select></div>
+      <div class="field"><label>结束节次</label><select id="f-end"></select></div>
+      <div class="field"><label>地点（可选）</label><input id="f-room" placeholder="东1-201"></div>
+    </div>
+    <div style="margin-top:.6rem;">
+      <div class="field"><label>颜色</label><div class="color-row" id="colors"></div></div>
+    </div>
+    <div style="margin-top:.8rem; display:flex; gap:.5rem; flex-wrap:wrap;">
+      <button class="btn" id="b-save">保存课程</button>
+      <button class="btn ghost" id="b-cancel" style="display:none">取消编辑</button>
+      <button class="btn danger" id="b-del" style="display:none">删除该课程</button>
+      <button class="btn ghost" id="b-seed">载入示例课表</button>
+      <button class="btn danger" id="b-clear">清空全部</button>
+    </div>
+  </section>
+</main>
+
+<div class="modal" id="modal" hidden>
+  <div class="modal-card">
+    <h3 id="m-title"></h3>
+    <div id="m-body"></div>
+    <div class="modal-close"><button class="btn" id="m-close">关闭</button></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var P = (typeof platform !== 'undefined' && platform) ? platform : null;
+
+  // ── 常量 ────────────────────────────────────────────────────────────
+  var KEY = 'evg.class-schedule';
+  // 候选真实课表数据源（名称取决于用户环境；data.get 返回 null / 未注册时静默降级手动课表）
+  var DATA_SOURCES = ['zju_timetable', 'zju_schedule'];
+  var COLORS = ['#2f6fd0', '#2f9e6e', '#e2574c', '#b06fd0', '#d09a2f', '#2fa8c8', '#d04f7e'];
+  var SLOTS = [
+    { n: 1, t: '08:00-08:45' }, { n: 2, t: '08:50-09:35' }, { n: 3, t: '09:50-10:35' }, { n: 4, t: '10:40-11:25' },
+    { n: 5, t: '11:30-12:15' }, { n: 6, t: '13:15-14:00' }, { n: 7, t: '14:05-14:50' }, { n: 8, t: '14:55-15:40' },
+    { n: 9, t: '15:55-16:40' }, { n: 10, t: '16:45-17:30' }, { n: 11, t: '18:30-19:15' }, { n: 12, t: '19:20-20:05' },
+    { n: 13, t: '20:15-21:00' }
+  ];
+  var DAYS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+  var DAY_CN = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '日': 7, '天': 7 };
+  var DAY_EN = { 'mon': 1, 'tue': 2, 'wed': 3, 'thu': 4, 'fri': 5, 'sat': 6, 'sun': 7,
+    'monday': 1, 'tuesday': 2, 'wednesday': 3, 'thursday': 4, 'friday': 5, 'saturday': 6, 'sunday': 7 };
+
+  // ── 状态 ────────────────────────────────────────────────────────────
+  // viewSource: 'auto'（有真实数据则优先展示）| 'real' | 'manual'
+  var store = { courses: [], viewSource: 'auto' };
+  var realState = { name: null, courses: null, count: 0 };
+  var realLoaded = false;   // 真实数据探测是否已结束（成功或失败）
+  var viewDay = null;       // 当前选中的星期（1-7），跨渲染保留
+  var editingId = null, pickedColor = COLORS[0];
+
+  // ── 工具函数 ────────────────────────────────────────────────────────
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function toInt(v) { var n = parseInt(v, 10); return isNaN(n) ? null : n; }
+  function str(v) { return (v == null) ? '' : String(v).trim(); }
+  function today() { return (new Date().getDay() + 6) % 7 + 1; }
+  function hashStr(s) { var h = 0; for (var i = 0; i < s.length; i++) { h = (h * 31 + s.charCodeAt(i)) | 0; } return Math.abs(h); }
+  function normDay(v) {
+    if (typeof v === 'number') return (v >= 1 && v <= 7) ? v : null;
+    var s = str(v).toLowerCase();
+    if (/^[1-7]$/.test(s)) return +s;
+    if (DAY_CN[s] != null) return DAY_CN[s];
+    if (DAY_EN[s] != null) return DAY_EN[s];
+    var m = s.match(/^(周|星期|礼拜)([一二三四五六日天])$/);
+    return m && DAY_CN[m[2]] != null ? DAY_CN[m[2]] : null;
+  }
+  // 当前学期位掩码（与平台 zju 数据源一致：春=1 夏=2 短①=4 秋=8 冬=16 短②=32 暑=64）
+  function currentSemesterMask() {
+    var m = new Date().getMonth() + 1;
+    return (m >= 9 || m <= 2) ? (8 | 16) : (1 | 2);
+  }
+  function semesterName(mask) {
+    var parts = [];
+    if (mask & 1) parts.push('春');
+    if (mask & 2) parts.push('夏');
+    if (mask & 4) parts.push('短①');
+    if (mask & 8) parts.push('秋');
+    if (mask & 16) parts.push('冬');
+    if (mask & 32) parts.push('短②');
+    if (mask & 64) parts.push('暑');
+    return parts.length ? parts.join('/') : '';
+  }
+  function slotTime(n) {
+    var s = null;
+    for (var i = 0; i < SLOTS.length; i++) { if (SLOTS[i].n === n) { s = SLOTS[i]; break; } }
+    return s ? s.t : '';
+  }
+  // 真实课表节次可能超出常规 13 节：动态补齐节次行
+  function ensureSlots(maxN) {
+    if (SLOTS.length >= maxN) return;
+    for (var n = SLOTS.length + 1; n <= maxN; n++) { SLOTS.push({ n: n, t: '' }); }
+    initSlotSelects();
+  }
+
+  // ── 存储（localStorage 由平台 polyfill 自动持久化到插件私有目录）─────
+  function loadStore() {
+    var s = { courses: [], viewSource: 'auto' };
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (raw) { var p = JSON.parse(raw); if (p && typeof p === 'object') s = p; }
+    } catch (e) { /* 读取失败：会话内有效 */ }
+    if (!Array.isArray(s.courses)) s.courses = [];
+    if (s.viewSource !== 'manual' && s.viewSource !== 'real' && s.viewSource !== 'auto') s.viewSource = 'auto';
+    return s;
+  }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) { /* 落盘失败：会话内有效 */ } }
+
+  // ── 真实数据源接入（防御式）────────────────────────────────────────
+  function dataGet(name) {
+    if (!P || !P.data || typeof P.data.get !== 'function') return Promise.resolve(null);
+    var p;
+    try { p = P.data.get(name); } catch (e) { return Promise.resolve(null); }
+    if (!p || typeof p.then !== 'function') return Promise.resolve(p == null ? null : p);
+    var timer = new Promise(function (resolve) { setTimeout(function () { resolve(null); }, 5000); });
+    return Promise.race([p, timer]).catch(function () { return null; });
+  }
+  // 优先用 data.list() 发现真实可用数据源；缺失/失败则按候选名逐一尝试
+  function discoverCandidates() {
+    var candidates = DATA_SOURCES.slice();
+    if (!P || !P.data || typeof P.data.list !== 'function') return Promise.resolve(candidates);
+    var lp;
+    try { lp = P.data.list(); } catch (e) { return Promise.resolve(candidates); }
+    if (!lp || typeof lp.then !== 'function') return Promise.resolve(candidates);
+    var timer = new Promise(function (resolve) { setTimeout(function () { resolve(null); }, 4000); });
+    return Promise.race([lp, timer]).catch(function () { return null; }).then(function (list) {
+      if (Array.isArray(list) && list.length) {
+        var names = {};
+        list.forEach(function (s) { if (s && s.name) names[s.name] = true; });
+        var avail = candidates.filter(function (n) { return names[n]; });
+        if (avail.length) candidates = avail;
+      }
+      return candidates;
+    });
+  }
+  function trySources(candidates) {
+    var chain = Promise.resolve(null);
+    candidates.forEach(function (name) {
+      chain = chain.then(function (found) {
+        if (found) return found;
+        return dataGet(name).then(function (data) {
+          var courses = normalizeSessions(data);
+          return (courses && courses.length) ? { name: name, courses: courses } : null;
+        });
+      });
+    });
+    return chain;
+  }
+  function subscribeReal(name) {
+    if (!P || !P.data || typeof P.data.subscribe !== 'function') return;
+    try {
+      var r = P.data.subscribe(name, function (payload) {
+        if (payload && payload.name && payload.name !== name) return;
+        dataGet(name).then(function (data) {
+          var courses = normalizeSessions(data);
+          if (courses && courses.length) {
+            var wasReal = effectiveView() === 'real';
+            realState = { name: name, courses: courses, count: courses.length };
+            if (wasReal) renderAll();
+          }
+        });
+      });
+      if (r && typeof r.catch === 'function') { r.catch(function () { /* 静默 */ }); }
+    } catch (e) { /* 静默：不订阅也不影响手动模式 */ }
+  }
+  function loadReal() {
+    return Promise.resolve()
+      .then(discoverCandidates)
+      .then(trySources)
+      .then(function (found) {
+        if (found && found.courses && found.courses.length) {
+          realState = { name: found.name, courses: found.courses, count: found.courses.length };
+          subscribeReal(found.name);
+        }
+      })
+      .catch(function () { /* 静默降级手动课表 */ })
+      .then(function () { realLoaded = true; renderAll(); });
+  }
+
+  // ── 数据归一化（兼容平台 zju_timetable / zju_schedule 快照结构）──────
+  function normalizeSessions(root) {
+    if (!root) return null;
+    var list = Array.isArray(root) ? root
+      : (Array.isArray(root.sessions) ? root.sessions
+      : (Array.isArray(root.items) ? root.items : null));
+    if (!list || !list.length) return null;
+
+    var out = [];
+    for (var i = 0; i < list.length; i++) {
+      var s = list[i];
+      if (!s || typeof s !== 'object') continue;
+      var name = str(s.course_name) || str(s.name) || str(s.kcmc) || '';
+      if (!name) continue;
+      var day = normDay(s.day_of_week != null ? s.day_of_week : s.day);
+      if (day == null) continue;
+      var periods = Array.isArray(s.periods) ? s.periods
+        : (typeof s.periods === 'string' ? s.periods.split(/[,，\s]+/) : []);
+      var nums = periods.map(toInt).filter(function (n) { return n != null && n > 0; });
+      var start = toInt(s.start != null ? s.start : (nums.length ? Math.min.apply(null, nums) : null));
+      var end = toInt(s.end != null ? s.end : (nums.length ? Math.max.apply(null, nums) : null));
+      if (start == null || start < 1) continue;
+      if (end == null || end < start) {
+        var skcd = toInt(s.skcd);
+        end = (skcd != null && skcd > 1) ? start + skcd - 1 : start;
+      }
+      if (s.is_ended) continue; // 已结束课程不展示
+      ensureSlots(Math.max(start, end));
+      out.push({
+        id: 'r' + out.length,
+        name: name,
+        day: day,
+        start: start,
+        end: end,
+        room: str(s.location) || str(s.room) || '',
+        teacher: str(s.teacher) || '',
+        week: str(s.week_range) || '',
+        semester: toInt(s.semester),
+        color: COLORS[hashStr(name) % COLORS.length]
+      });
+    }
+    if (!out.length) return null;
+
+    // 学期位掩码过滤当前学期（仅当数据携带学期信息；过滤后为空则回退全量，宁可多看不可空屏）
+    var mask = currentSemesterMask();
+    var hasSem = out.some(function (c) { return c.semester != null && c.semester !== 0; });
+    if (hasSem) {
+      var matched = out.filter(function (c) {
+        return c.semester == null || c.semester === 0 || ((c.semester & mask) !== 0);
+      });
+      if (matched.length) out = matched;
+    }
+    return out;
+  }
+
+  // ── 视图状态 ────────────────────────────────────────────────────────
+  function effectiveView() {
+    if (store.viewSource === 'manual') return 'manual';
+    if (realState.courses && realState.courses.length) return 'real';
+    return 'manual';
+  }
+  function activeCourses() { return effectiveView() === 'real' ? realState.courses : store.courses; }
+  function setSrcDot(color) { document.getElementById('src-dot').style.background = color; }
+
+  function renderBanner() {
+    var bar = document.getElementById('source-bar');
+    var hasReal = !!(realState.courses && realState.courses.length);
+    var view = effectiveView();
+    var bReal = document.getElementById('b-real');
+    var bManual = document.getElementById('b-manual');
+    var bRefresh = document.getElementById('b-refresh');
+    var txt = document.getElementById('src-text');
+
+    bar.hidden = false;
+    bar.classList.toggle('muted', !hasReal);
+    if (!realLoaded) {
+      setSrcDot('var(--ink-soft)');
+      txt.textContent = '正在连接数据中枢…';
+      bReal.hidden = true; bManual.hidden = true; bRefresh.hidden = true;
+      return;
+    }
+    if (!hasReal) {
+      setSrcDot('var(--ink-soft)');
+      txt.textContent = '未检测到真实课表数据源（' + DATA_SOURCES.join(' / ') + '），当前为手动课表模式';
+      bReal.hidden = true; bManual.hidden = true; bRefresh.hidden = true;
+      return;
+    }
+    bReal.hidden = false; bManual.hidden = false; bRefresh.hidden = false;
+    bReal.disabled = (view === 'real');
+    bManual.disabled = (view === 'manual');
+    bRefresh.disabled = false;
+    bReal.textContent = '显示真实课表（' + realState.count + ' 门）';
+    bManual.textContent = '显示手动课表' + (store.courses.length ? '（' + store.courses.length + ' 门）' : '');
+    if (view === 'real') {
+      setSrcDot('var(--accent)');
+      txt.textContent = '数据源：' + realState.name + '（真实课表）· 点击课程查看详情';
+    } else {
+      setSrcDot('var(--ink-soft)');
+      txt.textContent = '手动课表（本地保存）· ' + store.courses.length + ' 门课程';
+    }
+  }
+
+  function renderLegend() {
+    var el = document.getElementById('table-legend');
+    if (effectiveView() === 'real') {
+      el.innerHTML = '<span class="dot" style="background:var(--accent)"></span> 真实课表 · ' + realState.count + ' 门';
+    } else {
+      el.innerHTML = '<span class="dot" style="background:var(--accent)"></span> 我的课程 · ' + store.courses.length + ' 门';
+    }
+  }
+
+  function renderFormHint() {
+    var h = document.getElementById('form-hint');
+    if (effectiveView() === 'real') {
+      h.textContent = '真实课表来自 ' + realState.name + '（只读）；添加/编辑请在手动课表模式进行';
+    } else {
+      h.textContent = '';
+    }
+  }
+
+  // ── 周视图表格 ─────────────────────────────────────────────────────
+  // 每天课程先按节次区间聚簇（重叠课程合并进同一格，名称以「 / 」连接），
+  // 簇间互不重叠 → rowspan 永不冲突，网格在任何重叠下都不会塌。
+  function clustersForDay(day, courses) {
+    var dayCourses = [];
+    for (var i = 0; i < courses.length; i++) {
+      var c = courses[i];
+      if (c.day === day) dayCourses.push(c);
+    }
+    dayCourses.sort(function (a, b) { return (a.start - b.start) || (a.end - b.end); });
+    var clusters = [];
+    for (var j = 0; j < dayCourses.length; j++) {
+      var c = dayCourses[j];
+      var last = clusters[clusters.length - 1];
+      if (last && c.start <= last.end) {
+        last.courses.push(c);
+        if (c.end > last.end) last.end = c.end;
+      } else {
+        clusters.push({ start: c.start, end: c.end, courses: [c] });
+      }
+    }
+    return clusters;
+  }
+
+  function renderTable() {
+    var tbody = document.getElementById('tbody');
+    var courses = activeCourses() || [];
+    var isReal = effectiveView() === 'real';
+    var byDay = [];
+    for (var d = 1; d <= 7; d++) byDay[d] = clustersForDay(d, courses);
+    var html = '';
+    for (var i = 0; i < SLOTS.length; i++) {
+      var s = SLOTS[i];
+      var tds = '';
+      for (var d = 1; d <= 7; d++) {
+        var cluster = null;
+        for (var cIdx = 0; cIdx < byDay[d].length; cIdx++) {
+          if (byDay[d][cIdx].start === s.n) { cluster = byDay[d][cIdx]; break; }
+        }
+        if (cluster) {
+          var rowspan = cluster.end - cluster.start + 1;
+          var names = '';
+          var room = '';
+          for (var k = 0; k < cluster.courses.length; k++) {
+            var cc = cluster.courses[k];
+            names += (k ? ' / ' : '') + esc(cc.name);
+            if (!room && cc.room) room = esc(cc.room);
+          }
+          var color = cluster.courses[0].color;
+          tds += '<td class="slot" rowspan="' + rowspan + '">' +
+            '<div class="cell' + (isReal ? ' real' : '') + '" style="background:' + color + '22;border-color:' + color + '55;" data-id="' + esc(cluster.courses[0].id) + '"' + (isReal ? ' data-real="1" title="点击查看详情"' : '') + '>' +
+            '<div class="cn">' + names + '</div>' +
+            (room ? '<div class="cd">' + room + '</div>' : '') +
+            (isReal ? '<div class="cd"><span class="tag">真实</span></div>' : '') +
+            '</div></td>';
+        } else {
+          var covered = false;
+          for (var cIdx2 = 0; cIdx2 < byDay[d].length; cIdx2++) {
+            var cl = byDay[d][cIdx2];
+            if (cl.start < s.n && cl.end >= s.n) { covered = true; break; }
+          }
+          if (!covered) tds += '<td class="slot"></td>';
+          // covered：上方 rowspan 已占位，不输出 td
+        }
+      }
+      html += '<tr><td class="time">' + (s.t ? s.t + '<br><b>' + s.n + '</b>' : '第' + s.n + '节') + '</td>' + tds + '</tr>';
+    }
+    tbody.innerHTML = html;
+  }
+
+  // ── 某天课表 ────────────────────────────────────────────────────────
+  function renderDays() {
+    var now = today();
+    if (viewDay == null || viewDay < 1 || viewDay > 7) viewDay = now;
+    var el = document.getElementById('days');
+    var html = '';
+    for (var i = 0; i < DAYS.length; i++) {
+      var n = i + 1;
+      html += '<button class="day-tab' + (n === viewDay ? ' active' : '') + '" data-d="' + n + '">' + DAYS[i] + (n === now ? ' · 今天' : '') + '</button>';
+    }
+    el.innerHTML = html;
+    renderDayView(viewDay);
+    document.getElementById('day-name').textContent = DAYS[viewDay - 1] + (viewDay === now ? ' · 今天' : '');
+  }
+
+  function renderDayView(day) {
+    var courses = (activeCourses() || []).filter(function (c) { return c.day === day; })
+      .sort(function (a, b) { return a.start - b.start; });
+    var el = document.getElementById('day-view');
+    var isReal = effectiveView() === 'real';
+    if (!courses.length) {
+      el.innerHTML = '<div class="empty" style="grid-column:1/-1">这天没有课，好好休息 ☕</div>';
+      return;
+    }
+    var html = '';
+    for (var i = 0; i < courses.length; i++) {
+      var c = courses[i];
+      var time = '第' + c.start + '-' + c.end + ' 节' + (slotTime(c.start) ? ' · ' + slotTime(c.start) : '');
+      html += '<div class="day-card"><div class="dc-main"><div class="t" style="color:' + c.color + '">' + esc(c.name) + '</div>' +
+        '<div class="s">' + time + (c.room ? ' · ' + esc(c.room) : '') + '</div>' +
+        (c.teacher ? '<div class="s">' + esc(c.teacher) + '</div>' : '') +
+        '</div>' +
+        '<button class="btn ghost sm" data-id="' + esc(c.id) + '" data-detail="' + (isReal ? '1' : '0') + '">' + (isReal ? '详情' : '编辑') + '</button></div>';
+    }
+    el.innerHTML = html;
+  }
+
+  // ── 课程详情弹窗（真实课表只读详情）────────────────────────────────
+  function openDetail(c) {
+    document.getElementById('m-title').textContent = c.name;
+    var t = '第' + c.start + '-' + c.end + ' 节';
+    if (slotTime(c.start)) t += '（' + slotTime(c.start) + (slotTime(c.end) && slotTime(c.end) !== slotTime(c.start) ? ' 至 ' + slotTime(c.end) : '') + '）';
+    var rows = [
+      ['时间', t],
+      ['地点', c.room || '—'],
+      ['教师', c.teacher || '—'],
+      ['周次', c.week || '—'],
+      ['学期', (c.semester ? semesterName(c.semester) : '—')],
+      ['数据源', realState.name || '—']
+    ];
+    var html = '';
+    for (var i = 0; i < rows.length; i++) {
+      html += '<div class="m-row"><span class="m-k">' + esc(rows[i][0]) + '</span><span class="m-v">' + esc(rows[i][1]) + '</span></div>';
+    }
+    document.getElementById('m-body').innerHTML = html;
+    document.getElementById('modal').hidden = false;
+  }
+  function closeModal() { document.getElementById('modal').hidden = true; }
+
+  // ── 表单 ────────────────────────────────────────────────────────────
+  function initSlotSelects() {
+    var opts = SLOTS.map(function (s) { return '<option value="' + s.n + '">第' + s.n + '节' + (s.t ? ' ' + s.t : '') + '</option>'; }).join('');
+    document.getElementById('f-start').innerHTML = opts;
+    document.getElementById('f-end').innerHTML = opts;
+  }
+  function renderColors() {
+    var el = document.getElementById('colors');
+    el.innerHTML = COLORS.map(function (c) {
+      return '<span class="cpick' + (c === pickedColor ? ' active' : '') + '" style="background:' + c + '" data-c="' + c + '"></span>';
+    }).join('');
+  }
+  function editCourse(c) {
+    editingId = c.id;
+    pickedColor = c.color;
+    document.getElementById('f-name').value = c.name;
+    document.getElementById('f-day').value = String(c.day);
+    document.getElementById('f-start').value = String(c.start);
+    document.getElementById('f-end').value = String(c.end);
+    document.getElementById('f-room').value = c.room || '';
+    document.getElementById('b-cancel').style.display = 'inline-block';
+    document.getElementById('b-del').style.display = 'inline-block';
+    renderColors();
+  }
+  function resetForm() {
+    editingId = null;
+    pickedColor = COLORS[0];
+    document.getElementById('f-name').value = '';
+    document.getElementById('f-day').value = '1';
+    document.getElementById('f-start').value = '1';
+    document.getElementById('f-end').value = '2';
+    document.getElementById('f-room').value = '';
+    document.getElementById('b-cancel').style.display = 'none';
+    document.getElementById('b-del').style.display = 'none';
+    renderColors();
+  }
+  function findCourse(id) {
+    var list = activeCourses() || [];
+    for (var i = 0; i < list.length; i++) { if (list[i].id === id) return list[i]; }
+    return null;
+  }
+
+  function renderAll() {
+    renderBanner();
+    renderLegend();
+    renderTable();
+    renderDays();
+    renderFormHint();
+  }
+
+  // ── 事件绑定 ────────────────────────────────────────────────────────
+  document.getElementById('colors').addEventListener('click', function (e) {
+    var el = e.target.closest('.cpick');
+    if (!el) return;
+    pickedColor = el.getAttribute('data-c');
+    renderColors();
+  });
+
+  document.getElementById('days').addEventListener('click', function (e) {
+    var b = e.target.closest('.day-tab');
+    if (!b) return;
+    viewDay = +b.getAttribute('data-d');
+    renderDays();
+  });
+
+  document.getElementById('day-view').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-id]');
+    if (!b) return;
+    var c = findCourse(b.getAttribute('data-id'));
+    if (!c) return;
+    if (b.getAttribute('data-detail') === '1') openDetail(c); else editCourse(c);
+  });
+
+  document.getElementById('table').addEventListener('click', function (e) {
+    var cell = e.target.closest('.cell');
+    if (!cell) return;
+    var c = findCourse(cell.getAttribute('data-id'));
+    if (!c) return;
+    if (cell.getAttribute('data-real') === '1') openDetail(c); else editCourse(c);
+  });
+
+  document.getElementById('b-save').addEventListener('click', function () {
+    var name = document.getElementById('f-name').value.trim();
+    var day = +document.getElementById('f-day').value;
+    var start = +document.getElementById('f-start').value;
+    var end = +document.getElementById('f-end').value;
+    var room = document.getElementById('f-room').value.trim();
+    if (!name) { alert('课程名称必填'); return; }
+    if (end < start) { alert('结束节次不能早于开始节次'); return; }
+    if (editingId) {
+      var c = findCourse(editingId);
+      if (c && effectiveView() !== 'real') {
+        c.name = name; c.day = day; c.start = start; c.end = end; c.room = room; c.color = pickedColor;
+      }
+    } else {
+      store.courses.push({ id: 'c' + Date.now() + Math.floor(Math.random() * 1000), name: name, day: day, start: start, end: end, room: room, color: pickedColor });
+    }
+    store.viewSource = 'manual'; // 编辑/新增后切到手动课表视图，立即看到结果
+    save(); renderAll(); resetForm();
+    if (P && P.emit) { try { P.emit('class-schedule:update', { name: name }); } catch (e) {} }
+  });
+
+  document.getElementById('b-cancel').addEventListener('click', resetForm);
+  document.getElementById('b-del').addEventListener('click', function () {
+    if (!editingId) return;
+    store.courses = store.courses.filter(function (x) { return x.id !== editingId; });
+    save(); renderAll(); resetForm();
+  });
+
+  document.getElementById('b-seed').addEventListener('click', function () {
+    if (store.courses.length && !confirm('载入 4 门示例课程（示例数据，非真实课表），继续？')) return;
+    var seed = [
+      { id: 's1', name: '高等数学', day: 1, start: 1, end: 2, room: '东1-201', color: COLORS[0] },
+      { id: 's2', name: '大学英语', day: 2, start: 3, end: 4, room: '东2-305', color: COLORS[1] },
+      { id: 's3', name: '数据结构', day: 3, start: 6, end: 7, room: '计算机楼 402', color: COLORS[2] },
+      { id: 's4', name: '体育', day: 4, start: 8, end: 8, room: '田径场', color: COLORS[3] }
+    ];
+    var has = {};
+    store.courses.forEach(function (c) { has[c.id] = true; });
+    seed.forEach(function (s) { if (!has[s.id]) { store.courses.push(s); has[s.id] = true; } });
+    store.viewSource = 'manual';
+    save(); renderAll();
+  });
+
+  document.getElementById('b-clear').addEventListener('click', function () {
+    if (!confirm('确定清空全部手动课程？（不影响真实课表数据）')) return;
+    store.courses = [];
+    save(); renderAll(); resetForm();
+  });
+
+  document.getElementById('b-real').addEventListener('click', function () {
+    if (!realState.courses || !realState.courses.length) return;
+    store.viewSource = 'real';
+    save(); renderAll();
+  });
+  document.getElementById('b-manual').addEventListener('click', function () {
+    store.viewSource = 'manual';
+    save(); renderAll();
+  });
+  document.getElementById('b-refresh').addEventListener('click', function () {
+    var btn = this;
+    btn.disabled = true;
+    dataGet(realState.name).then(function (data) {
+      var courses = normalizeSessions(data);
+      if (courses && courses.length) {
+        realState = { name: realState.name, courses: courses, count: courses.length };
+      }
+    }).catch(function () { /* 保持旧数据 */ }).then(function () { renderAll(); btn.disabled = false; });
+  });
+
+  document.getElementById('m-close').addEventListener('click', closeModal);
+  document.getElementById('modal').addEventListener('click', function (e) { if (e.target === this) closeModal(); });
+
+  // ── 启动 ────────────────────────────────────────────────────────────
+  store = loadStore();
+  viewDay = today();
+  initSlotSelects();
+  renderColors();
+  resetForm();
+  renderAll();      // 先渲染（真实数据探测完成后会再渲染一次）
+  loadReal();
+})();
+</script>
+</body>
+</html>

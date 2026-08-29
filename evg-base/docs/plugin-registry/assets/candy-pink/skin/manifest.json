@@ -1,0 +1,39 @@
+{
+  "type": "skin",
+  "id": "candy-pink",
+  "name": "糖果粉",
+  "version": "1.0.0",
+  "description": "「糖果粉」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+  "background": {
+    "type": "image",
+    "imageDesktop": "bg_desktop.svg",
+    "imageMobile": "bg_mobile.svg"
+  },
+  "bubble": {
+    "userBackgroundColor": "#FBE4F0",
+    "borderRadius": 18
+  },
+  "avatar": {
+    "user": "avatar_user.svg",
+    "userBackgroundColor": "#BA1567"
+  },
+  "thinking": {
+    "title": "思考过程",
+    "colors": {
+      "header": "#BA1567",
+      "containerBackground": "#FBE4F0",
+      "containerBorder": "#4E2A3E",
+      "contentText": "#4E2A3E",
+      "chipMemoryBg": "#FBE4F0",
+      "chipMemoryFg": "#BA1567",
+      "chipSkillBg": "#FBE4F0",
+      "chipSkillFg": "#BA1567",
+      "chipToolBg": "#FBE4F0",
+      "chipToolFg": "#BA1567",
+      "chipToolResultBg": "#FBE4F0",
+      "chipToolResultFg": "#BA1567"
+    }
+  },
+  "effortColor": "#BA1567",
+  "toolActiveColor": "#BA1567"
+}

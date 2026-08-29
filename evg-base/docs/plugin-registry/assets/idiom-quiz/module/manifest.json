@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "idiom-quiz",
+  "name": "成语问答",
+  "description": "看释义猜成语、填空补全成语，每局 10 题闯关计分，最高分与学习进度本地保存。",
+  "template": "html",
+  "version": "1.0.0",
+  "icon": "quiz",
+  "route": "/idiom-quiz",
+  "nav": {
+    "sidebar": {
+      "section": "学习",
+      "sectionOrder": 10,
+      "order": 7
+    }
+  }
+}

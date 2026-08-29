@@ -1,0 +1,15 @@
+{
+  "type": "theme",
+  "id": "minimal-white",
+  "name": "极简白",
+  "colors": {
+    "background": "#FAFAFA",
+    "surface": "#FFFFFF",
+    "border": "#E5E5E5",
+    "text": "#1C1C1C",
+    "textSecondary": "#6E6E6E",
+    "accent": "#1C1C1C",
+    "error": "#D32F2F",
+    "others": "#B8B8B8"
+  }
+}

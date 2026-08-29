@@ -13,6 +13,7 @@ export 'cache.dart';
 export 'data_diff.dart';
 export 'sse_frame.dart';
 export 'data_http_server.dart';
+export 'register_module_storage.dart';
 export 'plugin/data_source_manifest.dart';
 export 'plugin/data_source_loader.dart';
 export 'plugin/data_source_fetcher.dart';

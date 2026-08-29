@@ -1,0 +1,495 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>健身记录</title><style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+/* 主题：只消费平台注入的 --evg-* 变量（var(--evg-x, 兜底)），不在 :root 重定义 --evg-*。
+   明暗自适应：平台注入时以平台色为准；独立预览（无 bridge）时走下方兜底色。 */
+:root {
+  --bg: var(--evg-background, #f0f4f1);
+  --card: var(--evg-surface, #ffffff);
+  --ink: var(--evg-text, #22382c);
+  --ink-soft: var(--evg-text-secondary, #5f7f6d);
+  --accent: var(--evg-accent, #3d9e63);
+  --accent-bg: var(--evg-accent-bg, #e1f2e7);
+  --accent-border: var(--evg-accent-border, #bce2ca);
+  --line: var(--evg-border, rgba(34, 56, 44, .09));
+  --err: var(--evg-error, #d64545);
+  --warn: var(--evg-others, #e8a33d);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: var(--evg-background, #121a15);
+    --card: var(--evg-surface, #1b2420);
+    --ink: var(--evg-text, #e6efe9);
+    --ink-soft: var(--evg-text-secondary, #9cb3a7);
+    --accent: var(--evg-accent, #55c07f);
+    --accent-bg: var(--evg-accent-bg, #1d3a2a);
+    --accent-border: var(--evg-accent-border, #2f5c45);
+    --line: var(--evg-border, rgba(230, 239, 233, .12));
+    --err: var(--evg-error, #ff6b6b);
+    --warn: var(--evg-others, #e8b35a);
+  }
+}
+html { font-size: 16px; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, sans-serif; background: var(--bg); color: var(--ink); min-height: 100vh; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+.topbar { display: flex; align-items: center; gap: .75rem; padding: 1.1rem 1.5rem; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--card) 72%, transparent); backdrop-filter: blur(.875rem); -webkit-backdrop-filter: blur(.875rem); position: sticky; top: 0; z-index: 5; }
+.topbar .ico { font-size: 1.5rem; }
+.topbar h1 { font-size: 1.15rem; font-weight: 700; }
+.topbar .sub { font-size: .72rem; color: var(--ink-soft); }
+.container { max-width: 46rem; margin: 0 auto; padding: 1.5rem 1.25rem 2rem; }
+.foot { max-width: 46rem; margin: 0 auto; padding: 0 1.25rem 2.5rem; font-size: .72rem; color: var(--ink-soft); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 1rem; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+.card h2 { font-size: .95rem; font-weight: 700; margin-bottom: .9rem; display: flex; align-items: center; justify-content: space-between; gap: .6rem; flex-wrap: wrap; }
+.card h2 .f { font-size: .72rem; color: var(--ink-soft); font-weight: 500; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: .75rem; margin-bottom: 1.1rem; }
+.stat { text-align: center; padding: .8rem; border-radius: .85rem; background: color-mix(in srgb, var(--bg) 55%, transparent); border: 1px solid var(--line); }
+.stat .v { font-size: 1.4rem; font-weight: 700; }
+.stat .v small { font-size: .75rem; font-weight: 500; color: var(--ink-soft); }
+.stat .l { font-size: .7rem; color: var(--ink-soft); margin-top: .15rem; }
+.form-row { display: flex; flex-wrap: wrap; gap: .5rem; align-items: end; }
+.field { flex: 1 1 7.2rem; min-width: 6.4rem; }
+.field label { display: block; font-size: .72rem; color: var(--ink-soft); margin-bottom: .25rem; }
+.field input, .field select { width: 100%; padding: .5rem .6rem; border-radius: .6rem; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--ink); font-family: inherit; font-size: .85rem; }
+.field input:focus, .field select:focus { outline: 2px solid var(--accent-border); border-color: var(--accent-border); }
+.btn { appearance: none; border: none; cursor: pointer; font-family: inherit; font-size: .85rem; font-weight: 600; padding: .55rem 1.1rem; border-radius: .7rem; color: #fff; background: var(--accent); transition: transform .15s ease, opacity .15s ease; }
+.btn:hover { transform: translateY(-1px); opacity: .92; }
+.btn:focus-visible, .tab:focus-visible, .icon-btn:focus-visible, .pchip:focus-visible { outline: 2px solid var(--accent-border); outline-offset: 2px; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn.danger { background: transparent; color: var(--err); border: 1px solid color-mix(in srgb, var(--err) 45%, transparent); }
+.btn.sm { padding: .4rem .8rem; font-size: .78rem; }
+.tabs { display: flex; gap: .4rem; flex-wrap: wrap; margin-bottom: .9rem; }
+.tab { appearance: none; border: 1px solid var(--line); background: transparent; color: var(--ink-soft); font-family: inherit; font-size: .8rem; padding: .4rem .9rem; border-radius: .6rem; cursor: pointer; }
+.tab.active { color: var(--accent); background: var(--accent-bg); border-color: var(--accent-border); }
+.part-filter { display: flex; align-items: center; gap: .5rem; margin-bottom: .8rem; flex-wrap: wrap; }
+.part-filter label { font-size: .72rem; color: var(--ink-soft); }
+.part-filter select { padding: .35rem .5rem; border-radius: .6rem; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--ink); font-family: inherit; font-size: .8rem; }
+.sessions { display: flex; flex-direction: column; gap: .6rem; }
+.session { background: color-mix(in srgb, var(--bg) 48%, transparent); border: 1px solid var(--line); border-radius: .8rem; padding: .75rem .9rem; }
+.session .head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.session .title { font-weight: 700; word-break: break-word; }
+.session .date { font-size: .72rem; color: var(--ink-soft); white-space: nowrap; }
+.session .sets { margin-top: .45rem; display: flex; flex-direction: column; gap: .25rem; }
+.set-line { display: flex; justify-content: space-between; font-size: .82rem; padding: .25rem .5rem; border-radius: .4rem; background: color-mix(in srgb, var(--card) 70%, transparent); }
+.set-line .kg { color: var(--accent); font-weight: 600; }
+.set-line .part { font-size: .7rem; color: var(--ink-soft); }
+.session .ops { display: flex; gap: .3rem; margin-top: .5rem; }
+.icon-btn { appearance: none; border: none; background: transparent; color: var(--ink-soft); cursor: pointer; font-size: .85rem; padding: .2rem .35rem; border-radius: .4rem; }
+.icon-btn:hover { background: var(--accent-bg); color: var(--accent); }
+.icon-btn.danger:hover { color: var(--err); background: color-mix(in srgb, var(--err) 10%, transparent); }
+.empty { text-align: center; color: var(--ink-soft); font-size: .85rem; padding: 1.5rem 0; }
+.preset { display: flex; gap: .35rem; flex-wrap: wrap; }
+.pchip { appearance: none; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 50%, transparent); color: var(--ink-soft); font-family: inherit; font-size: .72rem; padding: .3rem .6rem; border-radius: 999px; cursor: pointer; }
+.pchip:hover { color: var(--accent); border-color: var(--accent-border); }
+.chart { display: flex; align-items: flex-end; gap: .4rem; height: 8.5rem; padding: 1rem .2rem 0; }
+.cbar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; }
+.cbar { width: 70%; max-width: 2.2rem; background: color-mix(in srgb, var(--accent) 45%, transparent); border-radius: .35rem .35rem 0 0; min-height: 2px; position: relative; }
+.cbar.today { background: var(--accent); }
+.cv { position: absolute; top: -1.15rem; left: 50%; transform: translateX(-50%); font-size: .68rem; color: var(--ink-soft); white-space: nowrap; }
+.cl { font-size: .62rem; color: var(--ink-soft); margin-top: .35rem; white-space: nowrap; }
+.chart-empty { text-align: center; color: var(--ink-soft); font-size: .8rem; padding: 1.6rem 0; }
+.toast { position: fixed; left: 50%; bottom: 1.4rem; transform: translateX(-50%) translateY(.8rem); background: var(--ink); color: var(--bg); font-size: .82rem; padding: .55rem 1rem; border-radius: .7rem; opacity: 0; pointer-events: none; transition: opacity .2s ease, transform .2s ease; z-index: 20; max-width: 90vw; }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+@media (max-width: 40rem) { .stats { grid-template-columns: 1fr 1fr; } .chart { height: 7.5rem; } }
+</style></head><body>
+<header class="topbar">
+  <span class="ico">💪</span>
+  <div><h1>健身记录</h1><div class="sub">训练打卡 · 组数重量 · 按日期/部位回顾 · 💾 数据保存在本机</div></div>
+</header>
+<main class="container">
+  <section class="card">
+    <div class="stats">
+      <div class="stat"><div class="v" id="st-sessions">0<small> 次</small></div><div class="l">总训练</div></div>
+      <div class="stat"><div class="v" id="st-week">0<small> 次</small></div><div class="l">本周训练</div></div>
+      <div class="stat"><div class="v" id="st-month">0<small> 次</small></div><div class="l">本月训练</div></div>
+      <div class="stat"><div class="v" id="st-streak">0<small> 天</small></div><div class="l">连续训练</div></div>
+    </div>
+    <h2 style="font-size:.9rem;font-weight:700;margin-bottom:.7rem;" id="form-title">➕ 记录一次训练</h2>
+    <div class="form-row">
+      <div class="field"><label>日期</label><input type="date" id="f-date"></div>
+      <div class="field"><label>动作/训练名</label><input id="f-name" placeholder="卧推" autocomplete="off"></div>
+      <div class="field"><label>部位</label><select id="f-part">
+        <option value="胸">胸</option><option value="背">背</option><option value="腿">腿</option>
+        <option value="肩臂">肩臂</option><option value="核心">核心</option><option value="有氧">有氧</option>
+        <option value="其他">其他</option>
+      </select></div>
+      <div class="field"><label>重量（kg，自重填 0）</label><input type="number" id="f-weight" step="0.5" min="0" placeholder="60"></div>
+      <div class="field"><label>组数</label><input type="number" id="f-sets" min="1" placeholder="4"></div>
+      <div class="field"><label>每组次数</label><input type="number" id="f-reps" min="0" placeholder="10"></div>
+      <div style="flex:0 0 auto;"><button class="btn" id="b-add">记录</button></div>
+      <div style="flex:0 0 auto;"><button class="btn ghost hidden" id="b-cancel">取消编辑</button></div>
+    </div>
+    <div class="preset" style="margin-top:.6rem;">
+      <span style="font-size:.72rem;color:var(--ink-soft);align-self:center;">常用动作：</span>
+      <button class="pchip" data-n="卧推" data-p="胸">卧推</button>
+      <button class="pchip" data-n="深蹲" data-p="腿">深蹲</button>
+      <button class="pchip" data-n="硬拉" data-p="背">硬拉</button>
+      <button class="pchip" data-n="引体向上" data-p="背">引体向上</button>
+      <button class="pchip" data-n="跑步 5km" data-p="有氧">跑步 5km</button>
+      <button class="pchip" data-n="平板支撑" data-p="核心">平板支撑</button>
+    </div>
+  </section>
+  <section class="card">
+    <h2>📊 训练量 <span class="f" id="vol-line">本周 0 kg · 本月 0 kg</span></h2>
+    <div class="chart" id="chart"></div>
+    <div class="empty" id="chart-empty" style="display:none;">近 7 天还没有训练记录</div>
+  </section>
+  <section class="card">
+    <h2>📋 训练历史 <span class="f" id="hcount">0 次</span></h2>
+    <div class="tabs" id="tabs"></div>
+    <div class="part-filter">
+      <label for="part-filter">部位筛选</label>
+      <select id="part-filter">
+        <option value="all">全部部位</option>
+        <option value="胸">胸</option><option value="背">背</option><option value="腿">腿</option>
+        <option value="肩臂">肩臂</option><option value="核心">核心</option><option value="有氧">有氧</option>
+        <option value="其他">其他</option>
+      </select>
+    </div>
+    <div class="sessions" id="sessions"></div>
+  </section>
+</main>
+<footer class="foot">🔒 数据保存在本机（模块私有存储），不上传云端</footer>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script>
+(function () {
+  'use strict';
+  var P = (typeof platform !== 'undefined') ? platform : null;
+  var KEY = 'evg.workout-log';
+  var STORE_VERSION = 2;
+  var PARTS = ['胸', '背', '腿', '肩臂', '核心', '有氧', '其他'];
+
+  /* ────────────── 存储：localStorage（平台 polyfill 同步内存 + 异步落盘）──────────────
+     预载竞态：polyfill 在 bridge 注入后异步预载 storage.list()，插件首帧同步读可能为空。
+     处理：启动后经 platform.storage.get(KEY) 权威重读一次，按 id 取并集、同 id 以
+     updatedAt 新者胜合并回内存再落盘 —— 绝不覆盖丢失。 */
+  function lsGet(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { window.localStorage.setItem(k, v); return true; } catch (e) { return false; } }
+
+  function nowId() { return 'w' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+
+  function num(v) { var n = parseFloat(v); return isNaN(n) || n < 0 ? 0 : n; }
+
+  /* 迁移/清洗：补 id / updatedAt；部位、数值字段规范化。 */
+  function normalize(d) {
+    if (!d || typeof d !== 'object') return { v: STORE_VERSION, sessions: [] };
+    if (!Array.isArray(d.sessions)) d.sessions = [];
+    d.sessions.forEach(function (s) {
+      if (!s.id) s.id = nowId();
+      if (typeof s.updatedAt !== 'number') s.updatedAt = 0;
+      if (typeof s.name !== 'string') s.name = '';
+      if (PARTS.indexOf(s.part) < 0) s.part = '其他';
+      s.weight = num(s.weight);
+      s.sets = num(s.sets) || 1;
+      s.reps = num(s.reps);
+      if (typeof s.date !== 'string' || !s.date) s.date = todayKey();
+      if (typeof s.time !== 'string') s.time = '';
+    });
+    d.v = STORE_VERSION;
+    return d;
+  }
+
+  var store = { v: STORE_VERSION, sessions: [] };
+  function loadSync() {
+    var raw = lsGet(KEY);
+    if (!raw) return false;
+    try {
+      var d = JSON.parse(raw);
+      if (!d || !Array.isArray(d.sessions)) return false;
+      store = normalize(d);
+      return true;
+    } catch (e) { return false; }
+  }
+  loadSync();
+
+  var filter = 'all', partFilter = 'all', editingId = null, confirmDelId = null, delTimer = null;
+
+  function save() {
+    var json = JSON.stringify(store);
+    lsSet(KEY, json);
+    // 双保险：同步到平台权威存储（与 polyfill write-through 幂等）
+    if (P && P.storage && typeof P.storage.set === 'function') {
+      try { var pp = P.storage.set(KEY, json); if (pp && typeof pp.catch === 'function') pp.catch(function () {}); } catch (e) {}
+    }
+  }
+
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+
+  /* 并集合并：同 id 以 updatedAt 新者胜（相等保留本会话），仅追加持久化中缺失的记录，不丢任何一侧。 */
+  function mergeById(a, b) {
+    var map = {}, out = [];
+    (a || []).forEach(function (x) { if (x && x.id) { map[x.id] = x; out.push(x); } });
+    (b || []).forEach(function (x) {
+      if (!x || !x.id) return;
+      var cur = map[x.id];
+      if (!cur) { map[x.id] = x; out.push(x); }
+      else if ((x.updatedAt || 0) > (cur.updatedAt || 0)) {
+        out[out.indexOf(cur)] = x; map[x.id] = x;
+      }
+    });
+    return out;
+  }
+
+  function changed(x, y) { return JSON.stringify(x) !== JSON.stringify(y); }
+
+  /* 预载竞态对账：权威重读 + 合并（幂等；两端一致时无写入）。 */
+  function adoptPersisted() {
+    if (!(P && P.storage && typeof P.storage.get === 'function')) return;
+    var p;
+    try { p = P.storage.get(KEY); } catch (e) { return; }
+    var apply = function (raw) {
+      try {
+        var d = (raw == null) ? null : JSON.parse(raw);
+        if (d && Array.isArray(d.sessions)) {
+          normalize(d);
+          var merged = mergeById(store.sessions, d.sessions);
+          if (changed(merged, store.sessions)) {
+            store.sessions = merged;
+            save();
+            renderAll();
+          }
+        }
+      } catch (e) { /* 解析失败：保持现状 */ }
+    };
+    if (p && typeof p.then === 'function') p.then(apply).catch(function () {});
+    else if (typeof p === 'string') apply(p);
+  }
+
+  function dateKey(d) { return d.getFullYear() + '-' + (d.getMonth() + 1 < 10 ? '0' : '') + (d.getMonth() + 1) + '-' + (d.getDate() < 10 ? '0' : '') + d.getDate(); }
+  function parseDate(s) { return new Date(s + 'T00:00:00'); }
+  function weekKey(d) { var t = new Date(d); t.setHours(0, 0, 0, 0); var day = (t.getDay() + 6) % 7; t.setDate(t.getDate() - day); return dateKey(t); }
+  function todayKey() { return dateKey(new Date()); }
+  function monthKey(d) { return d.getFullYear() + '-' + (d.getMonth() + 1 < 10 ? '0' : '') + (d.getMonth() + 1); }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function fmtWeight(v) { return Math.round(v * 10) / 10; }
+
+  function byId(id) {
+    for (var i = 0; i < store.sessions.length; i++) if (store.sessions[i].id === id) return store.sessions[i];
+    return null;
+  }
+
+  function calcStats() {
+    var wk = weekKey(new Date()), mk = monthKey(new Date()), t = todayKey();
+    var week = 0, month = 0, weekVol = 0, monthVol = 0;
+    var days = {};
+    store.sessions.forEach(function (s) {
+      var w = weekKey(parseDate(s.date)), m = monthKey(parseDate(s.date));
+      var vol = (s.weight || 0) * (s.sets || 0) * (s.reps || 0);
+      if (w === wk) { week++; weekVol += vol; }
+      if (m === mk) { month++; monthVol += vol; }
+      days[s.date] = true;
+    });
+    var streak = 0, d = new Date();
+    if (!days[t]) d.setDate(d.getDate() - 1); // 今天还没练：从昨天起算连续
+    for (var i = 0; i < 730; i++) {
+      if (days[dateKey(d)]) { streak++; d.setDate(d.getDate() - 1); } else break;
+    }
+    return { total: store.sessions.length, week: week, month: month, streak: streak, weekVol: fmtWeight(weekVol), monthVol: fmtWeight(monthVol) };
+  }
+
+  function renderStats() {
+    var st = calcStats();
+    document.getElementById('st-sessions').innerHTML = st.total + '<small> 次</small>';
+    document.getElementById('st-week').innerHTML = st.week + '<small> 次</small>';
+    document.getElementById('st-month').innerHTML = st.month + '<small> 次</small>';
+    document.getElementById('st-streak').innerHTML = st.streak + '<small> 天</small>';
+    document.getElementById('vol-line').textContent = '本周 ' + st.weekVol + ' kg · 本月 ' + st.monthVol + ' kg';
+    document.getElementById('hcount').textContent = st.total + ' 次';
+  }
+
+  var WEEK_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
+  function renderChart() {
+    var days = [];
+    for (var i = 6; i >= 0; i--) {
+      var d = new Date(); d.setDate(d.getDate() - i);
+      days.push({ key: dateKey(d), label: (i === 0 ? '今天' : '周' + WEEK_LABELS[d.getDay()]) });
+    }
+    var counts = days.map(function (x) { return store.sessions.filter(function (s) { return s.date === x.key; }).length; });
+    var max = Math.max.apply(null, counts.concat([1]));
+    var el = document.getElementById('chart');
+    var empty = document.getElementById('chart-empty');
+    var hasAny = counts.some(function (c) { return c > 0; });
+    if (!hasAny) { el.innerHTML = ''; empty.style.display = 'block'; return; }
+    empty.style.display = 'none';
+    el.innerHTML = days.map(function (x, i) {
+      var h = Math.max(2, Math.round((counts[i] / max) * 100));
+      return '<div class="cbar-wrap"><div class="cbar' + (i === 6 ? ' today' : '') + '" style="height:' + h + '%">' +
+        '<span class="cv">' + counts[i] + '</span></div><span class="cl">' + esc(x.label) + '</span></div>';
+    }).join('');
+  }
+
+  function renderTabs() {
+    var days = {}, order = [];
+    store.sessions.forEach(function (s) {
+      if (!days[s.date]) { days[s.date] = true; order.push(s.date); }
+    });
+    order.sort().reverse();
+    if (!order.includes(todayKey())) order.unshift(todayKey());
+    var el = document.getElementById('tabs');
+    el.innerHTML = order.slice(0, 14).map(function (d) {
+      return '<button class="tab' + (d === filter ? ' active' : '') + '" data-d="' + d + '">' + (d === todayKey() ? '今天' : d.slice(5)) + '</button>';
+    }).join('');
+  }
+
+  function renderSessions() {
+    var el = document.getElementById('sessions');
+    var list = store.sessions
+      .filter(function (s) { return s.date === filter && (partFilter === 'all' || s.part === partFilter); })
+      .sort(function (a, b) { return String(b.time || '').localeCompare(String(a.time || '')); });
+    if (!list.length) {
+      el.innerHTML = '<div class="empty">' + (partFilter === 'all' ? '这一天没有训练记录' : '这一天没有该部位的训练记录') + '</div>';
+      return;
+    }
+    el.innerHTML = list.map(function (s) {
+      var delTxt = (confirmDelId === s.id) ? '确认删除?' : '🗑';
+      return '<div class="session"><div class="head"><span class="title">' + esc(s.name) + '</span>' +
+        '<span class="date">' + esc(s.date) + ' ' + esc(s.time || '') + '</span></div>' +
+        '<div class="sets"><div class="set-line"><span>' + s.sets + ' 组 × ' + s.reps + ' 次 · <span class="part">' + esc(s.part) + '</span></span>' +
+        '<span class="kg">' + (s.weight ? s.weight + ' kg' : '自重') + '</span></div></div>' +
+        '<div class="ops">' +
+        '<button class="icon-btn" data-edit="' + esc(s.id) + '" title="编辑" aria-label="编辑 ' + esc(s.name) + '">✏️</button>' +
+        '<button class="icon-btn danger' + (confirmDelId === s.id ? ' hidden' : '') + '" data-del="' + esc(s.id) + '" title="删除" aria-label="删除 ' + esc(s.name) + '">🗑</button>' +
+        (confirmDelId === s.id ? '<button class="icon-btn danger" data-del="' + esc(s.id) + '" aria-label="确认删除 ' + esc(s.name) + '">' + delTxt + '</button>' : '') +
+        '</div></div>';
+    }).join('');
+  }
+
+  function renderAll() { renderStats(); renderChart(); renderTabs(); renderSessions(); }
+
+  var toastTimer = null;
+  function toast(msg) {
+    var el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.classList.remove('show'); }, 2600);
+  }
+
+  document.querySelectorAll('.pchip').forEach(function (c) {
+    c.addEventListener('click', function () {
+      document.getElementById('f-name').value = c.getAttribute('data-n');
+      document.getElementById('f-part').value = c.getAttribute('data-p');
+    });
+  });
+
+  function clearForm() {
+    document.getElementById('f-date').value = todayKey();
+    document.getElementById('f-name').value = '';
+    document.getElementById('f-part').value = '胸';
+    document.getElementById('f-weight').value = '';
+    document.getElementById('f-sets').value = '';
+    document.getElementById('f-reps').value = '';
+    editingId = null;
+    document.getElementById('b-add').textContent = '记录';
+    document.getElementById('form-title').textContent = '➕ 记录一次训练';
+    document.getElementById('b-cancel').classList.add('hidden');
+  }
+
+  function submitSession() {
+    var name = document.getElementById('f-name').value.trim();
+    if (!name) { toast('训练名必填'); return; }
+    var date = document.getElementById('f-date').value || todayKey();
+    var part = document.getElementById('f-part').value;
+    var weight = num(document.getElementById('f-weight').value);
+    var sets = parseInt(document.getElementById('f-sets').value, 10) || 1;
+    var reps = parseInt(document.getElementById('f-reps').value, 10) || 0;
+    if (editingId) {
+      var s = byId(editingId);
+      if (s) {
+        s.name = name; s.date = date; s.part = part; s.weight = weight; s.sets = sets; s.reps = reps;
+        s.updatedAt = Date.now();
+        toast('已保存修改');
+        filter = date;
+      }
+      clearForm();
+      save(); renderAll();
+      return;
+    }
+    var now = new Date();
+    store.sessions.push({
+      id: nowId(),
+      name: name, part: part, weight: weight, sets: sets, reps: reps,
+      date: date, time: pad(now.getHours()) + ':' + pad(now.getMinutes()),
+      updatedAt: Date.now(), createdAt: Date.now()
+    });
+    filter = date;
+    clearForm();
+    save(); renderAll();
+    toast('已记录');
+    if (P && P.emit) { try { P.emit('workout-log:add', { name: name, part: part }); } catch (e) {} }
+  }
+
+  document.getElementById('b-add').addEventListener('click', submitSession);
+  document.getElementById('b-cancel').addEventListener('click', clearForm);
+  ['f-date', 'f-name', 'f-part', 'f-weight', 'f-sets', 'f-reps'].forEach(function (id) {
+    var el = document.getElementById(id);
+    el.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); submitSession(); }
+    });
+  });
+
+  function startEdit(id) {
+    var s = byId(id); if (!s) return;
+    editingId = id;
+    document.getElementById('f-date').value = s.date;
+    document.getElementById('f-name').value = s.name;
+    document.getElementById('f-part').value = s.part;
+    document.getElementById('f-weight').value = s.weight || '';
+    document.getElementById('f-sets').value = s.sets || '';
+    document.getElementById('f-reps').value = s.reps || '';
+    document.getElementById('b-add').textContent = '保存修改';
+    document.getElementById('form-title').textContent = '✏️ 编辑训练';
+    document.getElementById('b-cancel').classList.remove('hidden');
+    document.getElementById('f-name').focus();
+    document.getElementById('f-name').scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+
+  function requestDelete(id) {
+    if (confirmDelId === id) {
+      confirmDelId = null;
+      clearTimeout(delTimer);
+      store.sessions = store.sessions.filter(function (x) { return x.id !== id; });
+      save(); renderAll();
+      toast('已删除');
+    } else {
+      confirmDelId = id;
+      renderSessions();
+      clearTimeout(delTimer);
+      delTimer = setTimeout(function () { confirmDelId = null; renderSessions(); }, 2500);
+    }
+  }
+
+  document.getElementById('tabs').addEventListener('click', function (e) {
+    var b = e.target.closest('.tab');
+    if (!b) return;
+    filter = b.getAttribute('data-d');
+    renderTabs(); renderSessions();
+  });
+
+  document.getElementById('part-filter').addEventListener('change', function () {
+    partFilter = document.getElementById('part-filter').value;
+    renderSessions();
+  });
+
+  document.getElementById('sessions').addEventListener('click', function (e) {
+    var ed = e.target.closest('[data-edit]');
+    if (ed) { startEdit(ed.getAttribute('data-edit')); return; }
+    var del = e.target.closest('[data-del]');
+    if (del) requestDelete(del.getAttribute('data-del'));
+  });
+
+  /* 测试钩子（供 Node vm 行为验证） */
+  window.__evgTest = {
+    getStore: function () { return store; },
+    KEY: KEY,
+    mergeById: mergeById,
+    normalize: normalize,
+    esc: esc,
+    adopt: adoptPersisted,
+    render: renderAll,
+    calcStats: calcStats,
+    todayKey: todayKey
+  };
+
+  document.getElementById('f-date').value = todayKey();
+  renderAll();
+  adoptPersisted();
+})();
+</script></body></html>

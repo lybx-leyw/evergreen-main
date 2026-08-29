@@ -1,0 +1,39 @@
+{
+  "type": "skin",
+  "id": "coffee-study",
+  "name": "咖啡店自习",
+  "version": "1.0.0",
+  "description": "「咖啡店自习」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+  "background": {
+    "type": "image",
+    "imageDesktop": "bg_desktop.svg",
+    "imageMobile": "bg_mobile.svg"
+  },
+  "bubble": {
+    "userBackgroundColor": "#F3E7DA",
+    "borderRadius": 18
+  },
+  "avatar": {
+    "user": "avatar_user.svg",
+    "userBackgroundColor": "#C08552"
+  },
+  "thinking": {
+    "title": "思考过程",
+    "colors": {
+      "header": "#C08552",
+      "containerBackground": "#F3E7DA",
+      "containerBorder": "#3E2E22",
+      "contentText": "#3E2E22",
+      "chipMemoryBg": "#F3E7DA",
+      "chipMemoryFg": "#C08552",
+      "chipSkillBg": "#F3E7DA",
+      "chipSkillFg": "#C08552",
+      "chipToolBg": "#F3E7DA",
+      "chipToolFg": "#C08552",
+      "chipToolResultBg": "#F3E7DA",
+      "chipToolResultFg": "#C08552"
+    }
+  },
+  "effortColor": "#C08552",
+  "toolActiveColor": "#C08552"
+}

@@ -107,6 +107,9 @@ class _DiscoverSectionState extends ConsumerState<DiscoverSection> {
   Object? _loadError;
   bool _loading = false;
 
+  /// 当前类型筛选，'all' 表示全部（与插件中心 [MarketplaceSlot] 同款标签筛选）。
+  String _typeFilter = 'all';
+
   /// 实时 star 数（`owner/repo -> stars`），覆盖 registry 静态 stars。
   final Map<String, int> _liveStars = {};
 
@@ -485,9 +488,15 @@ class _DiscoverSectionState extends ConsumerState<DiscoverSection> {
     }
   }
 
-  /// 按搜索词过滤（名称 / 描述 / 作者 / id）。
+  /// 按类型标签 + 搜索词过滤（名称 / 描述 / 作者 / id）。
+  ///
+  /// 类型判定复用 [_pluginTypeKey]（lattice 权威声明，与卡片徽标同口径），
+  /// 'all' 不筛类型；搜索词为空时仅做类型过滤。
   List<RegistryPlugin> _filteredPlugins() {
-    final all = _plugins ?? const <RegistryPlugin>[];
+    var all = _plugins ?? const <RegistryPlugin>[];
+    if (_typeFilter != 'all') {
+      all = all.where((p) => _pluginTypeKey(p.lattice) == _typeFilter).toList();
+    }
     final q = widget.searchQuery?.trim().toLowerCase();
     if (q == null || q.isEmpty) return all;
     return all.where((p) {
@@ -496,6 +505,40 @@ class _DiscoverSectionState extends ConsumerState<DiscoverSection> {
           (p.author ?? '').toLowerCase().contains(q) ||
           p.id.toLowerCase().contains(q);
     }).toList();
+  }
+
+  /// 类型标签筛选条（与插件中心 [MarketplaceSlot._buildTypeFilterChips] 同款）：
+  /// 全部 / 模块 / 皮肤 / 数据源 / Agent / 技能 / 主题 / 配置。
+  Widget _buildTypeFilterChips() {
+    const filters = <(String, String)>[
+      ('all', '全部'),
+      ('module', '模块'),
+      ('skin', '皮肤'),
+      ('data-source', '数据源'),
+      ('agent', 'Agent'),
+      ('skill', '技能'),
+      ('theme', '主题'),
+      ('config', '配置'),
+    ];
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: Row(
+        children: [
+          for (final (value, label) in filters)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                label: Text(label),
+                selected: _typeFilter == value,
+                onSelected: (_) => setState(() => _typeFilter = value),
+                visualDensity: VisualDensity.compact,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -512,62 +555,76 @@ class _DiscoverSectionState extends ConsumerState<DiscoverSection> {
 
     final plugins = _filteredPlugins();
 
-    return Stack(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        plugins.isEmpty
-            ? Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.explore_off_outlined,
-                        size: 48, color: Theme.of(context).disabledColor),
-                    const SizedBox(height: 12),
-                    Text(
-                      _loadError != null
-                          ? '发现源加载失败'
-                          : '暂无可发现的外部插件',
-                      style: TextStyle(color: Theme.of(context).disabledColor),
-                    ),
-                  ],
-                ),
-              )
-            : ListView.builder(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                itemCount: plugins.length,
-                itemBuilder: (context, index) {
-                  final p = plugins[index];
-                  final installed = _installedIds.contains(p.id);
-                  final installing = _installingIds.contains(p.id);
-                  final error = _errors[p.id];
-                  return DiscoverPluginCard(
-                    plugin: p,
-                    stars: _liveStarsFor(p),
-                    installed: installed,
-                    installing: installing,
-                    error: error,
-                    onInstall: installed ? null : () => _requestInstall(p),
-                    onUninstall: () => _uninstall(
-                      PluginDescriptor(
-                        id: p.id,
-                        name: p.name,
-                        description: p.description,
-                        version: p.version,
+        // 类型标签筛选条（与插件中心同款：全部/模块/皮肤/数据源/Agent/技能/主题/配置）
+        _buildTypeFilterChips(),
+        Expanded(
+          child: Stack(
+            children: [
+              plugins.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.explore_off_outlined,
+                              size: 48, color: Theme.of(context).disabledColor),
+                          const SizedBox(height: 12),
+                          Text(
+                            _loadError != null
+                                ? '发现源加载失败'
+                                : _typeFilter != 'all' ||
+                                        (widget.searchQuery?.isNotEmpty ??
+                                            false)
+                                    ? '没有匹配该筛选条件的插件'
+                                    : '暂无可发现的外部插件',
+                            style: TextStyle(
+                                color: Theme.of(context).disabledColor),
+                          ),
+                        ],
                       ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      itemCount: plugins.length,
+                      itemBuilder: (context, index) {
+                        final p = plugins[index];
+                        final installed = _installedIds.contains(p.id);
+                        final installing = _installingIds.contains(p.id);
+                        final error = _errors[p.id];
+                        return DiscoverPluginCard(
+                          plugin: p,
+                          stars: _liveStarsFor(p),
+                          installed: installed,
+                          installing: installing,
+                          error: error,
+                          onInstall: installed ? null : () => _requestInstall(p),
+                          onUninstall: () => _uninstall(
+                            PluginDescriptor(
+                              id: p.id,
+                              name: p.name,
+                              description: p.description,
+                              version: p.version,
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                  );
-                },
+          // 下载错误浮层（角标提示）。
+          if (_errors.isNotEmpty)
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: 16,
+              child: _ErrorBanner(
+                errors: _errors,
+                onDismiss: () => setState(() => _errors.clear()),
               ),
-        // 下载错误浮层（角标提示）。
-        if (_errors.isNotEmpty)
-          Positioned(
-            left: 16,
-            right: 16,
-            bottom: 16,
-            child: _ErrorBanner(
-              errors: _errors,
-              onDismiss: () => setState(() => _errors.clear()),
             ),
-          ),
+        ],
+        ),
+        ),
       ],
     );
   }
@@ -774,12 +831,29 @@ class DiscoverPluginCard extends StatelessWidget {
   }
 }
 
+/// registry `lattice`（插件类型）→ 筛选 key（与 [MarketplaceSlot] 类型筛选口径一致）。
+///
+/// 与 [_pluginTypeMeta] 共享同一判定集合：theme/module(static-web/web-bridged)/
+/// skin/data-source/agent(agent-tool)/skill/config；未知 lattice 归入 `other`
+/// （筛选条无对应标签，仅「全部」可见，与既有卡片兜底「插件」一致）。
+String _pluginTypeKey(String? lattice) => switch (lattice) {
+      'theme' => 'theme',
+      'module' || 'static-web' || 'web-bridged' => 'module',
+      'skin' => 'skin',
+      'data-source' => 'data-source',
+      'agent' || 'agent-tool' => 'agent',
+      'skill' => 'skill',
+      'config' => 'config',
+      _ => 'other',
+    };
+
 /// registry `lattice`（插件类型）→ （中文标签, 图标）。与插件中心类型口径近似。
 ({String label, IconData icon}) _pluginTypeMeta(String? lattice) =>
     switch (lattice) {
       'theme' => (label: '主题', icon: Icons.palette_outlined),
       'module' || 'static-web' || 'web-bridged' =>
         (label: '模块', icon: Icons.extension_outlined),
+      'skin' => (label: '皮肤', icon: Icons.brush_outlined),
       'data-source' => (label: '数据源', icon: Icons.storage_outlined),
       'agent' || 'agent-tool' => (label: 'Agent', icon: Icons.smart_toy_outlined),
       'config' => (label: '配置', icon: Icons.settings_outlined),

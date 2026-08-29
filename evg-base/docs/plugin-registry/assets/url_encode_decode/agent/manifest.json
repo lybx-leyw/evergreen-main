@@ -1,0 +1,28 @@
+{
+  "name": "url_encode_decode",
+  "description": "URL 编码或解码字符串；只读工具。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "要处理的字符串。"
+      },
+      "mode": {
+        "type": "string",
+        "enum": [
+          "encode",
+          "decode"
+        ],
+        "description": "encode=编码，decode=解码。默认 encode。"
+      }
+    },
+    "required": [
+      "text"
+    ]
+  },
+  "readOnly": true,
+  "argMode": "stdin",
+  "runtime": "python",
+  "lifetime": "once"
+}

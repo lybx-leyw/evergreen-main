@@ -11,6 +11,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
+import 'package:evergreen_base/core/data/data.dart' show DataOrchestrator;
 import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'package:evergreen_base/core/module/page_event_bus.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
@@ -19,6 +20,17 @@ import 'package:evergreen_base/renderer/atomic/data_source_resolver.dart';
 import 'package:evergreen_base/renderer/components/shared/widgets/type_check_input.dart';
 import 'package:evergreen_base/renderer/components/shared/widgets/flashcard_view.dart';
 import 'package:evergreen_base/renderer/components/shared/widgets/mindmap_widget.dart';
+
+/// 契约①定时刷新写侧：对 `orch://<name>` 端点经中枢强制重抓并覆写缓存。
+/// 未注册/拉取失败静默（随后 [resolveDataSource] 读缓存时优雅降级）。
+Future<void> _refreshCacheWrite(
+    DataSourceDescriptor ds, DataOrchestrator orch) async {
+  final ep = ds.endpoint;
+  if (ep == null || !ep.startsWith('orch://')) return;
+  try {
+    await orch.refreshByName(ep.substring('orch://'.length));
+  } catch (_) {/* 契约①：刷新失败不阻塞 UI，读侧仍缓存优先 */}
+}
 
 // ═══════ TypeCheckSlot ═══════
 
@@ -389,15 +401,15 @@ class _FlashcardsSlotState extends ConsumerState<FlashcardsSlot>
   }
 
   /// 经数据源拉取词库；失败/为空则优雅降级回本地文件。
-  /// [forceRefresh] 为 true 时绕过 orch 缓存强制重抓（自动刷新 Timer 使用）。
+  /// [forceRefresh] 为 true 时先经中枢强制重抓写缓存，再缓存优先读（契约①）。
   Future<void> _loadFromDataSource(DataSourceDescriptor ds,
       {bool forceRefresh = false}) async {
     try {
-      final resolved = await resolveDataSource(
-        ds: ds,
-        orch: ref.read(dataOrchestratorProvider),
-        forceRefresh: forceRefresh,
-      );
+      final orch = ref.read(dataOrchestratorProvider);
+      if (forceRefresh) {
+        await _refreshCacheWrite(ds, orch); // 写侧：强制重抓写缓存
+      }
+      final resolved = await resolveDataSource(ds: ds, orch: orch); // 读侧：缓存优先
       final words = extractWordList(resolved);
       if (words != null && words.isNotEmpty) {
         if (!mounted) return;
@@ -906,15 +918,16 @@ class _QuizSlotState extends ConsumerState<QuizSlot> {
   }
 
   /// 经数据源拉取 `{wordList, questionTypes, timeLimit, passScore}`；
-  /// 失败/为空则优雅降级回本地文件。[forceRefresh] 为 true 时绕过缓存强制重抓。
+  /// 失败/为空则优雅降级回本地文件。
+  /// [forceRefresh] 为 true 时先经中枢强制重抓写缓存，再缓存优先读（契约①）。
   Future<void> _loadFromDataSource(DataSourceDescriptor ds,
       {bool forceRefresh = false}) async {
     try {
-      final resolved = await resolveDataSource(
-        ds: ds,
-        orch: ref.read(dataOrchestratorProvider),
-        forceRefresh: forceRefresh,
-      );
+      final orch = ref.read(dataOrchestratorProvider);
+      if (forceRefresh) {
+        await _refreshCacheWrite(ds, orch); // 写侧：强制重抓写缓存
+      }
+      final resolved = await resolveDataSource(ds: ds, orch: orch); // 读侧：缓存优先
       // Map 形态可同时携带题型/时限/及格分配置。
       if (resolved is Map<String, dynamic>) {
         _parseConfig(resolved);

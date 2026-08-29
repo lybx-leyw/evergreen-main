@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "second-hand",
+  "name": "二手集市",
+  "description": "闲置转让 · 本地登记工具：登记物品/价格/联系方式，生成转让信息文本一键复制，自行发布到二手平台。数据仅保存在本机，不联网发布。",
+  "template": "html",
+  "version": "1.0.0",
+  "icon": "storefront",
+  "route": "/second-hand",
+  "nav": {
+    "sidebar": {
+      "section": "生活",
+      "sectionOrder": 40,
+      "order": 7
+    }
+  }
+}

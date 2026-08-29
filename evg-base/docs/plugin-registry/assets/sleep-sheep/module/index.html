@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>睡眠小羊</title>
+<style>
+/* ═══ 主题契约：仅本地别名 + --evg-* 兜底，禁止 :root 重定义平台变量 ═══ */
+:root {
+  --bg: var(--evg-background, #0e1a2b);
+  --card: var(--evg-surface, #16263c);
+  --line: var(--evg-border, rgba(255, 255, 255, .08));
+  --ink: var(--evg-text, #e8eef7);
+  --ink-soft: var(--evg-text-secondary, #9fb2c9);
+  --accent: var(--evg-accent, #7ec8ff);
+  --accent-bg: var(--evg-accent-bg, rgba(126, 200, 255, .14));
+  --accent-border: var(--evg-accent-border, rgba(126, 200, 255, .4));
+  --error: var(--evg-error, #ff7a7a);
+  --on-accent: var(--evg-on-accent, #0b1522);
+  --err-bg: rgba(255, 122, 122, .12);
+}
+html { color-scheme: dark; }
+/* 无平台变量注入（独立预览/降级）时，跟随系统暗色偏好 */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: var(--evg-background, #0e1a2b); --card: var(--evg-surface, #16263c);
+    --line: var(--evg-border, rgba(255, 255, 255, .08)); --ink: var(--evg-text, #e8eef7);
+    --ink-soft: var(--evg-text-secondary, #9fb2c9); --accent: var(--evg-accent, #7ec8ff);
+    --accent-bg: var(--evg-accent-bg, rgba(126, 200, 255, .14)); --accent-border: var(--evg-accent-border, rgba(126, 200, 255, .4));
+    --error: var(--evg-error, #ff7a7a); --on-accent: var(--evg-on-accent, #0b1522);
+  }
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: var(--evg-background, #f6f1ea); --card: var(--evg-surface, #fffdf9);
+    --line: var(--evg-border, rgba(61, 35, 32, .1)); --ink: var(--evg-text, #3d2f28);
+    --ink-soft: var(--evg-text-secondary, #7d6b5f); --accent: var(--evg-accent, #3f7fae);
+    --accent-bg: var(--evg-accent-bg, rgba(63, 127, 174, .12)); --accent-border: var(--evg-accent-border, rgba(63, 127, 174, .35));
+    --error: var(--evg-error, #c0392b); --on-accent: var(--evg-on-accent, #ffffff);
+  }
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { font-size: 16px; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, sans-serif;
+  background: var(--bg); color: var(--ink); min-height: 100vh; line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.topbar { display: flex; align-items: center; gap: .75rem; padding: 1.1rem 1.5rem; border-bottom: 1px solid var(--line); background: var(--card); position: sticky; top: 0; z-index: 5; }
+.topbar .moon { font-size: 1.6rem; line-height: 1; }
+.topbar h1 { font-size: 1.15rem; font-weight: 700; letter-spacing: -.01em; }
+.topbar .sub { font-size: .72rem; color: var(--ink-soft); }
+.container { max-width: 46rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 1rem; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0, 0, 0, .18); }
+.card h2 { font-size: .95rem; font-weight: 700; margin-bottom: .9rem; display: flex; align-items: center; gap: .4rem; }
+.card h2 .tag { font-size: .68rem; color: var(--accent); background: var(--accent-bg); border: 1px solid var(--accent-border); padding: .12rem .5rem; border-radius: 999px; font-weight: 600; }
+.stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: .75rem; }
+.stat { background: var(--card); border: 1px solid var(--line); border-radius: .9rem; padding: .9rem .95rem; text-align: center; }
+.stat .v { font-size: 1.4rem; font-weight: 700; letter-spacing: -.02em; }
+.stat .v .unit { font-size: .72rem; opacity: .72; margin-left: .08rem; font-weight: 600; }
+.stat .l { font-size: .7rem; color: var(--ink-soft); margin-top: .2rem; }
+.stat.accent .v { color: var(--accent); }
+.sheep-stage { position: relative; height: 11rem; border-radius: 1rem; background: radial-gradient(circle at 50% 120%, rgba(126, 200, 255, .18), transparent 60%), linear-gradient(180deg, #0d1b2e 0%, #12233a 100%); border: 1px solid var(--line); overflow: hidden; margin-bottom: 1rem; display: flex; align-items: center; justify-content: center; }
+.sheep-row { text-align: center; line-height: 1.1; }
+.sheep { font-size: 2.6rem; display: inline-block; animation: hop 1.1s ease-in-out infinite; filter: drop-shadow(0 .3rem .5rem rgba(0, 0, 0, .35)); }
+@keyframes hop { 0%, 100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-.8rem) rotate(4deg); } }
+.star { position: absolute; color: rgba(255, 255, 255, .5); font-size: .8rem; animation: twinkle 2.6s ease-in-out infinite; }
+@keyframes twinkle { 0%, 100% { opacity: .25; } 50% { opacity: .9; } }
+.stage-hint { position: absolute; bottom: .7rem; left: 1rem; right: 1rem; text-align: center; font-size: .72rem; color: rgba(255, 255, 255, .5); }
+.ctrl { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; margin-top: .9rem; }
+.btn { appearance: none; border: none; cursor: pointer; font-family: inherit; font-size: .85rem; font-weight: 600; padding: .6rem 1.1rem; border-radius: .7rem; color: var(--on-accent); background: var(--accent); transition: transform .15s ease, opacity .15s ease; }
+.btn:hover { transform: translateY(-1px); opacity: .92; }
+.btn:active { transform: translateY(0); }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn.danger { background: transparent; color: var(--error); border: 1px solid rgba(255, 122, 122, .45); }
+.btn.danger.armed { background: var(--error); color: #ffffff; border-color: var(--error); }
+.btn:disabled { opacity: .45; cursor: default; transform: none; }
+:where(button, input, select):focus-visible { outline: 2px solid var(--accent-border); outline-offset: 2px; border-radius: .4rem; }
+.field { margin-bottom: .8rem; }
+.field label { display: block; font-size: .78rem; color: var(--ink-soft); margin-bottom: .3rem; }
+.field input[type="text"], .field input[type="datetime-local"], .field select { width: 100%; padding: .55rem .7rem; border-radius: .6rem; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-family: inherit; font-size: .88rem; }
+.field input[type="range"] { width: 100%; accent-color: var(--accent); }
+.field input:focus, .field select:focus { outline: 2px solid var(--accent-border); border-color: var(--accent-border); }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+.list { display: flex; flex-direction: column; gap: .5rem; }
+.item { display: flex; align-items: center; justify-content: space-between; gap: .6rem; background: var(--bg); border: 1px solid var(--line); border-radius: .7rem; padding: .6rem .8rem; font-size: .85rem; }
+.item .d { display: flex; flex-direction: column; gap: .1rem; }
+.item .d .t { font-weight: 600; }
+.item .d .s { font-size: .72rem; color: var(--ink-soft); }
+.item .right { display: flex; align-items: center; gap: .5rem; font-size: .8rem; color: var(--ink-soft); }
+.icon-btn { appearance: none; border: none; background: transparent; color: var(--ink-soft); cursor: pointer; font-size: 1rem; padding: .2rem .35rem; border-radius: .4rem; }
+.icon-btn:hover { background: var(--accent-bg); color: var(--accent); }
+.empty { text-align: center; color: var(--ink-soft); font-size: .85rem; padding: 1.2rem 0; }
+.msg { margin-top: .8rem; padding: .55rem .8rem; border-radius: .6rem; font-size: .82rem; color: var(--error); background: var(--err-bg); }
+.hidden { display: none !important; }
+.muted { font-size: .74rem; color: var(--ink-soft); }
+/* 助眠工具 */
+.breath-box { display: flex; flex-direction: column; align-items: center; gap: .8rem; padding: .5rem 0 1rem; }
+.breath-circle { width: 7.5rem; height: 7.5rem; border-radius: 50%; background: var(--accent-bg); border: 2px solid var(--accent-border); box-shadow: 0 0 2.4rem var(--accent-bg); }
+.breath-label { font-size: .9rem; font-weight: 600; color: var(--ink); min-height: 1.2em; }
+.select-inline { padding: .55rem .7rem; border-radius: .6rem; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font-family: inherit; font-size: .85rem; }
+.noise-box { border-top: 1px solid var(--line); padding-top: 1rem; }
+.noise-row { display: flex; align-items: center; gap: .7rem; flex-wrap: wrap; }
+.vol-field { margin-top: .7rem; max-width: 22rem; }
+@media (max-width: 40rem) {
+  .topbar { padding: .85rem 1rem; }
+  .stats-row { grid-template-columns: repeat(2, 1fr); gap: .6rem; }
+  .row { grid-template-columns: 1fr; }
+  .ctrl { flex-direction: column; align-items: stretch; }
+  .ctrl .btn { text-align: center; }
+  .select-inline { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheep, .star { animation: none; }
+  .star { opacity: .55; }
+  .btn, .icon-btn { transition: none; }
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <span class="moon" aria-hidden="true">🌙</span>
+  <div><h1>睡眠小羊</h1><div class="sub">数羊助眠 · 睡前打卡 · 睡眠时长统计</div></div>
+</header>
+<main class="container">
+  <section class="card">
+    <div class="sheep-stage" id="stage"></div>
+    <div class="stats-row">
+      <div class="stat accent"><div class="v"><span id="st-today">0.0</span><span class="unit">h</span></div><div class="l">今日睡眠</div></div>
+      <div class="stat"><div class="v"><span id="st-nights">0</span></div><div class="l">累计夜数</div></div>
+      <div class="stat"><div class="v"><span id="st-hours">0.0</span><span class="unit">h</span></div><div class="l">平均时长</div></div>
+      <div class="stat"><div class="v"><span id="st-total">0.0</span><span class="unit">h</span></div><div class="l">总时长</div></div>
+    </div>
+    <div class="ctrl">
+      <button class="btn" id="btn-sleep" type="button">🐑 开始睡眠</button>
+      <button class="btn ghost" id="btn-wake" type="button" disabled>☀️ 记录醒来</button>
+      <button class="btn ghost" id="btn-pause" type="button" disabled>⏸ 暂停计时</button>
+      <button class="btn danger" id="btn-reset" type="button">清空记录</button>
+    </div>
+    <div id="counting" class="hidden" role="status" aria-live="polite" style="margin-top:.9rem; font-size:.85rem; color:var(--ink-soft); text-align:center;"></div>
+    <div id="msg" class="msg hidden" role="alert"></div>
+  </section>
+
+  <section class="card">
+    <h2>助眠工具 <span class="tag">呼吸引导 · 白噪音</span></h2>
+    <div class="breath-box">
+      <div class="breath-circle" id="breath-circle" role="img" aria-label="呼吸引导圆环"></div>
+      <div class="breath-label" id="breath-label" role="status" aria-live="polite">点击「开始呼吸」跟随引导</div>
+      <div class="ctrl" style="margin-top:0">
+        <button class="btn" id="btn-breath" type="button">🌬 开始呼吸</button>
+        <select class="select-inline" id="breath-rhythm" aria-label="呼吸节奏">
+          <option value="4-7-8">4-7-8 放松</option>
+          <option value="4-4-4">4-4-4 平静（箱式）</option>
+          <option value="5-5">5-5 均匀</option>
+        </select>
+      </div>
+      <div class="muted">纯动画提示，无音频；开启「减少动态效果」时仅显示静态提示。</div>
+    </div>
+    <div class="noise-box">
+      <div class="noise-row">
+        <button class="btn ghost" id="btn-noise" type="button">🎧 播放白噪音</button>
+        <span class="muted">Web Audio 合成 · 无需外部资源</span>
+      </div>
+      <div class="field vol-field">
+        <label for="noise-vol">音量 <span id="noise-vol-val">25%</span></label>
+        <input type="range" id="noise-vol" min="0" max="100" value="25" step="5">
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>手动补记 <span class="tag">可选</span></h2>
+    <div class="row">
+      <div class="field"><label for="in-bed">入睡时间</label><input type="datetime-local" id="in-bed"></div>
+      <div class="field"><label for="out-bed">醒来时间</label><input type="datetime-local" id="out-bed"></div>
+    </div>
+    <button class="btn" id="btn-add" type="button">补记一晚</button>
+  </section>
+
+  <section class="card">
+    <h2>最近记录</h2>
+    <div class="list" id="log"></div>
+  </section>
+</main>
+<script>
+(function (global) {
+  'use strict';
+
+  /* ═══════════ 纯逻辑核心（可独立测试） ═══════════ */
+  var CORE = {};
+  var KEY = 'evg.sleep-sheep.log';
+
+  CORE.RHYTHMS = {
+    '4-7-8': { in: 4, hold: 7, out: 8, rest: 0 },
+    '4-4-4': { in: 4, hold: 4, out: 4, rest: 4 },
+    '5-5':   { in: 5, hold: 0, out: 5, rest: 0 },
+  };
+  CORE.RHYTHM_IDS = Object.keys(CORE.RHYTHMS);
+
+  CORE.clamp01 = function (n) { return Math.max(0, Math.min(1, n)); };
+  CORE.hoursBetween = function (a, b) {
+    var ta = Date.parse(a), tb = Date.parse(b);
+    if (isNaN(ta) || isNaN(tb)) return 0;
+    return Math.max(0, (tb - ta) / 36e5);
+  };
+  // 壁钟 deadline 计时：由 Date.now() 补算，杜绝 setInterval 累减漂移
+  CORE.elapsedMs = function (sleeping, now) {
+    if (!sleeping || typeof sleeping.start !== 'string') return 0;
+    var start = Date.parse(sleeping.start);
+    if (isNaN(start)) return 0;
+    var pausedTotal = typeof sleeping.pausedTotal === 'number' ? sleeping.pausedTotal : 0;
+    if (sleeping.pausedAt) {
+      var p = Date.parse(sleeping.pausedAt);
+      if (!isNaN(p)) return Math.max(0, (p - start) - pausedTotal);
+    }
+    return Math.max(0, (now - start) - pausedTotal);
+  };
+  // 数羊计数：入睡后每 1 分钟 1 只，封顶 99
+  CORE.sheepCount = function (ms) { return Math.min(99, Math.floor(ms / 60000)); };
+  CORE.todayKey = function (d) {
+    function p(n) { return (n < 10 ? '0' : '') + n; }
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  };
+  // 今日统计按「入睡日期归属」计：当日开始的已结束记录 + 当日开始的进行中记录
+  CORE.todayHours = function (store, now) {
+    var key = CORE.todayKey(new Date(now));
+    var sum = 0;
+    (store.nights || []).forEach(function (n) {
+      var d = new Date(n.start);
+      if (!isNaN(d.getTime()) && CORE.todayKey(d) === key) {
+        sum += typeof n.hours === 'number' ? n.hours : CORE.hoursBetween(n.start, n.end);
+      }
+    });
+    var s = store.sleeping;
+    if (s) {
+      var sd = new Date(s.start);
+      if (!isNaN(sd.getTime()) && CORE.todayKey(sd) === key) sum += CORE.elapsedMs(s, now) / 36e5;
+    }
+    return sum;
+  };
+  CORE.isSession = function (s) {
+    return !!s && typeof s.start === 'string' && isFinite(Date.parse(s.start));
+  };
+  CORE.isNight = function (n) {
+    return !!n && typeof n.start === 'string' && typeof n.end === 'string' &&
+      isFinite(Date.parse(n.start)) && isFinite(Date.parse(n.end));
+  };
+  CORE.fixNight = function (n) {
+    var h = typeof n.hours === 'number' && isFinite(n.hours) ? n.hours : CORE.hoursBetween(n.start, n.end);
+    return { start: n.start, end: n.end, hours: h >= 0 ? h : 0 };
+  };
+  CORE.normalizePrefs = function (p) {
+    var prefs = p && typeof p === 'object' ? p : {};
+    var breath = CORE.RHYTHM_IDS.indexOf(prefs.breath) >= 0 ? prefs.breath : '4-7-8';
+    var noise = typeof prefs.noise === 'number' && isFinite(prefs.noise) ? CORE.clamp01(prefs.noise) : 0.25;
+    return { breath: breath, noise: noise };
+  };
+  // 存储形状清洗：未知/损坏字段静默回退，不抛异常
+  CORE.normalize = function (raw) {
+    var s = raw && typeof raw === 'object' ? raw : {};
+    var nights = Array.isArray(s.nights) ? s.nights.filter(CORE.isNight).map(CORE.fixNight) : [];
+    var sleeping = null;
+    if (CORE.isSession(s.sleeping)) {
+      sleeping = { start: s.sleeping.start, pausedTotal: 0, pausedAt: null };
+      if (typeof s.sleeping.pausedTotal === 'number' && isFinite(s.sleeping.pausedTotal)) {
+        sleeping.pausedTotal = Math.max(0, s.sleeping.pausedTotal);
+      }
+      if (typeof s.sleeping.pausedAt === 'string' && isFinite(Date.parse(s.sleeping.pausedAt))) {
+        sleeping.pausedAt = s.sleeping.pausedAt;
+      }
+    }
+    var pendingWake = null;
+    if (CORE.isSession(s.pendingWake) && typeof s.pendingWake.end === 'string') {
+      pendingWake = { start: s.pendingWake.start, end: s.pendingWake.end };
+      if (typeof s.pendingWake.hours === 'number' && isFinite(s.pendingWake.hours)) {
+        pendingWake.hours = Math.max(0, s.pendingWake.hours);
+      }
+    }
+    var prefs = CORE.normalizePrefs(s.prefs);
+    var rev = typeof s.rev === 'number' && s.rev >= 0 ? s.rev : 0;
+    return { nights: nights, sleeping: sleeping, pendingWake: pendingWake, prefs: prefs, rev: rev };
+  };
+
+  /* ═══════════ 存储层（localStorage 自动受益平台 polyfill） ═══════════ */
+  function probeLS() {
+    try {
+      var ls = global.localStorage;
+      var k = '__evg_ss_probe__';
+      ls.setItem(k, '1'); ls.removeItem(k);
+      return ls;
+    } catch (e) { return null; }
+  }
+  var LS = probeLS();          // 启动时捕获；bridge 注入后经 onPlatformReady 重捕获
+  var mem = {};                // 内存兜底：localStorage 不可用时会话内有效
+  function rawGet() {
+    var v = null;
+    try { if (LS) v = LS.getItem(KEY); } catch (e) {}
+    if (v == null) v = mem[KEY] || null;
+    return v;
+  }
+  function rawSet(v) {
+    try { if (LS) LS.setItem(KEY, v); } catch (e) {}
+    mem[KEY] = v;
+  }
+  function loadStore() {
+    var raw = rawGet();
+    if (!raw) return CORE.normalize(null);
+    try { return CORE.normalize(JSON.parse(raw)); } catch (e) { return CORE.normalize(null); }
+  }
+  var store = loadStore();
+  function persist() { rawSet(JSON.stringify(store)); }
+  function save() { store.rev = (store.rev || 0) + 1; persist(); }
+
+  var onChange = null;
+  function changed() { if (typeof onChange === 'function') onChange(); }
+  function emit(evt, payload) {
+    try {
+      var P = global.platform;
+      if (P && typeof P.emit === 'function') P.emit(evt, payload || {});
+    } catch (e) { /* 平台未就绪：静默 */ }
+  }
+
+  /* ═══════════ 动作 API（状态机：空闲 / 睡眠 / 暂停） ═══════════ */
+  var api = {};
+  api.getStore = function () { return store; };
+  api.reload = function () { store = loadStore(); changed(); return store; };
+  api.start = function (now) {
+    var n = now || Date.now();
+    store.sleeping = { start: new Date(n).toISOString(), pausedTotal: 0, pausedAt: null };
+    store.pendingWake = null;
+    save(); changed();
+    emit('sleep-sheep:start', { at: store.sleeping.start });
+    return true;
+  };
+  api.pause = function (now) {
+    if (!store.sleeping || store.sleeping.pausedAt) return false;
+    store.sleeping.pausedAt = new Date(now || Date.now()).toISOString();
+    save(); changed();
+    emit('sleep-sheep:pause', { at: store.sleeping.pausedAt });
+    return true;
+  };
+  api.resume = function (now) {
+    if (!store.sleeping || !store.sleeping.pausedAt) return false;
+    var n = now || Date.now();
+    var pausedMs = Date.parse(store.sleeping.pausedAt);
+    if (isFinite(pausedMs)) store.sleeping.pausedTotal = (store.sleeping.pausedTotal || 0) + Math.max(0, n - pausedMs);
+    store.sleeping.pausedAt = null;
+    save(); changed();
+    emit('sleep-sheep:resume', {});
+    return true;
+  };
+  api.wake = function (now) {
+    if (!store.sleeping) return false;
+    var n = now || Date.now();
+    var end = new Date(n).toISOString();
+    var h = CORE.elapsedMs(store.sleeping, n) / 36e5;
+    store.nights.push({ start: store.sleeping.start, end: end, hours: h });
+    store.pendingWake = { start: store.sleeping.start, end: end, hours: h };
+    store.sleeping = null;
+    save(); changed();
+    emit('sleep-sheep:wake', { hours: h });
+    return true;
+  };
+  api.reset = function () {
+    store = CORE.normalize({ nights: [], prefs: store.prefs, rev: store.rev || 0 });
+    save(); changed();
+    emit('sleep-sheep:reset', {});
+    return true;
+  };
+  // 返回错误信息（null = 成功）
+  api.addManual = function (a, b) {
+    var ta = Date.parse(a), tb = Date.parse(b);
+    if (!a || !b || isNaN(ta) || isNaN(tb)) return '请填写正确的入睡 / 醒来时间';
+    if (tb <= ta) return '醒来时间需晚于入睡时间';
+    var h = CORE.hoursBetween(a, b);
+    if (h > 48) return '睡眠时长异常（超过 48 小时）';
+    store.nights.push({ start: new Date(ta).toISOString(), end: new Date(tb).toISOString(), hours: h });
+    save(); changed();
+    return null;
+  };
+  api.removeRecord = function (start) {
+    var before = store.nights.length;
+    store.nights = store.nights.filter(function (n) { return n.start !== start; });
+    if (store.nights.length !== before) { save(); changed(); return true; }
+    return false;
+  };
+  api.setPrefs = function (patch) {
+    var next = Object.assign({}, store.prefs, patch);
+    store.prefs = CORE.normalizePrefs(next);
+    save(); changed();
+    return store.prefs;
+  };
+
+  // 预载竞态对账：localStorage polyfill 异步预载，首帧同步读可能为空。
+  // 平台就绪后以 platform.storage（Dart 侧权威落盘）重读，按 rev 合并。
+  function adopt(remote) {
+    var r = CORE.normalize(remote);
+    var defaultPrefs = CORE.normalizePrefs(null);
+    var lHasPrefs = JSON.stringify(store.prefs) !== JSON.stringify(defaultPrefs);
+    var rHasPrefs = JSON.stringify(r.prefs) !== JSON.stringify(defaultPrefs);
+    var lHas = store.nights.length > 0 || !!store.sleeping || !!store.pendingWake || lHasPrefs;
+    var rHas = r.nights.length > 0 || !!r.sleeping || !!r.pendingWake || rHasPrefs;
+    if ((r.rev || 0) > (store.rev || 0)) return true;
+    // 旧版数据无 rev：本地为空且远端有数据时信任远端（一次性迁移）
+    if ((r.rev || 0) === (store.rev || 0) && !lHas && rHas) return true;
+    return false;
+  }
+  api.syncRemote = function (raw) {
+    if (raw == null) return false;
+    var remote;
+    try { remote = JSON.parse(raw); } catch (e) { return false; }
+    if (!adopt(remote)) return false;
+    store = CORE.normalize(remote);
+    save(); changed();
+    return true;
+  };
+  api.syncFromPlatform = function () {
+    var P = global.platform;
+    if (!P || !P.storage || typeof P.storage.get !== 'function') return false;
+    P.storage.get(KEY).then(function (raw) {
+      if (api.syncRemote(raw)) return;
+      persist(); // 本地为最新：写穿落盘，防原生 WebView 存储丢失
+    }).catch(function () { persist(); });
+    return true;
+  };
+
+  /* ═══════════ DOM 层 ═══════════ */
+  function elById(id) { return document.getElementById(id); }
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  function fmt(dt) {
+    var d = new Date(dt);
+    function p(n) { return (n < 10 ? '0' : '') + n; }
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+  function fmtH(h) { return (Math.round(h * 10) / 10).toFixed(1); }
+
+  var REDUCED = typeof global.matchMedia === 'function' &&
+    global.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function raf(fn) {
+    if (typeof global.requestAnimationFrame === 'function') return global.requestAnimationFrame(fn);
+    return global.setTimeout(function () { fn(Date.now()); }, 50);
+  }
+  function craf(id) {
+    if (typeof global.cancelAnimationFrame === 'function') global.cancelAnimationFrame(id);
+    else global.clearTimeout(id);
+  }
+
+  var msgTimer = null;
+  function setMsg(text) {
+    var m = elById('msg');
+    if (!m) return;
+    if (!text) { m.classList.add('hidden'); m.textContent = ''; return; }
+    m.textContent = text;
+    m.classList.remove('hidden');
+    clearTimeout(msgTimer);
+    msgTimer = setTimeout(function () { m.classList.add('hidden'); }, 4000);
+  }
+
+  function renderStats() {
+    var nights = store.nights || [];
+    var total = 0;
+    nights.forEach(function (n) { total += n.hours; });
+    var avg = nights.length ? total / nights.length : 0;
+    elById('st-today').textContent = fmtH(CORE.todayHours(store, Date.now()));
+    elById('st-nights').textContent = nights.length;
+    elById('st-hours').textContent = fmtH(avg);
+    elById('st-total').textContent = fmtH(total);
+  }
+
+  function renderStage() {
+    var stage = elById('stage');
+    if (!stage) return;
+    var html = '';
+    for (var i = 0; i < 14; i++) {
+      var x = 4 + Math.random() * 90, y = 6 + Math.random() * 70, d = (Math.random() * 2.4 + .4).toFixed(2);
+      html += '<span class="star" style="left:' + x.toFixed(1) + '%; top:' + y.toFixed(1) + '%; animation-delay:' + d + 's">✦</span>';
+    }
+    var s = store.sleeping;
+    var n;
+    if (s) n = Math.max(1, Math.min(12, CORE.sheepCount(CORE.elapsedMs(s, Date.now()))));
+    else n = Math.min(store.nights.length, 5) || 1;
+    var sheep = '';
+    for (var j = 0; j < n; j++) sheep += '<span class="sheep" style="animation-delay:' + (j * 0.22) + 's">🐑</span>';
+    var hint = '';
+    if (!s) {
+      hint = '<div class="stage-hint">' +
+        (store.nights.length ? '已陪伴 ' + store.nights.length + ' 个夜晚，晚安前再数几只羊' : '准备好入睡了吗？点击「开始睡眠」') +
+        '</div>';
+    }
+    stage.innerHTML = '<div class="sheep-row">' + sheep + '</div>' + hint;
+  }
+
+  function renderLog() {
+    var el = elById('log');
+    if (!el) return;
+    var nights = (store.nights || []).slice().sort(function (a, b) { return b.start < a.start ? -1 : 1; });
+    if (!nights.length) { el.innerHTML = '<div class="empty">还没有睡眠记录，今晚试试开始睡眠吧 🐑</div>'; return; }
+    el.innerHTML = nights.map(function (n) {
+      return '<div class="item"><div class="d"><span class="t">' + esc(fmt(n.start)) + ' → ' + esc(fmt(n.end)) +
+        '</span><span class="s">' + fmtH(n.hours) + ' 小时' + '</span></div>' +
+        '<div class="right"><button class="icon-btn" type="button" data-del="' + esc(n.start) + '" title="删除" aria-label="删除这条记录">🗑</button></div></div>';
+    }).join('');
+  }
+
+  function renderTick() {
+    var el = elById('counting');
+    if (!el) return;
+    var s = store.sleeping;
+    if (s) {
+      var ms = CORE.elapsedMs(s, Date.now());
+      var h = ms / 36e5;
+      var sheep = CORE.sheepCount(ms);
+      el.textContent = s.pausedAt
+        ? '已暂停 · 已入睡 ' + fmtH(h) + ' 小时 · 数了 ' + sheep + ' 只羊 🐑'
+        : '已入睡 ' + fmtH(h) + ' 小时 · 数了 ' + sheep + ' 只羊 🐑';
+      el.classList.remove('hidden');
+    } else if (store.pendingWake) {
+      var pw = store.pendingWake;
+      var pwH = typeof pw.hours === 'number' ? pw.hours : CORE.hoursBetween(pw.start, pw.end);
+      el.textContent = '昨晚睡眠 ' + fmtH(pwH) + ' 小时，已记录 ☀️';
+      el.classList.remove('hidden');
+    } else {
+      el.classList.add('hidden');
+    }
+  }
+
+  function renderButtons() {
+    var sleeping = !!store.sleeping;
+    var paused = sleeping && !!store.sleeping.pausedAt;
+    elById('btn-sleep').disabled = sleeping;
+    elById('btn-wake').disabled = !sleeping;
+    var bp = elById('btn-pause');
+    bp.disabled = !sleeping;
+    bp.textContent = paused ? '⏸ 继续睡眠' : '⏸ 暂停计时';
+  }
+
+  function renderAll() {
+    renderStats(); renderLog(); renderStage(); renderTick(); renderButtons();
+  }
+
+  /* 主题：--evg-* 已由平台注入；此处仅做明暗判定与按钮对比色 */
+  function luminance(hex) {
+    if (typeof hex !== 'string') return null;
+    var m = hex.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+    if (!m) return null;
+    var h = m[1];
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    var r = parseInt(h.slice(0, 2), 16) / 255, g = parseInt(h.slice(2, 4), 16) / 255, b = parseInt(h.slice(4, 6), 16) / 255;
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
+  function themeFromColors(colors) {
+    var html = document.documentElement;
+    if (!html || !colors) return;
+    var bg = colors.background;
+    if (bg) {
+      var L = luminance(bg);
+      var dark = L === null ? true : L < 0.45;
+      html.setAttribute('data-evg-mode', dark ? 'dark' : 'light');
+      html.style.colorScheme = dark ? 'dark' : 'light';
+    }
+    var accent = colors.accent;
+    if (accent) {
+      var La = luminance(accent);
+      html.style.setProperty('--evg-on-accent', La === null || La > 0.5 ? '#0b1522' : '#ffffff');
+    }
+  }
+  function themeFromPlatform() {
+    var P = global.platform;
+    if (P && P.theme && typeof P.theme.getColors === 'function') {
+      P.theme.getColors().then(themeFromColors).catch(function () {});
+    }
+  }
+
+  /* 呼吸引导（JS 驱动 + 壁钟分段时间，杜绝漂移；reduced-motion 降级为静态提示） */
+  var breathRunning = false, breathRafId = null;
+  function phaseSeq(r) {
+    var arr = [];
+    if (r.in > 0) arr.push(['in', r.in]);
+    if (r.hold > 0) arr.push(['hold', r.hold]);
+    if (r.out > 0) arr.push(['out', r.out]);
+    if (r.rest > 0) arr.push(['rest', r.rest]);
+    return arr;
+  }
+  var BREATH_LABELS = { in: '吸气', hold: '屏息', out: '呼气', rest: '休息' };
+  function breathStep(idx, segStart) {
+    if (!breathRunning) return;
+    var seq = phaseSeq(CORE.RHYTHMS[store.prefs.breath] || CORE.RHYTHMS['4-7-8']);
+    var seg = seq[idx % seq.length];
+    var nowMs = Date.now();
+    if (!segStart) segStart = nowMs;
+    var phase = seg[0], dur = seg[1] * 1000;
+    if (nowMs - segStart >= dur) { breathStep(idx + 1, null); return; }
+    var p = (nowMs - segStart) / dur;
+    var eased = p < .5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+    var grow = 0.38, scale = 1;
+    if (phase === 'in') scale = 1 + grow * eased;
+    else if (phase === 'hold') scale = 1 + grow;
+    else if (phase === 'out') scale = 1 + grow * (1 - eased);
+    var circle = elById('breath-circle'), label = elById('breath-label');
+    if (circle) circle.style.transform = 'scale(' + scale.toFixed(3) + ')';
+    if (label) label.textContent = BREATH_LABELS[phase] + ' ' + seg[1] + ' 秒';
+    breathRafId = raf(function () { breathStep(idx, segStart); });
+  }
+  function startBreath() {
+    if (REDUCED) { setMsg('已开启「减少动态效果」，呼吸引导以静态提示显示'); return; }
+    stopBreath();
+    breathRunning = true;
+    elById('btn-breath').textContent = '⏸ 停止呼吸';
+    elById('breath-label').textContent = '准备…';
+    breathStep(0, null);
+  }
+  function stopBreath() {
+    breathRunning = false;
+    craf(breathRafId);
+    breathRafId = null;
+    var circle = elById('breath-circle'), label = elById('breath-label'), btn = elById('btn-breath');
+    if (circle) circle.style.transform = '';
+    if (label) label.textContent = '呼吸引导已停止';
+    if (btn) btn.textContent = '🌬 开始呼吸';
+  }
+
+  /* 白噪音：Web Audio 合成（粉噪风，低通），零外部资源 */
+  var AC = null, noiseSrc = null, noiseGain = null, noiseOn = false;
+  function getAudioCtx() {
+    try {
+      var A = global.AudioContext || global.webkitAudioContext;
+      if (!A) return null;
+      if (!AC) AC = new A();
+      if (AC.state === 'suspended') { try { AC.resume(); } catch (e) {} }
+      return AC;
+    } catch (e) { return null; }
+  }
+  function startNoise() {
+    var ctx = getAudioCtx();
+    if (!ctx) { setMsg('当前环境不支持 Web Audio，白噪音不可用'); return; }
+    stopNoise();
+    var len = Math.floor(ctx.sampleRate * 4);
+    var buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    var d = buf.getChannelData(0), last = 0;
+    for (var i = 0; i < len; i++) { var w = Math.random() * 2 - 1; last = (last + 0.02 * w) / 1.02; d[i] = last * 3.5; }
+    var src = ctx.createBufferSource();
+    src.buffer = buf; src.loop = true;
+    var lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1200;
+    var g = ctx.createGain(); g.gain.value = store.prefs.noise;
+    src.connect(lp); lp.connect(g); g.connect(ctx.destination);
+    src.start();
+    noiseSrc = src; noiseGain = g; noiseOn = true;
+    elById('btn-noise').textContent = '⏹ 停止白噪音';
+  }
+  function stopNoise() {
+    if (noiseSrc) { try { noiseSrc.stop(); } catch (e) {} try { noiseSrc.disconnect(); } catch (e) {} noiseSrc = null; }
+    noiseGain = null; noiseOn = false;
+    var btn = elById('btn-noise');
+    if (btn) btn.textContent = '🎧 播放白噪音';
+  }
+  function setNoiseVol(v) {
+    var vol = CORE.clamp01(v);
+    api.setPrefs({ noise: vol });
+    var val = elById('noise-vol-val');
+    if (val) val.textContent = Math.round(vol * 100) + '%';
+    if (noiseGain) {
+      try { noiseGain.gain.setTargetAtTime(vol, getAudioCtx().currentTime, 0.05); }
+      catch (e) { noiseGain.gain.value = vol; }
+    }
+  }
+
+  /* 清空二次确认（无 confirm 弹窗） */
+  var resetArmed = false, resetTimer = null;
+  function disarmReset() {
+    resetArmed = false;
+    clearTimeout(resetTimer);
+    var btn = elById('btn-reset');
+    if (btn) { btn.classList.remove('armed'); btn.textContent = '清空记录'; }
+  }
+
+  function initDOM() {
+    onChange = renderAll;
+
+    elById('btn-sleep').addEventListener('click', function () { api.start(); });
+    elById('btn-wake').addEventListener('click', function () { api.wake(); setMsg('已记录醒来 ☀️'); });
+    elById('btn-pause').addEventListener('click', function () {
+      if (store.sleeping && store.sleeping.pausedAt) api.resume();
+      else api.pause();
+    });
+    elById('btn-reset').addEventListener('click', function () {
+      if (!resetArmed) {
+        resetArmed = true;
+        var btn = elById('btn-reset');
+        btn.classList.add('armed');
+        btn.textContent = '再点一次确认清空';
+        resetTimer = setTimeout(disarmReset, 3500);
+        return;
+      }
+      disarmReset();
+      api.reset();
+      setMsg('所有睡眠记录已清空');
+    });
+    elById('btn-add').addEventListener('click', function () {
+      var a = elById('in-bed').value, b = elById('out-bed').value;
+      var err = api.addManual(a, b);
+      if (err) { setMsg(err); return; }
+      elById('in-bed').value = ''; elById('out-bed').value = '';
+      setMsg('已补记一晚 ✅');
+    });
+    elById('log').addEventListener('click', function (e) {
+      var btn = e.target && e.target.closest ? e.target.closest('[data-del]') : null;
+      if (!btn) return;
+      api.removeRecord(btn.getAttribute('data-del'));
+    });
+
+    elById('btn-breath').addEventListener('click', function () {
+      if (breathRunning) stopBreath(); else startBreath();
+    });
+    elById('breath-rhythm').addEventListener('change', function () {
+      api.setPrefs({ breath: elById('breath-rhythm').value });
+      if (breathRunning) startBreath();
+    });
+    elById('btn-noise').addEventListener('click', function () {
+      if (noiseOn) stopNoise(); else startNoise();
+    });
+    elById('noise-vol').addEventListener('input', function () {
+      setNoiseVol(parseInt(elById('noise-vol').value, 10) / 100);
+    });
+
+    var vol = elById('noise-vol');
+    vol.value = Math.round(store.prefs.noise * 100);
+    elById('noise-vol-val').textContent = Math.round(store.prefs.noise * 100) + '%';
+    elById('breath-rhythm').value = store.prefs.breath;
+
+    document.addEventListener('visibilitychange', function () {
+      // 页面重新可见时立即按壁钟补算（睡眠计时刻意不自动暂停——睡眠会话须跨后台持续）
+      if (document.visibilityState === 'visible') renderAll();
+    });
+    window.addEventListener('beforeunload', stopNoise);
+  }
+
+  function onPlatformReady() {
+    // bridge 注入（Android 晚于内联脚本）后重捕获 localStorage polyfill，再权威对账
+    LS = probeLS();
+    themeFromPlatform();
+    try { global.platform.on('theme:changed', themeFromColors); } catch (e) {}
+    api.syncFromPlatform();
+  }
+
+  function startPlatformWatch() {
+    if (global.platform) { onPlatformReady(); return; }
+    var tries = 0;
+    var timer = setInterval(function () {
+      tries++;
+      if (global.platform) { clearInterval(timer); onPlatformReady(); }
+      else if (tries > 40) clearInterval(timer); // ~8s 超时：独立预览降级为 CSS 兜底
+    }, 200);
+  }
+
+  function boot() {
+    renderAll();
+    startPlatformWatch();
+    setInterval(renderTick, 1000);
+  }
+
+  /* ═══════════ 启动与测试钩子 ═══════════ */
+  if (typeof document !== 'undefined' && document.getElementById) {
+    initDOM();
+    boot();
+  } else {
+    // 无 DOM 环境（Node harness）：静默跳过 UI，核心逻辑仍可用
+  }
+
+  global.__sleepSheep = {
+    api: api,
+    CORE: CORE,
+    getState: function () {
+      return {
+        store: store,
+        sleeping: store.sleeping,
+        nights: store.nights.length,
+        today: CORE.todayHours(store, Date.now()),
+        sheep: store.sleeping ? CORE.sheepCount(CORE.elapsedMs(store.sleeping, Date.now())) : 0,
+      };
+    },
+  };
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+</body>
+</html>

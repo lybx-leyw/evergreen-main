@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>考试倒计时</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+/*
+  主题：只定义别名 + 兜底，绝不重定义 --evg-*（平台经 theme.getColors() 注入，
+  覆盖 documentElement 内联样式；兜底保证无 bridge 的纯浏览器预览仍可用）。
+  明暗自适应：平台主题已随当前主题注入；无注入时按系统 prefers-color-scheme 兜底。
+*/
+:root {
+  --bg: var(--evg-background, #eef2f8);
+  --card: var(--evg-surface, #ffffff);
+  --ink: var(--evg-text, #1f2d40);
+  --ink-soft: var(--evg-text-secondary, #5d7089);
+  --accent: var(--evg-accent, #2f5fd0);
+  --accent-bg: var(--evg-accent-bg, #e4ebfb);
+  --accent-border: var(--evg-accent-border, #c2d2f4);
+  --line: var(--evg-border, rgba(31, 45, 64, .09));
+  --error: var(--evg-error, #d64545);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: var(--evg-background, #12151c);
+    --card: var(--evg-surface, #1a202b);
+    --ink: var(--evg-text, #e8ecf3);
+    --ink-soft: var(--evg-text-secondary, #9aa7bb);
+    --accent: var(--evg-accent, #7d9ff0);
+    --accent-bg: var(--evg-accent-bg, rgba(125, 159, 240, .16));
+    --accent-border: var(--evg-accent-border, rgba(125, 159, 240, .45));
+    --line: var(--evg-border, rgba(232, 236, 243, .14));
+    --error: var(--evg-error, #e07a7a);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+html { font-size: 16px; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, sans-serif; background: var(--bg); color: var(--ink); min-height: 100vh; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+.topbar { display: flex; align-items: center; gap: .75rem; padding: 1.1rem 1.5rem; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--card) 72%, transparent); backdrop-filter: blur(.875rem); -webkit-backdrop-filter: blur(.875rem); position: sticky; top: 0; z-index: 5; }
+.topbar .ico { font-size: 1.5rem; }
+.topbar h1 { font-size: 1.15rem; font-weight: 700; }
+.topbar .sub { font-size: .72rem; color: var(--ink-soft); }
+.container { max-width: 46rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 1rem; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+.card h2 { font-size: .95rem; font-weight: 700; margin-bottom: .9rem; display: flex; align-items: center; justify-content: space-between; }
+.card h2 .f { font-size: .72rem; color: var(--ink-soft); font-weight: 500; }
+
+/* ── 数据源状态栏 + 模式切换 ── */
+.src-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem; font-size: .76rem; color: var(--ink-soft); margin-bottom: 1rem; padding-bottom: .9rem; border-bottom: 1px dashed var(--line); }
+.src-msg { display: inline-flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+.src-msg.ok { color: var(--accent); }
+.src-msg.warn { color: var(--error); }
+.mode-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+.mode-btn { appearance: none; border: none; background: transparent; color: var(--ink-soft); font-family: inherit; font-size: .72rem; padding: .32rem .7rem; cursor: pointer; }
+.mode-btn.active { background: var(--accent); color: #fff; }
+.mode-btn:focus-visible { outline: 2px solid var(--accent-border); outline-offset: -2px; }
+
+.next-exam { text-align: center; padding: .2rem 0 .9rem; }
+.next-exam .label { font-size: .78rem; color: var(--ink-soft); }
+.next-exam .name { font-size: 1.15rem; font-weight: 700; margin: .3rem 0; }
+.next-exam .date { font-size: .78rem; color: var(--ink-soft); }
+.big-count { display: flex; gap: .6rem; justify-content: center; margin-top: .8rem; }
+.big-box { background: color-mix(in srgb, var(--bg) 60%, transparent); border: 1px solid var(--line); border-radius: .9rem; padding: .8rem .7rem; min-width: 5rem; }
+.big-box .n { font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.02em; color: var(--accent); }
+.big-box .l { font-size: .7rem; color: var(--ink-soft); margin-top: .2rem; }
+
+.exams { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: .7rem; }
+.exam { border: 1px solid var(--line); border-radius: .85rem; padding: .8rem .9rem; background: color-mix(in srgb, var(--bg) 45%, transparent); }
+.exam.ended { opacity: .55; }
+.exam .n { font-weight: 700; font-size: .92rem; display: flex; align-items: center; gap: .4rem; }
+.exam .d { font-size: .72rem; color: var(--ink-soft); margin-top: .2rem; }
+.exam .left { margin-top: .45rem; font-size: .9rem; font-weight: 700; }
+.exam .left.urgent { color: var(--error); }
+.exam .left.normal { color: var(--accent); }
+.exam .left.ended, .exam .left.muted { color: var(--ink-soft); font-weight: 600; }
+.badge { display: inline-block; flex: none; font-size: .62rem; font-weight: 600; padding: .08rem .45rem; border-radius: 999px; line-height: 1.4; }
+.badge.real { background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent-border); }
+.badge.manual { background: transparent; color: var(--ink-soft); border: 1px solid var(--line); }
+.exam .ops { margin-top: .5rem; display: flex; gap: .4rem; }
+
+.btn { appearance: none; border: none; cursor: pointer; font-family: inherit; font-size: .85rem; font-weight: 600; padding: .55rem 1.1rem; border-radius: .7rem; color: #fff; background: var(--accent); transition: transform .15s ease, opacity .15s ease; }
+.btn:hover { transform: translateY(-1px); opacity: .92; }
+.btn:focus-visible { outline: 2px solid var(--accent-border); outline-offset: 2px; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn.danger { background: transparent; color: var(--error); border: 1px solid color-mix(in srgb, var(--error) 45%, transparent); }
+.btn.danger.confirming { background: var(--error); color: #fff; border-color: var(--error); }
+.btn.sm { padding: .4rem .8rem; font-size: .78rem; }
+
+.form-row { display: grid; grid-template-columns: 1.4fr 1fr 1fr auto; gap: .55rem; align-items: end; }
+.field label { display: block; font-size: .72rem; color: var(--ink-soft); margin-bottom: .25rem; }
+.field input { width: 100%; padding: .5rem .6rem; border-radius: .6rem; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--ink); font-family: inherit; font-size: .85rem; }
+.field input:focus { outline: 2px solid var(--accent-border); border-color: var(--accent-border); }
+.form-ops { display: flex; gap: .5rem; align-items: center; }
+.empty { text-align: center; color: var(--ink-soft); font-size: .85rem; padding: 1.5rem 0; grid-column: 1 / -1; }
+.note { font-size: .72rem; color: var(--ink-soft); margin-top: .7rem; }
+.note.err { color: var(--error); }
+@media (max-width: 40rem) {
+  .form-row { grid-template-columns: 1fr 1fr; }
+  .f-name { grid-column: 1 / -1; }
+}
+@media (max-width: 30rem) {
+  .form-row { grid-template-columns: 1fr; }
+  .f-name { grid-column: auto; }
+  .exams { grid-template-columns: 1fr; }
+  .big-count { gap: .4rem; }
+  .big-box { min-width: 4rem; padding: .6rem .4rem; }
+  .big-box .n { font-size: 1.6rem; }
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <span class="ico" aria-hidden="true">📝</span>
+  <div><h1>考试倒计时</h1><div class="sub">真实教务考试 + 手动记录 · 剩余天/小时/分实时提醒</div></div>
+</header>
+<main class="container">
+  <section class="card">
+    <div class="src-row" id="src-bar" role="status" aria-live="polite"></div>
+    <div class="next-exam">
+      <div class="label">最近考试</div>
+      <div class="name" id="nx-name">—</div>
+      <div class="date" id="nx-date">—</div>
+    </div>
+    <div class="big-count" id="big" aria-hidden="true"></div>
+  </section>
+  <section class="card">
+    <h2>📚 考试列表 <span class="f" id="ecount">0 门</span></h2>
+    <div class="exams" id="exams"></div>
+  </section>
+  <section class="card">
+    <h2 id="form-title">➕ 添加考试</h2>
+    <form id="form" class="form-row" novalidate>
+      <div class="field f-name"><label for="f-name">科目名称</label><input id="f-name" autocomplete="off" placeholder="高等数学（期末）"></div>
+      <div class="field"><label for="f-date">考试日期</label><input type="date" id="f-date"></div>
+      <div class="field"><label for="f-time">时间（可选）</label><input type="time" id="f-time"></div>
+      <div class="form-ops">
+        <button class="btn" id="b-add" type="submit">添加</button>
+        <button class="btn ghost" id="b-cancel" type="button" hidden>取消</button>
+      </div>
+    </form>
+    <div class="note" id="form-note" role="status" aria-live="polite"></div>
+  </section>
+</main>
+<script>
+(function () {
+  'use strict';
+
+  /* ═══════════════════ 平台与常量 ═══════════════════ */
+  var P = (typeof platform !== 'undefined') ? platform : null;
+  var KEY = 'evg.exam-countdown';
+  var DATA_SOURCE = 'zju_exams';
+  var DATA_TIMEOUT_MS = 5000;   // 数据源读取超时：超时 → 降级手动模式（标注，不报错）
+  var TICK_MS = 30000;          // 计时节流：30s 一次（分钟级精度，避免无效重绘）
+  var DAY = 864e5, HOUR = 36e5, MIN = 6e4;
+
+  /* ═══════════════════ 存储（localStorage 由平台 polyfill 自动落盘） ═══════════════════
+     预载竞态：bridge 异步预载 storage.json 与首帧渲染存在竞态，首帧可能读到空。
+     成熟做法：启动后经 platform.storage.list() 触发一次重读，把持久化数据合并回来
+     （同一后端 FIFO：list 回调执行时预载回调必已执行，内存已含持久化数据）。
+     再加一层：经 platform.storage.get(KEY) 直接读后端权威值 —— 即使本会话已写过
+     （polyfill dirty 保护会跳过该 key 的预载合并），也能恢复更早的持久化记录，
+     按 id 合并且保留本会话写入，杜绝「首帧空 → 覆盖旧数据」。 */
+  var store = { schema: 2, mode: 'auto', exams: [] }; // mode: auto=真实+手动 / manual=仅手动
+  var mutated = false; // 本会话是否已写存储（决定预载后合并策略：未写过→采纳后端，写过→按 id 合并）
+
+  function parseStore(raw) {
+    try { var o = JSON.parse(raw || '{}'); if (o && typeof o === 'object') return o; } catch (e) {}
+    return null;
+  }
+  function normalizeStore() {
+    if (!Array.isArray(store.exams)) store.exams = [];
+    if (store.mode !== 'auto' && store.mode !== 'manual') store.mode = 'auto';
+    store.exams = store.exams.filter(function (e) { return e && typeof e === 'object'; });
+    store.exams.forEach(function (e) {
+      if (!e.id) e.id = genId('m');          // 旧数据兜底：无 id 补 id（增删改按 id 定位）
+      if (!e.date) e.date = '';
+      if (!e.time) e.time = '';
+    });
+  }
+  (function initStore() {
+    var o = parseStore(localStorage.getItem(KEY));
+    if (o) store = o;
+    normalizeStore();
+  })();
+  function save() {
+    mutated = true;
+    try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) { /* 存储失败静默：会话内有效 */ }
+  }
+  function genId(prefix) {
+    return prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+  function tryMergeAfterPreload() {
+    if (!P || !P.storage || !P.storage.list) return;
+    P.storage.list().then(function () {
+      var mem = parseStore(localStorage.getItem(KEY)); // 预载后内存态（FIFO 保证已含持久化数据）
+      var backendP = (P.storage.get && typeof P.storage.get === 'function')
+        ? P.storage.get(KEY).then(parseStore, function () { return null; })
+        : Promise.resolve(null);
+      return backendP.then(function (backend) {
+        if (!mutated) {
+          // 未写过：以后端权威值为准（后端缺失则退回内存态）
+          var base = backend || mem;
+          if (base) { store = base; normalizeStore(); }
+        } else {
+          // 写过：内存 ∪ 后端，按 id 合并且保留本会话写入
+          var byId = {};
+          store.exams.forEach(function (e) { if (e && e.id) byId[e.id] = e; });
+          [mem, backend].forEach(function (o) {
+            if (!o || !Array.isArray(o.exams)) return;
+            o.exams.forEach(function (e) {
+              if (e && e.id && !byId[e.id]) { store.exams.push(e); byId[e.id] = e; }
+            });
+          });
+        }
+        renderAll();
+      });
+    }).catch(function () { /* 对账失败静默：以会话内为准 */ });
+  }
+
+  /* ═══════════════════ 时间与倒计时 ═══════════════════
+     全部按本地时区解析（new Date('YYYY-MM-DDTHH:mm') 无时区 → 本地时间，桌面端正确）。
+     统一口径：daysLeft = floor(距考试 / 24h)，配合小时/分钟显示，跨日自然、无 +1 偏差；
+     无时间考试按「当日 23:59:59.999 截止」计（当天仍算未考，显示 今天截止）。 */
+  function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+  function isValidDate(s) {
+    if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+    var d = new Date(s + 'T00:00:00');
+    if (isNaN(d.getTime())) return false;
+    // 拒绝回绕日期（如 2026-02-30 会被引擎归一化为 03-02）
+    return d.getFullYear() === +s.slice(0, 4) &&
+           d.getMonth() + 1 === +s.slice(5, 7) &&
+           d.getDate() === +s.slice(8, 10);
+  }
+  function isValidTime(s) { return typeof s === 'string' && /^\d{2}:\d{2}$/.test(s); }
+  function examMs(e) {
+    if (!e || !isValidDate(e.date)) return null;
+    var t = e.time && isValidTime(e.time) ? e.time : '23:59:59.999';
+    var d = new Date(e.date + 'T' + t);
+    return isNaN(d.getTime()) ? null : d.getTime();
+  }
+  function nowMs() { return Date.now(); }
+  function remainingMs(e) { var m = examMs(e); return m === null ? null : m - nowMs(); }
+  function daysLeft(e) { var r = remainingMs(e); return r === null ? null : Math.floor(r / DAY); }
+  function hoursLeft(e) { var r = remainingMs(e); return r === null ? null : Math.floor((r % DAY) / HOUR); }
+  function minutesLeft(e) { var r = remainingMs(e); return r === null ? null : Math.floor((r % HOUR) / MIN); }
+  function statusOf(e) {
+    var r = remainingMs(e);
+    if (r === null) return { key: 'unknown', text: '时间未定', cls: 'muted' };
+    if (r < 0) return { key: 'ended', text: '已结束', cls: 'ended' };
+    var d = Math.floor(r / DAY);
+    if (d === 0) {
+      if (e.time && isValidTime(e.time)) return { key: 'today', text: '今天 ' + e.time, cls: 'urgent' };
+      return { key: 'today', text: '今天截止', cls: 'urgent' };
+    }
+    if (d === 1) return { key: 'tomorrow', text: '明天考试', cls: 'urgent' };
+    if (d <= 3) return { key: 'urgent', text: '仅剩 ' + d + ' 天', cls: 'urgent' };
+    return { key: 'normal', text: '剩 ' + d + ' 天', cls: 'normal' };
+  }
+
+  /* ═══════════════════ 真实考试数据（数据中枢 zju_exams） ═══════════════════
+     契约：{"exams":[{id,name,startTime,endTime,location,source}]}
+     startTime/endTime 为 ISO 8601（可含 Z / 可为 null / 历史 'null' 字符串），防御式解析：
+     返回 null = 载荷结构非法（视为源不可用 → 降级）；[] = 源可用但无考试。 */
+  function parseIso(s) {
+    if (typeof s === 'number') { var dn = new Date(s); return isNaN(dn.getTime()) ? null : dn; }
+    if (typeof s !== 'string') return null;
+    s = s.trim();
+    if (!s || s === 'null' || s === 'undefined') return null;
+    var d = new Date(s);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  function localDateStr(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+  function localTimeStr(d) { return pad2(d.getHours()) + ':' + pad2(d.getMinutes()); }
+  function parseRealExams(payload) {
+    if (!payload || typeof payload !== 'object' || !Array.isArray(payload.exams)) return null;
+    var out = [];
+    for (var i = 0; i < payload.exams.length; i++) {
+      var raw = payload.exams[i];
+      if (!raw || typeof raw !== 'object') continue;
+      var st = parseIso(raw.startTime);
+      var exam = {
+        id: 'r' + (String(raw.id == null ? '' : raw.id) || 'x' + i),
+        name: String(raw.name == null ? '' : raw.name).trim() || '未命名考试',
+        origin: 'real',
+        source: String(raw.source == null ? '' : raw.source).trim() || 'zju',
+        location: raw.location ? String(raw.location).trim() : ''
+      };
+      if (st) { exam.date = localDateStr(st); exam.time = localTimeStr(st); }
+      var et = parseIso(raw.endTime);
+      if (et) exam.endMs = et.getTime();
+      out.push(exam);
+    }
+    return out;
+  }
+  function withTimeout(promise, ms) {
+    return Promise.race([
+      promise,
+      new Promise(function (_, reject) { setTimeout(function () { reject(new Error('timeout')); }, ms); })
+    ]);
+  }
+
+  var realExams = []; // 真实考试（只读，来自数据中枢，不持久化）
+  var dataState = { status: 'idle', reason: '', updatedAt: 0 }; // idle|loading|ok|empty|unavailable
+
+  function setDataState(status, reason, updatedAt) {
+    dataState.status = status;
+    dataState.reason = reason || '';
+    if (typeof updatedAt === 'number') dataState.updatedAt = updatedAt;
+  }
+  function loadRealExams() {
+    if (!P || !P.data || typeof P.data.get !== 'function') {
+      setDataState('unavailable', '数据中枢不可用（platform.data 未注入）');
+      renderAll();
+      return;
+    }
+    setDataState('loading');
+    renderSourceBar();
+    var p;
+    try { p = P.data.get(DATA_SOURCE); } catch (e) { p = Promise.reject(e); } // bridge 异常也收敛为降级
+    withTimeout(p, DATA_TIMEOUT_MS)
+      .then(function (payload) {
+        var list = parseRealExams(payload);
+        if (list === null) { realExams = []; setDataState('unavailable', '数据源返回格式异常'); }
+        else { realExams = list; setDataState(list.length ? 'ok' : 'empty', '', Date.now()); }
+        renderAll();
+      })
+      .catch(function (err) {
+        realExams = [];
+        var msg = (err && err.message === 'timeout') ? '读取超时（' + (DATA_TIMEOUT_MS / 1000) + ' 秒）'
+                 : (err && err.message) ? err.message : '未知错误';
+        setDataState('unavailable', msg);
+        renderAll();
+      });
+  }
+  function subscribeRealExams() {
+    if (!P || !P.data || typeof P.data.subscribe !== 'function') return;
+    try {
+      P.data.subscribe(DATA_SOURCE, function (payload) {
+        if (!payload || payload.name !== DATA_SOURCE) return;
+        var list = parseRealExams(payload.data);
+        if (list === null) return; // 变化载荷异常：保留现有
+        realExams = list;
+        setDataState(list.length ? 'ok' : 'empty', '', Date.now());
+        renderAll();
+      });
+    } catch (e) { /* 订阅失败静默：get 一次性读取仍可用 */ }
+  }
+
+  /* ═══════════════════ 列表合并与排序 ═══════════════════
+     真实优先：同名同日期(±时间)的手动重复项在视图中合并掉（真实保留）；
+     未考在前（按时间升序）、已结束其次、时间未定最后。 */
+  function keyOf(e) {
+    if (e && e.date) return 'd:' + e.date + '|' + (e.time || '');
+    return 'rid:' + (e ? e.id : '');
+  }
+  function mergeLists(real, manual) {
+    var seen = {}, out = [];
+    (real || []).forEach(function (e) { var k = keyOf(e); if (!seen[k]) { seen[k] = true; out.push(e); } });
+    (manual || []).forEach(function (e) { var k = keyOf(e); if (!seen[k]) { seen[k] = true; out.push(e); } });
+    return out;
+  }
+  function sortExams(list) {
+    function rank(e) {
+      var m = examMs(e);
+      if (m === null) return { g: 3, t: 0 };
+      if (m < nowMs()) return { g: 2, t: m };
+      return { g: 0, t: m };
+    }
+    return list.slice().sort(function (a, b) {
+      var ra = rank(a), rb = rank(b);
+      if (ra.g !== rb.g) return ra.g - rb.g;
+      if (ra.t !== rb.t) return ra.t - rb.t;
+      return String(a.name || '').localeCompare(String(b.name || ''), 'zh');
+    });
+  }
+  function visibleExams() {
+    if (store.mode === 'manual') return sortExams(store.exams);
+    return sortExams(mergeLists(realExams, store.exams));
+  }
+  function nextExam(list) {
+    var now = nowMs();
+    for (var i = 0; i < list.length; i++) {
+      var m = examMs(list[i]);
+      if (m !== null && m >= now) return list[i];
+    }
+    return null;
+  }
+  function findDuplicate(name, date, time) {
+    var k = keyOf({ date: date, time: time });
+    if (store.mode !== 'manual') {
+      for (var i = 0; i < realExams.length; i++) {
+        if (realExams[i].name === name && keyOf(realExams[i]) === k) return realExams[i];
+      }
+    }
+    for (var j = 0; j < store.exams.length; j++) {
+      if (editingId && store.exams[j].id === editingId) continue;
+      if (store.exams[j].name === name && keyOf(store.exams[j]) === k) return store.exams[j];
+    }
+    return null;
+  }
+
+  /* ═══════════════════ 渲染 ═══════════════════ */
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function fmtTime(ms) {
+    if (!ms) return '';
+    var d = new Date(ms);
+    return pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  }
+  function renderSourceBar() {
+    var el = document.getElementById('src-bar');
+    if (!el) return;
+    var msg = '';
+    if (store.mode === 'manual') {
+      msg = '<span class="src-msg">🖊️ 仅手动模式：真实考试已隐藏</span>';
+    } else {
+      switch (dataState.status) {
+        case 'loading': msg = '<span class="src-msg">⏳ 正在读取真实考试数据…</span>'; break;
+        case 'ok': msg = '<span class="src-msg ok">✅ 真实考试已接入（数据中枢 zju_exams）· ' + fmtTime(dataState.updatedAt) + '</span>'; break;
+        case 'empty': msg = '<span class="src-msg">ℹ️ 真实考试数据为空（zju_exams）</span>'; break;
+        case 'unavailable':
+          msg = '<span class="src-msg warn">⚠️ 真实考试数据不可用：' + esc(dataState.reason) + '，已降级为手动添加</span>' +
+                '<button class="btn ghost sm" type="button" id="b-retry">重试</button>';
+          break;
+        default:
+          msg = '<span class="src-msg">等待数据…</span>';
+      }
+    }
+    var seg = '<span class="mode-seg" role="group" aria-label="数据模式">' +
+      '<button class="mode-btn' + (store.mode === 'auto' ? ' active' : '') + '" type="button" data-mode="auto" aria-pressed="' + (store.mode === 'auto') + '">自动（真实+手动）</button>' +
+      '<button class="mode-btn' + (store.mode === 'manual' ? ' active' : '') + '" type="button" data-mode="manual" aria-pressed="' + (store.mode === 'manual') + '">仅手动</button>' +
+      '</span>';
+    el.innerHTML = '<div class="src-row">' + msg + seg + '</div>';
+  }
+
+  var curNextKey = null;
+  function renderNext() {
+    var list = visibleExams();
+    var next = nextExam(list);
+    var now = nowMs();
+    var upCount = 0;
+    list.forEach(function (e) { var m = examMs(e); if (m !== null && m >= now) upCount++; });
+    var nameEl = document.getElementById('nx-name');
+    var dateEl = document.getElementById('nx-date');
+    var big = document.getElementById('big');
+    if (!next) {
+      nameEl.textContent = '暂无未考科目';
+      dateEl.textContent = (store.mode === 'manual')
+        ? '切换到自动模式可接入真实考试数据'
+        : (dataState.status === 'unavailable' ? '真实数据不可用，可手动添加考试' : '添加考试开始倒计时');
+      big.innerHTML = '<div class="big-box"><div class="n">—</div><div class="l">天</div></div>';
+      curNextKey = null;
+      return;
+    }
+    var key = next.id + '|' + next.date + '|' + (next.time || '') + '|' + (next.origin || '');
+    nameEl.textContent = next.name;
+    var dateLine = next.date + (next.time ? ' ' + next.time : '（当日截止）');
+    if (next.location) dateLine += ' · ' + next.location;
+    dateEl.textContent = dateLine + ' · 共 ' + upCount + ' 门未考';
+    if (key === curNextKey) {
+      // 同一考试：原位更新数字，避免整块重建（减少布局抖动与无效重绘）
+      setNum(big, 'd', daysLeft(next));
+      setNum(big, 'h', hoursLeft(next));
+      setNum(big, 'm', minutesLeft(next));
+      return;
+    }
+    curNextKey = key;
+    big.innerHTML =
+      '<div class="big-box"><div class="n" data-unit="d">' + daysLeft(next) + '</div><div class="l">天</div></div>' +
+      '<div class="big-box"><div class="n" data-unit="h">' + hoursLeft(next) + '</div><div class="l">小时</div></div>' +
+      '<div class="big-box"><div class="n" data-unit="m">' + minutesLeft(next) + '</div><div class="l">分</div></div>';
+  }
+  function setNum(root, unit, val) {
+    var el = root.querySelector('[data-unit="' + unit + '"]');
+    if (el) el.textContent = val;
+  }
+
+  var lastListSig = null;
+  function listSig(list) {
+    var t = new Date(nowMs());
+    var tk = t.getFullYear() + '-' + pad2(t.getMonth() + 1) + '-' + pad2(t.getDate());
+    var parts = [store.mode, tk];
+    list.forEach(function (e) { parts.push(statusOf(e).key); });
+    return parts.join(',');
+  }
+  function countLabel(list) {
+    var n = list.length;
+    if (store.mode === 'manual' || !realExams.length) return n + ' 门';
+    var r = 0;
+    list.forEach(function (e) { if (e.origin === 'real') r++; });
+    return n + ' 门（教务 ' + r + '）';
+  }
+  function renderExams(force) {
+    var list = visibleExams();
+    var sig = listSig(list);
+    if (!force && sig === lastListSig) return; // 状态未变（未跨日/未增减）→ 跳过重建
+    lastListSig = sig;
+    var el = document.getElementById('exams');
+    document.getElementById('ecount').textContent = countLabel(list);
+    if (!list.length) {
+      el.innerHTML = '<div class="empty">' + (store.mode === 'auto' ? '还没有考试，可手动添加或等待真实数据接入' : '还没有考试，添加第一门吧 📝') + '</div>';
+      return;
+    }
+    el.innerHTML = list.map(function (e) {
+      var st = statusOf(e);
+      var isReal = e.origin === 'real';
+      var badge = isReal
+        ? '<span class="badge real" title="来源：数据中枢 ' + esc(e.source) + '">教务</span>'
+        : '<span class="badge manual">手动</span>';
+      var dateLine = e.date ? (e.date + (e.time ? ' ' + e.time : '（当日截止）')) : '时间未定';
+      if (e.location) dateLine += ' · ' + esc(e.location);
+      var ops = isReal ? '' :
+        '<div class="ops">' +
+          '<button class="btn ghost sm" type="button" data-edit="' + esc(e.id) + '">编辑</button>' +
+          '<button class="btn danger sm" type="button" data-del="' + esc(e.id) + '">删除</button>' +
+        '</div>';
+      return '<div class="exam' + (st.key === 'ended' ? ' ended' : '') + '">' +
+        '<div class="n">' + badge + '<span>' + esc(e.name) + '</span></div>' +
+        '<div class="d">' + dateLine + '</div>' +
+        '<div class="left ' + st.cls + '">' + st.text + '</div>' +
+        ops + '</div>';
+    }).join('');
+  }
+  function renderAll() { renderSourceBar(); renderNext(); renderExams(true); }
+
+  /* ═══════════════════ 表单：添加 / 编辑 / 删除 ═══════════════════ */
+  var editingId = null;
+  function setFormNote(text, isErr) {
+    var el = document.getElementById('form-note');
+    el.textContent = text;
+    el.className = 'note' + (isErr ? ' err' : '');
+  }
+  function defaultDate() {
+    var d = new Date(nowMs() + 14 * DAY);
+    return localDateStr(d);
+  }
+  function resetForm() {
+    editingId = null;
+    document.getElementById('form-title').textContent = '➕ 添加考试';
+    document.getElementById('b-add').textContent = '添加';
+    document.getElementById('b-cancel').hidden = true;
+    document.getElementById('f-name').value = '';
+    document.getElementById('f-date').value = defaultDate();
+    document.getElementById('f-time').value = '';
+  }
+  function handleSubmit(ev) {
+    if (ev && ev.preventDefault) ev.preventDefault();
+    var name = document.getElementById('f-name').value.trim();
+    var date = document.getElementById('f-date').value;
+    var time = document.getElementById('f-time').value;
+    if (!name) { setFormNote('请输入科目名称', true); document.getElementById('f-name').focus(); return; }
+    if (!isValidDate(date)) { setFormNote('请选择有效的考试日期', true); document.getElementById('f-date').focus(); return; }
+    if (time && !isValidTime(time)) { setFormNote('时间格式应为 HH:MM', true); document.getElementById('f-time').focus(); return; }
+    var dup = findDuplicate(name, date, time);
+    if (dup) {
+      setFormNote('已存在相同考试（' + (dup.origin === 'real' ? '来自真实数据' : '手动记录') + '），无需重复添加', true);
+      return;
+    }
+    if (editingId) {
+      for (var i = 0; i < store.exams.length; i++) {
+        if (store.exams[i].id === editingId) {
+          store.exams[i].name = name;
+          store.exams[i].date = date;
+          store.exams[i].time = time;
+          break;
+        }
+      }
+      resetForm();
+      save();
+      renderAll();
+      setFormNote('已保存「' + name + '」');
+    } else {
+      store.exams.push({ id: genId('m'), name: name, date: date, time: time, origin: 'manual', createdAt: Date.now() });
+      save();
+      renderAll();
+      setFormNote('已添加「' + name + '」');
+      if (P && P.emit) { try { P.emit('exam-countdown:add', { name: name, date: date }); } catch (e) {} }
+    }
+  }
+  function startEdit(id) {
+    var e = null;
+    for (var i = 0; i < store.exams.length; i++) {
+      if (store.exams[i].id === id) { e = store.exams[i]; break; }
+    }
+    if (!e) return;
+    editingId = id;
+    document.getElementById('f-name').value = e.name;
+    document.getElementById('f-date').value = e.date || '';
+    document.getElementById('f-time').value = e.time || '';
+    document.getElementById('form-title').textContent = '✏️ 编辑考试';
+    document.getElementById('b-add').textContent = '保存修改';
+    document.getElementById('b-cancel').hidden = false;
+    setFormNote('编辑中：修改后点击「保存修改」');
+    document.getElementById('f-name').focus();
+  }
+  function cancelEdit() { resetForm(); setFormNote(''); }
+
+  var confirmId = null, confirmTimer = null;
+  function requestDelete(id, btn) {
+    if (confirmId === id) {
+      // 第二次点击 = 确认
+      if (confirmTimer) { clearTimeout(confirmTimer); confirmTimer = null; }
+      confirmId = null;
+      doDelete(id);
+      return;
+    }
+    confirmId = id;
+    btn.textContent = '确认删除？';
+    btn.classList.add('confirming');
+    if (confirmTimer) clearTimeout(confirmTimer);
+    confirmTimer = setTimeout(function () { confirmTimer = null; resetDeleteConfirm(); }, 3000);
+  }
+  function resetDeleteConfirm() {
+    confirmId = null;
+    if (confirmTimer) { clearTimeout(confirmTimer); confirmTimer = null; }
+    lastListSig = null;
+    renderExams(true); // 重建列表恢复按钮文案
+  }
+  function doDelete(id) {
+    var before = store.exams.length;
+    store.exams = store.exams.filter(function (e) { return e.id !== id; });
+    if (store.exams.length === before) return;
+    save();
+    renderAll();
+    if (P && P.emit) { try { P.emit('exam-countdown:delete', { id: id }); } catch (e) {} }
+  }
+
+  /* ═══════════════════ 事件绑定 ═══════════════════ */
+  document.getElementById('form').addEventListener('submit', handleSubmit);
+  document.getElementById('b-cancel').addEventListener('click', cancelEdit);
+  document.getElementById('form').addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape' && editingId) cancelEdit();
+  });
+  // 列表事件委托：编辑 / 删除（含内联二次确认）
+  document.getElementById('exams').addEventListener('click', function (ev) {
+    var t = ev.target;
+    var del = t.closest ? t.closest('[data-del]') : null;
+    if (del) { requestDelete(del.getAttribute('data-del'), del); return; }
+    var edit = t.closest ? t.closest('[data-edit]') : null;
+    if (edit) startEdit(edit.getAttribute('data-edit'));
+  });
+  // 数据源状态栏事件委托：模式切换 / 重试
+  document.getElementById('src-bar').addEventListener('click', function (ev) {
+    var t = ev.target;
+    if (t && t.id === 'b-retry') { loadRealExams(); return; }
+    var b = t.closest ? t.closest('[data-mode]') : null;
+    if (!b) return;
+    var mode = b.getAttribute('data-mode');
+    if (mode === store.mode) return;
+    store.mode = mode;
+    save();
+    if (mode === 'auto' && dataState.status !== 'ok' && dataState.status !== 'empty' && dataState.status !== 'loading') {
+      loadRealExams(); // 切回自动时若之前失败/未加载 → 立即重试
+    }
+    renderAll();
+  });
+
+  /* ═══════════════════ 启动 ═══════════════════ */
+  document.getElementById('f-date').value = defaultDate();
+  setFormNote('不填时间按当日 23:59 截止计算；真实考试数据来自数据中枢 zju_exams，手动记录保存在本机。');
+  renderAll();
+  tryMergeAfterPreload();  // 预载竞态对账：重读持久化数据合并
+  loadRealExams();         // 数据源接入（5s 超时防御，失败降级手动模式并标注）
+  subscribeRealExams();    // 数据中枢变更实时刷新
+  setInterval(function tick() {
+    if (typeof document !== 'undefined' && document.hidden) return; // 页面不可见时不刷
+    renderNext();          // 30s 级计时（原位更新数字）
+    renderExams(false);    // 列表仅在状态变化（跨日/跨档）时重建
+  }, TICK_MS);
+
+  /* 测试钩子：仅 __EVG_EXAM_TEST__ 标志下暴露纯函数（生产不暴露） */
+  if (typeof window !== 'undefined' && window.__EVG_EXAM_TEST__) {
+    window.__evgExamCore = {
+      examMs: examMs, nowMs: nowMs, remainingMs: remainingMs,
+      daysLeft: daysLeft, hoursLeft: hoursLeft, minutesLeft: minutesLeft, statusOf: statusOf,
+      parseRealExams: parseRealExams, mergeLists: mergeLists, sortExams: sortExams,
+      keyOf: keyOf, isValidDate: isValidDate, isValidTime: isValidTime,
+      parseStore: parseStore, findDuplicate: findDuplicate, nextExam: nextExam, esc: esc
+    };
+    window.__evgExamGetStore = function () { return store; };
+    window.__evgExamSave = save;
+    window.__evgExamRenderAll = renderAll;
+    window.__evgExamLoadReal = loadRealExams;
+    window.__evgExamDataState = function () { return dataState; };
+    window.__evgExamSetReal = function (list) { realExams = list; };
+  }
+})();
+</script>
+</body>
+</html>

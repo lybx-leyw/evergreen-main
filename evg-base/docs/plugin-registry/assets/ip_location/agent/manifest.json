@@ -1,0 +1,20 @@
+{
+  "name": "ip_location",
+  "description": "在线查询 IP 的地理位置与网络信息（国家/地区/城市/ISP 等，经 ip-api.com / ipinfo.io 公开 API；需要联网，网络不可达时返回结构化错误）；只读工具。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "ip": {
+        "type": "string",
+        "description": "IPv4 或 IPv6 地址。"
+      }
+    },
+    "required": [
+      "ip"
+    ]
+  },
+  "readOnly": true,
+  "argMode": "stdin",
+  "runtime": "python",
+  "lifetime": "once"
+}

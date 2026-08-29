@@ -1,0 +1,40 @@
+{
+  "type": "skin",
+  "id": "bamboo-garden",
+  "name": "竹林",
+  "version": "1.0.0",
+  "description": "「竹林」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+  "background": {
+    "type": "image",
+    "imageDesktop": "bg_desktop.svg",
+    "imageMobile": "bg_mobile.svg"
+  },
+  "bubble": {
+    "userBackgroundColor": "#E4F0DD",
+    "userTextColor": "#26351F",
+    "borderRadius": 18
+  },
+  "avatar": {
+    "user": "avatar_user.svg",
+    "userBackgroundColor": "#4C7C39"
+  },
+  "thinking": {
+    "title": "思考过程",
+    "colors": {
+      "header": "#4C7C39",
+      "containerBackground": "#E4F0DD",
+      "containerBorder": "#26351F",
+      "contentText": "#26351F",
+      "chipMemoryBg": "#E4F0DD",
+      "chipMemoryFg": "#4C7C39",
+      "chipSkillBg": "#E4F0DD",
+      "chipSkillFg": "#4C7C39",
+      "chipToolBg": "#E4F0DD",
+      "chipToolFg": "#4C7C39",
+      "chipToolResultBg": "#E4F0DD",
+      "chipToolResultFg": "#4C7C39"
+    }
+  },
+  "effortColor": "#4C7C39",
+  "toolActiveColor": "#4C7C39"
+}

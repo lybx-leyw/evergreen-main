@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "bmi-calc",
+  "name": "BMI 计算",
+  "description": "输入身高体重，按中国标准（18.5/24/28）计算 BMI 体质指数并给出分级与健康建议；最近记录自动保存在本机。",
+  "template": "html",
+  "version": "1.1.0",
+  "icon": "self_improvement",
+  "route": "/bmi-calc",
+  "nav": {
+    "sidebar": {
+      "section": "健康",
+      "sectionOrder": 30,
+      "order": 6
+    }
+  }
+}

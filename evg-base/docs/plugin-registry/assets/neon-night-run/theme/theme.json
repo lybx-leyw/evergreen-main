@@ -1,0 +1,15 @@
+{
+  "type": "theme",
+  "id": "neon-night-run",
+  "name": "荧光夜跑",
+  "colors": {
+    "background": "#14101F",
+    "surface": "#1E1830",
+    "border": "#322852",
+    "text": "#F2F0FA",
+    "textSecondary": "#A99FD0",
+    "accent": "#4DF3B8",
+    "error": "#FF5D7A",
+    "others": "#7B61FF"
+  }
+}

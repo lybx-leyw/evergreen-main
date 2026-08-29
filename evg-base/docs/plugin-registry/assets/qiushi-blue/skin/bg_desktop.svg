@@ -1,0 +1,62 @@
+<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="求是蓝对话背景（横屏）">
+  <!-- 求是蓝主题横屏背景：浅蓝渐变 + 抽象求是鹰双翼 + 摊开书卷，
+       低对比度，叠加渲染层 35% 白遮罩后消息文字清晰可读。 -->
+  <defs>
+    <linearGradient id="qbBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F4F8FC"/>
+      <stop offset="55%" stop-color="#E2EDF7"/>
+      <stop offset="100%" stop-color="#C9DEF2"/>
+    </linearGradient>
+    <linearGradient id="qbWing" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7FB3E8" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#0057A8" stop-opacity="0.14"/>
+    </linearGradient>
+    <linearGradient id="qbBook" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0057A8" stop-opacity="0.20"/>
+      <stop offset="100%" stop-color="#0B2447" stop-opacity="0.10"/>
+    </linearGradient>
+    <radialGradient id="qbGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#qbBg)"/>
+
+  <!-- 柔和光斑（提亮中心，衬托消息区） -->
+  <circle cx="800" cy="450" r="430" fill="url(#qbGlow)"/>
+  <circle cx="200" cy="780" r="250" fill="url(#qbGlow)"/>
+  <circle cx="1440" cy="140" r="230" fill="url(#qbGlow)"/>
+
+  <!-- 抽象求是鹰：展翅双翼 + 鹰身（几何风格，对称） -->
+  <g transform="translate(800 380)">
+    <!-- 左翼 -->
+    <path d="M-6 -70 C -80 -40, -190 -90, -330 -30 C -230 10, -150 40, -60 20 C -90 60, -150 90, -260 110 C -150 90, -70 60, -20 24 Z"
+          fill="url(#qbWing)"/>
+    <!-- 右翼（镜像） -->
+    <path d="M6 -70 C 80 -40, 190 -90, 330 -30 C 230 10, 150 40, 60 20 C 90 60, 150 90, 260 110 C 150 90, 70 60, 20 24 Z"
+          fill="url(#qbWing)"/>
+    <!-- 鹰身（菱形胸腹） -->
+    <path d="M0 -78 C 26 -40, 26 8, 0 46 C -26 8, -26 -40, 0 -78 Z" fill="url(#qbWing)"/>
+    <!-- 尾羽 -->
+    <path d="M-14 40 L 0 96 L 14 40 Z" fill="url(#qbWing)"/>
+  </g>
+
+  <!-- 摊开书卷（求是·书本意象） -->
+  <g transform="translate(800 700)">
+    <path d="M-180 -10 C -90 -46, 0 -20, 0 14 C 0 -20, 90 -46, 180 -10 L 172 64 C 96 32, 24 44, 0 74 C -24 44, -96 32, -172 64 Z"
+          fill="url(#qbBook)"/>
+    <!-- 中缝 -->
+    <path d="M0 -8 C 0 22, 0 44, 0 74" fill="none" stroke="#0B2447" stroke-opacity="0.22" stroke-width="3" stroke-linecap="round"/>
+  </g>
+
+  <!-- 点缀圆点（求是蓝语义色） -->
+  <circle cx="340" cy="620" r="7" fill="#0057A8" fill-opacity="0.14"/>
+  <circle cx="1250" cy="600" r="9" fill="#7FB3E8" fill-opacity="0.20"/>
+  <circle cx="720" cy="830" r="6" fill="#0057A8" fill-opacity="0.12"/>
+  <circle cx="180" cy="360" r="5" fill="#4A6FA5" fill-opacity="0.16"/>
+  <circle cx="1460" cy="470" r="6" fill="#7FB3E8" fill-opacity="0.18"/>
+  <circle cx="980" cy="140" r="5" fill="#4A6FA5" fill-opacity="0.14"/>
+  <circle cx="560" cy="220" r="4" fill="#0057A8" fill-opacity="0.13"/>
+  <circle cx="1330" cy="300" r="5" fill="#7FB3E8" fill-opacity="0.16"/>
+</svg>

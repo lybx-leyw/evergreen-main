@@ -1,0 +1,40 @@
+{
+  "type": "skin",
+  "id": "sakura-season",
+  "name": "樱花季",
+  "version": "1.1.0",
+  "description": "「樱花季」配套皮肤：SVG 樱枝背景（横竖屏 imageDesktop/imageMobile）+ 樱花头像 + 主题色气泡与思考栏，随 theme 成套安装。",
+  "background": {
+    "type": "image",
+    "imageDesktop": "bg_desktop.svg",
+    "imageMobile": "bg_mobile.svg"
+  },
+  "bubble": {
+    "userBackgroundColor": "#FBE9F3",
+    "userTextColor": "#4A2C3E",
+    "borderRadius": 18
+  },
+  "avatar": {
+    "user": "avatar_user.svg",
+    "userBackgroundColor": "#F08BB4"
+  },
+  "thinking": {
+    "title": "思考过程",
+    "colors": {
+      "header": "#9E4168",
+      "containerBackground": "#FBE9F3",
+      "containerBorder": "#4A2C3E",
+      "contentText": "#4A2C3E",
+      "chipMemoryBg": "#FBE9F3",
+      "chipMemoryFg": "#9E4168",
+      "chipSkillBg": "#FBE9F3",
+      "chipSkillFg": "#9E4168",
+      "chipToolBg": "#FBE9F3",
+      "chipToolFg": "#9E4168",
+      "chipToolResultBg": "#FBE9F3",
+      "chipToolResultFg": "#9E4168"
+    }
+  },
+  "effortColor": "#9E4168",
+  "toolActiveColor": "#9E4168"
+}

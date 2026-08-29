@@ -1,0 +1,475 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>论文进度</title><style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+/* 平台主题：bridge 注入 --evg-*（theme.getColors → documentElement 内联），
+   此处只定义别名与兜底值，禁止重定义 --evg-* 令牌本体。
+   兜底用于独立预览 / 注入前的瞬间；平台注入后 var() 自动取注入值。 */
+:root {
+  --fb-bg: #f2f5f3; --fb-card: #ffffff; --fb-ink: #22352b; --fb-ink-soft: #5f7f6d;
+  --fb-accent: #2f8f6e; --fb-accent-bg: #e0f2ea; --fb-accent-border: #bce2d2;
+  --fb-line: rgba(34, 53, 43, .09); --fb-err: #d64545;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fb-bg: #101512; --fb-card: #1a221d; --fb-ink: #e6efe9; --fb-ink-soft: #9db4a6;
+    --fb-accent: #4cc49a; --fb-accent-bg: #14382c; --fb-accent-border: #2c5e4b;
+    --fb-line: rgba(230, 239, 233, .14); --fb-err: #ff8a80;
+  }
+}
+:root {
+  --bg: var(--evg-background, var(--fb-bg));
+  --card: var(--evg-surface, var(--fb-card));
+  --ink: var(--evg-text, var(--fb-ink));
+  --ink-soft: var(--evg-text-secondary, var(--fb-ink-soft));
+  --accent: var(--evg-accent, var(--fb-accent));
+  --accent-bg: var(--evg-accent-bg, var(--fb-accent-bg));
+  --accent-border: var(--evg-accent-border, var(--fb-accent-border));
+  --line: var(--evg-border, var(--fb-line));
+  --err: var(--evg-error, var(--fb-err));
+  /* 语义状态色（与主题色板解耦，两种亮度下均可读） */
+  --st-done: #2f9e5e; --st-wip: #d09a2f;
+}
+[hidden] { display: none !important; }
+html { font-size: 16px; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, sans-serif; background: var(--bg); color: var(--ink); min-height: 100vh; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+:focus-visible { outline: 2px solid var(--accent-border); outline-offset: 2px; }
+.topbar { display: flex; align-items: center; gap: .75rem; padding: 1.1rem 1.5rem; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--card) 72%, transparent); backdrop-filter: blur(.875rem); -webkit-backdrop-filter: blur(.875rem); position: sticky; top: 0; z-index: 5; }
+.topbar .ico { font-size: 1.5rem; }
+.topbar h1 { font-size: 1.15rem; font-weight: 700; }
+.topbar .sub { font-size: .72rem; color: var(--ink-soft); }
+.container { max-width: 48rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 1rem; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+.card h2 { font-size: .95rem; font-weight: 700; margin-bottom: .9rem; display: flex; align-items: center; justify-content: space-between; }
+.card h2 .f { font-size: .72rem; color: var(--ink-soft); font-weight: 500; }
+.overview { text-align: center; padding: .5rem 0 .4rem; }
+.big-pct { font-size: 2.6rem; font-weight: 700; letter-spacing: -.03em; color: var(--accent); }
+.big-pct small { font-size: 1rem; color: var(--ink-soft); }
+.bar { height: .7rem; border-radius: 999px; background: color-mix(in srgb, var(--ink-soft) 12%, transparent); overflow: hidden; margin: .8rem 0; }
+.bar .fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 55%, var(--bg))); transition: width .4s ease; }
+.meta { display: flex; justify-content: center; gap: 1.2rem; font-size: .8rem; color: var(--ink-soft); }
+.meta b { color: var(--ink); }
+.legend { display: flex; justify-content: center; gap: 1.1rem; font-size: .72rem; color: var(--ink-soft); margin: .15rem 0 .95rem; }
+.legend .lg { display: inline-flex; align-items: center; gap: .35rem; }
+.legend .dot { width: .55rem; height: .55rem; border-radius: 50%; display: inline-block; }
+.legend .d-done { background: var(--st-done); }
+.legend .d-wip { background: var(--st-wip); }
+.legend .d-todo { background: color-mix(in srgb, var(--ink-soft) 30%, transparent); }
+.form-row { display: grid; grid-template-columns: 1.5fr .6fr .7fr .85fr auto; gap: .5rem; align-items: end; }
+.field label { display: block; font-size: .72rem; color: var(--ink-soft); margin-bottom: .25rem; }
+.field input, .field select { width: 100%; padding: .5rem .6rem; border-radius: .6rem; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--ink); font-family: inherit; font-size: .85rem; }
+.field input:focus, .field select:focus { outline: 2px solid var(--accent-border); border-color: var(--accent-border); }
+.field input[aria-invalid="true"] { border-color: var(--err); }
+.form-actions { display: flex; gap: .4rem; }
+.btn { appearance: none; border: none; cursor: pointer; font-family: inherit; font-size: .85rem; font-weight: 600; padding: .55rem 1.1rem; border-radius: .7rem; color: #fff; background: var(--accent); transition: transform .15s ease, opacity .15s ease; }
+.btn:hover { transform: translateY(-1px); opacity: .92; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn.sm { padding: .4rem .8rem; font-size: .78rem; }
+.err { color: var(--err); font-size: .78rem; margin-top: .55rem; }
+.preset { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .7rem; }
+.pchip { appearance: none; border: 1px solid var(--line); background: transparent; color: var(--ink-soft); font-family: inherit; font-size: .75rem; padding: .35rem .7rem; border-radius: 999px; cursor: pointer; }
+.pchip:hover { color: var(--accent); border-color: var(--accent-border); }
+.sections { display: flex; flex-direction: column; gap: .55rem; }
+.sec { background: color-mix(in srgb, var(--bg) 48%, transparent); border: 1px solid var(--line); border-radius: .8rem; padding: .7rem .85rem; }
+.sec.editing { outline: 1px dashed var(--accent-border); }
+.sec .head { display: flex; align-items: center; gap: .6rem; }
+.sec .status-dot { width: .7rem; height: .7rem; border-radius: 50%; flex-shrink: 0; background: color-mix(in srgb, var(--ink-soft) 30%, transparent); }
+.sec.done .status-dot { background: var(--st-done); }
+.sec.wip .status-dot { background: var(--st-wip); }
+.sec .name { font-weight: 700; font-size: .9rem; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.sec .words { font-size: .75rem; color: var(--ink-soft); white-space: nowrap; }
+.sec .ops { display: flex; gap: .3rem; align-items: center; }
+.sec .bar { height: .35rem; margin: .5rem 0 0; }
+.sec .bar .fill { background: var(--accent); }
+.sec.todo .bar .fill { background: color-mix(in srgb, var(--ink-soft) 30%, transparent); }
+.icon-btn { appearance: none; border: none; background: transparent; color: var(--ink-soft); cursor: pointer; font-size: .85rem; padding: .15rem .3rem; border-radius: .4rem; }
+.icon-btn:hover { background: var(--accent-bg); color: var(--accent); }
+.icon-btn.danger { color: var(--err); }
+.icon-btn.danger:hover { background: color-mix(in srgb, var(--err) 12%, transparent); }
+.status-btn { appearance: none; border: 1px solid var(--line); background: transparent; color: var(--ink-soft); font-family: inherit; font-size: .68rem; padding: .2rem .5rem; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+.status-btn.on { color: #fff; background: var(--st-done); border-color: var(--st-done); }
+.empty { text-align: center; color: var(--ink-soft); font-size: .85rem; padding: 1.5rem 0; }
+@media (max-width: 44rem) {
+  .form-row { grid-template-columns: 1fr 1fr; }
+  .form-actions { grid-column: 1 / -1; justify-content: flex-end; }
+}
+@media (max-width: 30rem) {
+  .form-row { grid-template-columns: 1fr; }
+  .topbar { padding: .85rem 1rem; }
+  .container { padding: 1rem .75rem 2.5rem; }
+  .sec .head { flex-wrap: wrap; }
+  .sec .words { order: 3; width: 100%; white-space: normal; }
+  .meta { flex-wrap: wrap; gap: .6rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+</style></head><body>
+<header class="topbar">
+  <span class="ico" aria-hidden="true">📄</span>
+  <div><h1>论文进度</h1><div class="sub">章节规划 · 字数统计 · 目标管理</div></div>
+</header>
+<main class="container">
+  <section class="card" aria-label="整体进度概览">
+    <div class="overview">
+      <div class="big-pct"><span id="pct">0</span><small>%</small></div>
+      <div class="bar" id="bar" role="progressbar" aria-label="整体进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="fill" id="fill" style="width:0%"></div></div>
+      <div class="meta">
+        <span>已完成 <b id="m-done">0</b> / <span id="m-total">0</span> 章</span>
+        <span>已写 <b id="m-words">0</b> 字</span>
+        <span>目标 <b id="m-goal">—</b> 字</span>
+      </div>
+    </div>
+    <div class="legend" aria-hidden="true">
+      <span class="lg"><i class="dot d-done"></i>已完成</span>
+      <span class="lg"><i class="dot d-wip"></i>撰写中</span>
+      <span class="lg"><i class="dot d-todo"></i>未开始</span>
+    </div>
+    <h2 id="form-title" style="font-size:.9rem;font-weight:700;margin-bottom:.7rem;">➕ 添加章节</h2>
+    <form class="form-row" id="f-form" novalidate>
+      <div class="field"><label for="f-name">章节名</label><input id="f-name" maxlength="200" placeholder="第三章 方法" autocomplete="off"></div>
+      <div class="field"><label for="f-goal">目标字数</label><input type="number" id="f-goal" min="0" step="1" placeholder="3000" inputmode="numeric"></div>
+      <div class="field"><label for="f-words">当前字数</label><input type="number" id="f-words" min="0" step="1" placeholder="1200" inputmode="numeric"></div>
+      <div class="field"><label for="f-status">初始状态</label>
+        <select id="f-status">
+          <option value="auto">自动（按字数）</option>
+          <option value="todo">未开始</option>
+          <option value="wip">撰写中</option>
+          <option value="done">已完成</option>
+        </select>
+      </div>
+      <div class="form-actions">
+        <button class="btn" id="b-add" type="submit">添加</button>
+        <button class="btn ghost sm" id="b-cancel" type="button" hidden>取消</button>
+      </div>
+    </form>
+    <div class="err" id="f-err" role="alert" hidden></div>
+    <div class="preset" id="presets">
+      <button class="pchip" type="button" data-json='[{"n":"绪论","g":1500},{"n":"文献综述","g":2500},{"n":"研究方法","g":2000},{"n":"实验与结果","g":3000},{"n":"讨论","g":1500},{"n":"结论","g":800}]'>论文默认结构</button>
+    </div>
+  </section>
+  <section class="card" aria-labelledby="list-title">
+    <h2 id="list-title">📚 章节列表 <span class="f" id="scount" aria-live="polite">0 章</span></h2>
+    <div class="sections" id="sections"></div>
+  </section>
+</main>
+<script>
+(function () {
+  'use strict';
+  var P = (typeof platform !== 'undefined') ? platform : null;
+  var KEY = 'evg.paper-progress';
+  var MAX_N = 10000000;
+
+  var store = loadLocal();
+  var editingIndex = -1;   // 正在编辑的章节下标，-1 = 添加模式
+  var userTouched = false; // 本会话用户已写入 → 远端合并不再覆盖
+  var deleteArm = -1;      // 二次确认中的删除下标，-1 = 无
+  var deleteTimer = null;
+  var presetArmed = false; // 预设追加二次确认中
+  var presetTimer = null;
+
+  // ── 纯数据层 ──
+  function clampInt(v, max) {
+    var n = parseInt(v, 10);
+    if (isNaN(n) || !isFinite(n)) return 0;
+    return Math.max(0, Math.min(max, n));
+  }
+  function normalizeSection(x) {
+    return {
+      name: String(x && x.name != null ? x.name : '').slice(0, 200),
+      goal: clampInt(x && x.goal, MAX_N),
+      words: clampInt(x && x.words, MAX_N),
+      st: (x && (x.st === 'todo' || x.st === 'wip' || x.st === 'done')) ? x.st : null
+    };
+  }
+  function normalizeState(obj) {
+    var s = { sections: [], totalGoal: 10000 };
+    if (obj && typeof obj === 'object') {
+      if (Array.isArray(obj.sections)) s.sections = obj.sections.map(normalizeSection);
+      if (typeof obj.totalGoal === 'number' && isFinite(obj.totalGoal)) s.totalGoal = Math.max(0, obj.totalGoal);
+    }
+    return s;
+  }
+  function loadLocal() {
+    var raw = null;
+    try { raw = localStorage.getItem(KEY); } catch (e) {}
+    if (!raw) return { sections: [], totalGoal: 10000 };
+    try { return normalizeState(JSON.parse(raw)); } catch (e) { return { sections: [], totalGoal: 10000 }; }
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) {}
+  }
+  // 状态：显式 st 优先；旧数据按字数推导（向后兼容）
+  function statusOf(s) {
+    if (s.st === 'done') return { k: 'done', l: '已完成' };
+    if (s.st === 'wip') return { k: 'wip', l: '撰写中' };
+    if (s.st === 'todo') return { k: 'todo', l: '未开始' };
+    if (s.goal > 0 && s.words >= s.goal) return { k: 'done', l: '已完成' };
+    if (s.words > 0) return { k: 'wip', l: '撰写中' };
+    return { k: 'todo', l: '未开始' };
+  }
+  function sectionPct(s) {
+    return s.goal > 0 ? Math.min(100, Math.round(s.words / s.goal * 100)) : 0;
+  }
+  function computeOverview() {
+    var totalWords = 0, totalGoal = 0, done = 0;
+    store.sections.forEach(function (s) {
+      totalWords += s.words;
+      if (s.goal > 0) {
+        totalGoal += s.goal;
+        if (statusOf(s).k === 'done') done++;
+      }
+    });
+    return {
+      pct: totalGoal ? Math.min(100, Math.round(totalWords / totalGoal * 100)) : 0,
+      done: done,
+      total: store.sections.length,
+      words: totalWords,
+      goal: totalGoal
+    };
+  }
+  // 状态流转：未开始 → 撰写中 → 已完成 → 未开始。
+  // 进入「已完成」自动补足目标字数（视为写完）；回到「未开始」清零字数。
+  function cycleStatus(s) {
+    var k = statusOf(s).k;
+    if (k === 'todo') {
+      s.st = 'wip';
+    } else if (k === 'wip') {
+      s.st = 'done';
+      if (s.goal > 0 && s.words < s.goal) s.words = s.goal;
+    } else {
+      s.st = 'todo';
+      s.words = 0;
+    }
+  }
+
+  // ── 视图 ──
+  function $(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function renderOverview() {
+    var o = computeOverview();
+    $('pct').textContent = o.pct;
+    $('fill').style.width = o.pct + '%';
+    $('bar').setAttribute('aria-valuenow', String(o.pct));
+    $('m-done').textContent = o.done;
+    $('m-total').textContent = o.total;
+    $('m-words').textContent = o.words;
+    $('m-goal').textContent = o.goal;
+  }
+  function renderSections() {
+    var el = $('sections');
+    $('scount').textContent = store.sections.length + ' 章';
+    if (!store.sections.length) {
+      el.innerHTML = '<div class="empty">还没有章节，添加论文结构开始规划 📄</div>';
+      return;
+    }
+    el.innerHTML = store.sections.map(function (s, i) {
+      var st = statusOf(s);
+      var pct = sectionPct(s);
+      var editing = i === editingIndex ? ' editing' : '';
+      var delCls = i === deleteArm ? ' danger' : '';
+      var delLbl = i === deleteArm ? '确认？' : '🗑';
+      return '<div class="sec ' + st.k + editing + '"><div class="head">' +
+        '<span class="status-dot" aria-hidden="true"></span>' +
+        '<span class="name">' + esc(s.name) + '</span>' +
+        '<span class="words">' + s.words + ' / ' + s.goal + ' 字 · ' + pct + '%</span>' +
+        '<div class="ops">' +
+        '<button class="status-btn' + (st.k === 'done' ? ' on' : '') + '" data-status="' + i + '" title="点击循环：未开始 → 撰写中 → 已完成 → 未开始（回未开始会清零字数）" aria-label="状态：' + st.l + '，点击切换">' + st.l + '</button>' +
+        '<button class="icon-btn" data-plus="' + i + '" title="字数 +100" aria-label="字数加100">+100</button>' +
+        '<button class="icon-btn" data-edit="' + i + '" title="编辑章节" aria-label="编辑章节">✏️</button>' +
+        '<button class="icon-btn' + delCls + '" data-del="' + i + '" title="删除章节（需再次点击确认）" aria-label="删除章节">' + delLbl + '</button>' +
+        '</div></div>' +
+        '<div class="bar"><div class="fill" style="width:' + pct + '%"></div></div></div>';
+    }).join('');
+  }
+  function renderAll() { renderOverview(); renderSections(); }
+
+  // ── 表单（添加 / 编辑复用） ──
+  function showError(msg) {
+    var e = $('f-err');
+    e.textContent = msg;
+    e.hidden = false;
+  }
+  function clearError() {
+    var e = $('f-err');
+    e.hidden = true;
+    e.textContent = '';
+  }
+  function enterAddMode() {
+    editingIndex = -1;
+    $('f-name').value = '';
+    $('f-goal').value = '';
+    $('f-words').value = '';
+    $('f-status').value = 'auto';
+    $('f-name').removeAttribute('aria-invalid');
+    $('form-title').textContent = '➕ 添加章节';
+    $('b-add').textContent = '添加';
+    $('b-cancel').hidden = true;
+    clearError();
+    $('f-name').focus();
+  }
+  function enterEditMode(i) {
+    var s = store.sections[i];
+    if (!s) return;
+    editingIndex = i;
+    $('f-name').value = s.name;
+    $('f-goal').value = s.goal === 0 ? '' : String(s.goal);
+    $('f-words').value = s.words === 0 ? '' : String(s.words);
+    $('f-status').value = s.st || 'auto';
+    $('form-title').textContent = '✏️ 编辑章节';
+    $('b-add').textContent = '保存修改';
+    $('b-cancel').hidden = false;
+    clearError();
+    $('f-name').focus();
+  }
+  function submitForm(ev) {
+    if (ev && ev.preventDefault) ev.preventDefault();
+    var name = $('f-name').value.trim().slice(0, 200);
+    if (!name) {
+      $('f-name').setAttribute('aria-invalid', 'true');
+      showError('请填写章节名');
+      $('f-name').focus();
+      return;
+    }
+    var goal = clampInt($('f-goal').value, MAX_N);
+    var words = clampInt($('f-words').value, MAX_N);
+    var stRaw = $('f-status').value;
+    var st = (stRaw === 'todo' || stRaw === 'wip' || stRaw === 'done') ? stRaw : null;
+    if (st === 'done' && goal > 0 && words < goal) words = goal;
+    if (editingIndex >= 0 && editingIndex < store.sections.length) {
+      store.sections[editingIndex] = normalizeSection({ name: name, goal: goal, words: words, st: st });
+    } else {
+      store.sections.push(normalizeSection({ name: name, goal: goal, words: words, st: st }));
+    }
+    userTouched = true;
+    save();
+    renderAll();
+    enterAddMode();
+    if (P && P.emit) { try { P.emit('paper-progress:add', { name: name }); } catch (e) {} }
+  }
+  function plusWords(i) {
+    var s = store.sections[i];
+    if (!s) return;
+    s.words = clampInt(s.words + 100, MAX_N);
+    if (statusOf(s).k === 'todo' && s.words > 0) s.st = 'wip';
+    userTouched = true;
+    save();
+    renderAll();
+  }
+  function deleteSection(i) {
+    store.sections.splice(i, 1);
+    userTouched = true;
+    if (editingIndex === i) enterAddMode();
+    else if (editingIndex > i) editingIndex--;
+    save();
+    renderAll();
+  }
+  function disarmDelete() {
+    if (deleteArm >= 0) { deleteArm = -1; renderAll(); }
+    clearTimeout(deleteTimer);
+    deleteTimer = null;
+  }
+  function closest(t, sel) {
+    return (t && typeof t.closest === 'function') ? t.closest(sel) : null;
+  }
+
+  // ── 事件绑定 ──
+  $('f-form').addEventListener('submit', submitForm);
+  $('b-cancel').addEventListener('click', function () { enterAddMode(); renderAll(); });
+  ['f-name', 'f-goal', 'f-words'].forEach(function (id) {
+    $(id).addEventListener('input', function () { $(id).removeAttribute('aria-invalid'); clearError(); });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && editingIndex >= 0) { enterAddMode(); renderAll(); }
+  });
+
+  $('sections').addEventListener('click', function (e) {
+    var dl = closest(e.target, '[data-del]');
+    var delIdx = dl ? +dl.getAttribute('data-del') : -1;
+    if (deleteArm >= 0 && delIdx !== deleteArm) disarmDelete();
+    var st = closest(e.target, '[data-status]');
+    var pl = closest(e.target, '[data-plus]');
+    var ed = closest(e.target, '[data-edit]');
+    if (st) {
+      var i = +st.getAttribute('data-status');
+      var s = store.sections[i];
+      if (!s) return;
+      cycleStatus(s);
+      userTouched = true;
+      save();
+      renderAll();
+    } else if (pl) {
+      plusWords(+pl.getAttribute('data-plus'));
+    } else if (ed) {
+      enterEditMode(+ed.getAttribute('data-edit'));
+      renderAll();
+    } else if (dl) {
+      if (delIdx === deleteArm) {
+        disarmDelete();
+        deleteSection(delIdx);
+      } else {
+        deleteArm = delIdx;
+        renderAll();
+        clearTimeout(deleteTimer);
+        deleteTimer = setTimeout(function () { disarmDelete(); }, 3000);
+      }
+    }
+  });
+
+  $('presets').addEventListener('click', function (e) {
+    var b = closest(e.target, '.pchip');
+    if (!b) return;
+    if (!presetArmed) {
+      var cnt = 0;
+      try {
+        var arr0 = JSON.parse(b.getAttribute('data-json'));
+        if (Array.isArray(arr0)) cnt = arr0.length;
+      } catch (err) {}
+      presetArmed = true;
+      b.textContent = cnt > 0 ? ('再点一次追加 ' + cnt + ' 章') : '再点一次追加';
+      clearTimeout(presetTimer);
+      presetTimer = setTimeout(function () {
+        presetArmed = false;
+        b.textContent = '论文默认结构';
+      }, 3000);
+      return;
+    }
+    presetArmed = false;
+    clearTimeout(presetTimer);
+    b.textContent = '论文默认结构';
+    var arr;
+    try { arr = JSON.parse(b.getAttribute('data-json')); } catch (err) { return; }
+    if (!Array.isArray(arr)) return;
+    arr.forEach(function (x) {
+      store.sections.push(normalizeSection({ name: x.n, goal: x.g, words: 0 }));
+    });
+    userTouched = true;
+    save();
+    renderAll();
+  });
+
+  // ── 预载竞态处理 ──
+  // bridge 的 localStorage polyfill 为「同步内存 + 异步 storage.list 预载」，
+  // 本页脚本可能先于预载完成执行。此处经 platform.storage.list() 重读远端一次，
+  // 若本会话尚无用户写入则合并采纳，保证重启后进度恢复。
+  function hydrateRemote() {
+    if (!P || !P.storage || typeof P.storage.list !== 'function') return;
+    P.storage.list().then(function (entries) {
+      if (userTouched) return; // 用户已写入：以本地为准
+      var raw = (entries && typeof entries === 'object') ? entries[KEY] : null;
+      if (typeof raw !== 'string' || !raw) return;
+      var remote;
+      try { remote = normalizeState(JSON.parse(raw)); } catch (e) { return; }
+      if (JSON.stringify(remote) === JSON.stringify(store)) return;
+      store = remote;
+      save(); // 同步回 localStorage 内存态（polyfill 自行落盘）
+      renderAll();
+    }).catch(function () { /* core 未就绪：保持会话内状态 */ });
+  }
+
+  renderAll();
+  hydrateRemote();
+})();
+</script></body></html>

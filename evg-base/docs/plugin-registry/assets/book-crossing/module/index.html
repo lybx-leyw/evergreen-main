@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>图书漂流</title>
+<style>
+/* ================= 基础 ================= */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  /* 本地别名：全部取自平台注入的 --evg-* 主题变量（明暗主题自动换肤）。
+     兜底色仅用于脱离平台（如直接浏览器打开）时的预览，平台内永不生效。 */
+  --bg: var(--evg-background, #f3f1ea);
+  --card: var(--evg-surface, #ffffff);
+  --ink: var(--evg-text, #38301f);
+  --ink-soft: var(--evg-text-secondary, #87795c);
+  --accent: var(--evg-accent, #8a6d3b);
+  --accent-bg: var(--evg-accent-bg, #f2ead8);
+  --accent-border: var(--evg-accent-border, #e2d2ac);
+  --line: var(--evg-border, rgba(56, 48, 31, .12));
+  --error: var(--evg-error, #d64545);
+  --others: var(--evg-others, #b5791e);
+}
+html { font-size: 16px; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, sans-serif;
+  background: var(--bg); color: var(--ink);
+  min-height: 100vh; line-height: 1.5; -webkit-font-smoothing: antialiased;
+}
+:focus-visible { outline: 2px solid var(--accent-border); outline-offset: 2px; }
+
+/* ================= 顶栏 ================= */
+.topbar { position: sticky; top: 0; z-index: 5; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--card) 72%, transparent); backdrop-filter: blur(.875rem); -webkit-backdrop-filter: blur(.875rem); }
+.topbar-inner { max-width: 56rem; margin: 0 auto; padding: 1.05rem 1.5rem; display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+.brand { display: flex; align-items: center; gap: .75rem; min-width: 0; }
+.brand .ico { font-size: 1.5rem; }
+.topbar h1 { font-size: 1.15rem; font-weight: 700; }
+.topbar .sub { font-size: .72rem; color: var(--ink-soft); }
+.local-pill { flex-shrink: 0; font-size: .68rem; font-weight: 600; color: var(--accent); background: var(--accent-bg); border: 1px solid var(--accent-border); border-radius: 999px; padding: .28rem .65rem; white-space: nowrap; }
+
+/* ================= 布局 ================= */
+.container { max-width: 56rem; margin: 0 auto; padding: 1.5rem 1.25rem 2.5rem; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 1rem; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+.card h2 { font-size: .95rem; font-weight: 700; margin-bottom: .9rem; }
+.footnote { text-align: center; font-size: .72rem; color: var(--ink-soft); padding: .6rem 0 0; }
+
+/* ================= 登记表单 ================= */
+.form-grid { display: grid; grid-template-columns: 1.3fr 1fr 1fr auto; gap: .55rem; align-items: end; }
+.field label { display: block; font-size: .72rem; color: var(--ink-soft); margin-bottom: .25rem; }
+.field .req { color: var(--error); }
+.field input { width: 100%; padding: .5rem .6rem; border-radius: .6rem; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--ink); font-family: inherit; font-size: .85rem; }
+.field input:focus { outline: 2px solid var(--accent-border); border-color: var(--accent-border); }
+.form-err { min-height: 1.1em; font-size: .75rem; color: var(--error); margin-top: .45rem; }
+
+/* ================= 统计条 ================= */
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: .7rem; margin-bottom: 1rem; }
+.stat { background: var(--card); border: 1px solid var(--line); border-radius: .9rem; padding: .7rem .8rem; text-align: center; }
+.stat-num { display: block; font-size: 1.3rem; font-weight: 700; line-height: 1.25; }
+.stat-label { font-size: .7rem; color: var(--ink-soft); }
+
+/* ================= 标签页 ================= */
+.tabs { display: flex; gap: .4rem; margin-bottom: .9rem; flex-wrap: wrap; }
+.tab { appearance: none; border: 1px solid var(--line); background: transparent; color: var(--ink-soft); font-family: inherit; font-size: .82rem; padding: .42rem .95rem; border-radius: .7rem; cursor: pointer; }
+.tab:hover { border-color: var(--accent-border); color: var(--ink); }
+.tab.active { color: var(--accent); background: var(--accent-bg); border-color: var(--accent-border); font-weight: 600; }
+
+/* ================= 书架网格 ================= */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: .8rem; }
+.book { border: 1px solid var(--line); border-radius: .9rem; overflow: hidden; background: color-mix(in srgb, var(--bg) 42%, transparent); display: flex; flex-direction: column; }
+.book .cover { height: 6.5rem; display: flex; align-items: center; justify-content: center; font-size: 2.8rem; background: linear-gradient(135deg, var(--accent-bg), var(--card)); }
+.book .body { padding: .7rem .8rem .75rem; flex: 1; display: flex; flex-direction: column; }
+.book .t { font-weight: 700; font-size: .92rem; word-break: break-word; }
+.book .a { font-size: .76rem; color: var(--ink-soft); margin-top: .15rem; }
+.book .meta { display: flex; align-items: center; gap: .4rem; margin-top: .5rem; flex-wrap: wrap; }
+.badge { font-size: .68rem; font-weight: 600; padding: .12rem .5rem; border-radius: 999px; border: 1px solid transparent; }
+.badge.available { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); border-color: color-mix(in srgb, var(--accent) 32%, transparent); }
+.badge.borrowed { color: var(--others); background: color-mix(in srgb, var(--others) 14%, transparent); border-color: color-mix(in srgb, var(--others) 32%, transparent); }
+.badge.lost { color: var(--error); background: color-mix(in srgb, var(--error) 12%, transparent); border-color: color-mix(in srgb, var(--error) 32%, transparent); }
+.tag2 { font-size: .68rem; color: var(--ink-soft); background: color-mix(in srgb, var(--ink-soft) 10%, transparent); padding: .1rem .5rem; border-radius: 999px; }
+.book .note { font-size: .72rem; color: var(--ink-soft); margin-top: .45rem; line-height: 1.5; }
+.book .ops { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .6rem; }
+
+/* ================= 按钮 ================= */
+.btn { appearance: none; border: none; cursor: pointer; font-family: inherit; font-size: .85rem; font-weight: 600; padding: .5rem 1rem; border-radius: .7rem; color: #fff; background: var(--accent); text-shadow: 0 1px 2px rgba(0,0,0,.18); transition: transform .15s ease, opacity .15s ease; }
+.btn:hover { transform: translateY(-1px); opacity: .92; }
+.btn:active { transform: translateY(0); }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); text-shadow: none; }
+.btn.ghost:hover { border-color: var(--accent-border); }
+.btn.danger { background: transparent; color: var(--error); border: 1px solid color-mix(in srgb, var(--error) 45%, transparent); text-shadow: none; }
+.btn.danger:hover { background: color-mix(in srgb, var(--error) 8%, transparent); }
+.btn.sm { padding: .35rem .75rem; font-size: .78rem; }
+
+/* ================= 卡内联编辑 / 借出 ================= */
+.edit-head { font-size: .82rem; font-weight: 700; margin-bottom: .55rem; word-break: break-word; }
+.ef { display: flex; flex-direction: column; gap: .5rem; margin-top: .55rem; }
+.ef label { display: flex; flex-direction: column; gap: .2rem; font-size: .72rem; color: var(--ink-soft); }
+.ef .req { color: var(--error); }
+.ef input, .borrow-row input { width: 100%; padding: .45rem .6rem; border-radius: .6rem; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--ink); font-family: inherit; font-size: .85rem; }
+.ef input:focus, .borrow-row input:focus { outline: 2px solid var(--accent-border); border-color: var(--accent-border); }
+.edit-err { min-height: 1.1em; font-size: .72rem; color: var(--error); margin-top: .4rem; }
+.borrow-row { display: flex; align-items: flex-end; gap: .5rem; margin-top: .55rem; }
+.borrow-row label { flex-shrink: 0; font-size: .76rem; color: var(--ink-soft); padding-bottom: .45rem; }
+.borrow-row input { flex: 1; min-width: 0; }
+
+/* ================= 空状态 / 提示 ================= */
+.empty { text-align: center; color: var(--ink-soft); font-size: .85rem; padding: 2rem 0; grid-column: 1 / -1; }
+.empty .eico { font-size: 1.9rem; display: block; margin-bottom: .5rem; }
+.toast { position: fixed; left: 50%; bottom: 1.25rem; transform: translateX(-50%) translateY(.6rem); background: var(--ink); color: var(--bg); padding: .55rem 1rem; border-radius: .7rem; font-size: .82rem; opacity: 0; pointer-events: none; transition: opacity .18s ease, transform .18s ease; z-index: 50; max-width: min(24rem, calc(100vw - 2rem)); text-align: center; box-shadow: 0 6px 20px rgba(0,0,0,.18); }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ================= 窄屏 ================= */
+@media (max-width: 40rem) {
+  .topbar-inner { padding: .9rem 1rem; flex-wrap: wrap; }
+  .container { padding: 1.1rem .9rem 2.5rem; }
+  .form-grid { grid-template-columns: 1fr 1fr; }
+  .form-grid .f-title, .form-grid .f-btn { grid-column: 1 / -1; }
+  .form-grid .f-btn .btn { width: 100%; }
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr)); }
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <span class="ico" aria-hidden="true">📚</span>
+      <div>
+        <h1>图书漂流</h1>
+        <div class="sub">共享藏书 · 借阅登记 · 让书流动起来</div>
+      </div>
+    </div>
+    <span class="local-pill" title="数据仅保存在本机（插件私有存储），不会上传">💾 数据保存在本机</span>
+  </div>
+</header>
+
+<main class="container">
+  <section class="card" aria-labelledby="reg-title">
+    <h2 id="reg-title">➕ 登记一本书</h2>
+    <form id="form-add" novalidate>
+      <div class="form-grid">
+        <div class="field f-title">
+          <label for="f-title">书名 <span class="req" aria-hidden="true">*</span></label>
+          <input id="f-title" name="title" placeholder="《围城》" maxlength="80" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="f-author">作者</label>
+          <input id="f-author" name="author" placeholder="钱钟书" maxlength="40" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="f-owner">所有者</label>
+          <input id="f-owner" name="owner" placeholder="张三" maxlength="40" autocomplete="off">
+        </div>
+        <div class="field f-btn">
+          <button type="submit" class="btn" id="b-add">登记</button>
+        </div>
+      </div>
+      <p class="form-err" id="form-err" role="alert"></p>
+    </form>
+  </section>
+
+  <section class="stats" aria-label="书架统计">
+    <div class="stat"><span class="stat-num" id="s-all">0</span><span class="stat-label">总数</span></div>
+    <div class="stat"><span class="stat-num" id="s-available">0</span><span class="stat-label">可借</span></div>
+    <div class="stat"><span class="stat-num" id="s-borrowed">0</span><span class="stat-label">借出中</span></div>
+    <div class="stat"><span class="stat-num" id="s-lost">0</span><span class="stat-label">丢失</span></div>
+  </section>
+
+  <section class="card" aria-labelledby="shelf-title">
+    <h2 id="shelf-title">📚 漂流书架</h2>
+    <div class="tabs" id="tabs" role="tablist" aria-label="按状态筛选">
+      <button type="button" class="tab active" role="tab" aria-selected="true" data-f="all">全部</button>
+      <button type="button" class="tab" role="tab" aria-selected="false" data-f="available">可借</button>
+      <button type="button" class="tab" role="tab" aria-selected="false" data-f="borrowed">借出中</button>
+      <button type="button" class="tab" role="tab" aria-selected="false" data-f="lost">丢失</button>
+    </div>
+    <div class="grid" id="grid"></div>
+  </section>
+
+  <p class="footnote">💾 数据仅保存在本机（插件私有存储），不联网、不上传。</p>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var P = (typeof window !== 'undefined' && window.platform) ? window.platform : null;
+  var KEY = 'evg.book-crossing';
+  var STORE_VERSION = 2;
+  var FILTERS = { all: '全部', available: '可借', borrowed: '借出中', lost: '丢失' };
+  var STATUS = {
+    available: { l: '可借', cls: 'available' },
+    borrowed: { l: '借出中', cls: 'borrowed' },
+    lost: { l: '丢失', cls: 'lost' }
+  };
+  var COVER = { available: '📖', borrowed: '📕', lost: '❓' };
+
+  /* ---------- 存储（localStorage 由平台 polyfill 自动落盘；platform.storage 兜底对账） ---------- */
+  var store = { v: STORE_VERSION, books: [] };
+
+  function lsGet(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { window.localStorage.setItem(k, v); return true; } catch (e) { return false; } }
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/`/g, '&#96;');
+  }
+  function newId() {
+    return 'b' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+  function todayStr() {
+    var d = new Date();
+    return (d.getMonth() + 1) + '-' + d.getDate();
+  }
+
+  /* 数据清洗：旧版本数据（缺 id / 非法状态 / 空书名）在此收敛，保证始终合法 */
+  function normalizeBooks(list) {
+    if (!Array.isArray(list)) return [];
+    var seen = {}, out = [];
+    list.forEach(function (b, i) {
+      if (!b || typeof b !== 'object') return;
+      var title = (typeof b.title === 'string' ? b.title : '').trim();
+      if (!title) return;
+      var id = (typeof b.id === 'string' && b.id) ? b.id : null;
+      if (!id || seen[id]) id = 'b' + Date.now().toString(36) + '-' + i + Math.random().toString(36).slice(2, 7);
+      seen[id] = true;
+      var status = (b.status === 'borrowed' || b.status === 'lost') ? b.status : 'available';
+      out.push({
+        id: id,
+        title: title,
+        author: typeof b.author === 'string' ? b.author.trim() : '',
+        owner: (typeof b.owner === 'string' && b.owner.trim()) ? b.owner.trim() : '匿名',
+        status: status,
+        borrower: (status === 'borrowed' && typeof b.borrower === 'string') ? b.borrower.trim() : '',
+        borrowedAt: (status === 'borrowed' && typeof b.borrowedAt === 'string') ? b.borrowedAt.trim() : '',
+        at: typeof b.at === 'string' ? b.at : ''
+      });
+    });
+    return out;
+  }
+
+  function parseStore(raw) {
+    if (typeof raw !== 'string' || !raw) return null;
+    try {
+      var d = JSON.parse(raw);
+      if (d && Array.isArray(d.books)) return d;
+    } catch (e) { /* 损坏数据：按空处理 */ }
+    return null;
+  }
+
+  /* 启动同步读；返回 true 表示本地（polyfill 内存）已有数据 */
+  function initStore() {
+    var d = parseStore(lsGet(KEY));
+    if (!d) return false;
+    var before = JSON.stringify(d.books || []);
+    store.books = normalizeBooks(d.books);
+    if (JSON.stringify(store.books) !== before) save(); // 迁移/清洗后落盘一次
+    return true;
+  }
+
+  function save() {
+    store.v = STORE_VERSION;
+    var json = JSON.stringify(store);
+    lsSet(KEY, json);
+    // 双保险：直接同步到平台权威存储（与 polyfill write-through 幂等）
+    if (P && P.storage && P.storage.set) {
+      try { P.storage.set(KEY, json).catch(function () {}); } catch (e) {}
+    }
+  }
+
+  /* ---------- 工具 ---------- */
+  function emit(name, payload) {
+    if (!P || !P.emit) return;
+    try {
+      var pr = P.emit(name, payload || {});
+      if (pr && pr.catch) pr.catch(function () {});
+    } catch (e) {}
+  }
+
+  var toastTimer = null;
+  function toast(msg) {
+    var el = document.getElementById('toast');
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.add('show');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.classList.remove('show'); }, 2200);
+  }
+
+  function findBook(id) {
+    for (var i = 0; i < store.books.length; i++) {
+      if (store.books[i].id === id) return store.books[i];
+    }
+    return null;
+  }
+
+  function val(scope, sel) {
+    var el = scope.querySelector(sel);
+    return el ? el.value.trim() : '';
+  }
+  function cardErr(id, msg) {
+    var card = document.getElementById('grid').querySelector('.book[data-id="' + id + '"]');
+    if (!card) return;
+    var el = card.querySelector('.edit-err');
+    if (el) el.textContent = msg || '';
+  }
+
+  /* ---------- 视图状态 ---------- */
+  var ui = { filter: 'all', editingId: null, borrowingId: null };
+
+  function renderAll() {
+    renderStats();
+    renderGrid();
+  }
+
+  function renderStats() {
+    var n = { all: store.books.length, available: 0, borrowed: 0, lost: 0 };
+    store.books.forEach(function (b) { n[b.status] = (n[b.status] || 0) + 1; });
+    document.getElementById('s-all').textContent = n.all;
+    document.getElementById('s-available').textContent = n.available;
+    document.getElementById('s-borrowed').textContent = n.borrowed;
+    document.getElementById('s-lost').textContent = n.lost;
+  }
+
+  /* ---------- 渲染：书架 ---------- */
+  function renderGrid() {
+    var gridEl = document.getElementById('grid');
+    var list = store.books.filter(function (b) { return ui.filter === 'all' || b.status === ui.filter; });
+
+    if (!list.length) {
+      var label = FILTERS[ui.filter] || '全部';
+      gridEl.innerHTML = (ui.filter === 'all')
+        ? '<div class="empty"><span class="eico" aria-hidden="true">📭</span>书架还是空的，登记一本书开始漂流吧</div>'
+        : '<div class="empty"><span class="eico" aria-hidden="true">🔍</span>没有「' + esc(label) + '」状态的书</div>';
+      return;
+    }
+
+    gridEl.innerHTML = list.map(function (b) {
+      var html = cardBase(b);
+      if (b.id === ui.editingId) html += editFormHtml(b);
+      else if (b.id === ui.borrowingId) html += borrowFormHtml(b);
+      else html += cardBodyHtml(b);
+      return html + '</div>';
+    }).join('');
+
+    // 焦点管理：进入编辑/借出后聚焦首输入框
+    if (ui.editingId) {
+      var et = gridEl.querySelector('.edit-title');
+      if (et) et.focus();
+    } else if (ui.borrowingId) {
+      var bn = gridEl.querySelector('.borrow-name');
+      if (bn) bn.focus();
+    }
+  }
+
+  function cardBase(b) {
+    return '<div class="book" data-id="' + esc(b.id) + '"><div class="cover" aria-hidden="true">' + (COVER[b.status] || '📖') + '</div>';
+  }
+
+  function cardBodyHtml(b) {
+    var st = STATUS[b.status] || STATUS.available;
+    var meta = '<span class="badge ' + st.cls + '">' + st.l + '</span>';
+    if (b.status === 'borrowed' && b.borrower) meta += '<span class="tag2">借阅：' + esc(b.borrower) + '</span>';
+    if (b.status === 'borrowed' && b.borrowedAt) meta += '<span class="tag2">' + esc(b.borrowedAt) + ' 借出</span>';
+    if (b.at) meta += '<span class="tag2">登记 ' + esc(b.at) + '</span>';
+
+    var note = '';
+    if (b.status === 'borrowed') note = '<div class="note">由 ' + esc(b.borrower || '未知') + ' 借走，记得催还 📅</div>';
+    else if (b.status === 'lost') note = '<div class="note">已标记丢失' + (b.borrower ? '（最后借阅人：' + esc(b.borrower) + '）' : '') + '，找回后可重新上架</div>';
+
+    var ops = '';
+    if (b.status === 'available') {
+      ops += '<button type="button" class="btn sm" data-act="borrow" data-id="' + esc(b.id) + '">借出</button>' +
+             '<button type="button" class="btn ghost sm" data-act="lost" data-id="' + esc(b.id) + '">标记丢失</button>';
+    } else if (b.status === 'borrowed') {
+      ops += '<button type="button" class="btn sm" data-act="return" data-id="' + esc(b.id) + '">归还</button>' +
+             '<button type="button" class="btn ghost sm" data-act="lost" data-id="' + esc(b.id) + '">标记丢失</button>';
+    } else {
+      ops += '<button type="button" class="btn sm" data-act="recover" data-id="' + esc(b.id) + '">找回</button>';
+    }
+    ops += '<button type="button" class="btn ghost sm" data-act="edit" data-id="' + esc(b.id) + '">编辑</button>' +
+           '<button type="button" class="btn danger sm" data-act="del" data-id="' + esc(b.id) + '">删除</button>';
+
+    return '<div class="body">' +
+      '<div class="t">' + esc(b.title) + '</div>' +
+      '<div class="a">' + esc(b.author || '佚名') + ' · ' + esc(b.owner) + ' 的藏书</div>' +
+      '<div class="meta">' + meta + '</div>' +
+      note +
+      '<div class="ops">' + ops + '</div>' +
+    '</div>';
+  }
+
+  function editFormHtml(b) {
+    return '<div class="body">' +
+      '<div class="edit-head">编辑《' + esc(b.title) + '》</div>' +
+      '<div class="ef">' +
+        '<label>书名 <span class="req" aria-hidden="true">*</span><input class="edit-title" data-id="' + esc(b.id) + '" value="' + esc(b.title) + '" maxlength="80" autocomplete="off"></label>' +
+        '<label>作者 <input class="edit-author" data-id="' + esc(b.id) + '" value="' + esc(b.author) + '" maxlength="40" autocomplete="off"></label>' +
+        '<label>所有者 <input class="edit-owner" data-id="' + esc(b.id) + '" value="' + esc(b.owner === '匿名' ? '' : b.owner) + '" maxlength="40" autocomplete="off"></label>' +
+      '</div>' +
+      '<p class="edit-err" role="alert"></p>' +
+      '<div class="ops">' +
+        '<button type="button" class="btn sm" data-act="edit-save" data-id="' + esc(b.id) + '">保存</button>' +
+        '<button type="button" class="btn ghost sm" data-act="edit-cancel" data-id="' + esc(b.id) + '">取消</button>' +
+      '</div>' +
+    '</div>';
+  }
+
+  function borrowFormHtml(b) {
+    return '<div class="body">' +
+      '<div class="t">' + esc(b.title) + '</div>' +
+      '<div class="borrow-row">' +
+        '<label for="borrow-name-' + esc(b.id) + '">借阅人</label>' +
+        '<input id="borrow-name-' + esc(b.id) + '" class="borrow-name" data-id="' + esc(b.id) + '" placeholder="姓名" maxlength="40" autocomplete="off">' +
+      '</div>' +
+      '<p class="edit-err" role="alert"></p>' +
+      '<div class="ops">' +
+        '<button type="button" class="btn sm" data-act="borrow-confirm" data-id="' + esc(b.id) + '">确认借出</button>' +
+        '<button type="button" class="btn ghost sm" data-act="borrow-cancel" data-id="' + esc(b.id) + '">取消</button>' +
+      '</div>' +
+    '</div>';
+  }
+
+  /* ---------- 登记 ---------- */
+  function addBook() {
+    var titleEl = document.getElementById('f-title');
+    var authorEl = document.getElementById('f-author');
+    var ownerEl = document.getElementById('f-owner');
+    var errEl = document.getElementById('form-err');
+    var title = titleEl.value.trim();
+    var author = authorEl.value.trim();
+    var owner = ownerEl.value.trim();
+    if (!title) {
+      errEl.textContent = '请填写书名后再登记';
+      titleEl.focus();
+      return;
+    }
+    errEl.textContent = '';
+    store.books.unshift({
+      id: newId(), title: title, author: author,
+      owner: owner || '匿名', status: 'available',
+      borrower: '', borrowedAt: '', at: todayStr()
+    });
+    save();
+    titleEl.value = ''; authorEl.value = ''; ownerEl.value = '';
+    titleEl.focus();
+    renderAll();
+    toast('已登记《' + title + '》');
+    emit('book-crossing:register', { title: title });
+  }
+
+  /* ---------- 卡片操作 ---------- */
+  function confirmBorrow(id) {
+    var b = findBook(id);
+    if (!b) return;
+    var input = document.getElementById('grid').querySelector('.borrow-name[data-id="' + esc(id) + '"]');
+    var name = input ? input.value.trim() : '';
+    if (!name) {
+      cardErr(id, '请填写借阅人姓名');
+      if (input) input.focus();
+      return;
+    }
+    b.status = 'borrowed'; b.borrower = name; b.borrowedAt = todayStr();
+    ui.borrowingId = null;
+    save(); renderAll();
+    toast('《' + b.title + '》已借出给 ' + name);
+    emit('book-crossing:borrow', { title: b.title, borrower: name });
+  }
+
+  function saveEdit(id) {
+    var b = findBook(id);
+    if (!b) return;
+    var card = document.getElementById('grid').querySelector('.book[data-id="' + esc(id) + '"]');
+    if (!card) return;
+    var title = val(card, '.edit-title');
+    if (!title) {
+      cardErr(id, '书名不能为空');
+      var t = card.querySelector('.edit-title');
+      if (t) t.focus();
+      return;
+    }
+    b.title = title;
+    b.author = val(card, '.edit-author');
+    var owner = val(card, '.edit-owner');
+    b.owner = owner || '匿名';
+    ui.editingId = null;
+    save(); renderAll();
+    toast('已保存《' + b.title + '》');
+  }
+
+  function doReturn(b) {
+    b.status = 'available'; b.borrower = ''; b.borrowedAt = '';
+    save(); renderAll();
+    toast('《' + b.title + '》已归还');
+    emit('book-crossing:return', { title: b.title });
+  }
+
+  function doLost(b) {
+    b.status = 'lost';
+    save(); renderAll();
+    toast('《' + b.title + '》已标记为丢失');
+  }
+
+  function doRecover(b) {
+    b.status = 'available'; b.borrower = ''; b.borrowedAt = '';
+    save(); renderAll();
+    toast('《' + b.title + '》已找回，重新上架');
+  }
+
+  function doDelete(b) {
+    if (!window.confirm('确定删除《' + b.title + '》吗？删除后不可恢复。')) return;
+    store.books = store.books.filter(function (x) { return x.id !== b.id; });
+    save(); renderAll();
+    toast('已删除《' + b.title + '》');
+  }
+
+  function onAction(act, id) {
+    var b = findBook(id);
+    if (act === 'borrow') { ui.editingId = null; ui.borrowingId = id; renderAll(); return; }
+    if (act === 'borrow-confirm') { confirmBorrow(id); return; }
+    if (act === 'borrow-cancel') { ui.borrowingId = null; renderAll(); return; }
+    if (act === 'edit') { ui.borrowingId = null; ui.editingId = id; renderAll(); return; }
+    if (act === 'edit-save') { saveEdit(id); return; }
+    if (act === 'edit-cancel') { ui.editingId = null; renderAll(); return; }
+    if (!b) return;
+    if (act === 'return') doReturn(b);
+    else if (act === 'lost') doLost(b);
+    else if (act === 'recover') doRecover(b);
+    else if (act === 'del') doDelete(b);
+  }
+
+  /* ---------- 筛选 ---------- */
+  function setFilter(f) {
+    if (!FILTERS[f]) return;
+    ui.filter = f;
+    Array.prototype.forEach.call(document.querySelectorAll('#tabs .tab'), function (x) {
+      var on = x.getAttribute('data-f') === f;
+      x.classList.toggle('active', on);
+      x.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+    renderGrid();
+  }
+
+  /* ---------- 事件绑定 ---------- */
+  document.getElementById('form-add').addEventListener('submit', function (e) {
+    e.preventDefault();
+    addBook();
+  });
+  document.getElementById('form-add').addEventListener('input', function () {
+    document.getElementById('form-err').textContent = '';
+  });
+
+  document.getElementById('tabs').addEventListener('click', function (e) {
+    var t = e.target.closest ? e.target.closest('.tab') : null;
+    if (t) setFilter(t.getAttribute('data-f'));
+  });
+  document.getElementById('tabs').addEventListener('keydown', function (e) {
+    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+    var tabs = Array.prototype.slice.call(document.querySelectorAll('#tabs .tab'));
+    var idx = tabs.indexOf(document.activeElement);
+    if (idx === -1) return;
+    e.preventDefault();
+    var next = (e.key === 'ArrowRight') ? (idx + 1) % tabs.length : (idx - 1 + tabs.length) % tabs.length;
+    tabs[next].focus();
+    setFilter(tabs[next].getAttribute('data-f'));
+  });
+
+  var gridEl = document.getElementById('grid');
+  gridEl.addEventListener('click', function (e) {
+    var btn = e.target.closest ? e.target.closest('button[data-act]') : null;
+    if (!btn || !gridEl.contains(btn)) return;
+    onAction(btn.getAttribute('data-act'), btn.getAttribute('data-id'));
+  });
+  gridEl.addEventListener('keydown', function (e) {
+    var t = e.target;
+    if (!t || !t.classList) return;
+    if (e.key === 'Enter') {
+      if (t.classList.contains('borrow-name')) { e.preventDefault(); confirmBorrow(t.getAttribute('data-id')); }
+      else if (t.classList.contains('edit-title') || t.classList.contains('edit-author') || t.classList.contains('edit-owner')) { e.preventDefault(); saveEdit(t.getAttribute('data-id')); }
+    } else if (e.key === 'Escape') {
+      if (ui.editingId || ui.borrowingId) { ui.editingId = null; ui.borrowingId = null; renderAll(); }
+    }
+  });
+
+  /* ---------- 启动 ---------- */
+  var localReady = initStore();
+  renderAll();
+  if (!localReady && P && P.storage && P.storage.get) {
+    // 平台 polyfill 预载是异步的：同步读为空时向权威存储兜底拉一次，防止刷新后短暂"丢数据"
+    try {
+      P.storage.get(KEY).then(function (raw) {
+        var d = parseStore(raw);
+        if (d && d.books && d.books.length) {
+          store.books = normalizeBooks(d.books);
+          lsSet(KEY, JSON.stringify(store));
+          renderAll();
+        }
+      }).catch(function () {});
+    } catch (e) {}
+  }
+})();
+</script>
+</body>
+</html>

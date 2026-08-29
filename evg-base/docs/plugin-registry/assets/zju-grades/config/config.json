@@ -1,0 +1,20 @@
+{
+  "id": "zju-grades",
+  "name": "浙大成绩",
+  "settings": [
+    {
+      "key": "ZJU_USERNAME",
+      "label": "浙大学号",
+      "type": "string",
+      "isSecure": false,
+      "hint": "浙大统一认证账号（学号），用于登录 zdbk 教务网获取成绩"
+    },
+    {
+      "key": "ZJU_PASSWORD",
+      "label": "浙大统一认证密码",
+      "type": "string",
+      "isSecure": true,
+      "hint": "浙大统一认证密码（zjuam.zju.edu.cn），仅在本机用于登录，不离开设备"
+    }
+  ]
+}

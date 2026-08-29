@@ -1,0 +1,15 @@
+{
+  "type": "theme",
+  "id": "deep-ocean",
+  "name": "深海",
+  "colors": {
+    "background": "#0A1A2F",
+    "surface": "#0F2440",
+    "border": "#1D3A5F",
+    "text": "#E4EEF8",
+    "textSecondary": "#8FAAC8",
+    "accent": "#48A1EA",
+    "error": "#E26565",
+    "others": "#4FC3F7"
+  }
+}

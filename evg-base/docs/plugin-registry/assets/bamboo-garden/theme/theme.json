@@ -1,0 +1,15 @@
+{
+  "type": "theme",
+  "id": "bamboo-garden",
+  "name": "竹林",
+  "colors": {
+    "background": "#F2F7EF",
+    "surface": "#FBFEF9",
+    "border": "#D8E8CF",
+    "text": "#26351F",
+    "textSecondary": "#5E7855",
+    "accent": "#4C7C39",
+    "error": "#AE593A",
+    "others": "#A8CD8A"
+  }
+}

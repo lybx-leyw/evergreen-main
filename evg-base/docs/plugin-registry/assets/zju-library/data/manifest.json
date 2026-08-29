@@ -1,0 +1,40 @@
+{
+  "type": "data-source",
+  "id": "zju-library",
+  "name": "浙大图书馆",
+  "script": "fetch.py",
+  "runtime": "python",
+  "androidSupport": true,
+  "dataTypes": [
+    {
+      "name": "zju_library",
+      "typeArg": "zju_library",
+      "category": "校园",
+      "displayName": "图书馆开放时间",
+      "ttl": "6h",
+      "persistentKey": "zju_library",
+      "fallbackJson": {
+        "source": "libweb.zju.edu.cn/55986（开放时间）",
+        "reachable": false,
+        "count": 0,
+        "branches": [],
+        "note": "浙江大学图书馆官网暂不可达（libweb.zju.edu.cn），暂无开放时间数据；恢复网络后会自动刷新。"
+      }
+    },
+    {
+      "name": "zju_library_news",
+      "typeArg": "zju_library_news",
+      "category": "校园",
+      "displayName": "图书馆新闻公告",
+      "ttl": "30m",
+      "persistentKey": "zju_library_news",
+      "fallbackJson": {
+        "source": "libweb.zju.edu.cn/39478（通知公告）+ /55989（本馆新闻）",
+        "reachable": false,
+        "count": 0,
+        "items": [],
+        "note": "浙江大学图书馆官网暂不可达（libweb.zju.edu.cn），暂无新闻公告；恢复网络后会自动刷新。"
+      }
+    }
+  ]
+}

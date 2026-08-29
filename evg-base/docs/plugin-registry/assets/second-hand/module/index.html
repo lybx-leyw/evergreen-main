@@ -1,0 +1,1219 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light dark">
+<title>二手集市</title>
+<style>
+/* ============================================================
+   二手集市 · Evergreen HTML 模块插件
+   定位：本地登记工具 —— 登记闲置物品，生成转让信息文本，
+        由用户复制后自行发布到二手平台 / 群聊 / 朋友圈。
+   数据仅保存在本机（localStorage polyfill + platform.storage），
+   不联网发布、不伪造发布假象。
+   主题：全部颜色取自平台注入的 --evg-* CSS 变量（明暗自动换肤），
+        本文件只在 :root 定义「本地别名 + 兜底值」，绝不重定义平台变量。
+   ============================================================ */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  /* 本地别名：全部取自平台注入的 --evg-* 主题变量（明暗主题自动换肤）。
+     兜底色仅用于脱离平台（如直接浏览器打开）时的预览，平台内永不生效。 */
+  --bg: var(--evg-background, #f5f1ec);
+  --card: var(--evg-surface, #ffffff);
+  --ink: var(--evg-text, #3a3024);
+  --ink-soft: var(--evg-text-secondary, #8a7a62);
+  --accent: var(--evg-accent, #c97f2e);
+  --accent-bg: var(--evg-accent-bg, #f8ecdb);
+  --accent-border: var(--evg-accent-border, #ecd3ac);
+  --line: var(--evg-border, rgba(58, 48, 36, .12));
+  --error: var(--evg-error, #d64545);
+}
+html { font-size: 16px; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, sans-serif;
+  background: var(--bg); color: var(--ink);
+  min-height: 100vh; line-height: 1.5; -webkit-font-smoothing: antialiased;
+}
+:focus-visible { outline: 2px solid var(--accent-border); outline-offset: 2px; }
+
+/* ================= 顶栏 ================= */
+.topbar { position: sticky; top: 0; z-index: 5; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--card) 72%, transparent); backdrop-filter: blur(.875rem); -webkit-backdrop-filter: blur(.875rem); }
+.topbar-inner { max-width: 56rem; margin: 0 auto; padding: 1.05rem 1.5rem; display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+.brand { display: flex; align-items: center; gap: .75rem; min-width: 0; }
+.brand .ico { font-size: 1.5rem; }
+.topbar h1 { font-size: 1.15rem; font-weight: 700; }
+.topbar .sub { font-size: .72rem; color: var(--ink-soft); }
+.local-pill { flex-shrink: 0; font-size: .68rem; font-weight: 600; color: var(--accent); background: var(--accent-bg); border: 1px solid var(--accent-border); border-radius: 999px; padding: .28rem .65rem; white-space: nowrap; }
+
+/* ================= 布局 ================= */
+.container { max-width: 56rem; margin: 0 auto; padding: 1.5rem 1.25rem 2.5rem; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 1rem; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+.card h2 { font-size: .95rem; font-weight: 700; margin-bottom: .9rem; display: flex; align-items: center; justify-content: space-between; gap: .5rem; flex-wrap: wrap; }
+.card h2 .f { font-size: .72rem; color: var(--ink-soft); font-weight: 500; }
+.footnote { text-align: center; font-size: .72rem; color: var(--ink-soft); padding: .6rem 0 0; }
+
+/* 诚实声明：本地登记工具，不联网发布 */
+.local-note { font-size: .78rem; color: var(--ink-soft); background: color-mix(in srgb, var(--accent-bg) 55%, transparent); border: 1px solid var(--accent-border); border-radius: .7rem; padding: .55rem .75rem; margin-bottom: .9rem; line-height: 1.6; }
+.local-note b { color: var(--ink); }
+
+/* ================= 登记表单 ================= */
+.form-grid { display: grid; grid-template-columns: 1.3fr .8fr 1fr 1fr; gap: .55rem; align-items: start; }
+.field label { display: block; font-size: .72rem; color: var(--ink-soft); margin-bottom: .25rem; }
+.field .req { color: var(--error); }
+.field input, .field select { width: 100%; padding: .5rem .6rem; border-radius: .6rem; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--ink); font-family: inherit; font-size: .85rem; }
+.field input:focus, .field select:focus { outline: 2px solid var(--accent-border); border-color: var(--accent-border); }
+.field input.invalid, .field select.invalid { border-color: color-mix(in srgb, var(--error) 60%, transparent); }
+.field .ferr { min-height: 1.1em; font-size: .72rem; color: var(--error); margin-top: .3rem; }
+.f-full { grid-column: 1 / -1; }
+.f-img-row { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+.f-img-row img { height: 4.2rem; width: 4.2rem; object-fit: cover; border-radius: .6rem; border: 1px solid var(--line); }
+.form-err { min-height: 1.1em; font-size: .75rem; color: var(--error); margin-top: .55rem; }
+.draft-hint { font-size: .72rem; color: var(--ink-soft); margin-top: .55rem; }
+.draft-hint[hidden] { display: none; }
+.submit-row { display: flex; align-items: center; gap: .75rem; margin-top: .85rem; flex-wrap: wrap; }
+
+/* ================= 统计条 ================= */
+.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: .7rem; margin-bottom: 1rem; }
+.stat { background: var(--card); border: 1px solid var(--line); border-radius: .9rem; padding: .7rem .8rem; text-align: center; }
+.stat-num { display: block; font-size: 1.3rem; font-weight: 700; line-height: 1.25; }
+.stat-label { font-size: .7rem; color: var(--ink-soft); }
+
+/* ================= 筛选工具栏 ================= */
+.toolbar { display: flex; flex-direction: column; gap: .6rem; margin-bottom: 1rem; }
+.search-row { display: flex; gap: .5rem; }
+.search-row input { flex: 1; min-width: 0; padding: .55rem .75rem; border-radius: .7rem; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--ink); font-family: inherit; font-size: .9rem; }
+.search-row input:focus { outline: 2px solid var(--accent-border); border-color: var(--accent-border); }
+.chips { display: flex; gap: .4rem; flex-wrap: wrap; }
+.chip { appearance: none; border: 1px solid var(--line); background: transparent; color: var(--ink-soft); font-family: inherit; font-size: .78rem; padding: .35rem .8rem; border-radius: 999px; cursor: pointer; }
+.chip:hover { border-color: var(--accent-border); color: var(--ink); }
+.chip.active { color: var(--accent); background: var(--accent-bg); border-color: var(--accent-border); font-weight: 600; }
+.f-row { display: flex; align-items: center; justify-content: space-between; gap: .6rem; flex-wrap: wrap; }
+.sort-box { display: flex; align-items: center; gap: .4rem; font-size: .76rem; color: var(--ink-soft); }
+.sort-box select { padding: .35rem .5rem; border-radius: .6rem; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--ink); font-family: inherit; font-size: .78rem; }
+
+/* ================= 卡片网格 ================= */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: .8rem; }
+.item { border: 1px solid var(--line); border-radius: .9rem; overflow: hidden; background: color-mix(in srgb, var(--bg) 42%, transparent); display: flex; flex-direction: column; }
+.item.flash { animation: flashbg 1.6s ease; }
+@keyframes flashbg { 0% { background: color-mix(in srgb, var(--accent-bg) 80%, transparent); } 100% { background: color-mix(in srgb, var(--bg) 42%, transparent); } }
+.thumb { height: 7.5rem; width: 100%; display: flex; align-items: center; justify-content: center; font-size: 3rem; background: color-mix(in srgb, var(--accent-bg) 70%, var(--card)); border: none; padding: 0; cursor: pointer; font-family: inherit; }
+.thumb img { width: 100%; height: 100%; object-fit: cover; }
+.item .body { padding: .7rem .8rem .75rem; display: flex; flex-direction: column; flex: 1; }
+.item .t { font-weight: 700; font-size: .92rem; word-break: break-word; }
+.item .d { font-size: .78rem; color: var(--ink-soft); margin-top: .25rem; line-height: 1.5; flex: 1; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.item .meta { display: flex; align-items: center; gap: .35rem; margin-top: .5rem; flex-wrap: wrap; }
+.badge { font-size: .68rem; font-weight: 600; padding: .1rem .5rem; border-radius: 999px; border: 1px solid transparent; }
+.badge.on { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); border-color: color-mix(in srgb, var(--accent) 32%, transparent); }
+.badge.off { color: var(--ink-soft); background: color-mix(in srgb, var(--ink-soft) 10%, transparent); border-color: color-mix(in srgb, var(--ink-soft) 24%, transparent); }
+.tag2 { font-size: .68rem; color: var(--ink-soft); background: color-mix(in srgb, var(--ink-soft) 10%, transparent); padding: .1rem .5rem; border-radius: 999px; }
+.item .price { font-weight: 700; color: var(--accent); font-size: 1.05rem; margin-left: auto; }
+.item .price small { font-size: .72rem; color: var(--ink-soft); font-weight: 500; }
+.item .ops { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .55rem; }
+
+/* ================= 按钮 ================= */
+.btn { appearance: none; border: none; cursor: pointer; font-family: inherit; font-size: .85rem; font-weight: 600; padding: .5rem 1rem; border-radius: .7rem; color: #fff; background: var(--accent); transition: transform .15s ease, opacity .15s ease; }
+.btn:hover { transform: translateY(-1px); opacity: .92; }
+.btn:active { transform: translateY(0); }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn.ghost:hover { border-color: var(--accent-border); }
+.btn.danger { background: transparent; color: var(--error); border: 1px solid color-mix(in srgb, var(--error) 45%, transparent); }
+.btn.danger:hover { background: color-mix(in srgb, var(--error) 8%, transparent); }
+.btn.danger.armed { background: var(--error); color: #fff; border-color: var(--error); }
+.btn.sm { padding: .35rem .75rem; font-size: .78rem; }
+.file-btn { display: inline-flex; align-items: center; gap: .3rem; cursor: pointer; }
+
+/* ================= 卡内编辑 ================= */
+.edit-head { font-size: .82rem; font-weight: 700; margin-bottom: .55rem; word-break: break-word; }
+.ef { display: flex; flex-direction: column; gap: .5rem; margin-top: .55rem; }
+.ef label { display: flex; flex-direction: column; gap: .2rem; font-size: .72rem; color: var(--ink-soft); }
+.ef .req { color: var(--error); }
+.ef input, .ef select, .ef textarea { width: 100%; padding: .45rem .6rem; border-radius: .6rem; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--ink); font-family: inherit; font-size: .85rem; resize: vertical; }
+.ef input:focus, .ef select:focus, .ef textarea:focus { outline: 2px solid var(--accent-border); border-color: var(--accent-border); }
+.ef input.invalid { border-color: color-mix(in srgb, var(--error) 60%, transparent); }
+.ef .erow { display: flex; flex-wrap: wrap; gap: .6rem; }
+.ef .erow > * { flex: 1 1 9rem; min-width: 0; }
+.ef-img-row { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+.ef-img-row img { height: 3.8rem; width: 3.8rem; object-fit: cover; border-radius: .5rem; border: 1px solid var(--line); }
+.edit-err { min-height: 1.1em; font-size: .72rem; color: var(--error); margin-top: .4rem; }
+
+/* ================= 详情 / 复制弹层 ================= */
+.modal-mask { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; padding: 1rem; z-index: 40; }
+.modal-mask[hidden] { display: none; }
+.modal { background: var(--card); border: 1px solid var(--line); border-radius: 1rem; max-width: 26rem; width: 100%; max-height: min(85vh, 42rem); overflow: auto; padding: 1.1rem 1.2rem 1.2rem; position: relative; box-shadow: 0 12px 40px rgba(0,0,0,.22); }
+.modal-x { position: absolute; top: .5rem; right: .55rem; width: 1.9rem; height: 1.9rem; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--ink-soft); font-size: .95rem; cursor: pointer; }
+.modal-x:hover { color: var(--ink); border-color: var(--accent-border); }
+.modal h3 { font-size: .95rem; font-weight: 700; margin-bottom: .7rem; }
+.modal .note { font-size: .76rem; color: var(--ink-soft); line-height: 1.6; margin-bottom: .6rem; }
+.detail-img { width: 100%; max-height: 16rem; object-fit: cover; border-radius: .8rem; border: 1px solid var(--line); margin-bottom: .8rem; }
+.detail-emoji { font-size: 4rem; text-align: center; padding: 1.2rem 0; background: color-mix(in srgb, var(--accent-bg) 60%, var(--card)); border-radius: .8rem; margin-bottom: .8rem; }
+.detail-title { font-size: 1.15rem; font-weight: 700; word-break: break-word; }
+.detail-price { font-size: 1.3rem; font-weight: 700; color: var(--accent); margin-top: .25rem; }
+.detail-meta { display: flex; gap: .4rem; flex-wrap: wrap; margin: .6rem 0 .7rem; }
+.detail-row { font-size: .82rem; color: var(--ink); margin-top: .35rem; word-break: break-word; }
+.detail-row .k { color: var(--ink-soft); }
+.detail-desc { font-size: .85rem; color: var(--ink); margin-top: .5rem; white-space: pre-wrap; word-break: break-word; line-height: 1.7; border-top: 1px dashed var(--line); padding-top: .6rem; }
+.modal-ops { display: flex; flex-wrap: wrap; gap: .45rem; margin-top: .95rem; }
+#copy-src { width: 100%; min-height: 9rem; padding: .6rem; border-radius: .6rem; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--ink); font-family: inherit; font-size: .78rem; line-height: 1.6; resize: vertical; }
+
+/* ================= 空状态 / Toast ================= */
+.empty { text-align: center; color: var(--ink-soft); font-size: .85rem; padding: 1.5rem 0; grid-column: 1 / -1; }
+.empty .eico { font-size: 1.9rem; display: block; margin-bottom: .4rem; }
+.toast { position: fixed; left: 50%; bottom: 1.25rem; transform: translateX(-50%) translateY(.6rem); background: var(--ink); color: var(--bg); padding: .55rem 1rem; border-radius: .7rem; font-size: .82rem; opacity: 0; pointer-events: none; transition: opacity .18s ease, transform .18s ease; z-index: 50; max-width: min(24rem, calc(100vw - 2rem)); text-align: center; box-shadow: 0 6px 20px rgba(0,0,0,.18); }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ================= 窄屏 ================= */
+@media (max-width: 40rem) {
+  .topbar-inner { padding: .9rem 1rem; flex-wrap: wrap; }
+  .container { padding: 1.1rem .9rem 2.5rem; }
+  .form-grid { grid-template-columns: 1fr 1fr; }
+  .f-full { grid-column: 1 / -1; }
+  .stats { grid-template-columns: repeat(3, 1fr); }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr)); }
+  .f-row { flex-direction: column; align-items: stretch; }
+}
+
+/* ================= 脱离平台时的暗色兜底（平台内被 --evg-* 覆盖） ================= */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17130e; --card: #221c14; --ink: #ece3d2; --ink-soft: #a89880;
+    --accent: #d99a4e; --accent-bg: #3a2c18; --accent-border: #5d4422;
+    --line: rgba(236, 227, 210, .14); --error: #e07b6a;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <span class="ico" aria-hidden="true">🛍️</span>
+      <div>
+        <h1>二手集市</h1>
+        <div class="sub">闲置转让 · 本地登记 · 复制后自行发布</div>
+      </div>
+    </div>
+    <span class="local-pill" title="数据仅保存在本机（插件私有存储），不联网发布">💾 本机保存 · 不联网发布</span>
+  </div>
+</header>
+
+<main class="container">
+  <section class="card" aria-labelledby="reg-title">
+    <h2 id="reg-title">➕ 登记闲置</h2>
+    <div class="local-note" role="note">
+      ⚠️ 本插件为<b>本地登记工具，不联网发布</b>：登记内容仅保存在本机。登记后点击「📋 复制转让信息」，
+      将文本<b>自行粘贴发布</b>到二手平台 / 群聊 / 朋友圈；「在售 / 已下架」状态由你手动维护，不代表平台实际状态。
+    </div>
+    <form id="form-add" novalidate>
+      <div class="form-grid">
+        <div class="field">
+          <label for="f-name">物品名称 <span class="req" aria-hidden="true">*</span></label>
+          <input id="f-name" placeholder="九成新自行车" maxlength="60" autocomplete="off">
+          <p class="ferr" id="e-name" role="alert"></p>
+        </div>
+        <div class="field">
+          <label for="f-price">价格（元）<span class="req" aria-hidden="true">*</span></label>
+          <input type="number" id="f-price" step="0.01" min="0" max="999999.99" placeholder="120" inputmode="decimal">
+          <p class="ferr" id="e-price" role="alert"></p>
+        </div>
+        <div class="field">
+          <label for="f-cat">分类</label>
+          <select id="f-cat">
+            <option>数码</option><option>图书</option><option>生活用品</option><option>交通工具</option>
+            <option>服饰</option><option>运动</option><option>其他</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="f-contact">联系方式 <span class="req" aria-hidden="true">*</span></label>
+          <input id="f-contact" placeholder="微信号 / 手机号 / QQ" maxlength="50" autocomplete="off">
+          <p class="ferr" id="e-contact" role="alert"></p>
+        </div>
+        <div class="field f-full">
+          <label for="f-desc">描述（可选）</label>
+          <input id="f-desc" placeholder="成色、购买时间、转让原因…" maxlength="500" autocomplete="off">
+          <p class="ferr" id="e-desc" role="alert"><span id="desc-count" aria-hidden="true"></span></p>
+        </div>
+        <div class="field f-full">
+          <label>图片（可选 · 仅本地处理，不上传）</label>
+          <div class="f-img-row">
+            <label class="btn ghost sm file-btn">🖼️ 选择图片<input type="file" id="f-img" accept="image/*" hidden></label>
+            <img id="img-preview" alt="图片预览" hidden>
+            <button type="button" class="btn danger sm" id="b-img-remove" hidden>移除</button>
+          </div>
+        </div>
+      </div>
+      <p class="form-err" id="form-err" role="alert"></p>
+      <div class="submit-row">
+        <button type="submit" class="btn" id="b-add">登记</button>
+        <span class="draft-hint" id="draft-hint" hidden></span>
+      </div>
+    </form>
+  </section>
+
+  <section class="stats" aria-label="登记统计">
+    <div class="stat"><span class="stat-num" id="s-all">0</span><span class="stat-label">总数</span></div>
+    <div class="stat"><span class="stat-num" id="s-on">0</span><span class="stat-label">在售</span></div>
+    <div class="stat"><span class="stat-num" id="s-off">0</span><span class="stat-label">已下架</span></div>
+  </section>
+
+  <section class="card" aria-labelledby="market-title">
+    <h2 id="market-title">🏪 闲置清单 <span class="f"><span id="icount">0 件</span> · <button type="button" class="btn ghost sm" id="b-export">📋 复制全部</button></span></h2>
+    <div class="toolbar">
+      <div class="search-row">
+        <input id="in-search" placeholder="搜索物品名称 / 描述…" aria-label="搜索物品" autocomplete="off">
+        <button type="button" class="btn ghost" id="b-clear">清空</button>
+      </div>
+      <div class="chips" id="cats" role="group" aria-label="按分类筛选"></div>
+      <div class="f-row">
+        <div class="chips" id="prices" role="group" aria-label="按价格筛选"></div>
+        <div class="chips" id="statuses" role="group" aria-label="按状态筛选"></div>
+        <div class="sort-box">
+          <label for="in-sort">排序</label>
+          <select id="in-sort">
+            <option value="new">最新登记</option>
+            <option value="priceAsc">价格从低到高</option>
+            <option value="priceDesc">价格从高到低</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="grid" id="grid"></div>
+  </section>
+
+  <p class="footnote">💾 数据仅保存在本机（插件私有存储），不联网、不上传。</p>
+</main>
+
+<!-- 详情弹层 -->
+<div class="modal-mask" id="detail-mask" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="detail-title">
+    <button type="button" class="modal-x" id="detail-close" aria-label="关闭详情">✕</button>
+    <div id="detail-body"></div>
+    <div class="modal-ops" id="detail-ops"></div>
+  </div>
+</div>
+
+<!-- 复制失败手动复制弹层 -->
+<div class="modal-mask" id="copy-mask" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="copy-title">
+    <h3 id="copy-title">手动复制</h3>
+    <p class="note">当前环境不支持自动复制，请全选下方文本（Ctrl+A）后复制（Ctrl+C），再粘贴发布到二手平台 / 群聊。</p>
+    <textarea id="copy-src" readonly spellcheck="false"></textarea>
+    <div class="modal-ops"><button type="button" class="btn ghost sm" id="copy-close">关闭</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ================= 常量 ================= */
+  var P = (typeof window !== 'undefined' && window.platform) ? window.platform : null;
+  var KEY = 'evg.second-hand';
+  var KEY_DRAFT = 'evg.second-hand.draft';
+  var STORE_VERSION = 2;
+  var NAME_MAX = 60, DESC_MAX = 500, CONTACT_MAX = 50, PRICE_MAX = 999999.99;
+  var IMG_MAX_RAW = 8 * 1024 * 1024;   // 原图上限 8MB
+  var IMG_MAX_LEN = 220000;            // 压缩后 dataURL 上限（字符）
+  var CATS = ['数码', '图书', '生活用品', '交通工具', '服饰', '运动', '其他'];
+  var EMOJI = { 数码: '💻', 图书: '📚', 生活用品: '🧴', 交通工具: '🚲', 服饰: '👕', 运动: '⚽', 其他: '📦' };
+  var PRICE_RANGES = [
+    { id: 'all', label: '全部价格', test: function () { return true; } },
+    { id: 'lt50', label: '≤ ¥50', test: function (p) { return p <= 50; } },
+    { id: '50-200', label: '¥50–200', test: function (p) { return p > 50 && p <= 200; } },
+    { id: 'gt200', label: '≥ ¥200', test: function (p) { return p > 200; } }
+  ];
+
+  /* ================= 视图状态 ================= */
+  var ui = { cat: '全部', q: '', price: 'all', status: 'all', sort: 'new', editingId: null, viewingId: null, delArmed: null, delTimer: null, editImg: null, flashId: null };
+  var store = { v: STORE_VERSION, items: [] };
+  var draft = null;          // 未提交草稿
+  var draftTouched = false;  // 用户已在输入 → 权威重读不回填
+  var itemsTouched = false;  // 本会话是否改过数据（测试/诊断用）
+  var draftTimer = null;
+  var imgData = '';          // 登记表单待提交图片 dataURL
+  var toastTimer = null;
+
+  function $(id) { return document.getElementById(id); }
+
+  /* ================= 工具函数 ================= */
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/`/g, '&#96;');
+  }
+  function genId() { return 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  function fmtStamp(d) {
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) +
+      ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  }
+  function fmtDate(d) {
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+  }
+  function fmtPrice(n) {
+    var v = Math.round((Number(n) || 0) * 100) / 100;
+    return String(v); // 120 / 12.5 / 12.34
+  }
+  function lsGet(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { window.localStorage.setItem(k, v); return true; } catch (e) { return false; } }
+  function lsDel(k) { try { window.localStorage.removeItem(k); } catch (e) {} }
+  function parseJSON(s, fb) { if (!s) return fb; try { return JSON.parse(s); } catch (e) { return fb; } }
+
+  function emit(name, payload) {
+    if (!P || !P.emit) return;
+    try { var pr = P.emit(name, payload || {}); if (pr && pr.catch) pr.catch(function () {}); } catch (e) {}
+  }
+
+  function toast(msg) {
+    var el = $('toast');
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.add('show');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.classList.remove('show'); }, 2600);
+  }
+
+  function findItem(id) {
+    for (var i = 0; i < store.items.length; i++) if (store.items[i].id === id) return store.items[i];
+    return null;
+  }
+
+  /* ================= 数据清洗 / 迁移（v1 → v2） =================
+     v1：items 无 id、price 可能为字符串、at 为 "M-D"
+     v2：稳定 id、数字 price、atTime 完整时间戳、可含 img */
+  function deriveTime(at, i) {
+    if (typeof at === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(at)) return at + ' 12:00';
+    if (typeof at === 'string' && /^\d{1,2}-\d{1,2}$/.test(at)) {
+      var p = at.split('-');
+      return new Date().getFullYear() + '-' + pad2(+p[0]) + '-' + pad2(+p[1]) + ' 12:00';
+    }
+    return '';
+  }
+  function normalizeItem(it, i) {
+    if (!it || typeof it !== 'object') return null;
+    var name = String(it.name == null ? '' : it.name).trim().slice(0, NAME_MAX);
+    if (!name) return null;
+    var price = Number(it.price);
+    if (!isFinite(price) || price < 0) price = 0;
+    price = Math.min(Math.round(price * 100) / 100, PRICE_MAX);
+    var cat = CATS.indexOf(it.cat) >= 0 ? it.cat : '其他';
+    var contact = String(it.contact == null ? '' : it.contact).trim().slice(0, CONTACT_MAX);
+    var desc = String(it.desc == null ? '' : it.desc).trim().slice(0, DESC_MAX);
+    var on = it.on !== false;
+    var img = (typeof it.img === 'string' && it.img) ? it.img.slice(0, 600000) : '';
+    var at = (typeof it.at === 'string' && it.at) ? it.at : '';
+    var atTime = (typeof it.atTime === 'string' && it.atTime) ? it.atTime : deriveTime(at, i);
+    var updatedAt = (typeof it.updatedAt === 'string' && it.updatedAt) ? it.updatedAt : '';
+    var id = (typeof it.id === 'string' && it.id) ? it.id : genId() + '-' + i;
+    return { id: id, name: name, price: price, cat: cat, contact: contact, desc: desc, img: img, on: on, at: at, atTime: atTime, updatedAt: updatedAt };
+  }
+  function normalizeItems(list) {
+    if (!Array.isArray(list)) return [];
+    var seen = {}, out = [];
+    list.forEach(function (it, i) {
+      var n = normalizeItem(it, i);
+      if (!n || seen[n.id]) return;
+      seen[n.id] = true;
+      out.push(n);
+    });
+    return out;
+  }
+  function stripImgs(items) {
+    return (items || []).map(function (it) {
+      var c = {};
+      for (var k in it) if (Object.prototype.hasOwnProperty.call(it, k) && k !== 'img') c[k] = it[k];
+      return c;
+    });
+  }
+
+  /* ================= 存储（localStorage polyfill 自动落盘 + platform.storage 兜底对账） ================= */
+  function loadSync() {
+    var d = parseJSON(lsGet(KEY), null);
+    if (!d || !Array.isArray(d.items)) return false;
+    var before = JSON.stringify(d.items || []);
+    store.items = normalizeItems(d.items);
+    if (JSON.stringify(store.items) !== before) save(); // 迁移 / 清洗后落盘一次
+    return true;
+  }
+
+  function save() {
+    store.v = STORE_VERSION;
+    var json = JSON.stringify(store);
+    var ok = lsSet(KEY, json);
+    if (!ok) {
+      // 存储配额不足：去掉图片再试（诚实降级：图片无法持久化，文字信息仍在）
+      var slim = stripImgs(store.items);
+      if (lsSet(KEY, JSON.stringify({ v: STORE_VERSION, items: slim }))) {
+        store.items = slim;
+        toast('存储空间不足，已移除图片，仅保存文字信息');
+      } else {
+        toast('保存失败：本机存储不可用，本次修改仅本次会话有效');
+      }
+    }
+    // 双保险：同步到平台权威存储（与 polyfill write-through 幂等）
+    if (P && P.storage && P.storage.set) {
+      try { P.storage.set(KEY, json).catch(function () {}); } catch (e) {}
+    }
+  }
+
+  /* 预载竞态对账：localStorage polyfill 预载是异步的，首帧同步读可能为空。
+     启动后经 platform.storage 权威重读一次，按 id 取并集（本会话数据优先），
+     避免「首帧读到空 → 后续写入覆盖旧数据」。 */
+  function adoptPersisted() {
+    if (!(P && P.storage && P.storage.get)) return;
+    var p;
+    try { p = P.storage.get(KEY); } catch (e) { return; }
+    var apply = function (raw) {
+      var d = parseJSON(raw, null);
+      if (!d || !Array.isArray(d.items)) return;
+      var merged = mergePersisted(store.items, normalizeItems(d.items));
+      if (merged.length !== store.items.length) {
+        store.items = merged;
+        save();
+        renderAll();
+      }
+    };
+    if (p && typeof p.then === 'function') p.then(apply).catch(function () {});
+    else if (typeof p === 'string') apply(p);
+  }
+
+  /* 并集合并：同 id 以现有（本会话）为准，仅补充持久化中有而内存缺失的记录 */
+  function mergePersisted(existing, incoming) {
+    var byId = {};
+    (existing || []).forEach(function (it) { if (it && it.id) byId[it.id] = it; });
+    var out = (existing || []).slice();
+    (incoming || []).forEach(function (it) {
+      if (it && it.id && !byId[it.id]) { byId[it.id] = it; out.push(it); }
+    });
+    return out;
+  }
+
+  /* ================= 草稿（未提交登记自动保存） ================= */
+  function sanitizeDraft(d) {
+    if (!d || typeof d !== 'object') return null;
+    var out = {
+      name: String(d.name == null ? '' : d.name).slice(0, NAME_MAX),
+      price: String(d.price == null ? '' : d.price).slice(0, 16),
+      cat: CATS.indexOf(d.cat) >= 0 ? d.cat : '数码',
+      contact: String(d.contact == null ? '' : d.contact).slice(0, CONTACT_MAX),
+      desc: String(d.desc == null ? '' : d.desc).slice(0, DESC_MAX),
+      img: (typeof d.img === 'string' && d.img) ? d.img.slice(0, 600000) : '',
+      savedAt: typeof d.savedAt === 'string' ? d.savedAt : ''
+    };
+    var empty = !out.name && !out.price && !out.contact && !out.desc && !out.img;
+    return empty ? null : out;
+  }
+  function loadDraftSync() {
+    if (draftTouched) return;
+    var d = parseJSON(lsGet(KEY_DRAFT), null);
+    if (d) draft = sanitizeDraft(d);
+  }
+  function adoptPersistedDraft() {
+    if (!(P && P.storage && P.storage.get)) return;
+    var p;
+    try { p = P.storage.get(KEY_DRAFT); } catch (e) { return; }
+    var apply = function (raw) {
+      if (draftTouched) return; // 用户已在输入，以内存为准
+      var d = sanitizeDraft(parseJSON(raw, null));
+      if (d) { draft = d; fillFormFromDraft(); }
+    };
+    if (p && typeof p.then === 'function') p.then(apply).catch(function () {});
+    else if (typeof p === 'string') apply(p);
+  }
+  function scheduleDraft() {
+    draftTouched = true;
+    clearTimeout(draftTimer);
+    draftTimer = setTimeout(saveDraftNow, 350);
+  }
+  function saveDraftNow() {
+    var d = {
+      name: $('f-name').value.trim(),
+      price: $('f-price').value.trim(),
+      cat: $('f-cat').value,
+      contact: $('f-contact').value.trim(),
+      desc: $('f-desc').value.trim(),
+      img: imgData
+    };
+    var empty = !d.name && !d.price && !d.contact && !d.desc && !d.img;
+    if (empty) {
+      draft = null;
+      lsDel(KEY_DRAFT);
+      setDraftHint(false, '');
+    } else {
+      d.savedAt = fmtStamp(new Date());
+      draft = d;
+      lsSet(KEY_DRAFT, JSON.stringify(d));
+      setDraftHint(true, d.savedAt);
+    }
+  }
+  function flushDraft() { clearTimeout(draftTimer); saveDraftNow(); }
+  function setDraftHint(show, time) {
+    var el = $('draft-hint');
+    el.hidden = !show;
+    if (show) el.textContent = '✎ 草稿已自动保存 ' + time;
+  }
+  function fillFormFromDraft() {
+    if (!draft) return;
+    $('f-name').value = draft.name || '';
+    $('f-price').value = draft.price || '';
+    if (CATS.indexOf(draft.cat) >= 0) $('f-cat').value = draft.cat;
+    $('f-contact').value = draft.contact || '';
+    $('f-desc').value = draft.desc || '';
+    imgData = draft.img || '';
+    updateImgPreview();
+    setDraftHint(true, draft.savedAt || '');
+    toast('已恢复上次未提交的草稿');
+  }
+  function clearDraft() {
+    draft = null;
+    draftTouched = false;
+    lsDel(KEY_DRAFT);
+    setDraftHint(false, '');
+  }
+
+  /* ================= 校验 ================= */
+  function isValidContact(s) {
+    if (!s) return false;
+    return /^1[3-9]\d{9}$/.test(s)                // 手机号
+      || /^0\d{2,3}-?\d{7,8}$/.test(s)            // 座机
+      || /^\d{5,11}$/.test(s)                     // QQ
+      || /^[A-Za-z][A-Za-z0-9_-]{2,19}$/.test(s)  // 微信号
+      || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);    // 邮箱
+  }
+  function nameErr(v) {
+    if (!v) return '请填写物品名称';
+    if (v.length > NAME_MAX) return '名称过长（≤' + NAME_MAX + ' 字）';
+    return '';
+  }
+  function priceErr(num) {
+    if (!isFinite(num)) return '请填写有效价格';
+    if (num < 0) return '价格不能为负数';
+    if (num > PRICE_MAX) return '价格过大（≤' + PRICE_MAX + '）';
+    if (Math.round(num * 100) !== num * 100) return '价格最多保留 2 位小数';
+    return '';
+  }
+  /* 价格输入解析：空串 / 非法 / 超范围 / 超 2 位小数 一律拒绝 */
+  function parsePriceInput(s) {
+    var str = String(s == null ? '' : s).trim();
+    if (!str) return { ok: false, err: '请填写价格' };
+    var num = Number(str);
+    if (!isFinite(num)) return { ok: false, err: '请填写有效价格' };
+    var err = priceErr(num);
+    if (err) return { ok: false, err: err };
+    return { ok: true, value: num, err: '' };
+  }
+  function contactErr(v) {
+    if (!v) return '请填写联系方式';
+    if (v.length > CONTACT_MAX) return '联系方式过长（≤' + CONTACT_MAX + ' 字）';
+    if (!isValidContact(v)) return '格式不对：手机号 / 座机 / QQ / 微信号 / 邮箱';
+    return '';
+  }
+  /* 纯校验入口（供提交与测试复用） */
+  function validateItem(f) {
+    var errs = { name: nameErr(String(f.name == null ? '' : f.name).trim()), price: '', contact: '' };
+    var p = parsePriceInput(f.price);
+    errs.price = p.err;
+    errs.contact = contactErr(String(f.contact == null ? '' : f.contact).trim());
+    errs.ok = !errs.name && !errs.price && !errs.contact;
+    return errs;
+  }
+  function setErr(inputId, errId, msg) {
+    var input = $(inputId), err = $(errId);
+    err.textContent = msg;
+    input.classList.toggle('invalid', !!msg);
+    return !msg;
+  }
+  function validateField(id) {
+    var map = { 'f-name': 'e-name', 'f-price': 'e-price', 'f-contact': 'e-contact' };
+    var msg = '';
+    if (id === 'f-name') msg = nameErr($('f-name').value.trim());
+    if (id === 'f-price') msg = parsePriceInput($('f-price').value).err;
+    if (id === 'f-contact') msg = contactErr($('f-contact').value.trim());
+    return setErr(id, map[id], msg);
+  }
+  function validateAll() {
+    var ok = true;
+    ['f-name', 'f-price', 'f-contact'].forEach(function (id) { if (!validateField(id)) ok = false; });
+    if (!ok) {
+      var first = document.querySelector('.field input.invalid, .field select.invalid');
+      if (first && first.focus) first.focus();
+    }
+    return ok;
+  }
+
+  /* ================= 图片（仅本地处理：FileReader + canvas 压缩，不联网） ================= */
+  function downscale(img, maxSide, quality) {
+    var w = img.width || 480, h = img.height || 480;
+    var scale = Math.min(1, maxSide / Math.max(w, h));
+    var cw = Math.max(1, Math.round(w * scale)), ch = Math.max(1, Math.round(h * scale));
+    var canvas = document.createElement('canvas');
+    canvas.width = cw; canvas.height = ch;
+    var ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, cw, ch);
+    var out = canvas.toDataURL('image/jpeg', quality);
+    if (out.length > IMG_MAX_LEN && quality > 0.35) {
+      return downscale(img, Math.round(maxSide * 0.8), quality - 0.15);
+    }
+    return out;
+  }
+  function onImgChange(e, mode) {
+    var file = e.target && e.target.files && e.target.files[0];
+    if (!file) return;
+    if (!/^image\//.test(file.type)) { toast('请选择图片文件（JPG / PNG 等）'); e.target.value = ''; return; }
+    if (file.size > IMG_MAX_RAW) { toast('图片过大（>8MB），请压缩后重试'); e.target.value = ''; return; }
+    var reader = new FileReader();
+    reader.onload = function () {
+      var img = new Image();
+      img.onload = function () {
+        var dataUrl = downscale(img, 480, 0.72);
+        if (mode === 'edit' && ui.editingId) {
+          ui.editImg = dataUrl;
+          updateEditImgPreview(ui.editingId);
+        } else {
+          imgData = dataUrl;
+          updateImgPreview();
+          scheduleDraft();
+        }
+        toast('图片已就绪（本地处理，不上传）');
+      };
+      img.onerror = function () { toast('图片解析失败，请更换图片'); };
+      img.src = reader.result;
+    };
+    reader.onerror = function () { toast('图片读取失败'); };
+    reader.readAsDataURL(file);
+  }
+  function updateImgPreview() {
+    var img = $('img-preview'), rm = $('b-img-remove');
+    if (imgData) {
+      img.src = imgData; img.hidden = false; rm.hidden = false;
+    } else {
+      img.removeAttribute('src'); img.hidden = true; rm.hidden = true;
+    }
+  }
+  function updateEditImgPreview(id) {
+    var img = $('ep-img-' + id);
+    if (img) {
+      if (ui.editImg) { img.src = ui.editImg; img.hidden = false; }
+      else { img.removeAttribute('src'); img.hidden = true; }
+    }
+  }
+
+  /* ================= 筛选 / 排序 ================= */
+  function rangeById(id) {
+    for (var i = 0; i < PRICE_RANGES.length; i++) if (PRICE_RANGES[i].id === id) return PRICE_RANGES[i];
+    return null;
+  }
+  function filterItems(items, f) {
+    var q = String(f.q || '').toLowerCase();
+    var r = rangeById(f.price);
+    return (items || []).filter(function (it) {
+      if (f.cat !== '全部' && it.cat !== f.cat) return false;
+      if (f.status === 'on' && !it.on) return false;
+      if (f.status === 'off' && it.on) return false;
+      if (r && !r.test(it.price)) return false;
+      if (q && it.name.toLowerCase().indexOf(q) === -1 && (it.desc || '').toLowerCase().indexOf(q) === -1) return false;
+      return true;
+    });
+  }
+  function sortItems(list, sort) {
+    var withIdx = list.map(function (it, i) { return { it: it, i: i }; });
+    withIdx.sort(function (a, b) {
+      if (sort === 'priceAsc') { var d1 = a.it.price - b.it.price; return d1 !== 0 ? d1 : a.i - b.i; }
+      if (sort === 'priceDesc') { var d2 = b.it.price - a.it.price; return d2 !== 0 ? d2 : a.i - b.i; }
+      var ta = a.it.atTime || '', tb = b.it.atTime || '';
+      if (ta !== tb) return ta < tb ? 1 : -1; // 新 → 旧
+      return a.i - b.i;
+    });
+    return withIdx.map(function (x) { return x.it; });
+  }
+  function applyView() {
+    return sortItems(filterItems(store.items, ui), ui.sort);
+  }
+
+  /* ================= 转让信息文本（复制 / 导出） ================= */
+  function itemText(it) {
+    var lines = [
+      '【闲置转让】' + it.name,
+      '价格：¥' + fmtPrice(it.price),
+      '分类：' + it.cat
+    ];
+    if (it.desc) lines.push('描述：' + it.desc);
+    lines.push('联系方式：' + (it.contact || '未留'));
+    lines.push('登记时间：' + (it.atTime || it.at || ''));
+    lines.push('状态：' + (it.on ? '在售' : '已下架'));
+    lines.push('');
+    lines.push('（本信息由 Evergreen「二手集市」本地登记生成，未联网发布，内容以实物为准）');
+    return lines.join('\n');
+  }
+  function exportAllText(items) {
+    if (!items.length) return '';
+    var parts = ['【二手集市 · 全部闲置登记】 共 ' + items.length + ' 件（导出时间：' + fmtStamp(new Date()) + '）', ''];
+    items.forEach(function (it) {
+      parts.push(itemText(it));
+      parts.push('────────────────────');
+    });
+    parts.pop();
+    return parts.join('\n');
+  }
+
+  /* ================= 复制（clipboard 优先 → execCommand 降级 → 手动复制弹层） ================= */
+  function legacyCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    ta.style.top = '0';
+    document.body.appendChild(ta);
+    var ok = false;
+    try {
+      ta.select();
+      ta.setSelectionRange(0, text.length);
+      ok = document.execCommand('copy');
+    } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    return ok;
+  }
+  function showCopyModal(text, failMsg) {
+    $('copy-src').value = text;
+    $('copy-mask').hidden = false;
+    if (failMsg) toast(failMsg);
+    var ta = $('copy-src');
+    setTimeout(function () {
+      try { ta.focus(); ta.select(); } catch (e) {}
+    }, 50);
+  }
+  function copyText(text, okMsg, failMsg) {
+    if (!text) { toast('没有可复制的内容'); return; }
+    var done = function () { toast(okMsg); };
+    var failed = function () { showCopyModal(text, failMsg); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      var p;
+      try { p = navigator.clipboard.writeText(text); } catch (e) { p = null; }
+      if (p && typeof p.then === 'function') {
+        p.then(done).catch(function () {
+          if (legacyCopy(text)) done(); else failed();
+        });
+        return;
+      }
+    }
+    if (legacyCopy(text)) { done(); return; }
+    failed();
+  }
+
+  /* ================= 渲染：统计 / 筛选 / 网格 ================= */
+  function renderStats() {
+    var on = 0, off = 0;
+    store.items.forEach(function (it) { if (it.on) on++; else off++; });
+    $('s-all').textContent = store.items.length;
+    $('s-on').textContent = on;
+    $('s-off').textContent = off;
+  }
+  function renderChips(containerId, items, key, activeId) {
+    var el = $(containerId);
+    el.innerHTML = items.map(function (item) {
+      var id = item[key];
+      var active = id === activeId;
+      return '<button type="button" class="chip' + (active ? ' active' : '') + '" data-key="' + esc(id) + '" aria-pressed="' + active + '">' + esc(item.label) + '</button>';
+    }).join('');
+  }
+  function renderToolbar() {
+    renderChips('cats', CATS.map(function (c) { return { key: c, label: (EMOJI[c] || '🏪') + ' ' + c }; }), 'key', ui.cat);
+    renderChips('prices', PRICE_RANGES.map(function (r) { return { key: r.id, label: r.label }; }), 'key', ui.price);
+    renderChips('statuses', [
+      { key: 'all', label: '全部状态' }, { key: 'on', label: '在售' }, { key: 'off', label: '已下架' }
+    ], 'key', ui.status);
+  }
+  function editFormHtml(it) {
+    var imgRow = '<div class="ef-img-row">' +
+      '<label class="btn ghost sm file-btn">🖼️ 选择图片<input type="file" class="e-img" id="e-img-' + esc(it.id) + '" data-id="' + esc(it.id) + '" accept="image/*" hidden></label>' +
+      '<img class="ep-img" id="ep-img-' + esc(it.id) + '" alt="图片预览" hidden>' +
+      '<button type="button" class="btn danger sm" data-act="edit-rmimg" data-id="' + esc(it.id) + '"' + (ui.editImg ? '' : ' hidden') + '>移除</button>' +
+      '</div>';
+    return '<div class="body">' +
+      '<div class="edit-head">编辑「' + esc(it.name) + '」</div>' +
+      '<div class="ef">' +
+        '<div class="erow">' +
+          '<label>名称 <span class="req" aria-hidden="true">*</span><input id="e-name-' + esc(it.id) + '" class="e-name" data-id="' + esc(it.id) + '" value="' + esc(it.name) + '" maxlength="60" autocomplete="off"></label>' +
+          '<label>价格（元）<span class="req" aria-hidden="true">*</span><input id="e-price-' + esc(it.id) + '" class="e-price" data-id="' + esc(it.id) + '" type="number" step="0.01" min="0" max="999999.99" value="' + esc(fmtPrice(it.price)) + '" inputmode="decimal"></label>' +
+        '</div>' +
+        '<div class="erow">' +
+          '<label>分类<select id="e-cat-' + esc(it.id) + '" class="e-cat" data-id="' + esc(it.id) + '">' + CATS.map(function (c) {
+            return '<option' + (c === it.cat ? ' selected' : '') + '>' + c + '</option>';
+          }).join('') + '</select></label>' +
+          '<label>联系方式 <span class="req" aria-hidden="true">*</span><input id="e-contact-' + esc(it.id) + '" class="e-contact" data-id="' + esc(it.id) + '" value="' + esc(it.contact) + '" maxlength="50" autocomplete="off"></label>' +
+        '</div>' +
+        '<label>描述（可选）<textarea id="e-desc-' + esc(it.id) + '" class="e-desc" data-id="' + esc(it.id) + '" rows="2" maxlength="500">' + esc(it.desc || '') + '</textarea></label>' +
+        '<label>图片（可选 · 仅本地处理）' + imgRow + '</label>' +
+      '</div>' +
+      '<p class="edit-err" id="edit-err-' + esc(it.id) + '" role="alert"></p>' +
+      '<div class="ops">' +
+        '<button type="button" class="btn sm" data-act="edit-save" data-id="' + esc(it.id) + '">保存</button>' +
+        '<button type="button" class="btn ghost sm" data-act="edit-cancel" data-id="' + esc(it.id) + '">取消</button>' +
+      '</div>' +
+    '</div>';
+  }
+  function cardBodyHtml(it) {
+    var ops =
+      '<button type="button" class="btn ghost sm" data-act="copy" data-id="' + esc(it.id) + '" title="复制转让信息，自行发布">📋 复制</button>' +
+      '<button type="button" class="btn ghost sm" data-act="edit" data-id="' + esc(it.id) + '">编辑</button>' +
+      '<button type="button" class="btn ghost sm" data-act="toggle" data-id="' + esc(it.id) + '">' + (it.on ? '下架' : '重新上架') + '</button>' +
+      '<button type="button" class="btn danger sm' + (ui.delArmed === it.id ? ' armed' : '') + '" data-act="del" data-id="' + esc(it.id) + '">' + (ui.delArmed === it.id ? '确认删除？' : '删除') + '</button>';
+    return '<div class="body">' +
+      '<div class="t">' + esc(it.name) + '</div>' +
+      '<div class="d">' + esc(it.desc || '无描述') + '</div>' +
+      '<div class="meta">' +
+        '<span class="badge ' + (it.on ? 'on' : 'off') + '">' + (it.on ? '在售' : '已下架') + '</span>' +
+        '<span class="tag2">' + esc(it.cat) + '</span>' +
+        '<span class="tag2">' + esc(it.atTime || it.at || '') + '</span>' +
+      '</div>' +
+      '<div class="meta"><span class="price">¥' + esc(fmtPrice(it.price)) + '</span></div>' +
+      '<div class="ops">' + ops + '</div>' +
+    '</div>';
+  }
+  function renderGrid() {
+    var el = $('grid');
+    $('icount').textContent = store.items.length + ' 件';
+    var list = applyView();
+    if (!list.length) {
+      el.innerHTML = '<div class="empty"><span class="eico" aria-hidden="true">🛍️</span>没有匹配的闲置' +
+        (store.items.length ? '，试试调整筛选条件' : '，登记一件开始吧') + '</div>';
+      return;
+    }
+    el.innerHTML = list.map(function (it) {
+      var inner = (it.id === ui.editingId) ? editFormHtml(it) : cardBodyHtml(it);
+      var thumb = it.id === ui.editingId ? '' :
+        '<button type="button" class="thumb" data-act="view" data-id="' + esc(it.id) + '" title="查看详情" aria-label="查看 ' + esc(it.name) + ' 详情">' +
+          (it.img ? '<img class="thumb-img" src="' + esc(it.img) + '" alt="" loading="lazy">' : '<span aria-hidden="true">' + (EMOJI[it.cat] || '📦') + '</span>') +
+        '</button>';
+      return '<div class="item' + (it.id === ui.flashId ? ' flash' : '') + '" id="it-' + esc(it.id) + '" data-id="' + esc(it.id) + '">' + thumb + inner + '</div>';
+    }).join('');
+    if (ui.editingId) {
+      var first = $('e-name-' + ui.editingId);
+      if (first && first.focus) first.focus();
+    }
+  }
+  function renderAll() {
+    renderStats();
+    renderToolbar();
+    renderGrid();
+    renderDetail();
+  }
+
+  /* ================= 详情弹层 ================= */
+  function renderDetail() {
+    var it = findItem(ui.viewingId);
+    if (!it) { if (!$('detail-mask').hidden) closeDetail(); return; }
+    var body = '';
+    if (it.img) body += '<img class="detail-img" src="' + esc(it.img) + '" alt="' + esc(it.name) + ' 的图片">';
+    else body += '<div class="detail-emoji" aria-hidden="true">' + (EMOJI[it.cat] || '📦') + '</div>';
+    body +=
+      '<div class="detail-title" id="detail-title">' + esc(it.name) + '</div>' +
+      '<div class="detail-price">¥' + esc(fmtPrice(it.price)) + '</div>' +
+      '<div class="detail-meta">' +
+        '<span class="badge ' + (it.on ? 'on' : 'off') + '">' + (it.on ? '在售' : '已下架') + '</span>' +
+        '<span class="tag2">' + esc(it.cat) + '</span>' +
+      '</div>' +
+      '<div class="detail-row"><span class="k">联系方式：</span>' + esc(it.contact || '未留') + '</div>' +
+      '<div class="detail-row"><span class="k">登记时间：</span>' + esc(it.atTime || it.at || '') + '</div>' +
+      (it.updatedAt ? '<div class="detail-row"><span class="k">最近编辑：</span>' + esc(it.updatedAt) + '</div>' : '') +
+      '<div class="detail-desc">' + esc(it.desc || '（未填写描述）') + '</div>';
+    $('detail-body').innerHTML = body;
+    $('detail-ops').innerHTML =
+      '<button type="button" class="btn sm" data-act="copy" data-id="' + esc(it.id) + '">📋 复制转让信息</button>' +
+      '<button type="button" class="btn ghost sm" data-act="edit" data-id="' + esc(it.id) + '">编辑</button>' +
+      '<button type="button" class="btn ghost sm" data-act="toggle" data-id="' + esc(it.id) + '">' + (it.on ? '下架' : '重新上架') + '</button>' +
+      '<button type="button" class="btn danger sm' + (ui.delArmed === it.id ? ' armed' : '') + '" data-act="del" data-id="' + esc(it.id) + '">' + (ui.delArmed === it.id ? '确认删除？' : '删除') + '</button>';
+  }
+  function openDetail(id) {
+    ui.viewingId = id;
+    renderDetail();
+    $('detail-mask').hidden = false;
+    var x = $('detail-close');
+    if (x && x.focus) x.focus();
+  }
+  function closeDetail() {
+    ui.viewingId = null;
+    $('detail-mask').hidden = true;
+  }
+
+  /* ================= 登记（本地登记，不联网发布） ================= */
+  function onSubmit(e) {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!validateAll()) return;
+    var now = new Date();
+    var item = {
+      id: genId(),
+      name: $('f-name').value.trim().slice(0, NAME_MAX),
+      price: Math.round(Number($('f-price').value) * 100) / 100,
+      cat: $('f-cat').value,
+      contact: $('f-contact').value.trim().slice(0, CONTACT_MAX),
+      desc: $('f-desc').value.trim().slice(0, DESC_MAX),
+      img: imgData,
+      on: true,
+      at: fmtDate(now),
+      atTime: fmtStamp(now),
+      updatedAt: ''
+    };
+    store.items.unshift(item);
+    itemsTouched = true;
+    save();
+    clearForm();
+    renderAll();
+    toast('已登记「' + item.name + '」（未联网发布），可复制转让信息自行发布');
+    emit('second-hand:register', { id: item.id, name: item.name, price: item.price });
+    var el = document.getElementById('it-' + item.id);
+    if (el) {
+      ui.flashId = item.id;
+      el.classList.add('flash');
+      setTimeout(function () { ui.flashId = null; }, 1700);
+      el.scrollIntoView({ block: 'nearest' });
+    }
+    var nameInput = $('f-name');
+    if (nameInput && nameInput.focus) nameInput.focus();
+  }
+  function clearForm() {
+    $('f-name').value = ''; $('f-price').value = ''; $('f-contact').value = '';
+    $('f-desc').value = ''; $('f-cat').value = CATS[0];
+    imgData = '';
+    updateImgPreview();
+    updateDescCounter();
+    // 注意：不清 e-desc（其内嵌 #desc-count 计数器）
+    ['e-name', 'e-price', 'e-contact'].forEach(function (id) { $(id).textContent = ''; });
+    $('form-err').textContent = '';
+    clearDraft();
+  }
+  function updateDescCounter() {
+    var n = $('f-desc').value.length;
+    var el = $('desc-count');
+    if (el) el.textContent = n + '/500';
+  }
+
+  /* ================= 卡片 / 弹层操作 ================= */
+  function doToggle(it) {
+    it.on = !it.on;
+    it.updatedAt = fmtStamp(new Date());
+    itemsTouched = true;
+    save(); renderAll();
+    toast(it.on ? '已重新上架「' + it.name + '」' : '已下架「' + it.name + '」（手动标记，不代表平台状态）');
+    emit('second-hand:status', { id: it.id, on: it.on });
+  }
+  function armDel(id) {
+    ui.delArmed = id;
+    clearTimeout(ui.delTimer);
+    ui.delTimer = setTimeout(function () { ui.delArmed = null; renderGrid(); renderDetail(); }, 3000);
+    renderGrid(); renderDetail();
+  }
+  function confirmDel(it) {
+    clearTimeout(ui.delTimer); ui.delArmed = null;
+    store.items = store.items.filter(function (x) { return x.id !== it.id; });
+    itemsTouched = true;
+    if (ui.viewingId === it.id) closeDetail();
+    save(); renderAll();
+    toast('已删除「' + it.name + '」');
+    emit('second-hand:del', { id: it.id });
+  }
+  function startEdit(it) {
+    ui.editingId = it.id;
+    ui.editImg = it.img || '';
+    renderGrid();
+    var first = document.querySelector('.e-name');
+    if (first && first.focus) first.focus();
+  }
+  function saveEdit(it) {
+    var id = it.id;
+    var nameEl = $('e-name-' + id), priceEl = $('e-price-' + id), contactEl = $('e-contact-' + id);
+    var name = nameEl ? nameEl.value.trim() : '';
+    var priceRaw = priceEl ? priceEl.value : '';
+    var contact = contactEl ? contactEl.value.trim() : '';
+    var errs = validateItem({ name: name, price: priceRaw, contact: contact });
+    var errEl = $('edit-err-' + id);
+    if (!errs.ok) {
+      if (errEl) errEl.textContent = errs.name || errs.price || errs.contact;
+      var firstBad = (errs.name && nameEl) ? nameEl : ((errs.price && priceEl) ? priceEl : contactEl);
+      if (firstBad && firstBad.focus) firstBad.focus();
+      return;
+    }
+    it.name = name.slice(0, NAME_MAX);
+    it.price = Math.round(Number(priceRaw) * 100) / 100;
+    var catEl = $('e-cat-' + id);
+    if (catEl && CATS.indexOf(catEl.value) >= 0) it.cat = catEl.value;
+    it.contact = contact.slice(0, CONTACT_MAX);
+    var descEl = $('e-desc-' + id);
+    it.desc = descEl ? descEl.value.trim().slice(0, DESC_MAX) : '';
+    it.img = ui.editImg || '';
+    it.updatedAt = fmtStamp(new Date());
+    ui.editingId = null; ui.editImg = null;
+    itemsTouched = true;
+    save(); renderAll();
+    toast('已保存「' + it.name + '」的修改');
+  }
+  function onAction(act, id, fromGrid) {
+    var it = findItem(id);
+    if (act === 'view') { if (it) openDetail(id); return; }
+    if (act === 'copy') {
+      if (!it) return;
+      copyText(itemText(it), '已复制转让信息，请自行粘贴发布', '自动复制失败');
+      return;
+    }
+    if (act === 'edit') { if (it) { closeDetail(); startEdit(it); } return; }
+    if (act === 'edit-cancel') { ui.editingId = null; ui.editImg = null; renderGrid(); return; }
+    if (act === 'edit-rmimg') { ui.editImg = ''; updateEditImgPreview(id); return; }
+    if (act === 'edit-save') { if (it) saveEdit(it); return; }
+    if (!it) return;
+    if (act === 'toggle') doToggle(it);
+    else if (act === 'del') {
+      if (ui.delArmed === id) confirmDel(it);
+      else armDel(id);
+    }
+  }
+
+  /* ================= 事件绑定 ================= */
+  function bindArrowNav(containerId) {
+    var c = $(containerId);
+    if (!c) return;
+    c.addEventListener('keydown', function (e) {
+      if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].indexOf(e.key) === -1) return;
+      var btns = Array.prototype.slice.call(c.querySelectorAll('button'));
+      if (!btns.length) return;
+      var idx = btns.indexOf(document.activeElement);
+      if (idx === -1) return;
+      e.preventDefault();
+      var next;
+      if (e.key === 'Home') next = 0;
+      else if (e.key === 'End') next = btns.length - 1;
+      else if (e.key === 'ArrowLeft') next = (idx - 1 + btns.length) % btns.length;
+      else next = (idx + 1) % btns.length;
+      btns[next].focus();
+      btns[next].click();
+    });
+  }
+  function bind() {
+    $('form-add').addEventListener('submit', onSubmit);
+    $('form-add').addEventListener('input', function () {
+      // 已有错误时实时修正；未出错前不打扰（blur / 提交时才显示）
+      ['f-name', 'f-price', 'f-contact'].forEach(function (id) {
+        if ($('e-' + id.slice(2)).textContent) validateField(id);
+      });
+      updateDescCounter();
+      scheduleDraft();
+    });
+    ['f-name', 'f-price', 'f-contact'].forEach(function (id) {
+      $(id).addEventListener('blur', function () { validateField(id); });
+    });
+    $('f-cat').addEventListener('change', function () { scheduleDraft(); });
+    $('f-img').addEventListener('change', function (e) { onImgChange(e, 'add'); });
+    $('b-img-remove').addEventListener('click', function () {
+      imgData = ''; updateImgPreview(); scheduleDraft();
+    });
+
+    ['cats', 'prices', 'statuses'].forEach(function (id) {
+      var el = $(id);
+      el.addEventListener('click', function (e) {
+        var b = e.target.closest ? e.target.closest('.chip') : null;
+        if (!b) return;
+        var key = b.getAttribute('data-key');
+        if (id === 'cats') ui.cat = key;
+        else if (id === 'prices') ui.price = key;
+        else ui.status = key;
+        renderToolbar(); renderGrid();
+      });
+      bindArrowNav(id);
+    });
+    $('in-sort').addEventListener('change', function () { ui.sort = this.value; renderGrid(); });
+    $('in-search').addEventListener('input', function () { ui.q = this.value.trim(); renderGrid(); });
+    $('b-clear').addEventListener('click', function () {
+      $('in-search').value = ''; ui.q = ''; ui.cat = '全部'; ui.price = 'all'; ui.status = 'all'; ui.sort = 'new';
+      $('in-sort').value = 'new';
+      renderAll();
+    });
+    $('b-export').addEventListener('click', function () {
+      copyText(exportAllText(applyView()), '已复制全部转让信息（' + applyView().length + ' 件），请自行粘贴发布', '自动复制失败');
+    });
+
+    var gridEl = $('grid');
+    gridEl.addEventListener('click', function (e) {
+      var btn = e.target.closest ? e.target.closest('button[data-act]') : null;
+      if (!btn || !gridEl.contains(btn)) return;
+      onAction(btn.getAttribute('data-act'), btn.getAttribute('data-id'));
+    });
+    gridEl.addEventListener('change', function (e) {
+      var t = e.target;
+      if (t && t.classList && t.classList.contains('e-img')) onImgChange(e, 'edit');
+    });
+    gridEl.addEventListener('keydown', function (e) {
+      var t = e.target;
+      if (!t || !t.classList) return;
+      if (e.key === 'Enter' && (t.classList.contains('e-name') || t.classList.contains('e-price') ||
+          t.classList.contains('e-contact') || t.classList.contains('e-desc'))) {
+        e.preventDefault();
+        var id = t.getAttribute('data-id');
+        var it = findItem(id);
+        if (it) saveEdit(it);
+      } else if (e.key === 'Escape' && ui.editingId) {
+        ui.editingId = null; ui.editImg = null; renderGrid();
+      }
+    });
+
+    $('detail-close').addEventListener('click', closeDetail);
+    $('detail-mask').addEventListener('click', function (e) {
+      if (e.target === $('detail-mask')) closeDetail();
+      var btn = e.target.closest ? e.target.closest('button[data-act]') : null;
+      if (btn) onAction(btn.getAttribute('data-act'), btn.getAttribute('data-id'));
+    });
+    $('copy-close').addEventListener('click', function () { $('copy-mask').hidden = true; });
+    $('copy-mask').addEventListener('click', function (e) {
+      if (e.target === $('copy-mask')) $('copy-mask').hidden = true;
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      if (!$('copy-mask').hidden) { $('copy-mask').hidden = true; return; }
+      if (!$('detail-mask').hidden) { closeDetail(); return; }
+      if (ui.editingId) { ui.editingId = null; ui.editImg = null; renderGrid(); }
+    });
+
+    // 离开页面 / 隐藏时立即落盘草稿（避免防抖窗口内关闭导致丢失）
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'hidden') flushDraft();
+    });
+    window.addEventListener('pagehide', function () { flushDraft(); });
+  }
+
+  /* ================= 启动 ================= */
+  function init() {
+    bind();
+    loadSync();
+    loadDraftSync();
+    renderAll();
+    if (draft) fillFormFromDraft();
+    updateDescCounter();
+    adoptPersisted();        // 预载竞态对账（列表）
+    adoptPersistedDraft();   // 预载竞态对账（草稿）
+  }
+  init();
+
+  /* ================= 测试钩子（Node harness 用，浏览器无害） ================= */
+  if (typeof window !== 'undefined') {
+    window.__secondHand = {
+      getState: function () {
+        return { store: store, draft: draft, draftTouched: draftTouched, itemsTouched: itemsTouched, ui: ui };
+      },
+      api: {
+        normalizeItem: normalizeItem, normalizeItems: normalizeItems, stripImgs: stripImgs,
+        validateItem: validateItem, isValidContact: isValidContact, parsePriceInput: parsePriceInput,
+        filterItems: filterItems, sortItems: sortItems, applyView: applyView,
+        itemText: itemText, exportAllText: exportAllText,
+        mergePersisted: mergePersisted, parseJSON: parseJSON,
+        fmtPrice: fmtPrice, genId: genId, flushDraft: flushDraft
+      }
+    };
+  }
+})();
+</script>
+</body>
+</html>

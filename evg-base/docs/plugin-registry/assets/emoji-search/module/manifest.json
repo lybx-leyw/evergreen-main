@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "emoji-search",
+  "name": "Emoji 搜索",
+  "description": "离线 Emoji 表情搜索与复制工具：支持关键词、分类与别名检索，点击一键复制，自动记录最近使用与收藏。",
+  "template": "html",
+  "version": "1.0.0",
+  "icon": "emoji_emotions",
+  "route": "/emoji-search",
+  "nav": {
+    "sidebar": {
+      "section": "工具",
+      "sectionOrder": 50,
+      "order": 6
+    }
+  }
+}

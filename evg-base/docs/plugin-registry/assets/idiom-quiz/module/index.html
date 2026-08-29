@@ -1,0 +1,547 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>成语问答</title><style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  /* 平台主题色（--evg-*）由 Evergreen bridge 注入并实时更新；此处只做
+     别名映射 + 独立预览兜底，绝不重定义 --evg-* 本身（平台红线）。 */
+  --bg: var(--evg-background, #f4f1ea);
+  --card: var(--evg-surface, #ffffff);
+  --ink: var(--evg-text, #3a3120);
+  --ink-soft: var(--evg-text-secondary, #8a7d62);
+  --accent: var(--evg-accent, #b0802e);
+  --accent-bg: var(--evg-accent-bg, #f6ecd7);
+  --accent-border: var(--evg-accent-border, #e6d2a8);
+  --line: var(--evg-border, rgba(58, 49, 32, .12));
+  --err: var(--evg-error, #d64545);
+  /* 答题反馈语义色：本地变量，底色按 --card 混色，随明暗主题自适应 */
+  --ok: #2f9e5e;
+  --ok-text: #2f9e5e;
+  --ok-bg: color-mix(in srgb, var(--ok) 15%, var(--card));
+  --err-bg: color-mix(in srgb, var(--err) 12%, var(--card));
+}
+/* 独立预览（无 bridge）时的深色系统兜底；Evergreen 内由平台主题内联样式覆盖 */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1b1a17; --card: #27241f; --ink: #e9e2d0; --ink-soft: #a89c80;
+    --accent: #d9a94e; --accent-bg: #332c1d; --accent-border: #5a4a26;
+    --line: rgba(233, 226, 208, .13); --err: #e06b6b;
+    --ok: #4cbf82; --ok-text: #62d199;
+  }
+}
+html { font-size: 16px; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, sans-serif; background: var(--bg); color: var(--ink); min-height: 100vh; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+.topbar { display: flex; align-items: center; gap: .75rem; padding: 1.1rem 1.5rem; border-bottom: 1px solid var(--line); background: var(--card); background: color-mix(in srgb, var(--card) 72%, transparent); backdrop-filter: blur(.875rem); -webkit-backdrop-filter: blur(.875rem); position: sticky; top: 0; z-index: 5; }
+.topbar .ico { font-size: 1.5rem; }
+.topbar h1 { font-size: 1.15rem; font-weight: 700; }
+.topbar .sub { font-size: .72rem; color: var(--ink-soft); }
+.container { max-width: 44rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 1rem; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+.card h2 { font-size: .95rem; font-weight: 700; margin-bottom: .9rem; display: flex; align-items: center; justify-content: space-between; }
+.card h2 .f { font-size: .72rem; color: var(--ink-soft); font-weight: 500; }
+.hidden { display: none !important; }
+.top-row { display: flex; align-items: center; justify-content: space-between; gap: .6rem; margin-bottom: .9rem; flex-wrap: wrap; }
+.score { display: flex; gap: 1rem; font-size: .88rem; flex-wrap: wrap; }
+.score b { color: var(--accent); }
+.q-progress { font-size: .8rem; color: var(--ink-soft); background: var(--bg); background: color-mix(in srgb, var(--bg) 55%, transparent); border: 1px solid var(--line); border-radius: 999px; padding: .28rem .8rem; }
+.q-progress b { color: var(--accent); }
+.modes { display: flex; gap: .4rem; }
+.mode { appearance: none; border: 1px solid var(--line); background: transparent; color: var(--ink-soft); font-family: inherit; font-size: .8rem; padding: .42rem .9rem; border-radius: .7rem; cursor: pointer; }
+.mode.active { color: #fff; background: var(--accent); border-color: var(--accent); }
+.question { text-align: center; padding: .8rem 0 .9rem; }
+.q-idiom { font-size: 2.2rem; font-weight: 700; letter-spacing: .35rem; margin-bottom: .5rem; word-break: keep-all; }
+.q-hint { font-size: .9rem; color: var(--ink-soft); line-height: 1.7; }
+.options { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; margin-bottom: .9rem; }
+.opt { appearance: none; border: 1px solid var(--line); background: var(--bg); background: color-mix(in srgb, var(--bg) 50%, transparent); color: var(--ink); font-family: inherit; font-size: .95rem; padding: .78rem .8rem; border-radius: .8rem; cursor: pointer; text-align: center; transition: border-color .15s ease, transform .12s ease; }
+.opt.ch { font-size: 1.2rem; font-weight: 600; letter-spacing: .1rem; }
+.opt:hover { transform: translateY(-1px); border-color: var(--accent-border); }
+.opt.correct { border-color: var(--ok); background: #e1f2e7; background: var(--ok-bg); color: var(--ok-text); font-weight: 700; }
+.opt.wrong { border-color: var(--err); background: #fbe4e4; background: var(--err-bg); color: var(--err); }
+.opt:disabled { cursor: default; transform: none; }
+.explain { font-size: .85rem; line-height: 1.7; background: var(--bg); background: color-mix(in srgb, var(--bg) 55%, transparent); border: 1px dashed var(--accent-border); border-radius: .75rem; padding: .8rem .95rem; margin-bottom: .9rem; }
+.explain b { color: var(--accent); }
+.ctrl { display: flex; gap: .6rem; justify-content: center; flex-wrap: wrap; }
+.btn { appearance: none; border: none; cursor: pointer; font-family: inherit; font-size: .9rem; font-weight: 600; padding: .6rem 1.3rem; border-radius: .8rem; color: #fff; background: var(--accent); transition: transform .15s ease, opacity .15s ease; }
+.btn:hover { transform: translateY(-1px); opacity: .92; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn.danger { color: var(--err); border-color: var(--err); border-color: color-mix(in srgb, var(--err) 40%, transparent); }
+.btn:disabled { opacity: .45; cursor: default; transform: none; }
+.stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: .6rem; margin-top: .9rem; }
+.stat { text-align: center; padding: .65rem .4rem; border-radius: .8rem; background: var(--bg); background: color-mix(in srgb, var(--bg) 55%, transparent); border: 1px solid var(--line); }
+.stat .v { font-size: 1.2rem; font-weight: 700; color: var(--accent); }
+.stat .l { font-size: .68rem; color: var(--ink-soft); margin-top: .15rem; }
+.reset-row { text-align: center; margin-top: .4rem; }
+/* 结算卡片 */
+.result { text-align: center; padding: 2rem 1.25rem; }
+.result .r-score { font-size: 3rem; font-weight: 800; color: var(--accent); line-height: 1.2; margin-top: .4rem; }
+.result .r-score small { font-size: .95rem; font-weight: 600; color: var(--ink-soft); }
+.result .r-best { margin-top: .3rem; color: var(--ink-soft); font-size: .9rem; }
+.result .r-best b { color: var(--accent); }
+.result .r-note { margin: .9rem 0 1.3rem; font-size: .95rem; color: var(--ink); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (max-width: 40rem) {
+  .options { grid-template-columns: 1fr; }
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  .q-idiom { font-size: 1.9rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style></head><body>
+<header class="topbar">
+  <span class="ico">🀄</span>
+  <div><h1>成语问答</h1><div class="sub">看释义猜成语 · 填空补全 · 每局 10 题</div></div>
+</header>
+<main class="container">
+  <section class="card" id="quiz-card" aria-label="答题区">
+    <div class="top-row">
+      <div class="score">本局 <b id="score">0</b> 分 · 连对 <b id="streak">0</b></div>
+      <span class="q-progress" id="q-progress">第 <b id="q-now">1</b>/10 题</span>
+      <div class="modes" id="modes" role="group" aria-label="题目模式">
+        <button class="mode active" data-m="guess" type="button">猜成语</button>
+        <button class="mode" data-m="fill" type="button">填空</button>
+      </div>
+    </div>
+    <div class="question">
+      <div class="q-idiom" id="q-idiom">—</div>
+      <div class="q-hint" id="q-hint">—</div>
+    </div>
+    <div class="options" id="options"></div>
+    <div class="explain hidden" id="explain" aria-live="polite"></div>
+    <div class="ctrl">
+      <button class="btn" id="b-next" type="button">下一题 ▶</button>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="v" id="st-best">0</div><div class="l">最高分</div></div>
+      <div class="stat"><div class="v" id="st-answered">0</div><div class="l">累计已答</div></div>
+      <div class="stat"><div class="v" id="st-correct">0</div><div class="l">累计答对</div></div>
+      <div class="stat"><div class="v" id="st-rate">0%</div><div class="l">正确率</div></div>
+      <div class="stat"><div class="v" id="st-seen">0</div><div class="l">已掌握</div></div>
+    </div>
+    <div class="reset-row">
+      <button class="btn ghost" id="b-reset" type="button">重置记录</button>
+    </div>
+  </section>
+
+  <section class="card result hidden" id="result" aria-label="本局结算">
+    <div class="q-idiom" style="letter-spacing:normal; font-size:1.1rem; color:var(--ink-soft); font-weight:600;">本局完成 🎉</div>
+    <div class="r-score"><span id="r-score">0</span><small> 分</small></div>
+    <div class="r-best">最高分 <b id="r-best">0</b> · 最长连对 <b id="r-streak">0</b></div>
+    <div class="r-note" id="r-note"></div>
+    <div class="ctrl">
+      <button class="btn" id="b-restart" type="button">再来一局 ▶</button>
+    </div>
+  </section>
+</main>
+<script>
+(function () {
+  'use strict';
+  var P = (typeof platform !== 'undefined') ? platform : null;
+  var KEY = 'evg.idiom-quiz';
+
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  function safeParse(s) { if (!s) return null; try { return JSON.parse(s); } catch (e) { return null; } }
+  function readRaw() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) { /* 存储不可用时静默降级为会话内有效 */ } }
+
+  /*==QUIZDATA:BEGIN==*/
+  var BANK = [
+    { w: '画蛇添足', d: '比喻做了多余的事，反而不恰当' },
+    { w: '守株待兔', d: '比喻不主动努力，心存侥幸希望得到意外收获' },
+    { w: '亡羊补牢', d: '出了问题后及时补救，还不算晚' },
+    { w: '井底之蛙', d: '比喻见识短浅的人' },
+    { w: '刻舟求剑', d: '比喻办事方法死板，不知道随着情况变化' },
+    { w: '自相矛盾', d: '比喻自己说话做事前后抵触' },
+    { w: '掩耳盗铃', d: '比喻自己欺骗自己，以为别人不知道' },
+    { w: '拔苗助长', d: '比喻违反事物发展规律，急于求成反而坏事' },
+    { w: '胸有成竹', d: '比喻做事之前已有充分的把握' },
+    { w: '对牛弹琴', d: '比喻对不懂道理的人讲道理' },
+    { w: '狐假虎威', d: '比喻依仗别人的势力欺压人' },
+    { w: '杯弓蛇影', d: '比喻疑神疑鬼，自相惊扰' },
+    { w: '叶公好龙', d: '比喻口头上说爱好某事物，实际上并不真爱好' },
+    { w: '塞翁失马', d: '比喻坏事在一定条件下可以变成好事' },
+    { w: '破釜沉舟', d: '比喻下定决心，不顾一切干到底' },
+    { w: '纸上谈兵', d: '比喻空谈理论，不能解决实际问题' },
+    { w: '三顾茅庐', d: '比喻真心诚意，一再邀请' },
+    { w: '望梅止渴', d: '比喻用空想安慰自己' },
+    { w: '四面楚歌', d: '比喻陷入四面受敌、孤立无援的境地' },
+    { w: '卧薪尝胆', d: '形容人刻苦自励，发愤图强' },
+    { w: '一鸣惊人', d: '比喻平时默默无闻，突然做出惊人的成绩' },
+    { w: '指鹿为马', d: '比喻故意颠倒黑白，混淆是非' },
+    { w: '滥竽充数', d: '比喻没有真才实学的人混在行家里面充数' },
+    { w: '南辕北辙', d: '比喻行动和目的相反' },
+    { w: '邯郸学步', d: '比喻生搬硬套，机械模仿，反而丢掉了自己原有的本领' },
+    { w: '东施效颦', d: '比喻盲目模仿别人，结果适得其反' },
+    { w: '老马识途', d: '比喻有经验的人对情况熟悉，能起引导作用' },
+    { w: '买椟还珠', d: '比喻取舍不当，抓了次要的却丢了主要的' },
+    { w: '画龙点睛', d: '比喻在关键处加上一两句精辟的话，使内容更加生动传神' },
+    { w: '一箭双雕', d: '比喻做一件事同时达到两个目的' },
+    { w: '杯水车薪', d: '比喻力量太小，解决不了问题' },
+    { w: '半途而废', d: '比喻做事有始无终，不能坚持到底' },
+    { w: '囫囵吞枣', d: '比喻读书等不加分析地笼统接受' },
+    { w: '走马观花', d: '比喻观察事物不深入、不细致' },
+    { w: '举一反三', d: '比喻从一件事类推而知道许多事' },
+    { w: '水滴石穿', d: '比喻坚持不懈，力量虽小也能做成难事' },
+    { w: '对症下药', d: '比喻针对实际情况采取有效措施' },
+    { w: '入木三分', d: '形容书法笔力遒劲，也比喻分析问题深刻透彻' },
+    { w: '鹤立鸡群', d: '比喻人的才能或仪表出众' },
+    { w: '毛遂自荐', d: '比喻自告奋勇，自我推荐去做某事' },
+    { w: '朝三暮四', d: '比喻常常变卦，反复无常' },
+    { w: '画饼充饥', d: '比喻用空想或虚假的许诺来安慰自己' }
+  ];
+  /*==QUIZDATA:END==*/
+
+  // 填空模式干扰字池（候选在池中抽样，正确字单独加入）
+  var FILL_POOL = '一二人心口手目鱼龙马牛虎蛇鼠兔鸡狗狼凤鹤山水日月天地风雪雨花草木金石玉宝麒麟鹏雀燕雁鸦蛾蝶蜂蚁虫虾蟹春夜啼门烛舟书剑琴棋笔墨纸砚寺塔楼台江湖海河川岛林竹梅兰菊荷松柏枫杨柳杏桃李桂梨枣';
+
+  /*==QUIZCORE:BEGIN==*/
+  var QuizCore = (function () {
+    'use strict';
+
+    var ROUND_LEN = 10;   // 每局题数
+    var POINTS = 10;      // 每题得分
+
+    function toNum(v, fb) { var n = Number(v); return isFinite(n) ? n : fb; }
+    function clampInt(v, min, max, fb) { var n = Math.floor(toNum(v, fb)); if (n < min) return min; if (n > max) return max; return n; }
+
+    function shuffle(arr, rng) {
+      var a = arr.slice();
+      for (var i = a.length - 1; i > 0; i--) {
+        var j = Math.floor(rng() * (i + 1));
+        var t = a[i]; a[i] = a[j]; a[j] = t;
+      }
+      return a;
+    }
+
+    function range(n) { var a = []; for (var i = 0; i < n; i++) a.push(i); return a; }
+
+    // 全轮不重复的出题顺序：洗牌整轮，用尽后重新洗牌（同一成语不会连续/短期内重复）
+    function makeOrder(bankLen, rng) {
+      var order = [];
+      return function next() {
+        if (!order.length) order = shuffle(range(bankLen), rng);
+        return order.pop();
+      };
+    }
+
+    // 填空：随机遮住成语中的一个字，返回位置与字
+    function pickMask(word, rng) {
+      var i = Math.floor(rng() * word.length);
+      return { index: i, char: word[i] };
+    }
+
+    function evaluateGuess(answer, picked) { return answer === picked; }
+    function evaluateFill(word, index, picked) { return word[index] === picked; }
+
+    // 猜成语：从题库挑 n 个与正确项不同的词索引（去重）
+    function pickDistractors(bankLen, excludeIdx, n, rng) {
+      var idx = [], tries = 0;
+      while (idx.length < n && tries < bankLen * 8) {
+        tries++;
+        var i = Math.floor(rng() * bankLen);
+        if (i !== excludeIdx && idx.indexOf(i) === -1) idx.push(i);
+      }
+      return idx;
+    }
+
+    // 填空：从字池挑候选，返回 n 个互不相同的字（含正确字），顺序随机
+    function pickFillCandidates(pool, correctChar, n, rng) {
+      var cands = [correctChar], tries = 0;
+      while (cands.length < n && tries < pool.length * 8) {
+        tries++;
+        var c = pool[Math.floor(rng() * pool.length)];
+        if (cands.indexOf(c) === -1) cands.push(c);
+      }
+      return shuffle(cands, rng);
+    }
+
+    // 计分（不可变）：正确 +10 分、连对 +1；错误连对清零；每题计入已答/已掌握
+    function applyAnswer(state, q, correct) {
+      var s = {
+        score: state.score, best: state.best, streak: state.streak, bestStreak: state.bestStreak,
+        answered: state.answered, correct: state.correct,
+        seen: state.seen, roundLeft: state.roundLeft
+      };
+      s.answered += 1;
+      s.roundLeft -= 1;
+      if (correct) {
+        s.score += POINTS;
+        s.correct += 1;
+        s.streak += 1;
+        if (s.streak > s.bestStreak) s.bestStreak = s.streak;
+        if (s.score > s.best) s.best = s.score;
+      } else {
+        s.streak = 0;
+      }
+      if (q && q.w) { s.seen = Object.assign({}, s.seen); s.seen[q.w] = true; }
+      return s;
+    }
+
+    // 规范化持久化数据：脏数据（类型错/负数/越界）回落安全默认值
+    function normalizeState(raw) {
+      var d = { score: 0, best: 0, streak: 0, bestStreak: 0, answered: 0, correct: 0, seen: {}, roundLeft: ROUND_LEN };
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return d;
+      var s = {};
+      for (var k in d) s[k] = d[k];
+      s.score = Math.max(0, toNum(raw.score, 0));
+      s.best = Math.max(0, toNum(raw.best, 0));
+      s.streak = Math.max(0, toNum(raw.streak, 0));
+      s.bestStreak = Math.max(0, toNum(raw.bestStreak, 0));
+      s.answered = Math.max(0, toNum(raw.answered, 0));
+      s.correct = Math.max(0, toNum(raw.correct, 0));
+      s.roundLeft = clampInt(raw.roundLeft, 0, ROUND_LEN, ROUND_LEN);
+      s.seen = (raw.seen && typeof raw.seen === 'object' && !Array.isArray(raw.seen)) ? raw.seen : {};
+      return s;
+    }
+
+    // 预载竞态合并：saved 为权威存档；本地已改动（touched）的键保留本地值；seen 取并集
+    function mergeState(base, saved, touched) {
+      var out = {};
+      for (var k in base) if (Object.prototype.hasOwnProperty.call(base, k)) out[k] = base[k];
+      for (var k2 in saved) {
+        if (!Object.prototype.hasOwnProperty.call(saved, k2)) continue;
+        if (k2 === 'seen') {
+          var m = {}, src;
+          for (src in saved.seen) m[src] = true;
+          for (src in base.seen) m[src] = true;
+          out.seen = m;
+        } else if (!touched[k2]) {
+          out[k2] = saved[k2];
+        }
+      }
+      return out;
+    }
+
+    function defaults() { return normalizeState(null); }
+
+    return {
+      ROUND_LEN: ROUND_LEN, POINTS: POINTS,
+      shuffle: shuffle, makeOrder: makeOrder, pickMask: pickMask,
+      evaluateGuess: evaluateGuess, evaluateFill: evaluateFill,
+      pickDistractors: pickDistractors, pickFillCandidates: pickFillCandidates,
+      applyAnswer: applyAnswer, normalizeState: normalizeState, mergeState: mergeState, defaults: defaults
+    };
+  })();
+  /*==QUIZCORE:END==*/
+
+  // 页面状态
+  var mode = 'guess';
+  var current = null;          // { q, distractors[], mask|null }
+  var answered = false;
+  var roundFinished = false;   // 本局答满 10 题，下一题按钮转为「查看成绩」
+  var lastRoundScore = 0;
+  var touched = {};            // 预载竞态：自加载起本地改动的键
+  var resetArmed = false, resetTimer = null;
+
+  var ALL_KEYS = ['score', 'best', 'streak', 'bestStreak', 'answered', 'correct', 'seen', 'roundLeft'];
+  function markTouched() { for (var i = 0; i < ALL_KEYS.length; i++) touched[ALL_KEYS[i]] = true; }
+
+  // 载入存档：先读 polyfill 内存（可能为空，预载异步晚于首帧），
+  // 再经权威通道 platform.storage.get 校准一次，避免首帧默认值覆盖旧存档。
+  var store = QuizCore.normalizeState(safeParse(readRaw()));
+  if (store.roundLeft < 1) { store.score = 0; store.roundLeft = QuizCore.ROUND_LEN; }
+  if (P && P.storage && P.storage.get) {
+    P.storage.get(KEY).then(function (v) {
+      if (typeof v !== 'string' || !v) return;
+      var saved = QuizCore.normalizeState(safeParse(v));
+      store = QuizCore.mergeState(store, saved, touched);
+      if (store.roundLeft < 1) { store.score = 0; store.roundLeft = QuizCore.ROUND_LEN; }
+      renderStats(); renderProgress();
+    }).catch(function () { /* 核心未就绪等：保持当前内存态（会话内有效） */ });
+  }
+
+  var nextIndex = QuizCore.makeOrder(BANK.length, Math.random);
+
+  function pickQuestion() {
+    var i = nextIndex();
+    var q = BANK[i];
+    return {
+      q: q,
+      distractors: QuizCore.pickDistractors(BANK.length, i, 3, Math.random).map(function (j) { return BANK[j].w; }),
+      mask: mode === 'fill' ? QuizCore.pickMask(q.w, Math.random) : null
+    };
+  }
+
+  function renderQuestion() {
+    current = pickQuestion();
+    answered = false;
+    var idiomEl = document.getElementById('q-idiom');
+    var hintEl = document.getElementById('q-hint');
+    var optsEl = document.getElementById('options');
+    var explain = document.getElementById('explain');
+    explain.classList.add('hidden');
+    explain.textContent = '';
+
+    if (mode === 'guess') {
+      idiomEl.textContent = '？ ？ ？ ？';
+      hintEl.textContent = '释义：' + current.q.d;
+      var opts = QuizCore.shuffle([current.q.w].concat(current.distractors), Math.random);
+      optsEl.innerHTML = opts.map(function (o) {
+        return '<button class="opt" type="button" data-w="' + esc(o) + '">' + esc(o) + '</button>';
+      }).join('');
+    } else {
+      var word = current.q.w;
+      var shown = word.slice(0, current.mask.index) + '＿' + word.slice(current.mask.index + 1);
+      idiomEl.textContent = shown;
+      hintEl.textContent = '补全成语（释义：' + current.q.d + '）';
+      var cands = QuizCore.pickFillCandidates(FILL_POOL, current.mask.char, 4, Math.random);
+      optsEl.innerHTML = cands.map(function (c) {
+        return '<button class="opt ch" type="button" data-c="' + esc(c) + '">' + esc(c) + '</button>';
+      }).join('');
+    }
+    var nextBtn = document.getElementById('b-next');
+    nextBtn.disabled = true;
+    nextBtn.textContent = '下一题 ▶';
+    roundFinished = false;
+    var first = optsEl.querySelector('.opt');
+    if (first) first.focus({ preventScroll: true });
+  }
+
+  function answer(payload) {
+    if (answered) return;
+    answered = true;
+    var correct;
+    if (mode === 'guess') {
+      correct = QuizCore.evaluateGuess(current.q.w, payload);
+      renderGuessResult(correct, payload);
+    } else {
+      correct = QuizCore.evaluateFill(current.q.w, current.mask.index, payload);
+      renderFillResult(correct, payload, current.mask.char);
+    }
+    store = QuizCore.applyAnswer(store, current.q, correct);
+    markTouched();
+    roundFinished = store.roundLeft < 1;
+    if (roundFinished) {
+      lastRoundScore = store.score;
+      // 存档直接开启新局（score 归零、剩余题数回满），内存留在结算态
+      store.score = 0;
+      store.roundLeft = QuizCore.ROUND_LEN;
+    }
+    save();
+    renderStats();
+    renderProgress();
+    var nextBtn = document.getElementById('b-next');
+    nextBtn.disabled = false;
+    nextBtn.textContent = roundFinished ? '查看成绩 ▶' : '下一题 ▶';
+    nextBtn.focus();
+    if (P && P.emit) { try { P.emit('idiom-quiz:answer', { correct: correct, score: store.score, best: store.best }); } catch (e) {} }
+  }
+
+  function renderGuessResult(correct, picked) {
+    var opts = document.querySelectorAll('#options .opt');
+    Array.prototype.forEach.call(opts, function (o) {
+      if (o.getAttribute('data-w') === current.q.w) o.classList.add('correct');
+      if (!correct && o.getAttribute('data-w') === picked) o.classList.add('wrong');
+      o.disabled = true;
+    });
+    var ex = document.getElementById('explain');
+    ex.innerHTML = '<b>' + esc(current.q.w) + '</b>：' + esc(current.q.d) + (correct ? '（回答正确 🎉）' : '');
+    ex.classList.remove('hidden');
+  }
+
+  function renderFillResult(correct, picked, maskChar) {
+    var opts = document.querySelectorAll('#options .opt');
+    Array.prototype.forEach.call(opts, function (o) {
+      if (o.getAttribute('data-c') === maskChar) o.classList.add('correct');
+      if (!correct && o.getAttribute('data-c') === picked) o.classList.add('wrong');
+      o.disabled = true;
+    });
+    var ex = document.getElementById('explain');
+    ex.innerHTML = '<b>' + esc(current.q.w) + '</b>：' + esc(current.q.d) + (correct ? '（回答正确 🎉）' : '（正确答案是「' + esc(maskChar) + '」）');
+    ex.classList.remove('hidden');
+  }
+
+  function gradeNote(score) {
+    if (score >= 90) return '学富五车，出口成章！';
+    if (score >= 70) return '才思敏捷，成语信手拈来！';
+    if (score >= 40) return '渐入佳境，再接再厉！';
+    return '熟能生巧，再来一局练练手吧。';
+  }
+
+  function showResult() {
+    document.getElementById('quiz-card').classList.add('hidden');
+    var r = document.getElementById('result');
+    document.getElementById('r-score').textContent = lastRoundScore;
+    document.getElementById('r-best').textContent = store.best;
+    document.getElementById('r-streak').textContent = store.bestStreak;
+    document.getElementById('r-note').textContent = gradeNote(lastRoundScore);
+    r.classList.remove('hidden');
+    document.getElementById('b-restart').focus();
+  }
+
+  function startRound() {
+    store.score = 0;
+    store.roundLeft = QuizCore.ROUND_LEN;
+    save();
+    document.getElementById('result').classList.add('hidden');
+    document.getElementById('quiz-card').classList.remove('hidden');
+    renderStats();
+    renderProgress();
+    renderQuestion();
+  }
+
+  function renderStats() {
+    document.getElementById('score').textContent = store.score;
+    document.getElementById('streak').textContent = store.streak;
+    document.getElementById('st-best').textContent = store.best;
+    document.getElementById('st-answered').textContent = store.answered;
+    document.getElementById('st-correct').textContent = store.correct;
+    document.getElementById('st-rate').textContent = store.answered ? Math.round(store.correct / store.answered * 100) + '%' : '0%';
+    document.getElementById('st-seen').textContent = Object.keys(store.seen).length + '/' + BANK.length;
+  }
+
+  function renderProgress() {
+    var now = Math.min(QuizCore.ROUND_LEN, Math.max(1, QuizCore.ROUND_LEN - store.roundLeft + 1));
+    document.getElementById('q-now').textContent = now;
+  }
+
+  // 交互
+  document.getElementById('options').addEventListener('click', function (e) {
+    var b = e.target.closest('.opt');
+    if (!b || answered) return;
+    if (mode === 'guess') answer(b.getAttribute('data-w'));
+    else answer(b.getAttribute('data-c'));
+  });
+
+  document.getElementById('b-next').addEventListener('click', function () {
+    if (roundFinished) { showResult(); return; }
+    renderQuestion();
+  });
+
+  document.getElementById('b-restart').addEventListener('click', startRound);
+
+  document.getElementById('modes').addEventListener('click', function (e) {
+    var b = e.target.closest('.mode');
+    if (!b) return;
+    mode = b.getAttribute('data-m');
+    Array.prototype.forEach.call(document.querySelectorAll('.mode'), function (x) { x.classList.toggle('active', x === b); });
+    renderQuestion();
+  });
+
+  // 重置记录：两段式确认，避免误触（不使用 alert/confirm 原生弹窗）
+  document.getElementById('b-reset').addEventListener('click', function () {
+    var btn = document.getElementById('b-reset');
+    if (!resetArmed) {
+      resetArmed = true;
+      btn.textContent = '再次点击确认重置';
+      btn.classList.add('danger');
+      resetTimer = setTimeout(function () {
+        resetArmed = false;
+        btn.textContent = '重置记录';
+        btn.classList.remove('danger');
+      }, 3000);
+      return;
+    }
+    if (resetTimer) clearTimeout(resetTimer);
+    resetArmed = false;
+    btn.textContent = '重置记录';
+    btn.classList.remove('danger');
+    store = QuizCore.defaults();
+    touched = {};
+    save();
+    startRound();
+  });
+
+  renderStats();
+  renderProgress();
+  renderQuestion();
+})();
+</script></body></html>

@@ -1,0 +1,18 @@
+{
+  "type": "data-source",
+  "id": "exchange-rate",
+  "name": "汇率",
+  "script": "fetch.py",
+  "runtime": "python",
+  "androidSupport": true,
+  "dataTypes": [
+    {
+      "name": "exchange_rate",
+      "typeArg": "exchange_rate",
+      "category": "财经",
+      "displayName": "实时汇率",
+      "ttl": "1h",
+      "persistentKey": "exchange_rate_latest"
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "type": "skin",
+  "id": "neon-night-run",
+  "name": "荧光夜跑",
+  "version": "1.0.0",
+  "description": "「荧光夜跑」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+  "background": {
+    "type": "image",
+    "imageDesktop": "bg_desktop.svg",
+    "imageMobile": "bg_mobile.svg"
+  },
+  "bubble": {
+    "userBackgroundColor": "#2A2150",
+    "borderRadius": 18
+  },
+  "avatar": {
+    "user": "avatar_user.svg",
+    "userBackgroundColor": "#4DF3B8"
+  },
+  "thinking": {
+    "title": "思考过程",
+    "colors": {
+      "header": "#4DF3B8",
+      "containerBackground": "#2A2150",
+      "containerBorder": "#7B61FF",
+      "contentText": "#9B8AFF",
+      "chipMemoryBg": "#2A2150",
+      "chipMemoryFg": "#4DF3B8",
+      "chipSkillBg": "#2A2150",
+      "chipSkillFg": "#4DF3B8",
+      "chipToolBg": "#2A2150",
+      "chipToolFg": "#4DF3B8",
+      "chipToolResultBg": "#2A2150",
+      "chipToolResultFg": "#4DF3B8"
+    }
+  },
+  "effortColor": "#4DF3B8",
+  "toolActiveColor": "#4DF3B8"
+}

@@ -1,0 +1,37 @@
+{
+  "type": "data-source",
+  "id": "github-trending",
+  "name": "GitHub 趋势",
+  "script": "fetch.py",
+  "runtime": "python",
+  "androidSupport": true,
+  "dataTypes": [
+    {
+      "name": "github_trending",
+      "typeArg": "github_trending",
+      "category": "开发",
+      "displayName": "GitHub 趋势 · 今日",
+      "ttl": "30m",
+      "persistentKey": "github_trending",
+      "fallbackJson": { "items": [], "count": 0, "since": "daily" }
+    },
+    {
+      "name": "github_trending_weekly",
+      "typeArg": "github_trending_weekly",
+      "category": "开发",
+      "displayName": "GitHub 趋势 · 本周",
+      "ttl": "1h",
+      "persistentKey": "github_trending_weekly",
+      "fallbackJson": { "items": [], "count": 0, "since": "weekly" }
+    },
+    {
+      "name": "github_trending_monthly",
+      "typeArg": "github_trending_monthly",
+      "category": "开发",
+      "displayName": "GitHub 趋势 · 本月",
+      "ttl": "1h",
+      "persistentKey": "github_trending_monthly",
+      "fallbackJson": { "items": [], "count": 0, "since": "monthly" }
+    }
+  ]
+}

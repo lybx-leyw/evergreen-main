@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "mood-diary",
+  "name": "心情日记",
+  "description": "记录每日心情的本地日记：emoji 心情打卡、每日文字随记、日历与列表回顾，数据仅保存在本机，不上传云端。",
+  "template": "html",
+  "version": "1.0.0",
+  "icon": "mood",
+  "route": "/mood-diary",
+  "nav": {
+    "sidebar": {
+      "section": "生活",
+      "sectionOrder": 40,
+      "order": 3
+    }
+  }
+}

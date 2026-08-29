@@ -1,0 +1,39 @@
+{
+  "type": "skin",
+  "id": "morning-sun",
+  "name": "晨光",
+  "version": "1.0.0",
+  "description": "「晨光」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+  "background": {
+    "type": "image",
+    "imageDesktop": "bg_desktop.svg",
+    "imageMobile": "bg_mobile.svg"
+  },
+  "bubble": {
+    "userBackgroundColor": "#FDEFDC",
+    "borderRadius": 18
+  },
+  "avatar": {
+    "user": "avatar_user.svg",
+    "userBackgroundColor": "#FF9E45"
+  },
+  "thinking": {
+    "title": "思考过程",
+    "colors": {
+      "header": "#FF9E45",
+      "containerBackground": "#FDEFDC",
+      "containerBorder": "#3D2E1C",
+      "contentText": "#3D2E1C",
+      "chipMemoryBg": "#FDEFDC",
+      "chipMemoryFg": "#AB5200",
+      "chipSkillBg": "#FDEFDC",
+      "chipSkillFg": "#AB5200",
+      "chipToolBg": "#FDEFDC",
+      "chipToolFg": "#AB5200",
+      "chipToolResultBg": "#FDEFDC",
+      "chipToolResultFg": "#AB5200"
+    }
+  },
+  "effortColor": "#AB5200",
+  "toolActiveColor": "#AB5200"
+}

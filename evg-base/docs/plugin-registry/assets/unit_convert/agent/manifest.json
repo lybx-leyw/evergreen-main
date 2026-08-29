@@ -1,0 +1,30 @@
+{
+  "name": "unit_convert",
+  "description": "常见单位换算：长度/重量/温度/数据量；只读工具。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "value": {
+        "type": "number",
+        "description": "数值。"
+      },
+      "from": {
+        "type": "string",
+        "description": "源单位：长度 m/km/cm/mm、质量 kg/g、温度 c/f/k、数据量 kb/mb/gb 等。"
+      },
+      "to": {
+        "type": "string",
+        "description": "目标单位。"
+      }
+    },
+    "required": [
+      "value",
+      "from",
+      "to"
+    ]
+  },
+  "readOnly": true,
+  "argMode": "stdin",
+  "runtime": "python",
+  "lifetime": "once"
+}

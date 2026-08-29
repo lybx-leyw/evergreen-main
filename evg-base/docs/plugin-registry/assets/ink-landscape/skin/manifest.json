@@ -1,0 +1,39 @@
+{
+  "type": "skin",
+  "id": "ink-landscape",
+  "name": "水墨丹青",
+  "version": "1.0.0",
+  "description": "「水墨丹青」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+  "background": {
+    "type": "image",
+    "imageDesktop": "bg_desktop.svg",
+    "imageMobile": "bg_mobile.svg"
+  },
+  "bubble": {
+    "userBackgroundColor": "#ECE9E2",
+    "borderRadius": 18
+  },
+  "avatar": {
+    "user": "avatar_user.svg",
+    "userBackgroundColor": "#4C4A45"
+  },
+  "thinking": {
+    "title": "思考过程",
+    "colors": {
+      "header": "#4C4A45",
+      "containerBackground": "#ECE9E2",
+      "containerBorder": "#2B2B28",
+      "contentText": "#2B2B28",
+      "chipMemoryBg": "#ECE9E2",
+      "chipMemoryFg": "#4C4A45",
+      "chipSkillBg": "#ECE9E2",
+      "chipSkillFg": "#4C4A45",
+      "chipToolBg": "#ECE9E2",
+      "chipToolFg": "#4C4A45",
+      "chipToolResultBg": "#ECE9E2",
+      "chipToolResultFg": "#4C4A45"
+    }
+  },
+  "effortColor": "#4C4A45",
+  "toolActiveColor": "#4C4A45"
+}

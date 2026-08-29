@@ -1,0 +1,492 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>待办清单</title><style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+/* ── 主题变量 ──
+   --evg-* 由 Evergreen bridge 注入（<html> 内联样式），明暗主题实时切换。
+   红线：本页不在 :root 重定义 --evg-*，只定义本地别名并带兜底值。 */
+:root {
+  --bg: var(--evg-background, #f2f4f8);
+  --card: var(--evg-surface, #ffffff);
+  --ink: var(--evg-text, #232b3a);
+  --ink-soft: var(--evg-text-secondary, #6a7691);
+  --accent: var(--evg-accent, #4a6fd0);
+  --accent-bg: var(--evg-accent-bg, #e8edfb);
+  --accent-border: var(--evg-accent-border, #c6d2f2);
+  --line: var(--evg-border, rgba(35, 43, 58, .09));
+  --err: var(--evg-error, #d64545);
+  --warn-ink: var(--evg-others, #b5791e); /* 中优先级色：随主题 others 自适应 */
+  --btn-ink: #ffffff;
+}
+html { font-size: 16px; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, sans-serif; background: var(--bg); color: var(--ink); min-height: 100vh; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+.topbar { display: flex; align-items: center; gap: .75rem; padding: 1.1rem 1.5rem; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--card) 72%, transparent); backdrop-filter: blur(.875rem); -webkit-backdrop-filter: blur(.875rem); position: sticky; top: 0; z-index: 5; }
+.topbar .ico { font-size: 1.5rem; }
+.topbar h1 { font-size: 1.15rem; font-weight: 700; }
+.topbar .sub { font-size: .72rem; color: var(--ink-soft); }
+.local-badge { margin-left: auto; flex-shrink: 0; font-size: .68rem; color: var(--ink-soft); background: color-mix(in srgb, var(--ink-soft) 10%, transparent); border: 1px solid var(--line); padding: .22rem .6rem; border-radius: 999px; white-space: nowrap; }
+.container { max-width: 46rem; margin: 0 auto; padding: 1.5rem 1.25rem 2.5rem; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 1rem; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+.card h2 { font-size: .95rem; font-weight: 700; margin-bottom: .9rem; display: flex; align-items: center; justify-content: space-between; }
+.add-row { display: flex; gap: .5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.add-row input[type=text] { flex: 1 1 12rem; min-width: 10rem; padding: .6rem .75rem; border-radius: .7rem; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--ink); font-family: inherit; font-size: .9rem; }
+.add-row input[type=date] { padding: .55rem .6rem; border-radius: .7rem; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--ink); font-family: inherit; font-size: .82rem; flex: 0 1 auto; }
+.add-row input:focus, .field input:focus, .field select:focus, .edit-fields input:focus, .edit-fields select:focus { outline: 2px solid var(--accent-border); border-color: var(--accent-border); }
+.btn { appearance: none; -webkit-appearance: none; border: none; cursor: pointer; font-family: inherit; font-size: .85rem; font-weight: 600; padding: .55rem 1.1rem; border-radius: .7rem; color: var(--btn-ink); background: var(--accent); transition: transform .15s ease, opacity .15s ease; }
+.btn:hover { transform: translateY(-1px); opacity: .92; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn.danger { background: transparent; color: var(--err); border: 1px solid color-mix(in srgb, var(--err) 45%, transparent); }
+.btn.sm { padding: .4rem .8rem; font-size: .8rem; }
+.btn:focus-visible, .fbtn:focus-visible, .icon-btn:focus-visible, .check:focus-visible { outline: 2px solid var(--accent-border); outline-offset: 2px; }
+.filters { display: flex; gap: .4rem; flex-wrap: wrap; margin-bottom: .9rem; }
+.fbtn { appearance: none; -webkit-appearance: none; border: 1px solid var(--line); background: transparent; color: var(--ink-soft); font-family: inherit; font-size: .78rem; padding: .35rem .8rem; border-radius: 999px; cursor: pointer; }
+.fbtn.active { color: var(--accent); background: var(--accent-bg); border-color: var(--accent-border); }
+.list { display: flex; flex-direction: column; gap: .5rem; }
+.todo { display: flex; align-items: center; gap: .7rem; background: color-mix(in srgb, var(--bg) 48%, transparent); border: 1px solid var(--line); border-radius: .8rem; padding: .65rem .8rem; transition: opacity .2s ease; }
+.todo.done { opacity: .55; }
+.check { appearance: none; -webkit-appearance: none; width: 1.35rem; height: 1.35rem; border-radius: 50%; border: 2px solid var(--accent-border); background: transparent; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: transparent; font-size: .75rem; transition: all .15s ease; font-family: inherit; }
+.check:hover { border-color: var(--accent); }
+.todo.done .check { background: var(--accent); border-color: var(--accent); color: var(--btn-ink); }
+.todo .body { flex: 1; min-width: 0; }
+.todo .text { font-size: .92rem; word-break: break-word; }
+.todo.done .text { text-decoration: line-through; color: var(--ink-soft); }
+.todo .meta { display: flex; gap: .35rem; margin-top: .2rem; flex-wrap: wrap; }
+.tag { font-size: .68rem; padding: .08rem .5rem; border-radius: 999px; font-weight: 600; white-space: nowrap; }
+.tag.p-high { color: var(--btn-ink); background: var(--err); }
+.tag.p-mid { color: var(--warn-ink); background: color-mix(in srgb, var(--warn-ink) 13%, transparent); }
+.tag.p-low { color: var(--ink-soft); background: color-mix(in srgb, var(--ink-soft) 12%, transparent); }
+.tag.cat { color: var(--accent); background: var(--accent-bg); }
+.tag.due { color: var(--ink-soft); background: color-mix(in srgb, var(--ink-soft) 10%, transparent); }
+.tag.due.overdue { color: var(--btn-ink); background: var(--err); }
+.todo .ops { display: flex; gap: .2rem; flex-shrink: 0; }
+.icon-btn { appearance: none; -webkit-appearance: none; border: none; background: transparent; color: var(--ink-soft); cursor: pointer; font-size: .9rem; padding: .2rem .35rem; border-radius: .4rem; }
+.icon-btn:hover { background: var(--accent-bg); color: var(--accent); }
+.empty { text-align: center; color: var(--ink-soft); font-size: .85rem; padding: 1.5rem 0; }
+.progress { display: flex; align-items: center; gap: .6rem; margin-bottom: .9rem; }
+.progress .track { flex: 1; height: .45rem; border-radius: 999px; background: color-mix(in srgb, var(--ink-soft) 12%, transparent); overflow: hidden; }
+.progress .fill { height: 100%; border-radius: 999px; background: var(--accent); transition: width .3s ease; }
+.progress .num { font-size: .75rem; color: var(--ink-soft); white-space: nowrap; }
+.foot-ops { margin-top: .9rem; display: flex; gap: .5rem; }
+.editor { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+.field label { display: block; font-size: .72rem; color: var(--ink-soft); margin-bottom: .25rem; }
+.field input, .field select { width: 100%; padding: .45rem .6rem; border-radius: .6rem; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--ink); font-family: inherit; font-size: .82rem; }
+/* 内联编辑（编辑中的待办行） */
+.todo.edit { flex-wrap: wrap; padding: .75rem .8rem; }
+.edit-fields { flex: 1 1 100%; display: grid; grid-template-columns: 2fr 1fr 1fr 1.2fr; gap: .5rem; min-width: 0; }
+.edit-fields input, .edit-fields select { width: 100%; padding: .45rem .6rem; border-radius: .6rem; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--ink); font-family: inherit; font-size: .82rem; }
+.edit-ops { flex: 1 1 100%; display: flex; gap: .5rem; justify-content: flex-end; }
+.note { text-align: center; font-size: .72rem; color: var(--ink-soft); padding: .2rem 0 1.2rem; }
+/* Toast（替代 console/alert：可见反馈统一走这里） */
+#toast { position: fixed; left: 50%; bottom: 1.5rem; transform: translateX(-50%) translateY(.75rem); opacity: 0; pointer-events: none; background: var(--card); color: var(--ink); border: 1px solid var(--line); border-radius: 999px; padding: .55rem 1.1rem; font-size: .85rem; box-shadow: 0 .5rem 1.5rem rgba(0,0,0,.16); transition: opacity .18s ease, transform .18s ease; z-index: 50; max-width: 86vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+#toast.err { color: var(--err); border-color: color-mix(in srgb, var(--err) 45%, transparent); }
+/* 内联确认条（替代原生 confirm；Esc 取消） */
+#confirm { position: fixed; inset: 0; display: flex; align-items: flex-end; justify-content: center; background: rgba(0,0,0,.24); z-index: 60; padding: 0 1rem 1.5rem; }
+#confirm[hidden] { display: none; }
+.confirm-box { background: var(--card); color: var(--ink); border: 1px solid var(--line); border-radius: 1rem; padding: 1rem 1.15rem; max-width: 26rem; width: 100%; box-shadow: 0 .75rem 2rem rgba(0,0,0,.22); }
+.confirm-msg { font-size: .9rem; margin-bottom: .8rem; }
+.confirm-ops { display: flex; gap: .5rem; justify-content: flex-end; }
+@media (max-width: 40rem) {
+  .container { padding: 1.1rem .9rem 2.4rem; }
+  .topbar { padding: .9rem 1rem; }
+  .editor { grid-template-columns: 1fr; }
+  .edit-fields { grid-template-columns: 1fr 1fr; }
+  .add-row input[type=date] { flex: 1 1 8rem; }
+}
+</style></head><body>
+<header class="topbar">
+  <span class="ico">✅</span>
+  <div><h1>待办清单</h1><div class="sub">任务管理 · 优先级 · 截止日期 · 进度统计</div></div>
+  <span class="local-badge" title="任务数据经平台存储保存在本机">💾 数据保存在本机</span>
+</header>
+<main class="container">
+  <section class="card">
+    <div class="progress">
+      <div class="track"><div class="fill" id="fill" style="width:0%"></div></div>
+      <span class="num" id="pnum">0 / 0</span>
+    </div>
+    <div class="add-row">
+      <input id="in-add" type="text" placeholder="添加新任务，回车确认…" maxlength="200" aria-label="新任务内容">
+      <input id="in-due" type="date" aria-label="截止日期（可选）">
+      <button class="btn" id="b-add">添加</button>
+    </div>
+    <div class="filters" id="filters" role="group" aria-label="筛选任务">
+      <button class="fbtn active" data-f="all" type="button">全部</button>
+      <button class="fbtn" data-f="active" type="button">未完成</button>
+      <button class="fbtn" data-f="done" type="button">已完成</button>
+      <button class="fbtn" data-f="high" type="button">高优先级</button>
+    </div>
+    <div class="list" id="list"></div>
+    <div class="foot-ops">
+      <button class="btn ghost sm" id="b-clear-done" type="button">清除已完成</button>
+    </div>
+  </section>
+  <section class="card">
+    <h2>⚙️ 默认新建属性</h2>
+    <div class="editor">
+      <div class="field"><label for="set-cat">默认分类</label><select id="set-cat"><option value="学习">学习</option><option value="生活">生活</option><option value="工作">工作</option><option value="其他">其他</option></select></div>
+      <div class="field"><label for="set-pri">默认优先级</label><select id="set-pri"><option value="low">低</option><option value="mid" selected>中</option><option value="high">高</option></select></div>
+    </div>
+  </section>
+  <p class="note">💾 数据保存在本机，修改自动保存</p>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+<div id="confirm" role="alertdialog" aria-modal="true" aria-label="操作确认" hidden>
+  <div class="confirm-box">
+    <div class="confirm-msg" id="confirm-msg"></div>
+    <div class="confirm-ops">
+      <button class="btn ghost sm" id="confirm-cancel" type="button">取消</button>
+      <button class="btn danger sm" id="confirm-ok" type="button">确认</button>
+    </div>
+  </div>
+</div>
+<script>
+(function () {
+  'use strict';
+
+  /* ═══════════════════ 平台与常量 ═══════════════════ */
+  var P = (typeof platform !== 'undefined') ? platform : null;
+  var KEY = 'evg.todo-list';
+  var SCHEMA = 2;
+  var CATS = ['学习', '生活', '工作', '其他'];
+  var PRI = { high: { l: '高', cls: 'p-high' }, mid: { l: '中', cls: 'p-mid' }, low: { l: '低', cls: 'p-low' } };
+  var DAY = 864e5;
+
+  /* ═══════════════════ 存储（localStorage 由平台 polyfill 自动落盘） ═══════════════════
+     预载竞态：bridge 的 localStorage polyfill 为「同步内存 + 异步 storage.list 预载」，
+     页面启动时的同步读可能先于预载完成而读到空。成熟做法：启动后再经
+     platform.storage.list()/get(KEY) 重读权威存储，按 id 并集、updatedAt 新者胜
+     合并回来 —— 绝不覆盖、绝不丢失用户数据。 */
+  var store = { schema: SCHEMA, todos: [], prefs: { cat: '其他', pri: 'mid' } };
+  var mutated = false;   // 本会话是否已写存储（决定预载对账策略）
+  var filter = 'all';
+  var editingId = null;
+
+  var $ = function (id) { return document.getElementById(id); };
+  var elList = $('list'), elToast = $('toast'), elConfirm = $('confirm'),
+      elConfirmMsg = $('confirm-msg'), elInAdd = $('in-add'), elInDue = $('in-due');
+
+  /* ---------- 工具 ---------- */
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function genId() {
+    return 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+  function parseJSON(s) {
+    if (typeof s !== 'string' || !s) return null;
+    try { var v = JSON.parse(s); return (v && typeof v === 'object') ? v : null; } catch (e) { return null; }
+  }
+  function isValidDate(s) {
+    if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+    var d = new Date(s + 'T00:00:00');
+    if (isNaN(d.getTime())) return false;
+    return d.getFullYear() === +s.slice(0, 4) &&
+           d.getMonth() + 1 === +s.slice(5, 7) &&
+           d.getDate() === +s.slice(8, 10);
+  }
+  function now() { return Date.now(); }
+  function findTodo(id) {
+    for (var i = 0; i < store.todos.length; i++) {
+      if (store.todos[i].id === id) return store.todos[i];
+    }
+    return null;
+  }
+
+  /* ---------- 规范化 ---------- */
+  function normalizeTodo(t) {
+    if (!t || typeof t !== 'object') return null;
+    if (typeof t.id !== 'string' || !t.id) t.id = genId();
+    t.text = (typeof t.text === 'string') ? t.text : '';
+    t.done = !!t.done;
+    t.pri = PRI[t.pri] ? t.pri : 'mid';
+    t.cat = (typeof t.cat === 'string' && t.cat) ? t.cat : '其他';
+    t.due = isValidDate(t.due) ? t.due : '';
+    if (t.createdAt == null) t.createdAt = now();
+    if (t.updatedAt == null) t.updatedAt = t.createdAt;
+    return t;
+  }
+  function normalizeStore(raw) {
+    var out = { schema: SCHEMA, todos: [], prefs: { cat: '其他', pri: 'mid' } };
+    if (!raw || typeof raw !== 'object') return out;
+    if (Array.isArray(raw.todos)) {
+      var seen = {};
+      raw.todos.forEach(function (t) {
+        var n = normalizeTodo(t);
+        if (!n || seen[n.id]) return;
+        seen[n.id] = true;
+        out.todos.push(n);
+      });
+    }
+    if (raw.prefs && typeof raw.prefs === 'object') {
+      if (typeof raw.prefs.cat === 'string' && raw.prefs.cat) out.prefs.cat = raw.prefs.cat;
+      if (PRI[raw.prefs.pri]) out.prefs.pri = raw.prefs.pri;
+    }
+    return out;
+  }
+
+  /* ---------- 持久化 ---------- */
+  function loadLocal() {
+    try { return localStorage.getItem(KEY); } catch (e) { return null; }
+  }
+  function persist() {
+    mutated = true;
+    try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) { /* 存储失败静默：会话内有效 */ }
+  }
+
+  /* ---------- 预载竞态对账（权威重读 + 合并，绝不丢数据） ---------- */
+  function mergeTodos(localTodos, remoteTodos) {
+    var byId = {}, order = [];
+    (remoteTodos || []).forEach(function (t) {           // 远端先入（保序）
+      if (!t || !t.id || byId[t.id]) return;
+      byId[t.id] = t; order.push(t.id);
+    });
+    (localTodos || []).forEach(function (t) {             // 本地覆盖：同 id 取 updatedAt 新者胜
+      if (!t || !t.id) return;
+      if (!byId[t.id]) { byId[t.id] = t; order.push(t.id); }
+      else {
+        var at = byId[t.id].updatedAt || 0, bt = t.updatedAt || 0;
+        if (bt >= at) byId[t.id] = t;
+      }
+    });
+    return order.map(function (id) { return byId[id]; });
+  }
+  function reconcile(backendRaw) {
+    var backend = normalizeStore(parseJSON(backendRaw));
+    var before = store.todos.length;
+    if (!mutated && backend.todos.length) {
+      // 本会话未写过：以权威后端为准（更早的持久化记录直接恢复）
+      store = backend;
+    } else {
+      // 本会话已写（或后端为空）：并集合并，本地同分优先、远端独有项追加
+      var mergedTodos = mergeTodos(store.todos, backend.todos);
+      var recovered = mergedTodos.length > before;
+      store.todos = mergedTodos;
+      if (recovered) {
+        persist(); // 合并结果回写（polyfill write-through 落盘）
+        showToast('已恢复本地保存的 ' + (mergedTodos.length - before) + ' 条任务');
+      }
+    }
+    render();
+  }
+  function tryReconcile() {
+    if (!P || !P.storage || !P.storage.list) return;
+    P.storage.list().then(function () {
+      // 同一后端 FIFO：list 回调执行时 polyfill 预载回调必已执行（内存态已含持久化数据）
+      var p = (P.storage.get && typeof P.storage.get === 'function')
+        ? P.storage.get(KEY).then(function (raw) { return raw; }, function () { return null; })
+        : Promise.resolve(null);
+      p.then(reconcile).catch(function () { /* 对账失败静默：以会话内为准 */ });
+    }).catch(function () { /* 预载失败：以会话内为准 */ });
+  }
+
+  /* ---------- 渲染 ---------- */
+  function visible() {
+    var list = store.todos.slice();
+    if (filter === 'active') list = list.filter(function (t) { return !t.done; });
+    else if (filter === 'done') list = list.filter(function (t) { return t.done; });
+    else if (filter === 'high') list = list.filter(function (t) { return !t.done && t.pri === 'high'; });
+    return list;
+  }
+  function dueTag(t) {
+    if (!t.due) return '';
+    var d = new Date(t.due + 'T23:59:59');
+    var nowMs = Date.now();
+    var diff = Math.ceil((d.getTime() - nowMs) / DAY);
+    var overdue = diff < 0 && !t.done;
+    var label = overdue ? '已逾期 ' + (-diff) + ' 天' : (diff === 0 ? '今天到期' : '剩 ' + diff + ' 天');
+    return '<span class="tag due' + (overdue ? ' overdue' : '') + '">📅 ' + label + '</span>';
+  }
+  function priOptions(cur) {
+    return Object.keys(PRI).map(function (k) {
+      return '<option value="' + k + '"' + (k === cur ? ' selected' : '') + '>' + PRI[k].l + '</option>';
+    }).join('');
+  }
+  function catOptions(cur) {
+    return CATS.map(function (c) {
+      return '<option value="' + esc(c) + '"' + (c === cur ? ' selected' : '') + '>' + esc(c) + '</option>';
+    }).join('');
+  }
+  function renderRow(t) {
+    var id = esc(t.id);
+    if (editingId === t.id) {
+      return '<form class="todo edit" data-id="' + id + '">' +
+        '<div class="edit-fields">' +
+        '<input class="edit-text" name="text" type="text" maxlength="200" value="' + esc(t.text) + '" aria-label="任务内容">' +
+        '<select name="pri" aria-label="优先级">' + priOptions(t.pri) + '</select>' +
+        '<select name="cat" aria-label="分类">' + catOptions(t.cat) + '</select>' +
+        '<input type="date" name="due" value="' + esc(t.due || '') + '" aria-label="截止日期">' +
+        '</div>' +
+        '<div class="edit-ops">' +
+        '<button type="submit" class="btn sm">保存</button>' +
+        '<button type="button" class="btn ghost sm" data-edit-cancel="1">取消</button>' +
+        '</div></form>';
+    }
+    var p = PRI[t.pri] || PRI.mid;
+    return '<div class="todo' + (t.done ? ' done' : '') + '">' +
+      '<button type="button" class="check" data-toggle="' + id + '" aria-label="' + (t.done ? '标记为未完成' : '标记为已完成') + '" title="' + (t.done ? '标记为未完成' : '标记为已完成') + '">✓</button>' +
+      '<div class="body"><div class="text">' + esc(t.text) + '</div>' +
+      '<div class="meta"><span class="tag ' + p.cls + '">' + p.l + ' 优先级</span>' +
+      '<span class="tag cat">' + esc(t.cat || '其他') + '</span>' + dueTag(t) + '</div></div>' +
+      '<div class="ops">' +
+      '<button type="button" class="icon-btn" data-edit="' + id + '" title="编辑" aria-label="编辑">✏️</button>' +
+      '<button type="button" class="icon-btn" data-del="' + id + '" title="删除" aria-label="删除">🗑</button>' +
+      '</div></div>';
+  }
+  function render() {
+    var list = visible();
+    var total = store.todos.length, done = store.todos.filter(function (t) { return t.done; }).length;
+    $('fill').style.width = total ? Math.round(done / total * 100) + '%' : '0%';
+    $('pnum').textContent = done + ' / ' + total;
+    $('set-cat').value = store.prefs.cat || '其他';
+    $('set-pri').value = store.prefs.pri || 'mid';
+    if (!list.length) {
+      elList.innerHTML = '<div class="empty">' + (total ? '没有符合筛选的任务' : '还没有任务，添加一个吧 ✍️') + '</div>';
+      return;
+    }
+    elList.innerHTML = list.map(renderRow).join('');
+  }
+
+  /* ---------- 提示（Toast） ---------- */
+  var toastTimer = null;
+  function showToast(msg, isErr) {
+    elToast.textContent = msg;
+    elToast.classList.toggle('err', !!isErr);
+    elToast.classList.add('show');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { elToast.classList.remove('show'); }, 2200);
+  }
+
+  /* ---------- 内联确认条（替代原生 confirm；Esc 取消） ---------- */
+  var confirmCb = null;
+  function askConfirm(msg, cb) {
+    elConfirmMsg.textContent = msg;
+    elConfirm.hidden = false;
+    confirmCb = cb;
+    $('confirm-ok').focus();
+  }
+  function closeConfirm() {
+    elConfirm.hidden = true;
+    confirmCb = null;
+  }
+  $('confirm-ok').addEventListener('click', function () {
+    var cb = confirmCb; closeConfirm();
+    if (cb) cb();
+  });
+  $('confirm-cancel').addEventListener('click', closeConfirm);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      if (!elConfirm.hidden) { closeConfirm(); return; }
+      if (editingId) { editingId = null; render(); }
+    }
+  });
+
+  /* ---------- 操作 ---------- */
+  function addTodo(text, due) {
+    store.todos.unshift({
+      id: genId(), text: text, done: false,
+      pri: store.prefs.pri, cat: store.prefs.cat,
+      due: isValidDate(due) ? due : '',
+      createdAt: now(), updatedAt: now()
+    });
+    persist(); render();
+    if (P && P.emit) { try { P.emit('todo-list:add', { text: text }); } catch (e) {} }
+  }
+  function toggleTodo(id) {
+    var t = findTodo(id);
+    if (!t) return;
+    t.done = !t.done;
+    t.updatedAt = now();
+    persist(); render();
+    if (t.done && P && P.emit) { try { P.emit('todo-list:done', { text: t.text }); } catch (e) {} }
+  }
+  function saveEdit(id, form) {
+    var t = findTodo(id);
+    if (!t) return;
+    var text = form.querySelector('.edit-text').value.trim();
+    if (!text) { showToast('任务内容不能为空', true); form.querySelector('.edit-text').focus(); return; }
+    t.text = text;
+    var pri = form.querySelector('select[name=pri]').value;
+    if (PRI[pri]) t.pri = pri;
+    var cat = form.querySelector('select[name=cat]').value;
+    if (cat) t.cat = cat;
+    var due = form.querySelector('input[name=due]').value;
+    t.due = isValidDate(due) ? due : '';
+    t.updatedAt = now();
+    editingId = null;
+    persist(); render(); showToast('已更新');
+  }
+  function removeTodo(id) {
+    store.todos = store.todos.filter(function (t) { return t.id !== id; });
+    if (editingId === id) editingId = null;
+    persist(); render(); showToast('已删除');
+  }
+
+  /* ---------- 事件绑定 ---------- */
+  $('b-add').addEventListener('click', function () {
+    var v = elInAdd.value.trim();
+    if (!v) { elInAdd.focus(); return; }
+    addTodo(v, elInDue.value);
+    elInAdd.value = ''; elInDue.value = '';
+    elInAdd.focus();
+    showToast('已添加');
+  });
+  elInAdd.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); $('b-add').click(); }
+  });
+
+  $('filters').addEventListener('click', function (e) {
+    var b = e.target && e.target.closest ? e.target.closest('.fbtn') : null;
+    if (!b) return;
+    filter = b.getAttribute('data-f');
+    Array.prototype.forEach.call(document.querySelectorAll('.fbtn'), function (x) {
+      x.classList.toggle('active', x === b);
+    });
+    render();
+  });
+
+  elList.addEventListener('click', function (e) {
+    var t = e.target && e.target.closest ? e.target.closest('[data-toggle]') : null;
+    var ed = e.target && e.target.closest ? e.target.closest('[data-edit]') : null;
+    var dl = e.target && e.target.closest ? e.target.closest('[data-del]') : null;
+    var cc = e.target && e.target.closest ? e.target.closest('[data-edit-cancel]') : null;
+    if (t) {
+      toggleTodo(t.getAttribute('data-toggle'));
+    } else if (ed) {
+      editingId = ed.getAttribute('data-edit');
+      render();
+    } else if (cc) {
+      editingId = null; render();
+    } else if (dl) {
+      var id = dl.getAttribute('data-del');
+      askConfirm('删除这条任务？', function () { removeTodo(id); });
+    }
+  });
+
+  elList.addEventListener('submit', function (e) {
+    var form = e.target && e.target.closest ? e.target.closest('form.todo.edit') : null;
+    if (!form) return;
+    e.preventDefault();
+    saveEdit(form.getAttribute('data-id'), form);
+  });
+
+  $('b-clear-done').addEventListener('click', function () {
+    var n = store.todos.filter(function (t) { return t.done; }).length;
+    if (!n) { showToast('没有已完成的任务'); return; }
+    askConfirm('清除全部 ' + n + ' 条已完成任务？', function () {
+      store.todos = store.todos.filter(function (t) { return !t.done; });
+      persist(); render(); showToast('已清除已完成任务');
+    });
+  });
+
+  $('set-cat').addEventListener('change', function () { store.prefs.cat = this.value; persist(); });
+  $('set-pri').addEventListener('change', function () { store.prefs.pri = this.value; persist(); });
+
+  /* ---------- 启动 ---------- */
+  store = normalizeStore(parseJSON(loadLocal()));
+  $('set-cat').value = store.prefs.cat || '其他';
+  $('set-pri').value = store.prefs.pri || 'mid';
+  render();
+  tryReconcile(); // 预载竞态对账：重读权威存储合并，绝不覆盖用户数据
+})();
+</script></body></html>

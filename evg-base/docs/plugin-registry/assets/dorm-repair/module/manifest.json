@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "dorm-repair",
+  "name": "宿舍报修",
+  "description": "宿舍报修登记工具：本地生成报修单、自动保存草稿与历史记录，一键复制文本后自行提交至后勤系统（纯前端，不直连后勤系统）。",
+  "template": "html",
+  "version": "1.1.0",
+  "icon": "handyman",
+  "route": "/dorm-repair",
+  "nav": {
+    "sidebar": {
+      "section": "生活",
+      "sectionOrder": 40,
+      "order": 6
+    }
+  }
+}

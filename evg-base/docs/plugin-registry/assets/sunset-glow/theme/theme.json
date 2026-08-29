@@ -1,0 +1,15 @@
+{
+  "type": "theme",
+  "id": "sunset-glow",
+  "name": "落日余晖",
+  "colors": {
+    "background": "#FDF1EC",
+    "surface": "#FFF9F6",
+    "border": "#F0D8CD",
+    "text": "#45261E",
+    "textSecondary": "#8C6154",
+    "accent": "#A74C35",
+    "error": "#C23B3B",
+    "others": "#F2A57E"
+  }
+}

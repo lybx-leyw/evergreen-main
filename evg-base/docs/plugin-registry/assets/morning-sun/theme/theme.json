@@ -1,0 +1,15 @@
+{
+  "type": "theme",
+  "id": "morning-sun",
+  "name": "晨光",
+  "colors": {
+    "background": "#FFF7EC",
+    "surface": "#FFFDF8",
+    "border": "#F2E0C8",
+    "text": "#3D2E1C",
+    "textSecondary": "#836B4C",
+    "accent": "#FF9E45",
+    "error": "#D9644B",
+    "others": "#F7C98B"
+  }
+}

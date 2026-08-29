@@ -1,0 +1,572 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>单词卡片</title><style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+/* 主题：只消费平台注入的 --evg-* 变量（var(--evg-x, 兜底)），不在 :root 重定义 --evg-*。
+   明暗自适应：平台注入时以平台色为准；独立预览（无 bridge）时走下方兜底色。 */
+:root {
+  --bg: var(--evg-background, #f4f7f6);
+  --card: var(--evg-surface, #ffffff);
+  --ink: var(--evg-text, #16302a);
+  --ink-soft: var(--evg-text-secondary, #5d7a72);
+  --accent: var(--evg-accent, #2f9e6e);
+  --accent-bg: var(--evg-accent-bg, #e4f5ec);
+  --accent-border: var(--evg-accent-border, #bfe6d2);
+  --line: var(--evg-border, rgba(22, 48, 42, .09));
+  --err: var(--evg-error, #d64545);
+  --warn: var(--evg-others, #e8a33d);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: var(--evg-background, #131915);
+    --card: var(--evg-surface, #1c241f);
+    --ink: var(--evg-text, #e8f1ec);
+    --ink-soft: var(--evg-text-secondary, #9db5ab);
+    --accent: var(--evg-accent, #4fc58d);
+    --accent-bg: var(--evg-accent-bg, #1d3a2d);
+    --accent-border: var(--evg-accent-border, #2f5c48);
+    --line: var(--evg-border, rgba(232, 241, 236, .12));
+    --err: var(--evg-error, #ff6b6b);
+    --warn: var(--evg-others, #e8b35a);
+  }
+}
+html { font-size: 16px; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, sans-serif; background: var(--bg); color: var(--ink); min-height: 100vh; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+.topbar { display: flex; align-items: center; gap: .75rem; padding: 1.1rem 1.5rem; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--card) 72%, transparent); backdrop-filter: blur(.875rem); -webkit-backdrop-filter: blur(.875rem); position: sticky; top: 0; z-index: 5; }
+.topbar .ico { font-size: 1.5rem; }
+.topbar h1 { font-size: 1.15rem; font-weight: 700; }
+.topbar .sub { font-size: .72rem; color: var(--ink-soft); }
+.container { max-width: 46rem; margin: 0 auto; padding: 1.5rem 1.25rem 2rem; }
+.foot { max-width: 46rem; margin: 0 auto; padding: 0 1.25rem 2.5rem; font-size: .72rem; color: var(--ink-soft); }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 1rem; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+.card h2 { font-size: .95rem; font-weight: 700; margin-bottom: .9rem; }
+.toolbar { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.btn { appearance: none; border: none; cursor: pointer; font-family: inherit; font-size: .85rem; font-weight: 600; padding: .55rem 1rem; border-radius: .7rem; color: #fff; background: var(--accent); transition: transform .15s ease, opacity .15s ease; }
+.btn:hover { transform: translateY(-1px); opacity: .92; }
+.btn:active { transform: translateY(0); }
+.btn:focus-visible, .act:focus-visible, .tab:focus-visible, .icon-btn:focus-visible, .pchip:focus-visible, .flashcard:focus-visible { outline: 2px solid var(--accent-border); outline-offset: 2px; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.sm { padding: .4rem .8rem; font-size: .8rem; }
+.flashcard { perspective: 1200px; margin: 0 auto 1rem; max-width: 30rem; cursor: pointer; }
+.flashcard:focus { outline: none; }
+.card3d { position: relative; width: 100%; height: 13rem; transform-style: preserve-3d; transition: transform .5s ease; }
+.card3d.flip { transform: rotateY(180deg); }
+.face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; border-radius: 1.1rem; border: 1px solid var(--line); background: var(--card); box-shadow: 0 6px 18px rgba(0,0,0,.08); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.5rem; text-align: center; }
+.face.back { transform: rotateY(180deg); }
+.face .word { font-size: 1.8rem; font-weight: 700; letter-spacing: -.02em; word-break: break-word; }
+.face .ph { font-size: .85rem; color: var(--accent); font-weight: 600; margin-top: .35rem; word-break: break-word; }
+.face .hint { position: absolute; bottom: .9rem; font-size: .72rem; color: var(--ink-soft); }
+.face.back .def { font-size: 1.05rem; line-height: 1.6; word-break: break-word; }
+.face.back .example { margin-top: .7rem; font-size: .82rem; color: var(--ink-soft); font-style: italic; word-break: break-word; }
+.progress { display: flex; align-items: center; gap: .6rem; margin-bottom: 1rem; }
+.progress .track { flex: 1; height: .5rem; border-radius: 999px; background: color-mix(in srgb, var(--ink-soft) 12%, transparent); overflow: hidden; }
+.progress .fill { height: 100%; border-radius: 999px; background: var(--accent); transition: width .3s ease; }
+.progress .num { font-size: .78rem; color: var(--ink-soft); white-space: nowrap; }
+.actions { display: flex; gap: .6rem; justify-content: center; flex-wrap: wrap; }
+.act { appearance: none; border: 1px solid var(--line); background: var(--card); color: var(--ink); font-family: inherit; font-size: .85rem; font-weight: 600; padding: .6rem 1.3rem; border-radius: .8rem; cursor: pointer; transition: transform .15s ease, border-color .15s ease; }
+.act:hover { transform: translateY(-1px); border-color: var(--accent-border); }
+.act.known { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 55%, transparent); background: var(--accent-bg); }
+.act.fuzzy { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 50%, transparent); }
+.act.again { color: var(--err); border-color: color-mix(in srgb, var(--err) 45%, transparent); }
+.act:disabled { opacity: .4; cursor: default; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: .75rem; margin-bottom: 1rem; }
+.stat { text-align: center; padding: .7rem; border-radius: .8rem; background: color-mix(in srgb, var(--bg) 55%, transparent); border: 1px solid var(--line); }
+.stat .v { font-size: 1.3rem; font-weight: 700; }
+.stat .l { font-size: .7rem; color: var(--ink-soft); }
+.filter-row { display: flex; align-items: center; justify-content: flex-end; gap: .5rem; margin-bottom: .9rem; }
+.filter-row label { font-size: .72rem; color: var(--ink-soft); }
+.filter-row select { padding: .35rem .5rem; border-radius: .6rem; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--ink); font-family: inherit; font-size: .8rem; }
+.form-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: .5rem; }
+.field input { width: 100%; padding: .5rem .65rem; border-radius: .6rem; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--ink); font-family: inherit; font-size: .85rem; }
+.field input:focus { outline: 2px solid var(--accent-border); border-color: var(--accent-border); }
+.field label { display: block; font-size: .72rem; color: var(--ink-soft); margin-bottom: .25rem; }
+.word-list { display: flex; flex-direction: column; gap: .45rem; }
+.witem { display: flex; align-items: center; justify-content: space-between; gap: .6rem; background: color-mix(in srgb, var(--bg) 48%, transparent); border: 1px solid var(--line); border-radius: .7rem; padding: .5rem .8rem; font-size: .85rem; }
+.witem .w { font-weight: 700; word-break: break-word; }
+.witem .d { color: var(--ink-soft); font-size: .78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.witem .right { display: flex; align-items: center; gap: .4rem; flex-shrink: 0; }
+.badge { font-size: .68rem; padding: .1rem .5rem; border-radius: 999px; font-weight: 600; white-space: nowrap; }
+.badge.ok { color: var(--accent); background: var(--accent-bg); }
+.badge.fuzzy { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
+.badge.forgot { color: var(--err); background: color-mix(in srgb, var(--err) 12%, transparent); }
+.badge.no { color: var(--ink-soft); background: color-mix(in srgb, var(--ink-soft) 12%, transparent); }
+.icon-btn { appearance: none; border: none; background: transparent; color: var(--ink-soft); cursor: pointer; font-size: .95rem; padding: .2rem .35rem; border-radius: .4rem; }
+.icon-btn:hover { background: var(--accent-bg); color: var(--accent); }
+.icon-btn.danger:hover { color: var(--err); background: color-mix(in srgb, var(--err) 10%, transparent); }
+.empty { text-align: center; color: var(--ink-soft); font-size: .85rem; padding: 1.2rem 0; }
+.hidden { display: none !important; }
+.toast { position: fixed; left: 50%; bottom: 1.4rem; transform: translateX(-50%) translateY(.8rem); background: var(--ink); color: var(--bg); font-size: .82rem; padding: .55rem 1rem; border-radius: .7rem; opacity: 0; pointer-events: none; transition: opacity .2s ease, transform .2s ease; z-index: 20; max-width: 90vw; }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+@media (max-width: 44rem) { .stats { grid-template-columns: 1fr 1fr; } .form-row { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 30rem) { .form-row { grid-template-columns: 1fr; } }
+</style></head><body>
+<header class="topbar">
+  <span class="ico">🃏</span>
+  <div><h1>单词卡片</h1><div class="sub">翻转记忆 · 认识/模糊/忘记 · 按记忆度复习 · 💾 数据保存在本机</div></div>
+</header>
+<main class="container">
+  <section class="card">
+    <div class="stats">
+      <div class="stat"><div class="v" id="st-total">0</div><div class="l">词库</div></div>
+      <div class="stat"><div class="v" id="st-known" style="color:var(--accent)">0</div><div class="l">已认识</div></div>
+      <div class="stat"><div class="v" id="st-review" style="color:var(--warn)">0</div><div class="l">待复习</div></div>
+      <div class="stat"><div class="v" id="st-session">0</div><div class="l">本轮掌握</div></div>
+    </div>
+    <div class="progress">
+      <span class="num" id="pos">0 / 0</span>
+      <div class="track"><div class="fill" id="fill" style="width:0%"></div></div>
+    </div>
+    <div class="flashcard" id="card" tabindex="0" role="button" aria-label="翻转卡片，按 Enter 或空格也可以">
+      <div class="card3d" id="card3d">
+        <div class="face front">
+          <div class="word" id="f-word">—</div>
+          <div class="ph" id="f-ph"></div>
+          <div class="hint">点击卡片或按 Enter/空格 翻转查看释义</div>
+        </div>
+        <div class="face back">
+          <div class="def" id="f-def">—</div>
+          <div class="example" id="f-ex"></div>
+        </div>
+      </div>
+    </div>
+    <div class="filter-row">
+      <label for="f-filter">复习筛选</label>
+      <select id="f-filter">
+        <option value="all">全部单词</option>
+        <option value="review">待复习（忘记/模糊）</option>
+        <option value="known">仅已认识</option>
+        <option value="unmarked">仅未标记</option>
+      </select>
+    </div>
+    <div class="actions">
+      <button class="act again" id="b-again">😵 忘记</button>
+      <button class="act fuzzy" id="b-fuzzy">😐 模糊</button>
+      <button class="act" id="b-flip">🔄 翻转</button>
+      <button class="act known" id="b-known">✅ 认识</button>
+    </div>
+  </section>
+  <section class="card">
+    <h2 id="form-title">添加单词</h2>
+    <div class="form-row">
+      <div class="field"><label>单词</label><input id="in-word" placeholder="apple" autocomplete="off"></div>
+      <div class="field"><label>释义</label><input id="in-def" placeholder="n. 苹果" autocomplete="off"></div>
+      <div class="field"><label>例句（可选）</label><input id="in-ex" placeholder="I eat an apple." autocomplete="off"></div>
+      <div class="field"><label>音标（可选）</label><input id="in-ph" placeholder="/ˈæpl/" autocomplete="off"></div>
+    </div>
+    <div style="margin-top:.6rem; display:flex; gap:.5rem; flex-wrap:wrap;">
+      <button class="btn" id="b-add">加入词库</button>
+      <button class="btn ghost hidden" id="b-cancel">取消编辑</button>
+      <button class="btn ghost" id="b-seed">载入示例词库</button>
+      <button class="btn ghost" id="b-restart">重新开始</button>
+    </div>
+  </section>
+  <section class="card">
+    <h2>词库（<span id="count-label">0</span>）</h2>
+    <div class="word-list" id="wlist"></div>
+  </section>
+</main>
+<footer class="foot">🔒 数据保存在本机（模块私有存储），不上传云端 · 示例词库仅用于演示，可删除</footer>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script>
+(function () {
+  'use strict';
+  var P = (typeof platform !== 'undefined') ? platform : null;
+  var KEY = 'evg.word-flashcards';
+  var STORE_VERSION = 2;
+
+  /* ────────────── 存储：localStorage（平台 polyfill 同步内存 + 异步落盘）──────────────
+     预载竞态：polyfill 在 bridge 注入后异步预载 storage.list()，插件首帧同步读可能为空。
+     处理：启动时「只读不写、不播种」；随后经 platform.storage.get(KEY) 权威重读一次，
+     按 id 取并集、同 id 以 updatedAt 新者胜合并回内存，再落盘 —— 绝不覆盖丢失。
+     仅当权威重读确认两端皆空时，才在首次启动播种示例词库。 */
+  function lsGet(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } }
+  function lsSet(k, v) { try { window.localStorage.setItem(k, v); return true; } catch (e) { return false; } }
+
+  var SEED = [
+    { id: 'seed-1', w: 'serendipity', ph: '/ˌserənˈdɪpəti/', d: 'n. 意外发现珍宝的运气；机缘巧合', e: 'Finding this café was pure serendipity.', updatedAt: 0 },
+    { id: 'seed-2', w: 'resilient', ph: '/rɪˈzɪliənt/', d: 'adj. 有韧性的；能迅速恢复的', e: 'Children are often more resilient than adults.', updatedAt: 0 },
+    { id: 'seed-3', w: 'ambiguous', ph: '/æmˈbɪɡjuəs/', d: 'adj. 模棱两可的；含糊不清的', e: 'The ending of the film is deliberately ambiguous.', updatedAt: 0 },
+    { id: 'seed-4', w: 'meticulous', ph: '/məˈtɪkjələs/', d: 'adj. 一丝不苟的；极细致的', e: 'He kept meticulous records of every expense.', updatedAt: 0 },
+    { id: 'seed-5', w: 'pragmatic', ph: '/præɡˈmætɪk/', d: 'adj. 务实的；实用主义的', e: 'We need a pragmatic solution, not theory.', updatedAt: 0 },
+    { id: 'seed-6', w: 'ephemeral', ph: '/ɪˈfemərəl/', d: 'adj. 短暂的；转瞬即逝的', e: 'Fame on the internet can be ephemeral.', updatedAt: 0 },
+    { id: 'seed-7', w: 'candid', ph: '/ˈkændɪd/', d: 'adj. 坦诚的；直言不讳的', e: 'She was candid about her mistakes.', updatedAt: 0 },
+    { id: 'seed-8', w: 'diligent', ph: '/ˈdɪlɪdʒənt/', d: 'adj. 勤勉的；刻苦的', e: 'A diligent student reviews notes daily.', updatedAt: 0 }
+  ];
+
+  function nowId() { return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+
+  /* 迁移/清洗：旧数据无 id（按单词文本建状态索引）→ 补 id 并把旧状态映射到 id。 */
+  function normalize(d) {
+    if (!d || typeof d !== 'object') return { v: STORE_VERSION, words: [], status: {} };
+    if (!Array.isArray(d.words)) d.words = [];
+    var byText = {};
+    d.words.forEach(function (w) {
+      if (!w.id) w.id = nowId();
+      if (typeof w.updatedAt !== 'number') w.updatedAt = 0;
+      if (w.w != null) byText[String(w.w)] = w.id;
+    });
+    if (!d.status || typeof d.status !== 'object') d.status = {};
+    var st = {};
+    for (var k in d.status) {
+      var v = d.status[k];
+      if (v === true) v = 'known';
+      if (v !== 'known' && v !== 'fuzzy' && v !== 'forgot') continue;
+      if (byText[k] && !st[byText[k]]) st[byText[k]] = v; // 旧版按文本 → 映射到 id
+      else if (!byText[k]) st[k] = v;                      // 新版按 id
+    }
+    d.status = st;
+    d.v = STORE_VERSION;
+    return d;
+  }
+
+  var store = { v: STORE_VERSION, words: [], status: {} };
+  function loadSync() {
+    var raw = lsGet(KEY);
+    if (!raw) return false;
+    try {
+      var d = JSON.parse(raw);
+      if (!d || !Array.isArray(d.words)) return false;
+      store = normalize(d);
+      return true;
+    } catch (e) { return false; }
+  }
+  loadSync();
+
+  var userTouched = false, seedChecked = false;
+  var queue = [], idx = 0, sessionKnown = 0, flipped = false;
+  var filter = 'all', editingId = null, confirmDelId = null, confirmSeed = false, delTimer = null, seedTimer = null;
+
+  function save() {
+    var json = JSON.stringify(store);
+    lsSet(KEY, json);
+    // 双保险：同步到平台权威存储（与 polyfill write-through 幂等）
+    if (P && P.storage && typeof P.storage.set === 'function') {
+      try { var pp = P.storage.set(KEY, json); if (pp && typeof pp.catch === 'function') pp.catch(function () {}); } catch (e) {}
+    }
+  }
+
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+
+  /* 并集合并：同 id 以 updatedAt 新者胜（相等保留本会话），仅追加持久化中缺失的记录，不丢任何一侧。 */
+  function mergeById(a, b) {
+    var map = {}, out = [];
+    (a || []).forEach(function (x) { if (x && x.id) { map[x.id] = x; out.push(x); } });
+    (b || []).forEach(function (x) {
+      if (!x || !x.id) return;
+      var cur = map[x.id];
+      if (!cur) { map[x.id] = x; out.push(x); }
+      else if ((x.updatedAt || 0) > (cur.updatedAt || 0)) {
+        out[out.indexOf(cur)] = x; map[x.id] = x;
+      }
+    });
+    return out;
+  }
+  /* 状态并集：本会话优先，仅补持久化中缺失的 id。 */
+  function mergeStatus(a, b) {
+    var out = {};
+    for (var k in a) out[k] = a[k];
+    for (var k2 in b) if (!(k2 in out)) out[k2] = b[k2];
+    return out;
+  }
+
+  function changed(x, y) { return JSON.stringify(x) !== JSON.stringify(y); }
+
+  /* 预载竞态对账：权威重读 + 合并（幂等；两端一致时无写入）。 */
+  function adoptPersisted() {
+    if (!(P && P.storage && typeof P.storage.get === 'function')) { maybeSeed(); return; }
+    var p;
+    try { p = P.storage.get(KEY); } catch (e) { maybeSeed(); return; }
+    var apply = function (raw) {
+      try {
+        var d = (raw == null) ? null : JSON.parse(raw);
+        if (d && Array.isArray(d.words)) {
+          normalize(d);
+          var words = mergeById(store.words, d.words);
+          var status = mergeStatus(store.status, d.status);
+          if (changed(words, store.words) || changed(status, store.status)) {
+            store.words = words; store.status = status;
+            save();
+            renderAll();
+          }
+        }
+      } catch (e) { /* 解析失败：保持现状 */ }
+      maybeSeed();
+    };
+    if (p && typeof p.then === 'function') p.then(apply).catch(function () { maybeSeed(); });
+    else if (typeof p === 'string') apply(p);
+    else maybeSeed();
+  }
+
+  /* 首次播种：仅在权威重读确认「两端皆空」且用户尚未动手时执行一次。 */
+  function maybeSeed() {
+    if (seedChecked) return;
+    seedChecked = true;
+    if (store.words.length === 0 && !userTouched) {
+      store.words = SEED.map(function (s) { return { id: s.id, w: s.w, ph: s.ph, d: s.d, e: s.e, updatedAt: s.updatedAt }; });
+      save();
+      renderAll();
+    }
+  }
+
+  function byId(id) {
+    for (var i = 0; i < store.words.length; i++) if (store.words[i].id === id) return store.words[i];
+    return null;
+  }
+
+  function baseWords() {
+    if (filter === 'review') return store.words.filter(function (w) {
+      var s = store.status[w.id]; return s === 'forgot' || s === 'fuzzy';
+    });
+    if (filter === 'known') return store.words.filter(function (w) { return store.status[w.id] === 'known'; });
+    if (filter === 'unmarked') return store.words.filter(function (w) { return !store.status[w.id]; });
+    return store.words.slice();
+  }
+
+  function resetQueue() {
+    queue = baseWords();
+    idx = 0; sessionKnown = 0; flipped = false;
+    renderCard();
+  }
+
+  function cur() { return queue[idx] || null; }
+
+  function renderStats() {
+    var known = 0, review = 0;
+    store.words.forEach(function (w) {
+      var s = store.status[w.id];
+      if (s === 'known') known++;
+      else if (s === 'fuzzy' || s === 'forgot') review++;
+    });
+    document.getElementById('st-total').textContent = store.words.length;
+    document.getElementById('st-known').textContent = known;
+    document.getElementById('st-review').textContent = review;
+    document.getElementById('st-session').textContent = sessionKnown;
+    document.getElementById('count-label').textContent = store.words.length;
+  }
+
+  function renderCard() {
+    var w = cur();
+    document.getElementById('pos').textContent = queue.length ? ((idx + 1) + ' / ' + queue.length) : '0 / 0';
+    document.getElementById('fill').style.width = queue.length ? Math.round((idx / queue.length) * 100) + '%' : '0%';
+    var el = document.getElementById('card3d');
+    el.classList.remove('flip');
+    flipped = false;
+    if (!w) {
+      document.getElementById('f-word').textContent = '🎉 完成';
+      document.getElementById('f-ph').textContent = '';
+      document.getElementById('f-def').textContent = (filter === 'review')
+        ? '待复习的单词已清空，本轮掌握 ' + sessionKnown + ' 个。'
+        : '本轮 ' + sessionKnown + ' 个已掌握，点击「重新开始」再来一轮。';
+      document.getElementById('f-ex').textContent = '';
+      document.getElementById('b-known').disabled = true;
+      document.getElementById('b-fuzzy').disabled = true;
+      document.getElementById('b-again').disabled = true;
+      document.getElementById('b-flip').disabled = true;
+      return;
+    }
+    document.getElementById('b-known').disabled = false;
+    document.getElementById('b-fuzzy').disabled = false;
+    document.getElementById('b-again').disabled = false;
+    document.getElementById('b-flip').disabled = false;
+    document.getElementById('f-word').textContent = w.w;
+    document.getElementById('f-ph').textContent = w.ph || '';
+    document.getElementById('f-def').textContent = w.d || '';
+    document.getElementById('f-ex').textContent = w.e ? '「' + w.e + '」' : '';
+  }
+
+  function flip() {
+    if (!cur()) return;
+    var el = document.getElementById('card3d');
+    el.classList.toggle('flip');
+    flipped = !flipped;
+  }
+
+  function advance() {
+    idx++;
+    if (idx > queue.length) idx = queue.length;
+    renderCard();
+  }
+  function requeue() {
+    var L = queue.length;
+    if (L <= 1 || idx >= L - 1) { advance(); return; } // 队尾或只剩一张：本轮结束，避免原地循环
+    var w = queue[idx];
+    queue.splice(idx, 1);
+    queue.push(w);
+    renderCard();
+  }
+
+  function mark(statusVal) {
+    var w = cur(); if (!w) return;
+    userTouched = true;
+    store.status[w.id] = statusVal;
+    if (statusVal === 'known') sessionKnown++;
+    save(); renderStats(); renderList();
+    if (statusVal === 'known') advance(); else requeue();
+  }
+
+  var toastTimer = null;
+  function toast(msg) {
+    var el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.classList.remove('show'); }, 2600);
+  }
+
+  document.getElementById('card').addEventListener('click', flip);
+  document.getElementById('card').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); flip(); }
+  });
+  document.getElementById('b-flip').addEventListener('click', flip);
+  document.getElementById('b-known').addEventListener('click', function () { mark('known'); });
+  document.getElementById('b-fuzzy').addEventListener('click', function () { mark('fuzzy'); });
+  document.getElementById('b-again').addEventListener('click', function () { mark('forgot'); });
+
+  document.getElementById('f-filter').addEventListener('change', function () {
+    filter = document.getElementById('f-filter').value;
+    resetQueue();
+  });
+
+  function clearForm() {
+    document.getElementById('in-word').value = '';
+    document.getElementById('in-def').value = '';
+    document.getElementById('in-ex').value = '';
+    document.getElementById('in-ph').value = '';
+    editingId = null;
+    document.getElementById('b-add').textContent = '加入词库';
+    document.getElementById('form-title').textContent = '添加单词';
+    document.getElementById('b-cancel').classList.add('hidden');
+  }
+
+  function submitWord() {
+    var w = document.getElementById('in-word').value.trim();
+    var d = document.getElementById('in-def').value.trim();
+    if (!w || !d) { toast('单词与释义必填'); return; }
+    var ex = document.getElementById('in-ex').value.trim();
+    var ph = document.getElementById('in-ph').value.trim();
+    userTouched = true;
+    if (editingId) {
+      var word = byId(editingId);
+      if (word) {
+        word.w = w; word.d = d; word.e = ex; word.ph = ph;
+        word.updatedAt = Date.now();
+        toast('已保存修改');
+      }
+    } else {
+      store.words.push({ id: nowId(), w: w, d: d, e: ex, ph: ph, updatedAt: Date.now() });
+      toast('已加入词库');
+    }
+    clearForm();
+    save(); renderStats(); renderList(); resetQueue();
+  }
+
+  document.getElementById('b-add').addEventListener('click', submitWord);
+  document.getElementById('b-cancel').addEventListener('click', clearForm);
+  ['in-word', 'in-def', 'in-ex', 'in-ph'].forEach(function (id) {
+    document.getElementById(id).addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); submitWord(); }
+    });
+  });
+
+  function startEdit(id) {
+    var w = byId(id); if (!w) return;
+    editingId = id;
+    document.getElementById('in-word').value = w.w;
+    document.getElementById('in-def').value = w.d || '';
+    document.getElementById('in-ex').value = w.e || '';
+    document.getElementById('in-ph').value = w.ph || '';
+    document.getElementById('b-add').textContent = '保存修改';
+    document.getElementById('form-title').textContent = '编辑单词';
+    document.getElementById('b-cancel').classList.remove('hidden');
+    document.getElementById('in-word').focus();
+    document.getElementById('in-word').scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+
+  function requestDelete(id) {
+    if (confirmDelId === id) {
+      confirmDelId = null;
+      clearTimeout(delTimer);
+      store.words = store.words.filter(function (x) { return x.id !== id; });
+      delete store.status[id];
+      userTouched = true;
+      save(); renderStats(); renderList(); resetQueue();
+      toast('已删除');
+    } else {
+      confirmDelId = id;
+      renderList();
+      clearTimeout(delTimer);
+      delTimer = setTimeout(function () { confirmDelId = null; renderList(); }, 2500);
+    }
+  }
+
+  document.getElementById('b-seed').addEventListener('click', function () {
+    var btn = document.getElementById('b-seed');
+    if (!confirmSeed) {
+      confirmSeed = true;
+      btn.textContent = '再点一次确认合并';
+      clearTimeout(seedTimer);
+      seedTimer = setTimeout(function () { confirmSeed = false; btn.textContent = '载入示例词库'; }, 2500);
+      return;
+    }
+    confirmSeed = false;
+    btn.textContent = '载入示例词库';
+    clearTimeout(seedTimer);
+    var before = store.words.length;
+    SEED.forEach(function (s) {
+      if (!store.words.some(function (w) { return w.w === s.w; })) {
+        store.words.push({ id: s.id, w: s.w, ph: s.ph, d: s.d, e: s.e, updatedAt: s.updatedAt });
+      }
+    });
+    var added = store.words.length - before;
+    userTouched = true;
+    save(); renderStats(); renderList(); resetQueue();
+    toast(added > 0 ? '示例词库已合并（新增 ' + added + ' 个，不覆盖已有单词）' : '示例词库已全部存在');
+  });
+
+  document.getElementById('b-restart').addEventListener('click', resetQueue);
+
+  function renderList() {
+    var el = document.getElementById('wlist');
+    if (!store.words.length) { el.innerHTML = '<div class="empty">词库为空，先添加或载入示例词库吧</div>'; return; }
+    el.innerHTML = store.words.map(function (w) {
+      var s = store.status[w.id];
+      var badgeCls = 'no', badgeTxt = '待复习';
+      if (s === 'known') { badgeCls = 'ok'; badgeTxt = '已掌握'; }
+      else if (s === 'fuzzy') { badgeCls = 'fuzzy'; badgeTxt = '模糊'; }
+      else if (s === 'forgot') { badgeCls = 'forgot'; badgeTxt = '忘记'; }
+      var delTxt = (confirmDelId === w.id) ? '确认删除?' : '🗑';
+      return '<div class="witem"><span class="w">' + esc(w.w) + '</span><span class="d">' + esc(w.d || '') + '</span>' +
+        '<div class="right"><span class="badge ' + badgeCls + '">' + badgeTxt + '</span>' +
+        '<button class="icon-btn" data-edit="' + esc(w.id) + '" title="编辑" aria-label="编辑 ' + esc(w.w) + '">✏️</button>' +
+        '<button class="icon-btn danger' + (confirmDelId === w.id ? ' hidden' : '') + '" data-del="' + esc(w.id) + '" title="删除" aria-label="删除 ' + esc(w.w) + '">🗑</button>' +
+        (confirmDelId === w.id ? '<button class="icon-btn danger" data-del="' + esc(w.id) + '" aria-label="确认删除 ' + esc(w.w) + '">' + delTxt + '</button>' : '') +
+        '</div></div>';
+    }).join('');
+  }
+
+  document.getElementById('wlist').addEventListener('click', function (e) {
+    var ed = e.target.closest('[data-edit]');
+    if (ed) { startEdit(ed.getAttribute('data-edit')); return; }
+    var del = e.target.closest('[data-del]');
+    if (del) requestDelete(del.getAttribute('data-del'));
+  });
+
+  function renderAll() { renderStats(); renderList(); resetQueue(); }
+
+  /* 测试钩子（供 Node vm 行为验证） */
+  window.__evgTest = {
+    getStore: function () { return store; },
+    KEY: KEY,
+    mergeById: mergeById,
+    mergeStatus: mergeStatus,
+    normalize: normalize,
+    esc: esc,
+    adopt: adoptPersisted,
+    seed: maybeSeed,
+    render: renderAll,
+    clearStore: function () { store = { v: STORE_VERSION, words: [], status: {} }; }
+  };
+
+  renderStats(); renderList(); resetQueue();
+  adoptPersisted();
+})();
+</script></body></html>

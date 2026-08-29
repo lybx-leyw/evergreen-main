@@ -1,0 +1,15 @@
+{
+  "type": "theme",
+  "id": "cyber-neon",
+  "name": "赛博霓虹",
+  "colors": {
+    "background": "#0E0B1E",
+    "surface": "#181430",
+    "border": "#2E2660",
+    "text": "#EDEAFD",
+    "textSecondary": "#9F96D8",
+    "accent": "#00E5FF",
+    "error": "#FF4D6D",
+    "others": "#FF6EC7"
+  }
+}

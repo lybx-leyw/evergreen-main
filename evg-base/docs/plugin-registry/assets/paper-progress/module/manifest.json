@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "paper-progress",
+  "name": "论文进度",
+  "description": "论文/学习进度跟踪：章节规划、字数统计、状态流转与目标管理。",
+  "template": "html",
+  "version": "1.0.0",
+  "icon": "description",
+  "route": "/paper-progress",
+  "nav": {
+    "sidebar": {
+      "section": "学习",
+      "sectionOrder": 10,
+      "order": 5
+    }
+  }
+}

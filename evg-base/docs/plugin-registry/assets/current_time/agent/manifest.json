@@ -1,0 +1,22 @@
+{
+  "name": "current_time",
+  "description": "返回当前时间，支持 cn（中文格式）或 iso（ISO 8601）格式；只读工具，可并行调用。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "format": {
+        "type": "string",
+        "enum": [
+          "cn",
+          "iso"
+        ],
+        "description": "输出格式：cn=中文格式，iso=ISO 8601。默认 cn。"
+      }
+    },
+    "required": []
+  },
+  "readOnly": true,
+  "argMode": "stdin",
+  "runtime": "python",
+  "lifetime": "once"
+}

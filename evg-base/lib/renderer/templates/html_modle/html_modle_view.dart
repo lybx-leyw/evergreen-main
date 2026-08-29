@@ -13,9 +13,19 @@
 ///     - 端口来自 `.xxx_port` 端口文件（CoreApiDiscovery）
 ///   platform.settings.get(key)   → 读取设置
 ///   platform.settings.set(k, v)  → 写入设置
+///   platform.storage.get(key)    → 读取模块私有存储（未知 key → null）
+///   platform.storage.set(k, v)   → 写入模块私有存储（storage.json，字符串语义）
+///   platform.storage.remove(key) / clear() / list()（list 返回全量 {key: value} Map）
 ///   platform.theme.getColors()   → 获取当前主题色板（Promise<Object>）
 ///   platform.emit(event, data)   → 发出事件（PageEventBus 广播）
 ///   platform.on(event, fn)       → 监听事件（PageEventBus 订阅 + 'theme:changed'）
+///
+/// ## localStorage / sessionStorage polyfill
+/// bridge 注入时接管 `window.localStorage`：同步内存 Map + 异步 write-through
+/// 落盘到插件私有目录 `storage/storage.json`（见 [HtmlModleStorage]），现有插件
+/// 零改造恢复进度保存；sessionStorage 仅内存不落盘。storage.json 同时注册为
+/// 数据中枢数据源 `<pluginId>_storage`（模块加载时接线、卸载时注销），其它
+/// 插件 / Agent / 组件可 `platform.data.get('<pluginId>_storage')` 消费。
 ///
 /// 平台：Windows 用 webview_windows（chrome.webview 通道），
 /// Android 用 webview_flutter（evgBridge JS 通道），bridge 双通道兼容。
@@ -46,7 +56,6 @@ import 'package:webview_windows/webview_windows.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'package:evergreen_base/core/data/data.dart';
-import 'package:evergreen_base/core/config/settings.dart';
 import 'package:evergreen_base/core/module/page_event_bus.dart';
 import 'package:evergreen_base/core/plugin/plugin_runner.dart';
 import 'package:evergreen_base/providers.dart';
@@ -54,6 +63,7 @@ import 'package:evergreen_base/renderer/app/service/theme/render_tokens.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/creative/html-creator/html_creator_view.dart';
 import 'bridge_script.dart';
 import 'core_api_discovery.dart';
+import 'html_modle_storage.dart';
 
 /// HTML 模板主视图。
 class HtmlModleView extends ConsumerStatefulWidget {
@@ -94,6 +104,13 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
   /// 常驻进程会话（key = exe 名或 id）：`platform.process.start/stop/write/read`。
   final Map<String, _LongProcessSession> _longProcesses = {};
 
+  /// 模块私有存储后端（pluginId 作用域）：`platform.storage.*` 与 localStorage
+  /// polyfill 的落盘实现（懒创建，契约对齐 core `ModuleStorageService`）。
+  HtmlModleStorage? _storage;
+
+  /// storage→数据源（`<pluginId>_storage`）是否已注册（防重复注册）。
+  bool _storageSourceRegistered = false;
+
   /// html-creator 已走 Dart 原生 [HtmlCreatorView]，不需要启动本地 HTTP
   /// 服务或 WebView；这里提前短路，避免进入开发者模式时白白初始化 WebView2。
   bool get _isNativeCreator => widget.descriptor.id == 'html-creator';
@@ -103,6 +120,11 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
     super.initState();
     if (!_isNativeCreator) {
       _startServer();
+    }
+    // storage→数据源注册接线（模块加载时；html-creator 原生短路不注册）。
+    // initState 单次执行 + 内部幂等守卫（_storageSourceRegistered）防重复。
+    if (!_isNativeCreator) {
+      _registerStorageSource();
     }
     _poller = DataSubscriptionPoller(
       fetch: (name) async {
@@ -144,6 +166,8 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
     _poller.dispose();
     _eventBusSub?.cancel();
     _eventBus.dispose();
+    // storage→数据源注销（模块卸载；防御式：core 未提供注销函数时按名直接注销）。
+    _unregisterStorageSource();
     // 终止所有常驻进程（避免插件卸载后残留进程）。
     for (final session in _longProcesses.values) {
       session.stop();
@@ -287,6 +311,94 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
 
   String _bridgeScript() => buildBridgeScript();
 
+  // ═══════ 模块私有存储 + storage→数据源注册 ═══════
+
+  /// 模块私有存储后端（懒创建；契约对齐 core `ModuleStorageService`）。
+  ///
+  /// core 交付后如需切换到 `ModuleStorageService.forPlugin`，仅需替换本方法
+  /// 实现（消费方 [HtmlModleStorage] 的 `readSync/write/remove/clear/readAll`
+  /// 与 core 契约签名一一对应，路径同为 `{pluginsRoot}/{pluginId}/storage/storage.json`）。
+  HtmlModleStorage _moduleStorage() =>
+      _storage ??= HtmlModleStorage.forPlugin(widget.descriptor.id);
+
+  /// storage→数据源注册接线（模块加载时调用；幂等防重复）。
+  ///
+  /// 效果：插件自身写入 localStorage / `platform.storage.*` 的数据同时成为数据
+  /// 中枢数据源 `<pluginId>_storage`，其它 HTML 插件 / Agent / 组件可
+  /// `platform.data.get('<pluginId>_storage')` 消费。
+  ///
+  /// 防御式（core 并行交付，可能先于本文件落地）：
+  /// 1. 优先 core 契约 `registerModuleStorageSource({orch, pluginId, category})`
+  ///    —— 以 `(orch as dynamic)` 探测（core 作为 DataOrchestrator 方法交付时
+  ///    命中；`NoSuchMethodError` / 抛错 → 进入兜底）；
+  /// 2. 兜底：用中枢既有公开 API 直接注册同语义 DataType（fetcher 只读
+  ///    storage.json 返回 Map）；
+  /// 3. 任一环节失败 → 静默跳过（不崩，仅 debugPrint 留痕）。
+  Future<void> _registerStorageSource() async {
+    if (_storageSourceRegistered) return; // 防重复（initState 单次 + 重入保护）
+    final pluginId = widget.descriptor.id;
+    try {
+      final orch = ref.read(dataOrchestratorProvider);
+      try {
+        final r = (orch as dynamic).registerModuleStorageSource(
+          pluginId: pluginId,
+          category: '模块存储',
+        );
+        if (r is Future) {
+          await r;
+        }
+        _storageSourceRegistered = true;
+        debugPrint('[HtmlModleView] storage 数据源注册: ${pluginId}_storage');
+        return;
+      } catch (_) {
+        // core 契约函数未交付/签名不符（NoSuchMethodError）→ 走兜底。
+      }
+      _registerStorageSourceFallback(orch, pluginId);
+    } catch (e) {
+      debugPrint('[HtmlModleView] storage 数据源注册跳过（防御式）: $e');
+    }
+  }
+
+  /// 兜底注册：用数据中枢既有公开 API 注册 `<pluginId>_storage`（与 core
+  /// 契约同语义：name = `<pluginId>_storage`、category = 模块存储、fetcher
+  /// 只读 storage.json 返回 Map）。
+  void _registerStorageSourceFallback(DataOrchestrator orch, String pluginId) {
+    final type = DataType<Map<String, dynamic>>(
+      name: '${pluginId}_storage',
+      category: '模块存储',
+      displayName: '$pluginId 模块存储',
+    );
+    orch.register(type, () async => _moduleStorage().readAll());
+    _storageSourceRegistered = true;
+    debugPrint('[HtmlModleView] storage 数据源注册（兜底）: ${type.name}');
+  }
+
+  /// storage→数据源注销（模块卸载时；幂等）。
+  ///
+  /// 防御式：core 提供 `unregisterModuleStorageSource` 时优先调用（缺失/抛错
+  /// 经 catch 静默跳过）；随后兜底按 DataType 名 `<pluginId>_storage` 直接注销
+  /// （未注册时 [DataOrchestrator.typeByName] 返回 null → 跳过）。
+  /// 异常静默吞掉，不阻塞 dispose。
+  void _unregisterStorageSource() {
+    try {
+      final orch = ref.read(dataOrchestratorProvider);
+      // core 契约优先：unregisterModuleStorageSource（若提供）。Dart 无动态
+      // 缺省调用语法，缺失/抛错（NoSuchMethodError）经 catch 静默跳过。
+      try {
+        (orch as dynamic)
+            .unregisterModuleStorageSource(pluginId: widget.descriptor.id);
+      } catch (_) {
+        // core 未交付/签名不符 → 走兜底注销。
+      }
+      final dt = orch.typeByName('${widget.descriptor.id}_storage');
+      if (dt != null) {
+        orch.unregister(dt);
+      }
+    } catch (e) {
+      debugPrint('[HtmlModleView] storage 数据源注销跳过（防御式）: $e');
+    }
+  }
+
   void _onBridgeMessage(dynamic message) {
     try {
       final Map<String, dynamic> data;
@@ -402,7 +514,7 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
           service,
           method,
           path,
-          body is Map ? Map<String, dynamic>.from(body as Map) : null,
+          body is Map ? Map<String, dynamic>.from(body) : null,
         );
 
       case 'settings.get':
@@ -421,6 +533,30 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
           '/config/settings/$key',
           {'value': value},
         );
+
+      case 'storage.get':
+        // 模块私有存储同步读：storage.json 缺失/损坏 → null（不报错）。
+        return _moduleStorage().readSync(args[0] as String);
+
+      case 'storage.set':
+        // 字符串语义（与 localStorage 一致）：同步更新内存 + 异步落盘；
+        // 写失败经 _onBridgeMessage 的 onError → __evgReject 抛给插件。
+        final storageKey = args[0] as String;
+        final value = (args.length > 1 ? args[1] : null)?.toString() ?? '';
+        await _moduleStorage().write(storageKey, value);
+        return 'ok';
+
+      case 'storage.remove':
+        await _moduleStorage().remove(args[0] as String);
+        return 'ok';
+
+      case 'storage.clear':
+        await _moduleStorage().clear();
+        return 'ok';
+
+      case 'storage.list':
+        // 全量 {key: value} Map（预载/遍历可直接使用）；storage.json 缺失 → 空 Map。
+        return _moduleStorage().readAll();
 
       case 'theme.getColors':
         return _themeColors();

@@ -1,0 +1,20 @@
+{
+  "name": "semester_countdown",
+  "description": "计算距离指定日期（如期末/DDL）还有多少天；大学生刚需，只读工具。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "end_date": {
+        "type": "string",
+        "description": "目标日期 YYYY-MM-DD（如期末、DDL）。必填。"
+      }
+    },
+    "required": [
+      "end_date"
+    ]
+  },
+  "readOnly": true,
+  "argMode": "stdin",
+  "runtime": "python",
+  "lifetime": "once"
+}

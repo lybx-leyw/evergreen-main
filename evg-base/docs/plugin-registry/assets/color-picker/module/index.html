@@ -1,0 +1,414 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>取色器</title><style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+/* ── 主题变量 ──
+   --evg-* 由 Evergreen bridge 注入（<html> 内联样式，优先级高于本页 :root），
+   主题切换实时更新；下方 :root 仅为独立预览 / bridge 未就绪时的兜底默认值。 */
+:root {
+  --evg-background: #f4f2f8; --evg-surface: #ffffff; --evg-text: #2c2440;
+  --evg-text-secondary: #6f6488; --evg-accent: #7a5af0; --evg-accent-bg: #ebe6fc;
+  --evg-accent-border: #cfc3f5; --evg-border: rgba(44, 36, 64, .09);
+  --evg-error: #d64545;
+  --bg: var(--evg-background); --card: var(--evg-surface); --ink: var(--evg-text);
+  --ink-soft: var(--evg-text-secondary); --accent: var(--evg-accent); --line: var(--evg-border);
+  /* 按钮前景色：随 accent 亮度自动切换（浅 accent 用深字，深 accent 用白字） */
+  --btn-ink: #ffffff;
+}
+html { font-size: 16px; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, sans-serif; background: var(--bg); color: var(--ink); min-height: 100vh; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+.topbar { display: flex; align-items: center; gap: .75rem; padding: 1.1rem 1.5rem; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--card) 72%, transparent); backdrop-filter: blur(.875rem); -webkit-backdrop-filter: blur(.875rem); position: sticky; top: 0; z-index: 5; }
+.topbar .ico { font-size: 1.5rem; }
+.topbar h1 { font-size: 1.15rem; font-weight: 700; }
+.topbar .sub { font-size: .72rem; color: var(--ink-soft); }
+.container { max-width: 46rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 1rem; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+.card h2 { font-size: .95rem; font-weight: 700; margin-bottom: .9rem; display: flex; align-items: center; justify-content: space-between; }
+.card h2 .f { font-size: .72rem; color: var(--ink-soft); font-weight: 500; }
+.picker { display: grid; grid-template-columns: 8.5rem 1fr; gap: 1.1rem; }
+.preview { border-radius: 1rem; height: 9rem; position: relative; overflow: hidden; border: 1px solid var(--line); }
+.preview .hex { position: absolute; bottom: .5rem; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.55); color: #fff; font-family: ui-monospace, Consolas, monospace; font-size: .8rem; padding: .3rem .7rem; border-radius: 999px; white-space: nowrap; }
+.sliders { display: flex; flex-direction: column; gap: .55rem; }
+.slider-row { display: flex; align-items: center; gap: .6rem; }
+.slider-row .label { width: 1.4rem; font-weight: 700; font-size: .85rem; text-align: center; flex-shrink: 0; }
+.slider-row input[type=range] { -webkit-appearance: none; appearance: none; flex: 1; height: 1.6rem; background: transparent; cursor: pointer; }
+.slider-row input[type=range]::-webkit-slider-runnable-track { height: .4rem; border-radius: 999px; background: var(--track, rgba(44,36,64,.15)); }
+.slider-row input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 1.05rem; height: 1.05rem; border-radius: 50%; background: #fff; border: 2px solid var(--accent); box-shadow: 0 1px 4px rgba(0,0,0,.28); margin-top: calc((.4rem - 1.05rem) / 2); }
+.slider-row input[type=range]::-moz-range-track { height: .4rem; border-radius: 999px; background: var(--track, rgba(44,36,64,.15)); }
+.slider-row input[type=range]::-moz-range-thumb { width: 1.05rem; height: 1.05rem; border-radius: 50%; background: #fff; border: 2px solid var(--accent); box-shadow: 0 1px 4px rgba(0,0,0,.28); }
+.slider-row .val { width: 3rem; text-align: right; font-family: ui-monospace, Consolas, monospace; font-size: .8rem; color: var(--ink-soft); flex-shrink: 0; }
+.hex-row { display: flex; gap: .5rem; margin-top: .8rem; align-items: center; flex-wrap: wrap; }
+.hex-row input { flex: 1 1 9rem; min-width: 7rem; padding: .6rem .75rem; border-radius: .7rem; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--ink); font-family: ui-monospace, Consolas, monospace; font-size: .95rem; }
+.hex-row input:focus { outline: 2px solid var(--evg-accent-border); border-color: var(--evg-accent-border); }
+.btn { appearance: none; -webkit-appearance: none; border: none; cursor: pointer; font-family: inherit; font-size: .85rem; font-weight: 600; padding: .55rem 1.1rem; border-radius: .7rem; color: var(--btn-ink); background: var(--accent); transition: transform .15s ease, opacity .15s ease; flex-shrink: 0; }
+.btn:hover { transform: translateY(-1px); opacity: .92; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn.sm { padding: .45rem .85rem; font-size: .8rem; }
+.formats { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .9rem; }
+.fmt { flex: 1; min-width: 8rem; text-align: center; background: color-mix(in srgb, var(--bg) 48%, transparent); border: 1px solid var(--line); border-radius: .7rem; padding: .6rem .6rem; cursor: pointer; }
+.fmt:hover { border-color: var(--evg-accent-border); }
+.fmt:focus-visible { outline: 2px solid var(--evg-accent-border); outline-offset: 2px; }
+.fmt .l { font-size: .68rem; color: var(--ink-soft); }
+.fmt .v { font-family: ui-monospace, Consolas, monospace; font-size: .85rem; margin-top: .2rem; word-break: break-all; }
+.fmt.copied .v::after { content: " ✓"; color: var(--accent); }
+.recents { display: flex; flex-wrap: wrap; gap: .55rem; }
+.rchip { width: 2.5rem; height: 2.5rem; border-radius: .7rem; border: 1px solid var(--line); padding: 0; cursor: pointer; transition: transform .15s ease; position: relative; }
+.rchip:hover { transform: translateY(-2px); }
+.palette { display: flex; flex-direction: column; gap: .45rem; }
+.pitem { display: flex; align-items: center; gap: .6rem; background: color-mix(in srgb, var(--bg) 48%, transparent); border: 1px solid var(--line); border-radius: .7rem; padding: .5rem .75rem; }
+.pitem .sw { width: 2.2rem; height: 2.2rem; border-radius: .55rem; border: 1px solid var(--line); flex-shrink: 0; }
+.pitem .h { font-family: ui-monospace, Consolas, monospace; font-size: .85rem; }
+.pitem .ops { margin-left: auto; display: flex; gap: .3rem; }
+.icon-btn { appearance: none; -webkit-appearance: none; border: none; background: transparent; color: var(--ink-soft); cursor: pointer; font-size: .9rem; padding: .2rem .35rem; border-radius: .4rem; }
+.icon-btn:hover { background: var(--evg-accent-bg); color: var(--accent); }
+.icon-btn.copied::after { content: " ✓"; color: var(--accent); }
+.icon-btn:focus-visible, .btn:focus-visible { outline: 2px solid var(--evg-accent-border); outline-offset: 2px; }
+.empty { text-align: center; color: var(--ink-soft); font-size: .85rem; padding: 1rem 0; }
+#toast { position: fixed; left: 50%; bottom: 1.5rem; transform: translateX(-50%) translateY(.75rem); opacity: 0; pointer-events: none; background: var(--card); color: var(--ink); border: 1px solid var(--line); border-radius: 999px; padding: .55rem 1.1rem; font-size: .85rem; box-shadow: 0 .5rem 1.5rem rgba(0,0,0,.16); transition: opacity .18s ease, transform .18s ease; z-index: 50; max-width: 86vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+@media (max-width: 40rem) {
+  .picker { grid-template-columns: 1fr; }
+  .container { padding: 1.1rem .9rem 2.4rem; }
+  .topbar { padding: .9rem 1rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style></head><body>
+<header class="topbar">
+  <span class="ico" aria-hidden="true">🎨</span>
+  <div><h1>取色器</h1><div class="sub">RGB / HEX / HSL 调色 · 一键复制 · 收藏与最近使用</div></div>
+</header>
+<main class="container">
+  <section class="card" aria-label="取色面板">
+    <div class="picker">
+      <div class="preview" id="preview" aria-hidden="true"><span class="hex" id="preview-hex">#7A5AF0</span></div>
+      <div class="sliders">
+        <div class="slider-row"><span class="label" aria-hidden="true">H</span><input type="range" id="s-h" min="0" max="359" value="253" aria-label="色相"><span class="val" id="v-h">253</span></div>
+        <div class="slider-row"><span class="label" aria-hidden="true">R</span><input type="range" id="s-r" min="0" max="255" value="122" aria-label="红色通道"><span class="val" id="v-r">122</span></div>
+        <div class="slider-row"><span class="label" aria-hidden="true">G</span><input type="range" id="s-g" min="0" max="255" value="90" aria-label="绿色通道"><span class="val" id="v-g">90</span></div>
+        <div class="slider-row"><span class="label" aria-hidden="true">B</span><input type="range" id="s-b" min="0" max="255" value="240" aria-label="蓝色通道"><span class="val" id="v-b">240</span></div>
+      </div>
+    </div>
+    <div class="hex-row">
+      <input id="hex-input" value="#7A5AF0" spellcheck="false" autocomplete="off" aria-label="HEX 颜色值">
+      <button class="btn ghost sm" id="b-random" type="button">🎲 随机</button>
+      <button class="btn sm" id="b-save" type="button">💾 收藏</button>
+    </div>
+    <div class="formats">
+      <div class="fmt" id="f-hex" role="button" tabindex="0" aria-label="复制 HEX"><div class="l">HEX</div><div class="v" id="v-hex">#7A5AF0</div></div>
+      <div class="fmt" id="f-rgb" role="button" tabindex="0" aria-label="复制 RGB"><div class="l">RGB</div><div class="v" id="v-rgb">rgb(122, 90, 240)</div></div>
+      <div class="fmt" id="f-hsl" role="button" tabindex="0" aria-label="复制 HSL"><div class="l">HSL</div><div class="v" id="v-hsl">hsl(253, 83%, 65%)</div></div>
+    </div>
+  </section>
+  <section class="card" id="recents-card" aria-label="最近使用" hidden>
+    <h2>🕘 最近使用 <span class="f" id="rcount">0 色</span></h2>
+    <div class="recents" id="recents"></div>
+  </section>
+  <section class="card" aria-label="我的收藏">
+    <h2>💎 我的收藏 <span class="f" id="scount">0 色</span></h2>
+    <div class="palette" id="palette"></div>
+  </section>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+<script>
+(function () {
+  'use strict';
+
+  /* ── 平台集成 ──
+     localStorage 由 Evergreen bridge 接管（同步内存 + 异步 write-through 落盘），
+     写入自动持久化到插件私有存储；bridge 异步预载存在竞态，启动后再经
+     platform.storage.list() 触发一次重读合并，避免首帧读到空而覆盖旧收藏。 */
+  var P = (typeof platform !== 'undefined') ? platform : null;
+  var KEY = 'evg.color-picker';
+  var store = { saved: [], recent: [] };
+  var mutated = false;   // 本会话是否已写过存储（决定预载后合并策略）
+
+  function parseStore(raw) {
+    try {
+      var o = JSON.parse(raw || '{}');
+      if (o && typeof o === 'object') return o;
+    } catch (e) {}
+    return null;
+  }
+  (function initStore() {
+    var o = parseStore(localStorage.getItem(KEY));
+    if (o) store = o;
+    if (!Array.isArray(store.saved)) store.saved = [];
+    if (!Array.isArray(store.recent)) store.recent = [];
+  })();
+  function save() {
+    mutated = true;
+    try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) {}
+  }
+  function tryMergeAfterPreload() {
+    if (!P || !P.storage || !P.storage.list) return;
+    P.storage.list().then(function () {
+      // bridge 预载回调先于本回调执行（同一后端 FIFO），此时内存态已含持久化数据
+      var fresh = parseStore(localStorage.getItem(KEY));
+      if (!fresh) return;
+      if (!mutated) {
+        store = fresh;
+        if (!Array.isArray(store.saved)) store.saved = [];
+        if (!Array.isArray(store.recent)) store.recent = [];
+      } else {
+        store.saved = mergeSaved(store.saved, fresh.saved);
+        store.recent = mergeRecent(store.recent, fresh.recent);
+      }
+      renderPalette(); renderRecents();
+    }).catch(function () {});
+  }
+  function mergeSaved(a, b) {
+    var byHex = {};
+    (a || []).concat(b || []).forEach(function (s) {
+      if (s && /^#[0-9a-f]{6}$/i.test(s.hex) && !byHex[s.hex]) byHex[s.hex] = s;
+    });
+    return Object.keys(byHex).map(function (k) { return byHex[k]; })
+      .sort(function (x, y) { return String(y.at || '').localeCompare(String(x.at || '')); });
+  }
+  function mergeRecent(a, b) {
+    var seen = [], out = [];
+    (a || []).concat(b || []).forEach(function (h) {
+      if (/^#[0-9a-f]{6}$/i.test(h) && seen.indexOf(h) === -1) { seen.push(h); out.push(h); }
+    });
+    return out.slice(0, 12);
+  }
+
+  /* ── 颜色工具 ── */
+  var r = 122, g = 90, b = 240;
+
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  function hex2rgb(h) {
+    var s = String(h || '').trim().replace(/^#/, '');
+    if (/^[0-9a-f]{3}$/i.test(s)) {
+      s = s[0] + s[0] + s[1] + s[1] + s[2] + s[2];
+    }
+    if (!/^[0-9a-f]{6}$/i.test(s)) return null;
+    var n = parseInt(s, 16);
+    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+  }
+  function rgb2hex(r2, g2, b2) {
+    function h2(x) { var s = x.toString(16); return s.length < 2 ? '0' + s : s; }
+    return '#' + h2(r2) + h2(g2) + h2(b2);
+  }
+  function rgb2hsl(r2, g2, b2) {
+    var rn = r2 / 255, gn = g2 / 255, bn = b2 / 255;
+    var max = Math.max(rn, gn, bn), min = Math.min(rn, gn, bn);
+    var l = (max + min) / 2, h = 0, s = 0;
+    if (max !== min) {
+      var d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      if (max === rn) h = ((gn - bn) / d + (gn < bn ? 6 : 0));
+      else if (max === gn) h = (bn - rn) / d + 2;
+      else h = (rn - gn) / d + 4;
+      h *= 60;
+    }
+    return { h: Math.round(h) % 360, s: Math.round(s * 100), l: Math.round(l * 100) };
+  }
+  function hsl2rgb(h, s, l) {
+    h = ((Math.round(h) % 360) + 360) % 360;
+    s = clamp(s, 0, 100) / 100; l = clamp(l, 0, 100) / 100;
+    var c = (1 - Math.abs(2 * l - 1)) * s;
+    var x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+    var m = l - c / 2;
+    var rp = 0, gp = 0, bp = 0;
+    if (h < 60) { rp = c; gp = x; }
+    else if (h < 120) { rp = x; gp = c; }
+    else if (h < 180) { gp = c; bp = x; }
+    else if (h < 240) { gp = x; bp = c; }
+    else if (h < 300) { rp = x; bp = c; }
+    else { rp = c; bp = x; }
+    return {
+      r: Math.round((rp + m) * 255),
+      g: Math.round((gp + m) * 255),
+      b: Math.round((bp + m) * 255)
+    };
+  }
+
+  /* ── 渲染 ── */
+  function trackGradient(r1, g1, b1, r2, g2, b2) {
+    return 'linear-gradient(to right, rgb(' + r1 + ',' + g1 + ',' + b1 + '), rgb(' + r2 + ',' + g2 + ',' + b2 + '))';
+  }
+  function render() {
+    var hex = rgb2hex(r, g, b);
+    var hsl = rgb2hsl(r, g, b);
+    var preview = document.getElementById('preview');
+    preview.style.background = hex;
+    document.getElementById('preview-hex').textContent = hex;
+    document.getElementById('s-h').value = hsl.h;
+    document.getElementById('v-h').textContent = hsl.h;
+    document.getElementById('s-r').value = r; document.getElementById('v-r').textContent = r;
+    document.getElementById('s-g').value = g; document.getElementById('v-g').textContent = g;
+    document.getElementById('s-b').value = b; document.getElementById('v-b').textContent = b;
+    document.getElementById('hex-input').value = hex;
+    document.getElementById('v-hex').textContent = hex;
+    document.getElementById('v-rgb').textContent = 'rgb(' + r + ', ' + g + ', ' + b + ')';
+    document.getElementById('v-hsl').textContent = 'hsl(' + hsl.h + ', ' + hsl.s + '%, ' + hsl.l + '%)';
+    document.getElementById('s-h').style.setProperty('--track',
+      'linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00)');
+    document.getElementById('s-r').style.setProperty('--track', trackGradient(0, g, b, 255, g, b));
+    document.getElementById('s-g').style.setProperty('--track', trackGradient(r, 0, b, r, 255, b));
+    document.getElementById('s-b').style.setProperty('--track', trackGradient(r, g, 0, r, g, 255));
+  }
+
+  function applyRgb(r2, g2, b2) {
+    r = clamp(Math.round(r2), 0, 255); g = clamp(Math.round(g2), 0, 255); b = clamp(Math.round(b2), 0, 255);
+    render();
+    if (P && P.emit) { try { P.emit('color-picker:update', { hex: rgb2hex(r, g, b) }); } catch (e) {} }
+  }
+
+  /* ── 最近使用（持久化，最多 12 色） ── */
+  function recordRecent(hex) {
+    hex = rgb2hex(r, g, b);
+    store.recent = [hex].concat(store.recent.filter(function (h) { return h !== hex; })).slice(0, 12);
+    save(); renderRecents();
+  }
+
+  /* ── 复制（navigator.clipboard 优先，WebView 失败降级 execCommand） ── */
+  function copyText(text, el) {
+    var ok = false;
+    function success() {
+      if (el) { el.classList.add('copied'); setTimeout(function () { el.classList.remove('copied'); }, 1200); }
+      toast('已复制 ' + text);
+    }
+    function fail() { toast('复制失败，请手动选择复制'); }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { success(); })
+        .catch(function () { ok = fallbackCopy(text); ok ? success() : fail(); });
+    } else {
+      ok = fallbackCopy(text);
+      ok ? success() : fail();
+    }
+  }
+  function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    return ok;
+  }
+
+  /* ── Toast ── */
+  var toastTimer = null;
+  function toast(msg) {
+    var el = document.getElementById('toast');
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.add('show');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.classList.remove('show'); }, 1600);
+  }
+
+  /* ── 按钮前景色：随主题 accent 亮度切换，保证对比度 ── */
+  function relativeLuminance(r2, g2, b2) {
+    function lin(c) {
+      var s = c / 255;
+      return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+    }
+    return 0.2126 * lin(r2) + 0.7152 * lin(g2) + 0.0722 * lin(b2);
+  }
+  function applyBtnInk() {
+    var accent = getComputedStyle(document.documentElement).getPropertyValue('--evg-accent').trim();
+    var rgb = hex2rgb(accent);
+    if (!rgb) return;
+    var L = relativeLuminance(rgb.r, rgb.g, rgb.b);
+    document.documentElement.style.setProperty('--btn-ink', L > 0.2 ? '#1c1c28' : '#ffffff');
+  }
+
+  /* ── 事件 ── */
+  document.getElementById('s-h').addEventListener('input', function () {
+    var hsl = rgb2hsl(r, g, b);
+    var c = hsl2rgb(this.value, hsl.s, hsl.l);
+    applyRgb(c.r, c.g, c.b);
+  });
+  document.getElementById('s-r').addEventListener('input', function () { applyRgb(this.value, g, b); });
+  document.getElementById('s-g').addEventListener('input', function () { applyRgb(r, this.value, b); });
+  document.getElementById('s-b').addEventListener('input', function () { applyRgb(r, g, this.value); });
+  ['s-h', 's-r', 's-g', 's-b'].forEach(function (id) {
+    document.getElementById(id).addEventListener('change', function () { recordRecent(); });
+  });
+  var hexInput = document.getElementById('hex-input');
+  hexInput.addEventListener('input', function () {
+    var c = hex2rgb(this.value);
+    if (c) applyRgb(c.r, c.g, c.b);           // 输入合法即实时预览
+  });
+  hexInput.addEventListener('change', function () {
+    var c = hex2rgb(this.value);
+    if (c) { applyRgb(c.r, c.g, c.b); recordRecent(); }
+    else { this.value = rgb2hex(r, g, b); toast('无效的 HEX 颜色'); }
+  });
+  document.getElementById('b-random').addEventListener('click', function () {
+    applyRgb(Math.floor(Math.random() * 256), Math.floor(Math.random() * 256), Math.floor(Math.random() * 256));
+    recordRecent();
+  });
+  document.getElementById('b-save').addEventListener('click', function () {
+    var hex = rgb2hex(r, g, b);
+    if (store.saved.some(function (s) { return s.hex === hex; })) { toast('这个颜色已在收藏中'); return; }
+    store.saved.push({ hex: hex, at: new Date().toISOString() });
+    save(); renderPalette(); toast('已收藏 ' + hex);
+  });
+  ['f-hex', 'f-rgb', 'f-hsl'].forEach(function (id) {
+    var el = document.getElementById(id);
+    el.addEventListener('click', function () {
+      copyText(document.getElementById('v-' + id.slice(2)).textContent, this);
+    });
+    el.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.click(); }
+    });
+  });
+
+  /* ── 收藏 ── */
+  function renderPalette() {
+    var el = document.getElementById('palette');
+    document.getElementById('scount').textContent = store.saved.length + ' 色';
+    if (!store.saved.length) { el.innerHTML = '<div class="empty">还没有收藏的颜色，调一个喜欢的收藏吧 💎</div>'; return; }
+    el.innerHTML = store.saved.map(function (s) {
+      return '<div class="pitem"><span class="sw" style="background:' + s.hex + '"></span>' +
+        '<span class="h">' + s.hex + '</span>' +
+        '<div class="ops"><button class="icon-btn" data-copy="' + s.hex + '" title="复制" aria-label="复制 ' + s.hex + '">📋</button>' +
+        '<button class="icon-btn" data-use="' + s.hex + '" title="使用" aria-label="使用 ' + s.hex + '">🎯</button>' +
+        '<button class="icon-btn" data-del="' + s.hex + '" title="删除" aria-label="删除 ' + s.hex + '">🗑</button></div></div>';
+    }).join('');
+  }
+  document.getElementById('palette').addEventListener('click', function (e) {
+    var cp = e.target.closest('[data-copy]');
+    var us = e.target.closest('[data-use]');
+    var dl = e.target.closest('[data-del]');
+    if (cp) { copyText(cp.getAttribute('data-copy'), cp); }
+    else if (us) { var c = hex2rgb(us.getAttribute('data-use')); if (c) { applyRgb(c.r, c.g, c.b); recordRecent(); } }
+    else if (dl) {
+      store.saved = store.saved.filter(function (s) { return s.hex !== dl.getAttribute('data-del'); });
+      save(); renderPalette();
+    }
+  });
+
+  /* ── 最近使用 ── */
+  function renderRecents() {
+    var card = document.getElementById('recents-card');
+    var box = document.getElementById('recents');
+    document.getElementById('rcount').textContent = store.recent.length + ' 色';
+    if (!store.recent.length) { card.hidden = true; box.innerHTML = ''; return; }
+    card.hidden = false;
+    box.innerHTML = store.recent.map(function (h) {
+      return '<button class="rchip" data-use="' + h + '" style="background:' + h + '" title="' + h + '" aria-label="使用 ' + h + '"></button>';
+    }).join('');
+  }
+  document.getElementById('recents').addEventListener('click', function (e) {
+    var us = e.target.closest('[data-use]');
+    if (!us) return;
+    var c = hex2rgb(us.getAttribute('data-use'));
+    if (c) { applyRgb(c.r, c.g, c.b); recordRecent(); }
+  });
+
+  /* ── 启动 ── */
+  render(); renderPalette(); renderRecents();
+  tryMergeAfterPreload();
+  // accent 由 bridge 异步注入，稍后读取计算按钮前景色；主题切换时实时更新
+  setTimeout(applyBtnInk, 100);
+  if (P && P.on) {
+    try { P.on('theme:changed', applyBtnInk); } catch (e) {}
+  }
+})();
+</script></body></html>

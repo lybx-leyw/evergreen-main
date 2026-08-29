@@ -1,0 +1,20 @@
+{
+  "name": "hash_summary",
+  "description": "计算文本的 sha256 摘要（数据源增量判断、缓存指纹用）；只读工具。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string",
+        "description": "要哈希的文本。"
+      }
+    },
+    "required": [
+      "text"
+    ]
+  },
+  "readOnly": true,
+  "argMode": "stdin",
+  "runtime": "python",
+  "lifetime": "once"
+}

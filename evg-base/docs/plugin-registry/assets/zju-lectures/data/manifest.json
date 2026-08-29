@@ -1,0 +1,23 @@
+{
+  "type": "data-source",
+  "id": "zju-lectures",
+  "name": "讲座日历",
+  "script": "fetch.py",
+  "runtime": "python",
+  "androidSupport": true,
+  "dataTypes": [
+    {
+      "name": "zju_lectures",
+      "typeArg": "zju_lectures",
+      "category": "校园",
+      "displayName": "浙大讲座日历",
+      "ttl": "30m",
+      "persistentKey": "zju_lectures",
+      "fallbackJson": {
+        "items": [],
+        "fromFallback": true,
+        "note": "讲座源暂不可达且无旧缓存时的静态兜底：仅含空列表与说明"
+      }
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "type": "theme",
+  "id": "mint-fresh",
+  "name": "薄荷清新",
+  "colors": {
+    "background": "#F0FAF6",
+    "surface": "#FAFEFC",
+    "border": "#CFE9DE",
+    "text": "#1E3A31",
+    "textSecondary": "#4D7466",
+    "accent": "#106B56",
+    "error": "#D0604A",
+    "others": "#8FDCC8"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "pomodoro",
+  "name": "番茄钟",
+  "description": "番茄钟：25 分钟专注 + 短休/长休，支持自定义时长、暂停/继续与工作→休息自动切换，统计今日/累计番茄与连续天数。",
+  "template": "html",
+  "version": "1.0.0",
+  "icon": "timer",
+  "route": "/pomodoro",
+  "nav": {
+    "sidebar": {
+      "section": "效率",
+      "sectionOrder": 20,
+      "order": 1
+    }
+  }
+}
