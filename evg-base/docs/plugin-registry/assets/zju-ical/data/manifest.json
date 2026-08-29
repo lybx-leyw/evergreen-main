@@ -1,0 +1,31 @@
+{
+  "type": "data-source",
+  "id": "zju-ical",
+  "name": "ZJU 课表 iCal 导出",
+  "script": "fetch.py",
+  "runtime": "python",
+  "androidSupport": true,
+  "auth": {
+    "sessionProvider": "zju",
+    "sessionDomain": "zdbk.zju.edu.cn",
+    "credentialKeys": ["ZJU_USERNAME", "ZJU_PASSWORD"]
+  },
+  "dataTypes": [
+    {
+      "name": "zju_ical",
+      "typeArg": "zju_ical",
+      "category": "校园",
+      "displayName": "课表 iCal 导出",
+      "ttl": "24h",
+      "persistentKey": "zju_ical_v1",
+      "fallbackJson": {
+        "type": "zju_ical",
+        "authenticated": false,
+        "course_count": 0,
+        "event_count": 0,
+        "ics": "",
+        "note": "静态兜底（非真实数据）：拉取失败且无旧缓存时返回。请配置 ZJU_USERNAME / ZJU_PASSWORD 并在校园网/WebVPN 环境下刷新。"
+      }
+    }
+  ]
+}

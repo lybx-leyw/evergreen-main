@@ -1,0 +1,35 @@
+{
+  "type": "data-source",
+  "id": "zju-library-seats",
+  "name": "图书馆座位",
+  "script": "fetch.py",
+  "runtime": "python",
+  "androidSupport": true,
+  "dataTypes": [
+    {
+      "name": "zju_library_seats",
+      "typeArg": "zju_library_seats",
+      "category": "校园",
+      "displayName": "图书馆座位",
+      "ttl": "5m",
+      "persistentKey": "zju_library_seats",
+      "fallbackJson": {
+        "type": "zju_library_seats",
+        "source": "浙大图书馆空间预约系统（booking.lib.zju.edu.cn，公开接口免登录）",
+        "libraries": [],
+        "areas": [],
+        "summary": {
+          "areas": 0,
+          "totalSeats": 0,
+          "freeSeats": 0,
+          "occupiedSeats": 0,
+          "freeRatio": 0
+        },
+        "bookingRules": "",
+        "notices": [],
+        "skippedAreas": [],
+        "note": "实时数据暂不可用（静态兜底）。请检查网络或稍后重试。"
+      }
+    }
+  ]
+}

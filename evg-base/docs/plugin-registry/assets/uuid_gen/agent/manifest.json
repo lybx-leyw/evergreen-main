@@ -1,0 +1,13 @@
+{
+  "name": "uuid_gen",
+  "description": "生成一个 v4 UUID（随机）；一次性工具。",
+  "schema": {
+    "type": "object",
+    "properties": {},
+    "required": []
+  },
+  "readOnly": false,
+  "argMode": "stdin",
+  "runtime": "python",
+  "lifetime": "once"
+}

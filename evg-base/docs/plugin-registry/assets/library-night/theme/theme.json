@@ -1,0 +1,15 @@
+{
+  "type": "theme",
+  "id": "library-night",
+  "name": "图书馆深夜",
+  "colors": {
+    "background": "#1E2430",
+    "surface": "#2A3242",
+    "border": "#3D4759",
+    "text": "#E8EAF0",
+    "textSecondary": "#9AA4B8",
+    "accent": "#F0B35A",
+    "error": "#E06C6C",
+    "others": "#6C7A94"
+  }
+}

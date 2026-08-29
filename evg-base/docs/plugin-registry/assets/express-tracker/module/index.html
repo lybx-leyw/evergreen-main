@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>快递查询</title>
+<style>
+/* 主题：只使用平台注入的 --evg-* 变量（theme.getColors 实时推送），
+   本文件不重定义 --evg-*；无平台时回退到下方兜底值，并随系统明暗自适应。 */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: var(--evg-background, #f1f4f8);
+  --card: var(--evg-surface, #ffffff);
+  --ink: var(--evg-text, #1f2d40);
+  --ink-soft: var(--evg-text-secondary, #5d7089);
+  --accent: var(--evg-accent, #2f6fd0);
+  --accent-bg: var(--evg-accent-bg, #e5edfb);
+  --accent-border: var(--evg-accent-border, #c2d3f4);
+  --line: var(--evg-border, rgba(31, 45, 64, .09));
+  --error: var(--evg-error, #d64545);
+  --on-accent: var(--evg-surface, #ffffff);
+  --ok: #2f9e5e;     --ok-bg: color-mix(in srgb, #2f9e5e 14%, var(--card));
+  --warn: #b5791e;   --warn-bg: color-mix(in srgb, #b5791e 14%, var(--card));
+  --danger-bg: color-mix(in srgb, var(--error) 12%, var(--card));
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: var(--evg-background, #10141c);
+    --card: var(--evg-surface, #1a2130);
+    --ink: var(--evg-text, #e7ecf4);
+    --ink-soft: var(--evg-text-secondary, #94a4ba);
+    --accent: var(--evg-accent, #6ea0e8);
+    --accent-bg: var(--evg-accent-bg, #22304a);
+    --accent-border: var(--evg-accent-border, #3a4f74);
+    --line: var(--evg-border, rgba(231, 236, 244, .12));
+    --error: var(--evg-error, #ef7a7a);
+    --ok: #5cc084;     --ok-bg: color-mix(in srgb, #5cc084 18%, var(--card));
+    --warn: #e0a33e;   --warn-bg: color-mix(in srgb, #e0a33e 18%, var(--card));
+    --danger-bg: color-mix(in srgb, var(--error) 16%, var(--card));
+  }
+}
+html { font-size: 16px; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, sans-serif; background: var(--bg); color: var(--ink); min-height: 100vh; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+.topbar { display: flex; align-items: center; gap: .75rem; padding: 1.1rem 1.5rem; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--card) 72%, transparent); backdrop-filter: blur(.875rem); -webkit-backdrop-filter: blur(.875rem); position: sticky; top: 0; z-index: 5; }
+.topbar .ico { font-size: 1.5rem; }
+.topbar h1 { font-size: 1.15rem; font-weight: 700; }
+.topbar .sub { font-size: .72rem; color: var(--ink-soft); }
+.container { max-width: 46rem; margin: 0 auto; padding: 1.25rem 1.25rem 3rem; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 1rem; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 1px 3px color-mix(in srgb, var(--ink) 6%, transparent); }
+.card h2 { font-size: .95rem; font-weight: 700; margin-bottom: .9rem; display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.card h2 .f { font-size: .72rem; color: var(--ink-soft); font-weight: 500; }
+.head-ops { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.banner { display: flex; gap: .5rem; align-items: flex-start; background: var(--accent-bg); border: 1px solid var(--accent-border); color: var(--ink); border-radius: .8rem; padding: .6rem .85rem; font-size: .78rem; line-height: 1.55; margin-bottom: 1rem; }
+.search-row { display: flex; gap: .5rem; margin-bottom: .4rem; }
+.search-row input { flex: 1; padding: .6rem .75rem; border-radius: .7rem; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--ink); font-family: inherit; font-size: .92rem; }
+input:focus, select:focus { outline: 2px solid var(--accent-border); outline-offset: 1px; border-color: var(--accent-border); }
+.btn { appearance: none; border: none; cursor: pointer; font-family: inherit; font-size: .85rem; font-weight: 600; padding: .55rem 1.1rem; border-radius: .7rem; color: var(--on-accent); background: var(--accent); transition: transform .15s ease, opacity .15s ease; }
+.btn:hover { transform: translateY(-1px); opacity: .92; }
+.btn:focus-visible, .carrier:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn.danger { background: transparent; color: var(--error); border: 1px solid color-mix(in srgb, var(--error) 45%, transparent); }
+.btn.danger.confirming { background: var(--danger-bg); border-color: var(--error); }
+.btn.sm { padding: .4rem .8rem; font-size: .78rem; }
+.hint { font-size: .74rem; color: var(--ink-soft); min-height: 1.1em; margin: .2rem 0 .4rem; }
+.err { font-size: .74rem; color: var(--error); margin: .2rem 0 .4rem; }
+.err[hidden], .hint[hidden], .toast[hidden] { display: none; }
+.carriers { display: flex; gap: .4rem; flex-wrap: wrap; margin-bottom: .4rem; }
+.carrier { appearance: none; border: 1px solid var(--line); background: transparent; color: var(--ink-soft); font-family: inherit; font-size: .78rem; padding: .35rem .75rem; border-radius: 999px; cursor: pointer; }
+.carrier.active { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
+.list { display: flex; flex-direction: column; gap: .5rem; }
+.pkg { background: color-mix(in srgb, var(--bg) 48%, transparent); border: 1px solid var(--line); border-radius: .8rem; padding: .7rem .85rem; }
+.pkg.active { border-color: var(--accent-border); box-shadow: 0 0 0 1px var(--accent-border) inset; }
+.pkg .head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.pkg .no { font-family: ui-monospace, Consolas, monospace; font-size: .85rem; font-weight: 700; word-break: break-all; }
+.pkg .co { font-size: .72rem; color: var(--ink-soft); }
+.pkg .status { font-size: .72rem; font-weight: 600; padding: .12rem .55rem; border-radius: 999px; white-space: nowrap; }
+.pkg .status.delivered { color: var(--ok); background: var(--ok-bg); }
+.pkg .status.intransit { color: var(--accent); background: var(--accent-bg); }
+.pkg .status.waiting { color: var(--warn); background: var(--warn-bg); }
+.pkg .status.problem { color: var(--error); background: var(--danger-bg); }
+.pkg .ops { margin-top: .55rem; display: flex; gap: .4rem; flex-wrap: wrap; }
+.status-box { margin-bottom: 1rem; }
+.status-head { display: flex; align-items: center; gap: .7rem; flex-wrap: wrap; }
+.status-ico { font-size: 2.2rem; line-height: 1; }
+.status-title { font-weight: 700; font-size: 1rem; }
+.status-sub { font-size: .75rem; color: var(--ink-soft); word-break: break-all; }
+.status-box .ops { margin-top: .7rem; display: flex; gap: .4rem; flex-wrap: wrap; }
+.update { background: color-mix(in srgb, var(--bg) 48%, transparent); border: 1px solid var(--line); border-radius: .8rem; padding: .75rem .85rem; margin-bottom: 1rem; }
+.u-label { font-size: .75rem; color: var(--ink-soft); margin-bottom: .5rem; }
+.u-row { display: flex; gap: .5rem; flex-wrap: wrap; }
+.u-row select { padding: .55rem .7rem; border-radius: .7rem; border: 1px solid var(--line); background: var(--card); color: var(--ink); font-family: inherit; font-size: .85rem; }
+.u-row input { flex: 1; min-width: 11rem; padding: .55rem .75rem; border-radius: .7rem; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--ink); font-family: inherit; font-size: .85rem; }
+.u-tip { font-size: .7rem; color: var(--ink-soft); margin-top: .45rem; line-height: 1.5; }
+.timeline { position: relative; padding-left: 1.5rem; }
+.timeline::before { content: ""; position: absolute; left: .4rem; top: .3rem; bottom: .3rem; width: 2px; background: var(--accent-border); }
+.tstep { position: relative; padding: .55rem 0 .55rem .5rem; }
+.tstep::before { content: ""; position: absolute; left: -1.25rem; top: .9rem; width: .65rem; height: .65rem; border-radius: 50%; background: var(--ink-soft); opacity: .35; }
+.tstep.latest::before { background: var(--accent); opacity: 1; box-shadow: 0 0 0 3px var(--accent-bg); }
+.tstep .t { font-size: .86rem; font-weight: 600; }
+.tstep .d { font-size: .72rem; color: var(--ink-soft); margin-top: .15rem; }
+.tstep .s { font-size: .76rem; color: var(--ink-soft); margin-top: .1rem; }
+.tag-sample { font-size: .68rem; color: var(--ink-soft); border: 1px solid var(--line); border-radius: 999px; padding: .02rem .45rem; margin-left: .35rem; white-space: nowrap; vertical-align: 1px; }
+.empty { text-align: center; color: var(--ink-soft); font-size: .85rem; padding: 1.5rem 0; }
+.empty.small { padding: 1rem 0; font-size: .78rem; }
+.toast { position: fixed; left: 50%; bottom: 1.4rem; transform: translateX(-50%); background: color-mix(in srgb, var(--ink) 92%, transparent); color: var(--bg); padding: .55rem 1.05rem; border-radius: 999px; font-size: .8rem; font-weight: 600; box-shadow: 0 4px 14px color-mix(in srgb, var(--ink) 18%, transparent); z-index: 20; max-width: 90vw; text-align: center; }
+@media (max-width: 480px) {
+  .topbar { padding: .9rem 1rem; }
+  .container { padding: 1rem .8rem 2.5rem; }
+  .search-row { flex-wrap: wrap; }
+  .search-row input { min-width: 100%; }
+  .search-row .btn { flex: 1 1 100%; }
+  .pkg .head { flex-direction: column; align-items: flex-start; }
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <span class="ico" aria-hidden="true">📦</span>
+  <div><h1>快递查询</h1><div class="sub">本地记录 · 手动维护 · 不联网查询</div></div>
+</header>
+<main class="container">
+  <div class="banner" role="note">ℹ️ 本插件为<b>本地记录工具</b>：不联网查询快递，状态与轨迹由你手动维护。</div>
+
+  <section class="card" aria-label="添加记录">
+    <h2>➕ 添加记录</h2>
+    <div class="search-row">
+      <input id="f-no" autocomplete="off" spellcheck="false" placeholder="快递单号，如 SF1234567890123" aria-label="快递单号" aria-describedby="no-hint no-err">
+      <button type="button" class="btn" id="b-add">添加</button>
+    </div>
+    <div class="hint" id="no-hint"></div>
+    <div class="err" id="no-err" role="alert" hidden></div>
+    <div class="carriers" id="carriers" role="group" aria-label="快递公司（可手动指定）"></div>
+  </section>
+
+  <section class="card" aria-label="快递列表">
+    <h2>📦 我的快递 <span class="f head-ops"><span id="pcount">0 件</span><button type="button" class="btn ghost sm" id="b-copyall">📋 复制全部</button></span></h2>
+    <div class="list" id="list"></div>
+  </section>
+
+  <section class="card" aria-label="轨迹详情">
+    <h2>🔍 轨迹详情</h2>
+    <div id="detail"></div>
+  </section>
+</main>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<script>
+(function () {
+  'use strict';
+  // ── 诚实声明 ────────────────────────────────────────────────
+  // 本插件为「本地记录工具」：纯前端无法查询真实快递（需第三方 API 与 key），
+  // 因此不做任何联网查询、不生成/不伪造物流轨迹。所有状态与轨迹均由用户手动维护。
+  var P = (typeof platform !== 'undefined') ? platform : null;
+  var KEY = 'evg.express-tracker';
+  var SAMPLE_TAG = '旧版示例';
+
+  // ── 常量 ────────────────────────────────────────────────────
+  var CARRIERS = [
+    { n: '顺丰',   k: 'SF',    p: /^SF\d{10,}$/i },
+    { n: '京东',   k: 'JD',    p: /^JD\d{10,}$/i },
+    { n: '中通',   k: 'ZT',    p: /^7\d{10,}$/ },
+    { n: '圆通',   k: 'YT',    p: /^YT\d{10,}$/i },
+    { n: '韵达',   k: 'YD',    p: /^YD\d{10,}$/i },
+    { n: '极兔',   k: 'JT',    p: /^JT\d{10,}$/i },
+    { n: '德邦',   k: 'DPK',   p: /^DPK\d{10,}$/i },
+    { n: '邮政EMS', k: 'EMS',  p: /^[A-Z]{2}\d{9}[A-Z]{2}$/i },
+    { n: '其他',   k: 'OTHER', p: null }
+  ];
+  var STATUS = [
+    { k: 'waiting',   label: '待揽收', emoji: '⏳' },
+    { k: 'intransit', label: '运输中', emoji: '🚚' },
+    { k: 'delivered', label: '已签收', emoji: '✅' },
+    { k: 'problem',   label: '异常',   emoji: '⚠️' }
+  ];
+  var STATUS_MAP = {};
+  for (var i = 0; i < STATUS.length; i++) STATUS_MAP[STATUS[i].k] = STATUS[i];
+
+  var curCarrier = 'SF';  // 手动指定的快递公司（自动识别优先，识别不出时使用它）
+  var curIdx = -1;        // 当前选中的快递下标
+  var delTimer = null;    // 两步删除的确认超时
+  var confirmBtn = null;  // 当前处于「确认删除？」状态的按钮
+  var toastTimer = null;
+
+  var store = loadStore();
+
+  // ── 基础工具 ────────────────────────────────────────────────
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function fmt(d) {
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  }
+  function fmtAny(v) {
+    if (!v) return '';
+    var s = String(v);
+    // 已是显示格式（YYYY-MM-DD HH:MM）→ 原样保留
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(s)) return s;
+    var d = new Date(s);
+    if (!isNaN(d.getTime())) return fmt(d);
+    return s;
+  }
+  function carrierOf(k) {
+    for (var i = 0; i < CARRIERS.length; i++) if (CARRIERS[i].k === k) return CARRIERS[i].n;
+    return '其他';
+  }
+  function statusOf(k) { return STATUS_MAP[k] || STATUS_MAP.waiting; }
+  function detectCarrier(no) {
+    for (var i = 0; i < CARRIERS.length; i++) {
+      if (CARRIERS[i].p && CARRIERS[i].p.test(no)) return CARRIERS[i].k;
+    }
+    return 'OTHER';
+  }
+
+  // ── 存储（localStorage，平台侧自动落盘到插件私有 storage.json）────────
+  // 说明：Evergreen bridge 的 localStorage polyfill 是「同步内存 + 异步预载」，
+  // 页面启动时同步读可能因预载未完成而读到空数据（竞态）。因此启动后再用
+  // platform.storage.list() 重读一次并按单号合并，防止已有记录被覆盖丢失。
+  function loadStore() {
+    var raw = null;
+    try { raw = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { raw = null; }
+    return normalizeStore(raw);
+  }
+  function normalizeStore(raw) {
+    var s = { schemaVersion: 2, packages: [] };
+    if (raw && typeof raw === 'object' && Array.isArray(raw.packages)) {
+      for (var i = 0; i < raw.packages.length; i++) {
+        var p = normalizePkg(raw.packages[i]);
+        if (p) s.packages.push(p);
+      }
+    }
+    return s;
+  }
+  function normalizePkg(p) {
+    if (!p || typeof p !== 'object' || typeof p.no !== 'string') return null;
+    var no = p.no.trim();
+    if (!no) return null;
+    var events = [];
+    if (Array.isArray(p.events)) {
+      for (var i = 0; i < p.events.length; i++) {
+        var e = p.events[i];
+        if (!e || typeof e !== 'object') continue;
+        events.push({
+          time: fmtAny(e.time),
+          text: String(e.text == null ? '' : e.text),
+          status: statusOf(e.status).k,
+          sample: !!e.sample
+        });
+      }
+    } else if (Array.isArray(p.traces)) {
+      // v1 旧数据迁移：把历史「模拟轨迹」转为示例事件，保留用户数据并诚实标注。
+      for (var j = 0; j < p.traces.length; j++) {
+        var t = p.traces[j];
+        if (!t || typeof t !== 'object') continue;
+        events.push({
+          time: fmtAny(t.time),
+          text: String(t.msg == null ? '旧版轨迹记录' : t.msg),
+          status: statusOf(t.status).k,
+          sample: true
+        });
+      }
+    }
+    var carrier = 'OTHER';
+    for (var c = 0; c < CARRIERS.length; c++) if (CARRIERS[c].k === p.carrier) { carrier = CARRIERS[c].k; break; }
+    var status = statusOf(p.status).k;
+    if (!STATUS_MAP[p.status] && events.length) status = statusOf(events[events.length - 1].status).k;
+    return {
+      no: no,
+      carrier: carrier,
+      added: fmtAny(p.added),
+      updated: fmtAny(p.updated),
+      status: status,
+      events: events
+    };
+  }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) {} }
+
+  // 预载竞态合并：platform.storage.list() 重读 + 按单号取并集（本会话数据优先）。
+  function mergeRemote(remoteRaw) {
+    var remote = normalizeStore(remoteRaw);
+    var seen = {};
+    var out = [];
+    var changed = false;
+    for (var i = 0; i < store.packages.length; i++) {
+      var p = store.packages[i];
+      seen[p.no] = true;
+      out.push(p);
+    }
+    for (var j = 0; j < remote.packages.length; j++) {
+      var rp = remote.packages[j];
+      if (seen[rp.no]) continue;
+      seen[rp.no] = true;
+      out.push(rp);
+      changed = true;
+    }
+    if (!changed) return null;
+    store.packages = out;
+    return store;
+  }
+  function reconcilePreload() {
+    if (!P || !P.storage || typeof P.storage.list !== 'function') return;
+    P.storage.list().then(function (entries) {
+      if (!entries || typeof entries !== 'object') return;
+      var raw = entries[KEY];
+      if (raw == null) return;
+      var parsed = null;
+      try { parsed = JSON.parse(String(raw)); } catch (e) { parsed = null; }
+      if (!parsed) return;
+      if (mergeRemote(parsed)) {
+        save();
+        renderList();
+        renderDetail(curIdx);
+      }
+    }).catch(function () { /* 预载失败：保持会话内数据 */ });
+  }
+
+  // ── 渲染 ────────────────────────────────────────────────────
+  function renderCarriers() {
+    var el = document.getElementById('carriers');
+    el.innerHTML = CARRIERS.map(function (c) {
+      var active = c.k === curCarrier;
+      return '<button type="button" class="carrier' + (active ? ' active' : '') + '" data-k="' + c.k + '" aria-pressed="' + active + '">' + c.n + '</button>';
+    }).join('');
+  }
+  function renderList() {
+    var el = document.getElementById('list');
+    document.getElementById('pcount').textContent = store.packages.length + ' 件';
+    if (!store.packages.length) {
+      el.innerHTML = '<div class="empty">还没有快递记录，添加一个单号开始维护 📦</div>';
+      return;
+    }
+    el.innerHTML = store.packages.map(function (p, i) {
+      var st = statusOf(p.status);
+      return '<div class="pkg' + (i === curIdx ? ' active' : '') + '">' +
+        '<div class="head"><div><div class="no">' + esc(p.no) + '</div>' +
+        '<div class="co">' + esc(carrierOf(p.carrier)) + ' · ' + esc(p.added || '—') + '</div></div>' +
+        '<span class="status ' + esc(p.status) + '">' + st.emoji + ' ' + st.label + '</span></div>' +
+        '<div class="ops">' +
+        '<button type="button" class="btn ghost sm" data-view="' + i + '">🔍 轨迹</button>' +
+        '<button type="button" class="btn danger sm" data-del="' + i + '">删除</button>' +
+        '</div></div>';
+    }).join('');
+  }
+  function renderDetail(i) {
+    var el = document.getElementById('detail');
+    var p = (i >= 0 && store.packages[i]) ? store.packages[i] : null;
+    if (!p) { curIdx = -1; el.innerHTML = '<div class="empty">选择一件快递，查看并维护轨迹</div>'; return; }
+    var st = statusOf(p.status);
+    var opts = STATUS.map(function (s) {
+      return '<option value="' + s.k + '"' + (s.k === p.status ? ' selected' : '') + '>' + s.emoji + ' ' + s.label + '</option>';
+    }).join('');
+    var evs = p.events || [];
+    var tl = evs.length
+      ? evs.map(function (e, j) {
+          var es = statusOf(e.status);
+          return '<div class="tstep' + (j === 0 ? ' latest' : '') + '">' +
+            '<div class="t">' + esc(e.text) + (e.sample ? ' <span class="tag-sample">' + SAMPLE_TAG + '</span>' : '') + '</div>' +
+            '<div class="d">' + esc(e.time) + '</div>' +
+            '<div class="s">' + es.emoji + ' ' + es.label + '</div></div>';
+        }).join('')
+      : '<div class="empty small">暂无轨迹记录 —— 使用下方表单手动更新状态或添加备注</div>';
+    var updatedSub = (p.updated && p.updated !== p.added) ? ' · 更新于 ' + esc(p.updated) : '';
+    el.innerHTML =
+      '<div class="status-box">' +
+        '<div class="status-head"><span class="status-ico" aria-hidden="true">' + st.emoji + '</span>' +
+        '<div><div class="status-title">' + st.label + '</div>' +
+        '<div class="status-sub">' + esc(p.no) + ' · ' + esc(carrierOf(p.carrier)) + ' · 添加于 ' + esc(p.added || '—') + updatedSub + '</div></div>' +
+        '</div>' +
+        '<div class="ops">' +
+        '<button type="button" class="btn sm" data-copy="' + i + '">📋 复制轨迹</button>' +
+        '<button type="button" class="btn danger sm" data-del="' + i + '">删除</button>' +
+        '</div>' +
+      '</div>' +
+      '<form class="update" data-u-form>' +
+        '<div class="u-label">手动更新状态 / 添加备注：</div>' +
+        '<div class="u-row">' +
+        '<select id="u-status" aria-label="新状态">' + opts + '</select>' +
+        '<input id="u-note" placeholder="备注（可选），如：已从杭州发出" aria-label="备注">' +
+        '<button type="submit" class="btn">更新</button>' +
+        '</div>' +
+        '<div class="u-tip">备注会按时间点追加到轨迹；不填则只更新状态。提示：本插件不联网，状态需你手动更新。</div>' +
+      '</form>' +
+      '<div class="timeline">' + tl + '</div>';
+  }
+  function selectPkg(i) { curIdx = i; renderList(); renderDetail(i); }
+
+  // ── 交互 ────────────────────────────────────────────────────
+  function validateNo(no) {
+    if (!no) return '请输入快递单号';
+    if (!/^[A-Za-z0-9]+$/.test(no)) return '单号只能包含字母和数字（不能含空格或符号）';
+    if (no.length < 6) return '单号过短（至少 6 位）';
+    if (no.length > 32) return '单号过长（最多 32 位）';
+    return null;
+  }
+  function handleAdd() {
+    var input = document.getElementById('f-no');
+    var no = input.value.replace(/\s+/g, '').trim();
+    clearErr();
+    var msg = validateNo(no);
+    if (msg) { showErr(msg); input.focus(); return; }
+    for (var i = 0; i < store.packages.length; i++) {
+      if (store.packages[i].no === no) { showErr('该单号已存在'); input.focus(); return; }
+    }
+    var detected = detectCarrier(no);
+    var carrier = detected !== 'OTHER' ? detected : curCarrier;
+    var now = fmt(new Date());
+    var p = {
+      no: no,
+      carrier: carrier,
+      added: now,
+      updated: now,
+      status: 'waiting',
+      events: [{ time: now, text: '添加单号，等待揽收', status: 'waiting', sample: false }]
+    };
+    store.packages.unshift(p);
+    save();
+    renderList();
+    selectPkg(0);
+    input.value = '';
+    input.focus();
+    toast('已添加：' + carrierOf(carrier) + ' ' + no);
+    if (P && P.emit) { try { P.emit('express-tracker:add', { no: no, carrier: carrier }); } catch (e) {} }
+  }
+  function handleUpdate(idx) {
+    var p = store.packages[idx];
+    if (!p) return;
+    var st = statusOf(document.getElementById('u-status').value).k;
+    var note = document.getElementById('u-note').value.trim();
+    var now = fmt(new Date());
+    p.status = st;
+    p.updated = now;
+    p.events.unshift({ time: now, text: note || statusOf(st).label, status: st, sample: false });
+    save();
+    renderList();
+    renderDetail(idx);
+    toast('已更新为「' + statusOf(st).label + '」');
+  }
+  function deletePkg(idx) {
+    if (idx < 0 || idx >= store.packages.length) return;
+    var no = store.packages[idx].no;
+    store.packages.splice(idx, 1);
+    confirmBtn = null;
+    save();
+    renderList();
+    if (curIdx >= store.packages.length) curIdx = -1;
+    renderDetail(curIdx);
+    toast('已删除：' + no);
+  }
+  function resetDel(btn) {
+    if (!btn) return;
+    btn.removeAttribute('data-confirm');
+    btn.textContent = '删除';
+    btn.classList.remove('confirming');
+    if (confirmBtn === btn) confirmBtn = null;
+  }
+  function requestDelete(idx, btn) {
+    // 两步删除：第一次点击进入确认态，3 秒内再次点击才真正删除（代替 confirm()）。
+    if (confirmBtn && confirmBtn !== btn) resetDel(confirmBtn);
+    if (btn.getAttribute('data-confirm') === '1') { deletePkg(idx); return; }
+    confirmBtn = btn;
+    btn.setAttribute('data-confirm', '1');
+    btn.textContent = '确认删除？';
+    btn.classList.add('confirming');
+    if (delTimer) clearTimeout(delTimer);
+    delTimer = setTimeout(function () { resetDel(btn); }, 3000);
+  }
+
+  // ── 导出 / 复制文本 ─────────────────────────────────────────
+  function packageText(p) {
+    var lines = [];
+    lines.push('【快递记录】' + carrierOf(p.carrier) + ' ' + p.no);
+    lines.push('当前状态：' + statusOf(p.status).emoji + ' ' + statusOf(p.status).label);
+    lines.push('添加时间：' + (p.added || '—'));
+    if (p.updated && p.updated !== p.added) lines.push('更新时间：' + p.updated);
+    lines.push('轨迹记录：');
+    var evs = p.events || [];
+    if (!evs.length) {
+      lines.push('  （暂无记录）');
+    } else {
+      for (var i = 0; i < evs.length; i++) {
+        var e = evs[i];
+        lines.push('  - ' + (e.time || '—') + ' · ' + statusOf(e.status).label + (e.sample ? '（' + SAMPLE_TAG + '）' : '') + ' · ' + e.text);
+      }
+    }
+    lines.push('提示：本插件为本地记录工具，轨迹为手动维护，不联网查询。');
+    return lines.join('\n');
+  }
+  function allText() {
+    if (!store.packages.length) return '（暂无快递记录）';
+    var parts = [];
+    for (var i = 0; i < store.packages.length; i++) parts.push(packageText(store.packages[i]));
+    return parts.join('\n\n' + '─'.repeat(24) + '\n\n');
+  }
+  function copyText(text, okMsg) {
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      navigator.clipboard.writeText(text).then(function () { toast(okMsg); }, function () { fallbackCopy(text, okMsg); });
+    } else {
+      fallbackCopy(text, okMsg);
+    }
+  }
+  function fallbackCopy(text, okMsg) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try {
+      document.execCommand('copy');
+      toast(okMsg);
+    } catch (e) {
+      toast('复制失败，请手动复制');
+    }
+    document.body.removeChild(ta);
+  }
+
+  // ── 反馈 ────────────────────────────────────────────────────
+  function toast(msg) {
+    var el = document.getElementById('toast');
+    el.textContent = msg;
+    el.hidden = false;
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.hidden = true; }, 2600);
+  }
+  function showErr(msg) {
+    var el = document.getElementById('no-err');
+    el.textContent = msg;
+    el.hidden = false;
+    document.getElementById('f-no').setAttribute('aria-invalid', 'true');
+  }
+  function clearErr() {
+    document.getElementById('no-err').hidden = true;
+    document.getElementById('f-no').removeAttribute('aria-invalid');
+  }
+  function updateHint() {
+    var input = document.getElementById('f-no');
+    var hint = document.getElementById('no-hint');
+    var no = input.value.replace(/\s+/g, '').trim();
+    clearErr();
+    if (!no) { hint.textContent = ''; return; }
+    var dk = detectCarrier(no);
+    if (dk === 'OTHER') hint.textContent = '未识别快递公司，将按「' + carrierOf(curCarrier) + '」记录（可手动指定）';
+    else hint.textContent = '识别为：' + carrierOf(dk);
+  }
+
+  // ── 事件接线（事件委托，全部走原生按钮/表单，键盘可达）──────────
+  document.getElementById('b-add').addEventListener('click', handleAdd);
+  document.getElementById('f-no').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); handleAdd(); }
+  });
+  document.getElementById('f-no').addEventListener('input', updateHint);
+  document.getElementById('b-copyall').addEventListener('click', function () {
+    if (!store.packages.length) { toast('暂无记录可复制'); return; }
+    copyText(allText(), '已复制全部 ' + store.packages.length + ' 条记录');
+  });
+  document.getElementById('carriers').addEventListener('click', function (e) {
+    var b = e.target.closest('.carrier');
+    if (!b) return;
+    curCarrier = b.getAttribute('data-k');
+    renderCarriers();
+    updateHint();
+  });
+  document.getElementById('list').addEventListener('click', function (e) {
+    var v = e.target.closest('[data-view]');
+    var d = e.target.closest('[data-del]');
+    if (v) { selectPkg(parseInt(v.getAttribute('data-view'), 10)); }
+    else if (d) { requestDelete(parseInt(d.getAttribute('data-del'), 10), d); }
+  });
+  document.getElementById('detail').addEventListener('submit', function (e) {
+    if (!e.target.closest('[data-u-form]')) return;
+    e.preventDefault();
+    handleUpdate(curIdx);
+  });
+  document.getElementById('detail').addEventListener('click', function (e) {
+    var c = e.target.closest('[data-copy]');
+    var d = e.target.closest('[data-del]');
+    if (c) {
+      var idx = parseInt(c.getAttribute('data-copy'), 10);
+      var p = store.packages[idx];
+      if (p) copyText(packageText(p), '已复制该快递的轨迹文本');
+    } else if (d) {
+      requestDelete(parseInt(d.getAttribute('data-del'), 10), d);
+    }
+  });
+
+  renderCarriers();
+  renderList();
+  renderDetail(-1);
+  reconcilePreload();
+})();
+</script>
+</body>
+</html>

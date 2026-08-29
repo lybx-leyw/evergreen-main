@@ -1,0 +1,15 @@
+{
+  "type": "theme",
+  "id": "retro-film",
+  "name": "复古胶片",
+  "colors": {
+    "background": "#EFE7DA",
+    "surface": "#F8F2E9",
+    "border": "#DCCBB2",
+    "text": "#3D3226",
+    "textSecondary": "#7A6A52",
+    "accent": "#7F5228",
+    "error": "#A5482C",
+    "others": "#C9A97C"
+  }
+}

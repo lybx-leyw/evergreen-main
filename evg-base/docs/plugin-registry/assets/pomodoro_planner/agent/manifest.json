@@ -1,0 +1,24 @@
+{
+  "name": "pomodoro_planner",
+  "description": "把总分钟数拆成番茄钟学习计划（25 分钟专注 + 5 分钟休息），返回分块建议。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "minutes": {
+        "type": "integer",
+        "description": "计划总时长（分钟）。"
+      },
+      "focus": {
+        "type": "integer",
+        "description": "每个番茄时长，默认 25。"
+      }
+    },
+    "required": [
+      "minutes"
+    ]
+  },
+  "readOnly": true,
+  "argMode": "stdin",
+  "runtime": "python",
+  "lifetime": "once"
+}

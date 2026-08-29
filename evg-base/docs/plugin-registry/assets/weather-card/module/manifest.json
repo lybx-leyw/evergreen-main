@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "weather-card",
+  "name": "天气卡片",
+  "description": "实时天气卡片：温度/天气现象/湿度/风力/体感/紫外线/降水 + 多日预报，优先接入 campus_weather 数据源（data.list 探测 + 订阅刷新），离线自动降级并标注；城市偏好保存在本机。",
+  "template": "html",
+  "version": "1.0.0",
+  "icon": "partly_cloudy_day",
+  "route": "/weather-card",
+  "nav": {
+    "sidebar": {
+      "section": "生活",
+      "sectionOrder": 40,
+      "order": 4
+    }
+  }
+}

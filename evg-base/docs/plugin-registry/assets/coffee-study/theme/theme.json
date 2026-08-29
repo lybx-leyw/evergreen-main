@@ -1,0 +1,15 @@
+{
+  "type": "theme",
+  "id": "coffee-study",
+  "name": "咖啡店自习",
+  "colors": {
+    "background": "#F6EFE7",
+    "surface": "#FCF8F3",
+    "border": "#E3D3C0",
+    "text": "#3E2E22",
+    "textSecondary": "#7A6553",
+    "accent": "#C08552",
+    "error": "#AD4A37",
+    "others": "#D9BC9A"
+  }
+}

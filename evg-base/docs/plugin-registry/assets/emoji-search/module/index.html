@@ -1,0 +1,408 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Emoji 搜索</title><style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  /* 平台注入 --evg-*（background/surface/border/text/text-secondary/accent/
+     accent-bg/accent-border/error/others），插件禁止重定义；此处仅派生本地
+     别名并提供兜底色（var(--evg-…, fallback)），无平台注入时（如独立预览）
+     依然可用。--accent-ink 由 JS 按 accent 亮度计算，保证对比度。 */
+  --bg: var(--evg-background, #f7f3ec);
+  --card: var(--evg-surface, #ffffff);
+  --ink: var(--evg-text, #3a3120);
+  --ink-soft: var(--evg-text-secondary, #8c7f66);
+  --accent: var(--evg-accent, #d99a2e);
+  --accent-bg: var(--evg-accent-bg, #fbf0d8);
+  --accent-border: var(--evg-accent-border, #efdcab);
+  --line: var(--evg-border, rgba(58, 49, 32, .12));
+  --error: var(--evg-error, #d64545);
+  --accent-ink: #ffffff;
+}
+html { font-size: 16px; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, sans-serif; background: var(--bg); color: var(--ink); min-height: 100vh; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+.topbar { display: flex; align-items: center; gap: .75rem; padding: 1.1rem 1.5rem; border-bottom: 1px solid var(--line); background: var(--card); background: color-mix(in srgb, var(--card) 72%, transparent); backdrop-filter: blur(.875rem); -webkit-backdrop-filter: blur(.875rem); position: sticky; top: 0; z-index: 5; }
+.topbar .ico { font-size: 1.5rem; line-height: 1; }
+.topbar h1 { font-size: 1.15rem; font-weight: 700; }
+.topbar .sub { font-size: .72rem; color: var(--ink-soft); }
+.container { max-width: 54rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 1rem; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+.card h2 { font-size: .95rem; font-weight: 700; margin-bottom: .9rem; display: flex; align-items: center; justify-content: space-between; }
+.card h2 .f { font-size: .72rem; color: var(--ink-soft); font-weight: 500; }
+.search-row { display: flex; gap: .5rem; margin-bottom: .6rem; }
+.search-row input { flex: 1; min-width: 0; padding: .65rem .8rem; border-radius: .75rem; border: 1px solid var(--line); background: var(--bg); background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--ink); font-family: inherit; font-size: .95rem; }
+.search-row input::placeholder { color: var(--ink-soft); }
+.btn { appearance: none; border: 1px solid var(--line); background: var(--card); color: var(--ink); font-family: inherit; font-size: .85rem; padding: .55rem 1rem; border-radius: .75rem; cursor: pointer; }
+.btn:hover { border-color: var(--accent-border); color: var(--accent); }
+.meta { font-size: .72rem; color: var(--ink-soft); margin-bottom: .7rem; min-height: 1.1em; }
+.cats { display: flex; gap: .4rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.cat { appearance: none; border: 1px solid var(--line); background: transparent; color: var(--ink-soft); font-family: inherit; font-size: .78rem; padding: .38rem .8rem; border-radius: 999px; cursor: pointer; }
+.cat:hover { color: var(--ink); border-color: var(--accent-border); }
+.cat.active { color: var(--accent-ink, #fff); background: var(--accent); border-color: var(--accent); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(4.6rem, 1fr)); gap: .5rem; }
+.emoji-card { position: relative; text-align: center; padding: .75rem .3rem .5rem; border-radius: .75rem; border: 1px solid var(--line); background: var(--bg); background: color-mix(in srgb, var(--bg) 48%, transparent); cursor: pointer; transition: transform .12s ease, border-color .12s ease; }
+.emoji-card:hover, .emoji-card:focus-visible { transform: translateY(-2px); border-color: var(--accent-border); }
+.emoji-card .e { font-size: 1.7rem; line-height: 1.2; }
+.emoji-card .n { font-size: .66rem; color: var(--ink-soft); margin-top: .25rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.emoji-card.copied .n { color: var(--accent); font-weight: 600; }
+.star { position: absolute; top: .12rem; right: .15rem; appearance: none; border: 0; background: transparent; color: var(--ink-soft); font-size: .8rem; line-height: 1; padding: .15rem .2rem; border-radius: .3rem; cursor: pointer; }
+.star:hover { color: var(--accent); }
+.star.on { color: var(--accent); }
+.empty { text-align: center; color: var(--ink-soft); font-size: .85rem; padding: 2rem 0; }
+.chips { display: flex; gap: .4rem; flex-wrap: wrap; }
+.chip { position: relative; display: inline-flex; align-items: center; gap: .15rem; font-size: 1.5rem; line-height: 1; cursor: pointer; padding: .25rem .3rem; border-radius: .4rem; }
+.chip:hover, .chip:focus-visible { background: var(--accent-bg); }
+.chip .x { appearance: none; border: 0; background: transparent; color: var(--ink-soft); font-size: .65rem; cursor: pointer; padding: .05rem .12rem; border-radius: .25rem; line-height: 1; }
+.chip .x:hover { color: var(--error); }
+.toast { position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%) translateY(4rem); background: var(--ink); color: var(--card); font-size: .85rem; padding: .6rem 1.2rem; border-radius: 999px; transition: transform .25s ease; z-index: 99; pointer-events: none; }
+.toast.show { transform: translateX(-50%) translateY(0); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.search-row input:focus { outline: 2px solid var(--accent-border); outline-offset: 0; border-color: var(--accent-border); }
+@media (max-width: 520px) {
+  .topbar { padding: .8rem 1rem; }
+  .topbar .sub { display: none; }
+  .container { padding: 1rem .75rem 2.5rem; }
+  .card { padding: .95rem .8rem; }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(3.6rem, 1fr)); gap: .4rem; }
+  .emoji-card .e { font-size: 1.45rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .emoji-card, .toast { transition: none; }
+}
+</style></head><body>
+<header class="topbar">
+  <span class="ico" aria-hidden="true">😀</span>
+  <div><h1>Emoji 搜索</h1><div class="sub">关键词 / 分类 / 别名秒找 · 点击复制 · 收藏与最近自动保存</div></div>
+</header>
+<main class="container">
+  <section class="card">
+    <div class="search-row">
+      <input id="in-search" type="text" placeholder="搜索：开心 / 猫 / 食物 / 爱心…" autocomplete="off" spellcheck="false">
+      <button type="button" class="btn" id="b-clear">清空</button>
+    </div>
+    <div class="meta" id="meta" role="status"></div>
+    <div class="cats" id="cats"></div>
+    <div class="grid" id="grid"></div>
+  </section>
+  <section class="card">
+    <h2>⭐ 收藏 <span class="f" id="favcount">0 个</span></h2>
+    <div class="chips" id="favs"></div>
+  </section>
+  <section class="card">
+    <h2>🕘 最近使用 <span class="f" id="rcount">0 个</span></h2>
+    <div class="chips" id="recent"></div>
+  </section>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</main>
+<script>
+(function () {
+  'use strict';
+  var P = (typeof platform !== 'undefined') ? platform : null;
+  var KEY = 'evg.emoji-search';
+  var MAX_RECENT = 20;
+  var MAX_FAV = 50;
+  var MAX_RENDER = 120;
+  var sessionDirty = false; // 本会话是否写过存储（用于竞态合并判定）
+
+  // 解析并规范化存储载荷；非法/损坏 → null（视为「从未写过」）
+  function parseStore(raw) {
+    var obj = null;
+    try { obj = JSON.parse(raw); } catch (e) { return null; }
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return null;
+    var recents = Array.isArray(obj.recent)
+      ? obj.recent.filter(function (x) { return typeof x === 'string' && x; }) : [];
+    var favs = Array.isArray(obj.favorites)
+      ? obj.favorites.filter(function (x) { return typeof x === 'string' && x; }) : [];
+    return { recent: recents, favorites: favs };
+  }
+
+  function loadStore() {
+    var s = { recent: [], favorites: [] };
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (raw) { var p = parseStore(raw); if (p) s = p; }
+    } catch (e) { /* 存储不可用：会话内有效 */ }
+    return s;
+  }
+
+  var store = loadStore();
+
+  function save() {
+    sessionDirty = true;
+    try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) { /* 降级：仅内存 */ }
+  }
+
+  // 并集合并：会话数据优先（新在前），再并入持久化数据，去重保序
+  function unionList(sessionList, persistedList, max) {
+    var out = [], seen = {};
+    function push(x) { if (x && !seen[x] && out.length < max) { seen[x] = 1; out.push(x); } }
+    sessionList.forEach(push);
+    persistedList.forEach(push);
+    return out;
+  }
+
+  // 启动竞态收敛：localStorage polyfill 预载是异步的，启动同步读可能先于预载
+  // 返回空。启动后经 platform.storage 权威重读一次，防覆盖丢失：
+  //   本会话未写过 → 整体替换为持久化值；本会话写过 → 并集合并。
+  function syncPersisted() {
+    if (!P || !P.storage || !P.storage.get) return;
+    P.storage.get(KEY).then(function (raw) {
+      var persisted = (raw == null) ? null : parseStore(raw);
+      if (!persisted) return;
+      if (!sessionDirty) {
+        store = persisted;                                  // 未写过 → 整体替换
+      } else {
+        store = {
+          recent: unionList(store.recent, persisted.recent, MAX_RECENT),
+          favorites: unionList(store.favorites, persisted.favorites, MAX_FAV)
+        };                                                  // 写过 → 并集合并
+      }
+      renderFavs(); renderRecent();
+    }).catch(function () { /* 重读失败：保持现状 */ });
+  }
+
+  var DATA = [
+    ['笑脸', 'smile', '😀', '开心 笑 高兴'], ['大笑', 'laugh', '😄', '开心 笑'], ['笑哭', 'tear', '😂', '笑 哭'], ['微笑', 'smile2', '🙂', '开心 笑'], ['爱心', 'heart', '❤️', '爱 喜欢 心'], ['眨眼', 'wink', '😉', '眨眼 调皮'], ['亲亲', 'kiss', '😘', '爱 亲'], ['酷', 'cool', '😎', '酷 墨镜'], ['思考', 'think', '🤔', '想 思考'], ['无语', 'speechless', '🤐', '无语 闭嘴'], ['惊讶', 'surprise', '😮', '惊讶 哇'], ['困', 'sleepy', '😪', '困 累'], ['生气', 'angry', '😡', '生气 怒'], ['难过', 'cry', '😢', '难过 哭 伤心'], ['害怕', 'fear', '😨', '怕 惊恐'], ['生病', 'sick', '🤒', '病 发烧'], ['呕吐', 'vomit', '🤢', '吐 恶心'], ['恶魔', 'devil', '😈', '坏 恶魔'], ['骷髅', 'skull', '💀', '骷髅 死亡'], ['外星人', 'alien', '👽', '外星'], ['机器人', 'robot', '🤖', '机器人'], ['猫', 'cat', '🐱', '猫 宠物'], ['狗', 'dog', '🐶', '狗 宠物'], ['熊', 'bear', '🐻', '熊'], ['熊猫', 'panda', '🐼', '熊猫'], ['兔子', 'rabbit', '🐰', '兔子'], ['老虎', 'tiger', '🐯', '老虎'], ['猴子', 'monkey', '🐵', '猴子'], ['小鸡', 'chick', '🐤', '鸡 鸟'], ['企鹅', 'penguin', '🐧', '企鹅'], ['青蛙', 'frog', '🐸', '青蛙'], ['小猪', 'pig', '🐷', '猪'], ['牛', 'cow', '🐮', '牛'], ['马', 'horse', '🐴', '马'], ['蜜蜂', 'bee', '🐝', '蜜蜂'], ['蝴蝶', 'butterfly', '🦋', '蝴蝶'], ['蜗牛', 'snail', '🐌', '蜗牛'], ['海豚', 'dolphin', '🐬', '海豚'], ['鲸鱼', 'whale', '🐳', '鲸鱼'], ['章鱼', 'octopus', '🐙', '章鱼'], ['鱼', 'fish', '🐟', '鱼'], ['花', 'flower', '🌸', '花 樱花 春天'], ['玫瑰', 'rose', '🌹', '花 玫瑰'], ['向日葵', 'sunflower', '🌻', '花 太阳'], ['仙人掌', 'cactus', '🌵', '仙人掌'], ['树', 'tree', '🌳', '树 森林'], ['四叶草', 'clover', '🍀', '草 幸运'], ['蘑菇', 'mushroom', '🍄', '蘑菇'], ['苹果', 'apple', '🍎', '水果 食物'], ['橙子', 'orange', '🍊', '水果'], ['香蕉', 'banana', '🍌', '水果'], ['西瓜', 'watermelon', '🍉', '水果'], ['葡萄', 'grape', '🍇', '水果'], ['草莓', 'strawberry', '🍓', '水果'], ['樱桃', 'cherry', '🍒', '水果'], ['桃子', 'peach', '🍑', '水果'], ['柠檬', 'lemon', '🍋', '水果'], ['米饭', 'rice', '🍚', '食物 饭'], ['面条', 'noodle', '🍜', '面 食物'], ['汉堡', 'burger', '🍔', '食物 快餐'], ['披萨', 'pizza', '🍕', '食物'], ['寿司', 'sushi', '🍣', '食物 日本'], ['蛋糕', 'cake', '🍰', '甜点 生日'], ['冰淇淋', 'icecream', '🍦', '甜点 冷饮'], ['咖啡', 'coffee', '☕', '咖啡 饮料'], ['茶', 'tea', '🍵', '茶 饮料'], ['啤酒', 'beer', '🍺', '酒 饮料'], ['可乐', 'cola', '🥤', '饮料'], ['足球', 'soccer', '⚽', '运动 球'], ['篮球', 'basketball', '🏀', '运动 球'], ['乒乓球', 'pingpong', '🏓', '运动 球'], ['跑步', 'run', '🏃', '运动 跑步'], ['举重', 'lift', '🏋️', '运动 健身'], ['骑车', 'bike', '🚴', '运动 骑车'], ['游泳', 'swim', '🏊', '运动 游泳'], ['睡觉', 'sleep', '😴', '睡觉 睡眠'], ['月亮', 'moon', '🌙', '月亮 夜晚'], ['太阳', 'sun', '☀️', '太阳 晴天'], ['星星', 'star', '⭐', '星星'], ['闪电', 'lightning', '⚡', '闪电 电'], ['雨', 'rain', '🌧️', '雨 天气'], ['雪', 'snow', '❄️', '雪 冷'], ['彩虹', 'rainbow', '🌈', '彩虹'], ['云', 'cloud', '☁️', '云 天气'], ['火', 'fire', '🔥', '火 热'], ['水', 'water', '💧', '水 滴'], ['礼物', 'gift', '🎁', '礼物 生日'], ['蛋糕2', 'cake2', '🎂', '生日'], ['气球', 'balloon', '🎈', '气球'], ['烟花', 'firework', '🎆', '烟花'], ['奖杯', 'trophy', '🏆', '奖 胜利'], ['金牌', 'gold', '🥇', '奖 第一'], ['书', 'book', '📚', '书 学习 阅读'], ['铅笔', 'pencil', '✏️', '笔 写'], ['电脑', 'computer', '💻', '电脑 工作'], ['手机', 'phone', '📱', '手机'], ['相机', 'camera', '📷', '相机 拍照'], ['音乐', 'music', '🎵', '音乐 歌'], ['耳机', 'headphone', '🎧', '耳机 听'], ['游戏', 'game', '🎮', '游戏 玩'], ['电影', 'movie', '🎬', '电影 视频'], ['电视', 'tv', '📺', '电视'], ['飞机', 'plane', '✈️', '飞机 旅行'], ['火车', 'train', '🚄', '火车'], ['汽车', 'car', '🚗', '车'], ['地铁', 'metro', '🚇', '地铁'], ['自行车', 'bicycle', '🚲', '车 骑车'], ['家', 'home', '🏠', '家 房子'], ['医院', 'hospital', '🏥', '医院'], ['学校', 'school', '🏫', '学校'], ['银行', 'bank', '🏦', '银行 钱'], ['购物', 'shopping', '🛒', '购物 买'], ['钱', 'money', '💰', '钱 财富'], ['美元', 'dollar', '💵', '钱'], ['日历', 'calendar', '📅', '日历 日期'], ['时钟', 'clock', '⏰', '时间 闹钟'], ['邮件', 'email', '📧', '邮件 信'], ['电话', 'telephone', '📞', '电话'], ['放大镜', 'search', '🔍', '搜索 找'], ['灯泡', 'bulb', '💡', '灯 想法'], ['钥匙', 'key', '🔑', '钥匙'], ['锁', 'lock', '🔒', '锁 安全'], ['剪刀', 'scissors', '✂️', '剪刀'], ['纸', 'paper', '📄', '纸 文件'], ['文件夹', 'folder', '📁', '文件夹'], ['回收', 'recycle', '♻️', '回收 环保'], ['警告', 'warning', '⚠️', '警告 注意'], ['禁止', 'no', '🚫', '禁止 不行'], ['对号', 'check', '✅', '对 完成'], ['叉号', 'cross', '❌', '错 不行'], ['感叹号', 'exclaim', '❗', '感叹 注意'], ['问号', 'question', '❓', '问 疑问'], ['点赞', 'thumbsup', '👍', '赞 好 喜欢'], ['差评', 'thumbsdown', '👎', '差 不行'], ['拳头', 'fist', '👊', '加油 拳'], ['鼓掌', 'clap', '👏', '鼓掌 欢迎'], ['祈祷', 'pray', '🙏', '祈祷 感谢'], ['握手', 'handshake', '🤝', '握手 合作'], ['OK', 'ok', '👌', '好的 ok'], ['胜利', 'victory', '✌️', '胜利 耶'], ['摇滚', 'rock', '🤘', '摇滚'], ['挥手', 'wave', '👋', '再见 打招呼'], ['肌肉', 'muscle', '💪', '力量 健身'], ['手指', 'point', '👉', '指 方向'], ['小丑', 'clown', '🤡', '小丑'], ['公主', 'princess', '👸', '公主'], ['王子', 'prince', '🤴', '王子'], ['圣诞老人', 'santa', '🎅', '圣诞 礼物'], ['幽灵', 'ghost', '👻', '鬼 万圣节'], ['南瓜', 'pumpkin', '🎃', '万圣节'], ['圣诞树', 'tree2', '🎄', '圣诞'], ['和平鸽', 'dove', '🕊️', '和平 鸟'], ['地球', 'earth', '🌍', '地球 世界'], ['火箭', 'rocket', '🚀', '火箭 发射'], ['药丸', 'pill', '💊', '药'], ['注射器', 'syringe', '💉', '针 医疗'], ['口罩', 'mask', '😷', '口罩 病'], ['登山', 'hiking', '🥾', '登山'], ['帐篷', 'tent', '⛺', '露营'], ['篝火', 'campfire', '🔥', '火 露营'], ['冲浪', 'surf', '🏄', '冲浪 运动'], ['滑雪', 'ski', '⛷️', '滑雪 冬天'], ['国旗', 'flag', '🚩', '旗'], ['party', '庆祝', '🎉', '庆祝 派对'], ['彩带', 'confetti', '🎊', '庆祝'], ['吹喇叭', 'horn', '📯', '喇叭 庆祝'], ['铃铛', 'bell', '🔔', '铃 提醒'], ['棒棒糖', 'lollipop', '🍭', '糖 甜'], ['爆米花', 'popcorn', '🍿', '零食 电影'], ['薯条', 'fries', '🍟', '零食'], ['甜甜圈', 'donut', '🍩', '甜点'], ['饼干', 'cookie', '🍪', '零食 甜点'], ['鸡蛋', 'egg', '🥚', '蛋'], ['面包', 'bread', '🍞', '早餐 食物'], ['奶酪', 'cheese', '🧀', '奶酪'], ['火锅', 'hotpot', '🍲', '火锅 热'], ['寿喜锅', 'nabe', '🥘', '锅'], ['筷子', 'chopsticks', '🥢', '筷子 吃饭'], ['勺子', 'spoon', '🥄', '吃饭'], ['刀叉', 'fork', '🍴', '吃饭 餐具'], ['蜂鸣', 'beep', '📢', '喇叭 通知'], ['爱心2', 'heart2', '💕', '爱 心'], ['破碎心', 'heartbreak', '💔', '伤心 心碎'], ['星星眼', 'stareyes', '🤩', '星星 喜欢'], ['火辣', 'hot', '🥵', '热 火'], ['寒冷', 'cold', '🥶', '冷'], ['眨眼吐舌', 'tongue', '😋', '好吃 调皮'], ['沉思', 'ponder', '🧐', '想 思考'], ['打哈欠', 'yawn', '🥱', '困 无聊'], ['握手2', 'shake', '🤝', '合作']
+  ];
+
+  var CATS = [
+    { n: '全部', filter: function () { return true; } },
+    { n: '😊 表情', filter: function (e) { return e[3].indexOf('笑') !== -1 || e[3].indexOf('开心') !== -1 || e[3].indexOf('生气') !== -1 || e[3].indexOf('难过') !== -1 || e[3].indexOf('哭') !== -1; } },
+    { n: '🐱 动物', filter: function (e) { return e[3].indexOf('宠物') !== -1 || e[3].indexOf('动物') !== -1 || e[3].indexOf('猫') !== -1 || e[3].indexOf('狗') !== -1 || e[3].indexOf('鸟') !== -1 || e[3].indexOf('鱼') !== -1 || e[3].indexOf('虫') !== -1; } },
+    { n: '🍎 食物', filter: function (e) { return e[3].indexOf('食物') !== -1 || e[3].indexOf('水果') !== -1 || e[3].indexOf('甜点') !== -1 || e[3].indexOf('饮料') !== -1 || e[3].indexOf('零食') !== -1; } },
+    { n: '⚽ 运动', filter: function (e) { return e[3].indexOf('运动') !== -1; } },
+    { n: '🌙 自然', filter: function (e) { return e[3].indexOf('天气') !== -1 || e[3].indexOf('月亮') !== -1 || e[3].indexOf('太阳') !== -1 || e[3].indexOf('花') !== -1 || e[3].indexOf('树') !== -1 || e[3].indexOf('草') !== -1; } },
+    { n: '🎁 礼物', filter: function (e) { return e[3].indexOf('礼物') !== -1 || e[3].indexOf('生日') !== -1 || e[3].indexOf('庆祝') !== -1 || e[3].indexOf('派对') !== -1; } },
+    { n: '🏫 学习', filter: function (e) { return e[3].indexOf('书') !== -1 || e[3].indexOf('学习') !== -1 || e[3].indexOf('学校') !== -1 || e[3].indexOf('笔') !== -1; } },
+    { n: '💻 科技', filter: function (e) { return e[3].indexOf('电脑') !== -1 || e[3].indexOf('手机') !== -1 || e[3].indexOf('相机') !== -1 || e[3].indexOf('游戏') !== -1 || e[3].indexOf('机器人') !== -1; } },
+    { n: '🏠 生活', filter: function (e) { return e[3].indexOf('家') !== -1 || e[3].indexOf('购物') !== -1 || e[3].indexOf('钱') !== -1 || e[3].indexOf('车') !== -1; } }
+  ];
+
+  var curCat = '全部', query = '';
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function renderCats() {
+    var el = document.getElementById('cats');
+    el.innerHTML = CATS.map(function (c) {
+      return '<button type="button" class="cat' + (c.n === curCat ? ' active' : '') + '" data-c="' + esc(c.n) + '">' + esc(c.n) + '</button>';
+    }).join('');
+  }
+
+  function catFilter(e) {
+    if (curCat === '全部') return true;
+    for (var i = 0; i < CATS.length; i++) {
+      if (CATS[i].n === curCat) return CATS[i].filter(e);
+    }
+    return true;
+  }
+
+  function filtered() {
+    var q = query.toLowerCase();
+    return DATA.filter(function (e) {
+      var catOk = catFilter(e);
+      var qOk = !q || e[0].toLowerCase().indexOf(q) !== -1 ||
+        e[1].toLowerCase().indexOf(q) !== -1 || e[2].indexOf(q) !== -1 ||
+        e[3].toLowerCase().indexOf(q) !== -1;
+      return catOk && qOk;
+    });
+  }
+
+  function renderMeta(list) {
+    var el = document.getElementById('meta');
+    var txt = '';
+    if (query || curCat !== '全部') txt = '共 ' + list.length + ' 个结果';
+    if (list.length > MAX_RENDER) {
+      txt += (txt ? ' · ' : '') + '仅显示前 ' + MAX_RENDER + ' 个，输入关键词可继续缩小范围';
+    }
+    el.textContent = txt;
+  }
+
+  function renderGrid() {
+    var el = document.getElementById('grid');
+    var list = filtered();
+    renderMeta(list);
+    if (!list.length) { el.innerHTML = '<div class="empty">没有找到匹配的 Emoji，换个关键词试试 🔍</div>'; return; }
+    var shown = list.slice(0, MAX_RENDER);
+    el.innerHTML = shown.map(function (e) {
+      var fav = store.favorites.indexOf(e[2]) !== -1;
+      return '<div class="emoji-card" role="button" tabindex="0" data-e="' + esc(e[2]) + '" title="' + esc(e[0]) + ' ' + e[2] + ' · 点击复制">' +
+        '<button type="button" class="star' + (fav ? ' on' : '') + '" data-act="fav" aria-pressed="' + (fav ? 'true' : 'false') + '" aria-label="' + (fav ? '取消收藏 ' : '收藏 ') + esc(e[0]) + '">' + (fav ? '★' : '☆') + '</button>' +
+        '<div class="e">' + e[2] + '</div><div class="n">' + esc(e[0]) + '</div></div>';
+    }).join('');
+  }
+
+  function renderFavs() {
+    var el = document.getElementById('favs');
+    document.getElementById('favcount').textContent = store.favorites.length + ' 个';
+    if (!store.favorites.length) { el.innerHTML = '<span class="empty" style="padding:0">暂无收藏，点卡片右上角 ☆ 收藏常用表情</span>'; return; }
+    el.innerHTML = store.favorites.map(function (e) {
+      return '<span class="chip" role="button" tabindex="0" data-e="' + esc(e) + '" title="点击复制">' + e +
+        '<button type="button" class="x" data-act="unfav" aria-label="取消收藏 ' + e + '">✕</button></span>';
+    }).join('');
+  }
+
+  function renderRecent() {
+    var el = document.getElementById('recent');
+    document.getElementById('rcount').textContent = store.recent.length + ' 个';
+    if (!store.recent.length) { el.innerHTML = '<span class="empty" style="padding:0">暂无</span>'; return; }
+    el.innerHTML = store.recent.map(function (e) {
+      return '<span class="chip" role="button" tabindex="0" data-e="' + esc(e) + '" title="点击复制">' + e + '</span>';
+    }).join('');
+  }
+
+  function toggleFavorite(emoji) {
+    var i = store.favorites.indexOf(emoji);
+    if (i === -1) { store.favorites = [emoji].concat(store.favorites).slice(0, MAX_FAV); }
+    else { store.favorites.splice(i, 1); }
+    save(); renderFavs(); renderGrid();
+  }
+
+  var toastTimer = null;
+  function showToast(msg) {
+    var t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove('show'); }, 1600);
+  }
+
+  // 复制：clipboard API 优先，失败降级 execCommand；仅真实成功才反馈成功并
+  // 记入最近使用，失败给出错误提示（反馈真实）。
+  function copyText(text) {
+    return new Promise(function (resolve) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () { resolve(true); })
+          .catch(function () { resolve(fallbackCopy(text)); });
+      } else {
+        resolve(fallbackCopy(text));
+      }
+    });
+  }
+  function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed'; ta.style.opacity = '0'; ta.style.pointerEvents = 'none';
+    document.body.appendChild(ta);
+    var ok = false;
+    try {
+      var sel = document.getSelection();
+      var prev = sel && sel.rangeCount ? sel.getRangeAt(0) : null;
+      ta.select(); ta.setSelectionRange(0, text.length);
+      ok = document.execCommand('copy');
+      if (prev && sel) { sel.removeAllRanges(); sel.addRange(prev); }
+    } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    return ok;
+  }
+  function handleCopy(emoji) {
+    copyText(emoji).then(function (ok) {
+      if (!ok) { showToast('复制失败，请手动复制'); return; }
+      store.recent = [emoji].concat(store.recent.filter(function (x) { return x !== emoji; })).slice(0, MAX_RECENT);
+      save(); renderRecent();
+      if (P && P.emit) { try { P.emit('emoji-search:copy', { emoji: emoji }); } catch (err) {} }
+      showToast('已复制 ' + emoji);
+    });
+  }
+
+  // accent 对比度：accent 上文字色按亮度切换（深色 accent → 白字，浅色 → 黑字）
+  function luminance(hex) {
+    var m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(String(hex).trim());
+    if (!m) return null;
+    var h = m[1];
+    if (h.length === 3) h = h.split('').map(function (c) { return c + c; }).join('');
+    var r = parseInt(h.slice(0, 2), 16) / 255,
+        g = parseInt(h.slice(2, 4), 16) / 255,
+        b = parseInt(h.slice(4, 6), 16) / 255;
+    function lin(c) { return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+    return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+  }
+  function setAccentInk(hex) {
+    var L = luminance(hex);
+    // 浅色 accent（L 高）→ 深色文字；深色 accent（L 低）→ 白色文字
+    var ink = (L == null) ? '#ffffff' : (L > 0.45 ? '#1a1a1a' : '#ffffff');
+    try { document.documentElement.style.setProperty('--accent-ink', ink); } catch (e) {}
+  }
+  function applyAccentInk() {
+    var accent = '';
+    try { accent = getComputedStyle(document.documentElement).getPropertyValue('--evg-accent').trim(); } catch (e) {}
+    if (accent) { setAccentInk(accent); return; }
+    if (P && P.theme && P.theme.getColors) {
+      P.theme.getColors().then(function (c) { if (c && c.accent) setAccentInk(c.accent); }).catch(function () {});
+    }
+  }
+
+  var inSearch = document.getElementById('in-search');
+  function clearSearch() {
+    inSearch.value = ''; query = ''; curCat = '全部';
+    renderCats(); renderGrid();
+  }
+  inSearch.addEventListener('input', function () { query = this.value.trim(); renderGrid(); });
+  inSearch.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') { clearSearch(); } });
+  document.getElementById('b-clear').addEventListener('click', clearSearch);
+  document.getElementById('cats').addEventListener('click', function (e) {
+    var b = e.target.closest('.cat');
+    if (!b) return;
+    curCat = b.getAttribute('data-c');
+    renderCats(); renderGrid();
+  });
+
+  function copyCard(c) {
+    var emoji = c.getAttribute('data-e');
+    if (!emoji) return;
+    handleCopy(emoji);
+    c.classList.add('copied');
+    setTimeout(function () { c.classList.remove('copied'); }, 1200);
+  }
+  document.getElementById('grid').addEventListener('click', function (e) {
+    var t = e.target;
+    var star = t.closest && t.closest('.star');
+    if (star) {
+      var card = t.closest('.emoji-card');
+      if (card) toggleFavorite(card.getAttribute('data-e'));
+      return;
+    }
+    var c = t.closest && t.closest('.emoji-card');
+    if (c) copyCard(c);
+  });
+  document.getElementById('grid').addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    var t = e.target;
+    if (t.closest && t.closest('.star')) return; // 星标为原生按钮，交给 click
+    var c = t.closest && t.closest('.emoji-card');
+    if (!c) return;
+    e.preventDefault();
+    copyCard(c);
+  });
+
+  function chipAction(t) {
+    var x = t.closest && t.closest('.x');
+    if (x) {
+      var chip = t.closest('.chip');
+      if (chip) toggleFavorite(chip.getAttribute('data-e'));
+      return;
+    }
+    var s = t.closest && t.closest('[data-e]');
+    if (s) handleCopy(s.getAttribute('data-e'));
+  }
+  function chipKeydown(e) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    var t = e.target;
+    if (t.closest && t.closest('.x')) return;
+    var s = t.closest && t.closest('[data-e]');
+    if (!s) return;
+    e.preventDefault();
+    handleCopy(s.getAttribute('data-e'));
+  }
+  document.getElementById('recent').addEventListener('click', function (e) { chipAction(e.target); });
+  document.getElementById('recent').addEventListener('keydown', chipKeydown);
+  document.getElementById('favs').addEventListener('click', function (e) { chipAction(e.target); });
+  document.getElementById('favs').addEventListener('keydown', chipKeydown);
+
+  renderCats(); renderGrid(); renderFavs(); renderRecent();
+  applyAccentInk();
+  if (P && P.on) { try { P.on('theme:changed', applyAccentInk); } catch (e) {} }
+  syncPersisted();
+})();
+</script></body></html>

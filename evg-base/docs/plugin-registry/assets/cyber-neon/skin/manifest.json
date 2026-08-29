@@ -1,0 +1,39 @@
+{
+  "type": "skin",
+  "id": "cyber-neon",
+  "name": "赛博霓虹",
+  "version": "1.0.0",
+  "description": "「赛博霓虹」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+  "background": {
+    "type": "image",
+    "imageDesktop": "bg_desktop.svg",
+    "imageMobile": "bg_mobile.svg"
+  },
+  "bubble": {
+    "userBackgroundColor": "#221B48",
+    "borderRadius": 18
+  },
+  "avatar": {
+    "user": "avatar_user.svg",
+    "userBackgroundColor": "#00E5FF"
+  },
+  "thinking": {
+    "title": "思考过程",
+    "colors": {
+      "header": "#00E5FF",
+      "containerBackground": "#221B48",
+      "containerBorder": "#FF6EC7",
+      "contentText": "#FF6EC7",
+      "chipMemoryBg": "#221B48",
+      "chipMemoryFg": "#00E5FF",
+      "chipSkillBg": "#221B48",
+      "chipSkillFg": "#00E5FF",
+      "chipToolBg": "#221B48",
+      "chipToolFg": "#00E5FF",
+      "chipToolResultBg": "#221B48",
+      "chipToolResultFg": "#00E5FF"
+    }
+  },
+  "effortColor": "#00E5FF",
+  "toolActiveColor": "#00E5FF"
+}

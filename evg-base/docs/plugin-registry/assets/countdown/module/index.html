@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>倒计时</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+/* 主题变量：--evg-* 由平台注入（html_modle bridge），此处为独立预览兜底值 */
+:root {
+  --evg-background: #f0f2f6; --evg-surface: #ffffff; --evg-text: #232a3a;
+  --evg-text-secondary: #67708a; --evg-accent: #d05a2f; --evg-accent-bg: #fbe9e0;
+  --evg-accent-border: #f2c9b8; --evg-border: rgba(35, 42, 58, .09);
+  --evg-error: #d64545; --evg-others: #e8a33d;
+  --bg: var(--evg-background); --card: var(--evg-surface); --ink: var(--evg-text);
+  --ink-soft: var(--evg-text-secondary); --accent: var(--evg-accent); --line: var(--evg-border);
+  --err: var(--evg-error);
+}
+/* 独立预览时的暗色兜底（平台注入的 inline 样式优先，不会覆盖） */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --evg-background: #171a21; --evg-surface: #20242e; --evg-text: #e6e9f0;
+    --evg-text-secondary: #9aa3b5; --evg-accent: #e07a4a; --evg-accent-bg: #3a2a20;
+    --evg-accent-border: #6e4a33; --evg-border: rgba(230, 233, 240, .12);
+    --evg-error: #e07b7b; --evg-others: #e0b35c;
+  }
+}
+html { font-size: 16px; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, sans-serif; background: var(--bg); color: var(--ink); min-height: 100vh; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+.topbar { display: flex; align-items: center; gap: .75rem; padding: 1.1rem 1.5rem; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--card) 72%, transparent); backdrop-filter: blur(.875rem); -webkit-backdrop-filter: blur(.875rem); position: sticky; top: 0; z-index: 5; }
+.topbar .ico { font-size: 1.5rem; }
+.topbar h1 { font-size: 1.15rem; font-weight: 700; }
+.topbar .sub { font-size: .72rem; color: var(--ink-soft); }
+.container { max-width: 44rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 1rem; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+.card h2 { font-size: .95rem; font-weight: 700; margin-bottom: .9rem; display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.card h2 .f { font-size: .72rem; color: var(--ink-soft); font-weight: 500; }
+
+/* —— 最近事项（hero） —— */
+.hero { text-align: center; padding: .4rem 0 .6rem; }
+.hero .h-label { font-size: .72rem; color: var(--ink-soft); letter-spacing: .06em; }
+.hero .h-name { font-size: 1.15rem; font-weight: 700; margin-top: .25rem; word-break: break-all; }
+.hero .h-date { font-size: .75rem; color: var(--ink-soft); margin-top: .2rem; }
+.digits { display: flex; gap: .5rem; justify-content: center; margin-top: .8rem; flex-wrap: wrap; }
+.digit-box { background: color-mix(in srgb, var(--bg) 60%, transparent); border: 1px solid var(--line); border-radius: .8rem; padding: .7rem .6rem; min-width: 4.2rem; }
+.digit-box .n { font-size: 1.7rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.digit-box .l { font-size: .68rem; color: var(--ink-soft); margin-top: .15rem; }
+.digit-box.hot .n { color: var(--accent); }
+.done { font-size: 1.4rem; font-weight: 700; color: var(--accent); padding: .8rem 0 .2rem; }
+
+/* —— 事项列表 —— */
+.events { display: grid; grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr)); gap: .7rem; }
+.event { border: 1px solid var(--line); border-radius: .85rem; padding: .8rem .9rem; background: color-mix(in srgb, var(--bg) 45%, transparent); display: flex; flex-direction: column; gap: .3rem; }
+.event .n { font-weight: 700; font-size: .92rem; word-break: break-all; }
+.event .d { font-size: .72rem; color: var(--ink-soft); }
+.event .left { font-size: .9rem; font-weight: 700; }
+.event .left.up { color: var(--accent); }
+.event .left.urgent { color: var(--err); }
+.event .left.today { color: var(--accent); }
+.event .left.past { color: var(--ink-soft); font-weight: 600; }
+.event.past { opacity: .62; }
+.event .ops { margin-top: .35rem; display: flex; gap: .4rem; }
+.empty { text-align: center; color: var(--ink-soft); font-size: .85rem; padding: 1.4rem 0; grid-column: 1 / -1; }
+
+/* —— 表单 —— */
+.form-row { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: .55rem; align-items: end; }
+.field label { display: block; font-size: .72rem; color: var(--ink-soft); margin-bottom: .25rem; }
+.field input { width: 100%; padding: .5rem .6rem; border-radius: .6rem; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--ink); font-family: inherit; font-size: .85rem; }
+.field input:focus { outline: 2px solid var(--evg-accent-border); border-color: var(--evg-accent-border); }
+.form-extra { margin-top: .6rem; }
+.check { display: inline-flex; align-items: center; gap: .4rem; font-size: .8rem; color: var(--ink-soft); cursor: pointer; user-select: none; }
+.check input { accent-color: var(--accent); width: auto; }
+.form-actions { display: flex; gap: .6rem; margin-top: .7rem; }
+
+/* —— 定时倒计时 —— */
+.timer-box { text-align: center; }
+.ctrl { display: flex; gap: .6rem; justify-content: center; flex-wrap: wrap; margin-top: .9rem; }
+.t-set { margin-top: 1rem; grid-template-columns: 1fr 1fr 1fr auto; }
+.presets { display: flex; gap: .4rem; flex-wrap: wrap; margin: .8rem 0 0; }
+
+/* —— 按钮 —— */
+.btn { appearance: none; border: none; cursor: pointer; font-family: inherit; font-size: .9rem; font-weight: 600; padding: .6rem 1.3rem; border-radius: .8rem; color: #fff; background: var(--accent); transition: transform .15s ease, opacity .15s ease; }
+.btn:hover { transform: translateY(-1px); opacity: .92; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn.danger { background: transparent; color: var(--err); border: 1px solid color-mix(in srgb, var(--err) 45%, transparent); }
+.btn.sm { padding: .4rem .8rem; font-size: .78rem; }
+.btn:disabled { opacity: .45; cursor: default; transform: none; }
+.pchip { appearance: none; border: 1px solid var(--line); background: transparent; color: var(--ink-soft); font-family: inherit; font-size: .75rem; padding: .35rem .7rem; border-radius: 999px; cursor: pointer; }
+.pchip:hover { color: var(--accent); border-color: var(--evg-accent-border); }
+
+.local-note { text-align: center; font-size: .72rem; color: var(--ink-soft); padding: .4rem 0 1rem; }
+
+@media (max-width: 40rem) {
+  .form-row { grid-template-columns: 1fr 1fr; }
+  .form-row .f-name { grid-column: 1 / -1; }
+  .t-set { grid-template-columns: 1fr 1fr; }
+  .t-set .btn { grid-column: 1 / -1; width: 100%; }
+  .digit-box { min-width: 3.5rem; }
+  .digit-box .n { font-size: 1.45rem; }
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <span class="ico">⏳</span>
+  <div><h1>倒计时</h1><div class="sub">纪念日 · 目标日期 · 定时倒计时</div></div>
+</header>
+<main class="container">
+
+  <section class="card" aria-label="最近倒计时">
+    <div class="hero">
+      <div class="h-label" id="hero-label">距离</div>
+      <div class="h-name" id="hero-name">—</div>
+      <div class="digits" id="hero-digits" aria-live="polite"></div>
+      <div class="h-date" id="hero-date"></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>📅 倒计时事项 <span class="f" id="count-label"></span></h2>
+    <div class="events" id="events"></div>
+  </section>
+
+  <section class="card">
+    <h2 id="form-title">➕ 添加倒计时</h2>
+    <div class="form-row">
+      <div class="field f-name"><label>名称</label><input id="f-name" maxlength="50" placeholder="例如：春节 / 项目交付 / 生日"></div>
+      <div class="field"><label>日期</label><input type="date" id="f-date"></div>
+      <div class="field"><label>时间（可选）</label><input type="time" id="f-time"></div>
+    </div>
+    <div class="form-extra">
+      <label class="check"><input type="checkbox" id="f-repeat"> 每年重复（生日、周年纪念等）</label>
+    </div>
+    <div class="form-actions">
+      <button class="btn" id="b-add">添加</button>
+      <button class="btn ghost" id="b-cancel" hidden>取消编辑</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>⏱️ 定时倒计时 <span class="f">时 / 分 / 秒</span></h2>
+    <div class="timer-box">
+      <div class="digits" id="timer-digits"></div>
+      <div id="timer-msg"></div>
+      <div class="ctrl">
+        <button class="btn" id="b-start">▶ 开始</button>
+        <button class="btn ghost" id="b-pause" disabled>⏸ 暂停</button>
+        <button class="btn ghost" id="b-reset">↺ 重置</button>
+      </div>
+    </div>
+    <div class="form-row t-set">
+      <div class="field"><label>小时</label><input type="number" id="f-h" min="0" max="99" value="0"></div>
+      <div class="field"><label>分钟</label><input type="number" id="f-m" min="0" max="59" value="25"></div>
+      <div class="field"><label>秒</label><input type="number" id="f-s" min="0" max="59" value="0"></div>
+      <div><button class="btn" id="b-apply">应用</button></div>
+    </div>
+    <div class="presets" id="presets">
+      <button class="pchip" data-s="60">1 分钟</button>
+      <button class="pchip" data-s="300">5 分钟</button>
+      <button class="pchip" data-s="600">10 分钟</button>
+      <button class="pchip" data-s="1500">25 分钟</button>
+      <button class="pchip" data-s="3600">1 小时</button>
+      <button class="pchip" data-s="7200">2 小时</button>
+    </div>
+  </section>
+
+  <footer class="local-note">🔒 数据保存在本机（localStorage），关闭页面后不会丢失</footer>
+</main>
+<script>
+(function () {
+  'use strict';
+
+  /* ================= 平台与存储 ================= */
+  var P = (typeof platform !== 'undefined') ? platform : null;
+  var KEY = 'evg.countdown';
+  var STORE_V = 2;
+
+  function lsGet() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
+  function lsSet(v) { try { localStorage.setItem(KEY, v); } catch (e) {} }
+
+  function defaultTimer() { return { total: 1500, remain: 1500, running: false, endAt: null }; }
+
+  function isValidItem(x) {
+    if (!x || typeof x !== 'object') return false;
+    if (typeof x.name !== 'string' || !x.name.trim()) return false;
+    if (typeof x.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(x.date)) return false;
+    var p = x.date.split('-');
+    var dt = new Date(+p[0], +p[1] - 1, +p[2]);
+    if (dt.getFullYear() !== +p[0] || dt.getMonth() !== +p[1] - 1 || dt.getDate() !== +p[2]) return false; // 拒绝 2026-02-30 之类
+    if (x.time != null && !/^\d{2}:\d{2}$/.test(x.time)) return false;
+    return true;
+  }
+
+  function load() {
+    var s = { v: STORE_V, items: [], timer: defaultTimer() };
+    var raw = lsGet();
+    var parsed = null;
+    if (raw) { try { parsed = JSON.parse(raw); } catch (e) { parsed = null; } }
+    if (parsed && typeof parsed === 'object') {
+      if (parsed.v === STORE_V) {
+        if (Array.isArray(parsed.items)) s.items = parsed.items.filter(isValidItem);
+        var t = (parsed.timer && typeof parsed.timer === 'object') ? parsed.timer : null;
+        if (t) {
+          if (typeof t.total === 'number' && t.total > 0) s.timer.total = t.total;
+          s.timer.remain = (typeof t.remain === 'number' && t.remain >= 0) ? t.remain : s.timer.total;
+          s.timer.running = !!t.running;
+          s.timer.endAt = (typeof t.endAt === 'number') ? t.endAt : null;
+        }
+      } else if (typeof parsed.total === 'number') {
+        // v1 迁移：旧定时器 { total, remain, running, endedAt }
+        s.timer = {
+          total: parsed.total,
+          remain: (typeof parsed.remain === 'number' && parsed.remain >= 0) ? parsed.remain : parsed.total,
+          running: !!parsed.running,
+          endAt: null // 旧版未持久化 endAt，无法精确恢复，按保存值续跑
+        };
+        migrated = true;
+      }
+    }
+    return s;
+  }
+
+  var dirty = false; // 本会话是否已有用户写入（防止异步回读覆盖新写）
+  var migrated = false; // v1 → v2 迁移发生（init 时落盘一次；须先于 load() 声明）
+  var store = load();
+  function save() {
+    dirty = true;
+    lsSet(JSON.stringify(store));
+  }
+
+  // 兜底：polyfill 预载可能晚于首屏脚本，若平台存储就绪则回读一次补数据（仅在用户未写入时）
+  function hydrateFromPlatform() {
+    if (dirty || !P || !P.storage || !P.storage.list) return;
+    P.storage.list().then(function (entries) {
+      if (dirty || !entries || typeof entries[KEY] !== 'string') return;
+      try {
+        var parsed = JSON.parse(entries[KEY]);
+        if (parsed && typeof parsed === 'object' && parsed.v === STORE_V) {
+          var next = { v: STORE_V, items: [], timer: store.timer };
+          if (Array.isArray(parsed.items)) next.items = parsed.items.filter(isValidItem);
+          store.items = next.items;
+          renderAll();
+        }
+      } catch (e) { /* 忽略损坏数据 */ }
+    }).catch(function () { /* 平台存储不可用：保持会话内状态 */ });
+  }
+
+  /* ================= 日期工具（本地时区安全） ================= */
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function newId() {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+    return 'e' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+  function dateParts(ev) {
+    var p = String(ev.date || '').split('-');
+    return [+p[0], +p[1], +p[2]];
+  }
+  // 从本地日期分量构造 UTC 毫秒：避免 new Date('YYYY-MM-DD') 的 UTC 解析导致跨时区错位
+  function dayUTC(y, m, d) { return Date.UTC(y, m - 1, d); }
+  // 任意目标时刻与今天日历日相差的整天数（负 = 已过；时区/DST 安全：两端均取自本地日历日）
+  function dayDiffUTC(targetMs, now) {
+    var t = new Date(targetMs), n = new Date(now);
+    return Math.round((dayUTC(t.getFullYear(), t.getMonth() + 1, t.getDate()) - dayUTC(n.getFullYear(), n.getMonth() + 1, n.getDate())) / 864e5);
+  }
+  // 2 月 29 日落在非闰年 → 归到 2 月 28 日（闰年判断由 Date 归一化完成）
+  function clampDate(y, m, d) {
+    var dt = new Date(y, m - 1, d, 0, 0, 0, 0);
+    if (dt.getMonth() !== m - 1) dt = new Date(y, m - 1, 28, 0, 0, 0, 0);
+    return dt;
+  }
+  // 目标时刻（本地时区）：有时间 → 当天 HH:MM；无时间 → 当天 23:59:59.999（整天倒计时）
+  function targetTime(ev, y, m, d) {
+    var dt = clampDate(y, m, d);
+    if (ev.time) {
+      var tp = String(ev.time).split(':');
+      dt.setHours(+tp[0], +tp[1], 0, 0);
+    } else {
+      dt.setHours(23, 59, 59, 999);
+    }
+    return dt;
+  }
+  // 下一次发生时刻：每年重复 → 今年的月日（已过则明年）；一次性 → 目标时刻
+  function nextTime(ev, now) {
+    var p = dateParts(ev);
+    if (ev.repeat) {
+      var y = now.getFullYear();
+      var cand = targetTime(ev, y, p[1], p[2]);
+      if (cand.getTime() < now.getTime()) cand = targetTime(ev, y + 1, p[1], p[2]);
+      return cand;
+    }
+    return targetTime(ev, p[0], p[1], p[2]);
+  }
+  function fmtDate(ev) {
+    var s = ev.date + (ev.time ? ' ' + ev.time : '');
+    if (ev.repeat) s += ' · 每年重复';
+    return s;
+  }
+  function byId(id) {
+    for (var i = 0; i < store.items.length; i++) {
+      if (store.items[i].id === id) return store.items[i];
+    }
+    return null;
+  }
+
+  /* ================= 渲染：最近事项（hero） ================= */
+  var lastHeroStr = '';
+  function renderHero(now, force) {
+    now = now || new Date();
+    var ups = [];
+    store.items.forEach(function (ev) {
+      var next = nextTime(ev, now);
+      if (next.getTime() >= now.getTime()) ups.push({ ev: ev, next: next });
+    });
+    ups.sort(function (a, b) { return a.next.getTime() - b.next.getTime(); });
+
+    var label, name, date, boxes, str;
+    if (!ups.length) {
+      str = 'empty';
+      if (force || str !== lastHeroStr) {
+        lastHeroStr = str;
+        document.getElementById('hero-label').textContent = '最近倒计时';
+        document.getElementById('hero-name').textContent = '暂无进行中的事项';
+        document.getElementById('hero-date').textContent = '添加一个纪念日或目标日期，开始倒计时';
+        document.getElementById('hero-digits').innerHTML =
+          '<div class="digit-box"><div class="n">—</div><div class="l">待添加</div></div>';
+      }
+      return;
+    }
+    var o = ups[0], ev = o.ev, target = o.next;
+    var diff = target.getTime() - now.getTime();
+    var days = Math.max(0, Math.floor(diff / 864e5));
+    var hours = Math.floor((diff % 864e5) / 36e5);
+    var mins = Math.floor((diff % 36e5) / 6e4);
+    var secs = Math.floor((diff % 6e4) / 1000);
+    var isToday = dayDiffUTC(target.getTime(), now) === 0 && diff > 0;
+    if (isToday) {
+      label = ev.time ? '距离今天' : '就是今天';
+      boxes = [[hours, '小时'], [mins, '分钟'], [secs, '秒']];
+    } else {
+      label = '距离';
+      boxes = [[days, '天'], [hours, '小时'], [mins, '分钟'], [secs, '秒']];
+    }
+    name = ev.name;
+    date = fmtDate(ev);
+    str = JSON.stringify([label, name, date, boxes]);
+    if (force || str !== lastHeroStr) {
+      lastHeroStr = str;
+      document.getElementById('hero-label').textContent = label;
+      document.getElementById('hero-name').textContent = name;
+      document.getElementById('hero-date').textContent = date;
+      document.getElementById('hero-digits').innerHTML = boxes.map(function (b) {
+        return '<div class="digit-box' + (isToday ? ' hot' : '') + '"><div class="n">' + pad(b[0]) + '</div><div class="l">' + b[1] + '</div></div>';
+      }).join('');
+    }
+  }
+
+  /* ================= 渲染：事项列表 ================= */
+  function renderList() {
+    var el = document.getElementById('events');
+    document.getElementById('count-label').textContent = store.items.length + ' 项';
+    if (!store.items.length) {
+      el.innerHTML = '<div class="empty">还没有倒计时事项，添加第一个吧 📅</div>';
+      return;
+    }
+    var now = new Date();
+    var up = [], past = [];
+    store.items.forEach(function (ev) {
+      var next = nextTime(ev, now);
+      (next.getTime() >= now.getTime() ? up : past).push({ ev: ev, next: next });
+    });
+    up.sort(function (a, b) { return a.next.getTime() - b.next.getTime(); });
+    past.sort(function (a, b) { return b.next.getTime() - a.next.getTime(); });
+
+    function row(o) {
+      var ev = o.ev, next = o.next;
+      var d = dayDiffUTC(next.getTime(), now);
+      var status, cls;
+      if (next.getTime() < now.getTime()) {
+        status = d >= 0 ? '今天已过' : '已过 ' + (-d) + ' 天';
+        cls = 'past';
+      } else if (d === 0) {
+        status = ev.time ? '今天 ' + ev.time : '就是今天 🎉';
+        cls = 'today';
+      } else {
+        status = '剩 ' + d + ' 天';
+        cls = d <= 3 ? 'urgent' : 'up';
+      }
+      return '<div class="event' + (cls === 'past' ? ' past' : '') + '">' +
+        '<div class="n">' + esc(ev.name) + '</div>' +
+        '<div class="d">' + esc(fmtDate(ev)) + '</div>' +
+        '<div class="left ' + cls + '">' + esc(status) + '</div>' +
+        '<div class="ops">' +
+          '<button class="btn ghost sm" data-edit="' + esc(ev.id) + '">编辑</button>' +
+          '<button class="btn danger sm" data-del="' + esc(ev.id) + '">删除</button>' +
+        '</div></div>';
+    }
+    el.innerHTML = up.map(row).join('') + past.map(row).join('');
+  }
+
+  /* ================= 渲染：定时倒计时 ================= */
+  var lastTimerStr = '', lastDoneHtml = '', lastStartDisabled = null, lastPauseDisabled = null;
+  function timerBoxes() {
+    var r = Math.max(0, store.timer.remain);
+    var h = Math.floor(r / 3600), m = Math.floor((r % 3600) / 60), s = r % 60;
+    return [h, m, s].map(function (v, i) {
+      var lab = ['小时', '分钟', '秒'][i];
+      return '<div class="digit-box"><div class="n">' + pad(v) + '</div><div class="l">' + lab + '</div></div>';
+    }).join('');
+  }
+  function renderTimer(force) {
+    var r = Math.max(0, store.timer.remain);
+    var str = pad(Math.floor(r / 3600)) + ':' + pad(Math.floor((r % 3600) / 60)) + ':' + pad(r % 60);
+    if (force || str !== lastTimerStr) {
+      lastTimerStr = str;
+      document.getElementById('timer-digits').innerHTML = timerBoxes();
+    }
+    var startBtn = document.getElementById('b-start');
+    var pauseBtn = document.getElementById('b-pause');
+    var sd = store.timer.running || store.timer.remain <= 0;
+    var pd = !store.timer.running;
+    if (force || sd !== lastStartDisabled) { startBtn.disabled = sd; lastStartDisabled = sd; }
+    if (force || pd !== lastPauseDisabled) { pauseBtn.disabled = pd; lastPauseDisabled = pd; }
+    var doneHtml = (!store.timer.running && store.timer.remain <= 0) ? '<div class="done">🎉 时间到！</div>' : '';
+    if (force || doneHtml !== lastDoneHtml) {
+      lastDoneHtml = doneHtml;
+      document.getElementById('timer-msg').innerHTML = doneHtml;
+    }
+  }
+
+  /* ================= 渲染汇总 + 节流调度 ================= */
+  function renderAll() {
+    var now = new Date();
+    lastDayKey = dayKey(now);
+    renderHero(now, true);
+    renderList();
+    renderTimer(true);
+  }
+  function dayKey(d) { return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
+  var lastDayKey = dayKey(new Date());
+  var hidden = document.hidden;
+  var tickTimer = null;
+
+  // 1 秒对齐的轻量节拍：只在可见时运行，DOM 仅在内容变化时写入
+  function tickLoop(now) {
+    if (store.timer.running && store.timer.endAt) {
+      store.timer.remain = Math.max(0, Math.round((store.timer.endAt - now) / 1000));
+      if (store.timer.remain <= 0) { finishTimer(); }
+    }
+    var dk = dayKey(now);
+    if (dk !== lastDayKey) { lastDayKey = dk; renderList(); } // 跨日刷新
+    renderHero(now, false);
+    renderTimer(false);
+    scheduleTick();
+  }
+  function scheduleTick() {
+    if (hidden) return;
+    if (tickTimer) clearTimeout(tickTimer);
+    tickTimer = setTimeout(function () { tickLoop(new Date()); }, 1000 - (Date.now() % 1000) + 10);
+  }
+  document.addEventListener('visibilitychange', function () {
+    hidden = document.hidden;
+    if (hidden) {
+      if (tickTimer) { clearTimeout(tickTimer); tickTimer = null; }
+    } else {
+      tickLoop(new Date());
+    }
+  });
+
+  function emit(name, payload) {
+    if (P && P.emit) { try { P.emit(name, payload || {}); } catch (e) {} }
+  }
+
+  /* ================= 定时器控制 ================= */
+  function startTimer() {
+    if (store.timer.running || store.timer.remain <= 0) return;
+    store.timer.endAt = Date.now() + store.timer.remain * 1000;
+    store.timer.running = true;
+    save(); renderTimer(true);
+  }
+  function pauseTimer() {
+    if (!store.timer.running) return;
+    if (store.timer.endAt) {
+      store.timer.remain = Math.max(0, Math.round((store.timer.endAt - Date.now()) / 1000));
+    }
+    store.timer.running = false;
+    store.timer.endAt = null;
+    save(); renderTimer(true);
+  }
+  function resetTimer() {
+    store.timer.running = false;
+    store.timer.endAt = null;
+    store.timer.remain = store.timer.total;
+    save(); renderTimer(true);
+  }
+  function applyTimer(total) {
+    if (!(total > 0)) { alert('请设置大于 0 的时间'); return; }
+    store.timer.total = total;
+    store.timer.remain = total;
+    store.timer.running = false;
+    store.timer.endAt = null;
+    save(); renderTimer(true);
+  }
+  function finishTimer() {
+    store.timer.running = false;
+    store.timer.endAt = null;
+    store.timer.remain = 0;
+    save(); renderTimer(true);
+    emit('countdown:done', {});
+    if (P && P.ai && P.ai.chat) { try { P.ai.chat('倒计时结束，请简短提示用户'); } catch (e) {} }
+  }
+
+  /* ================= 事项 CRUD ================= */
+  var editingId = null;
+  function setForm(name, date, time, repeat) {
+    document.getElementById('f-name').value = name || '';
+    document.getElementById('f-date').value = date || '';
+    document.getElementById('f-time').value = time || '';
+    document.getElementById('f-repeat').checked = !!repeat;
+  }
+  function resetForm() {
+    editingId = null;
+    setForm('', '', '', false);
+    document.getElementById('form-title').textContent = '➕ 添加倒计时';
+    document.getElementById('b-add').textContent = '添加';
+    document.getElementById('b-cancel').hidden = true;
+  }
+  function startEdit(id) {
+    var ev = byId(id);
+    if (!ev) return;
+    editingId = id;
+    setForm(ev.name, ev.date, ev.time || '', !!ev.repeat);
+    document.getElementById('form-title').textContent = '✏️ 编辑倒计时';
+    document.getElementById('b-add').textContent = '保存修改';
+    document.getElementById('b-cancel').hidden = false;
+    document.getElementById('form-title').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    document.getElementById('f-name').focus();
+  }
+  function saveForm() {
+    var name = document.getElementById('f-name').value.trim();
+    var date = document.getElementById('f-date').value;
+    var time = document.getElementById('f-time').value;
+    var repeat = document.getElementById('f-repeat').checked;
+    if (!name) { alert('名称必填'); return; }
+    if (!date) { alert('请选择日期'); return; }
+    var item = { id: editingId || newId(), name: name, date: date, time: time || null, repeat: repeat };
+    if (!isValidItem(item)) { alert('日期无效，请重新选择'); return; }
+    if (editingId) {
+      for (var i = 0; i < store.items.length; i++) {
+        if (store.items[i].id === editingId) { store.items[i] = item; break; }
+      }
+    } else {
+      store.items.push(item);
+    }
+    save();
+    emit('countdown:' + (editingId ? 'update' : 'add'), { id: item.id, name: item.name, date: item.date });
+    resetForm();
+    renderAll();
+  }
+  function removeItem(id) {
+    store.items = store.items.filter(function (x) { return x.id !== id; });
+    save();
+    emit('countdown:delete', { id: id });
+  }
+
+  /* ================= 事件绑定 ================= */
+  document.getElementById('b-add').addEventListener('click', saveForm);
+  document.getElementById('b-cancel').addEventListener('click', function () { resetForm(); renderAll(); });
+  document.getElementById('f-name').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); saveForm(); }
+  });
+
+  document.getElementById('events').addEventListener('click', function (e) {
+    var del = e.target.closest('[data-del]');
+    if (del) {
+      var ev = byId(del.getAttribute('data-del'));
+      if (ev && confirm('确定删除「' + ev.name + '」吗？')) {
+        removeItem(ev.id);
+        if (editingId === ev.id) resetForm();
+        renderAll();
+      }
+      return;
+    }
+    var edit = e.target.closest('[data-edit]');
+    if (edit) startEdit(edit.getAttribute('data-edit'));
+  });
+
+  document.getElementById('b-start').addEventListener('click', startTimer);
+  document.getElementById('b-pause').addEventListener('click', pauseTimer);
+  document.getElementById('b-reset').addEventListener('click', resetTimer);
+  document.getElementById('b-apply').addEventListener('click', function () {
+    var h = parseInt(document.getElementById('f-h').value, 10) || 0;
+    var m = parseInt(document.getElementById('f-m').value, 10) || 0;
+    var s = parseInt(document.getElementById('f-s').value, 10) || 0;
+    applyTimer(h * 3600 + m * 60 + s);
+  });
+  document.getElementById('presets').addEventListener('click', function (e) {
+    var b = e.target.closest('.pchip');
+    if (!b) return;
+    applyTimer(+b.getAttribute('data-s'));
+  });
+
+  /* ================= 初始化 ================= */
+  (function init() {
+    // v1 数据迁移：立即落盘一次，确保后续重启直接读取 v2
+    if (migrated) { dirty = false; lsSet(JSON.stringify(store)); }
+    // 恢复运行中的定时器（基于持久化的 endAt，精确计算暂停期间流逝的时间）
+    if (store.timer.running && store.timer.endAt) {
+      var remain = Math.max(0, Math.round((store.timer.endAt - Date.now()) / 1000));
+      if (remain <= 0) {
+        store.timer.running = false;
+        store.timer.endAt = null;
+        store.timer.remain = 0;
+        save();
+      } else {
+        store.timer.remain = remain;
+      }
+    }
+    document.getElementById('f-h').value = Math.floor(store.timer.total / 3600);
+    document.getElementById('f-m').value = Math.floor((store.timer.total % 3600) / 60);
+    document.getElementById('f-s').value = store.timer.total % 60;
+    // 默认日期：今天 + 7 天
+    var def = new Date(Date.now() + 7 * 864e5);
+    document.getElementById('f-date').value =
+      def.getFullYear() + '-' + pad(def.getMonth() + 1) + '-' + pad(def.getDate());
+    renderAll();
+    scheduleTick();
+    hydrateFromPlatform();
+  })();
+})();
+</script>
+</body>
+</html>

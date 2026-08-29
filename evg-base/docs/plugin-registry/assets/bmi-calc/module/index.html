@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BMI 计算</title>
+<style>
+/* ═══ 主题令牌 ═══
+   在 Evergreen 运行环境，platform bridge 会把当前主题色板注入为
+   --evg-* CSS 变量（html 元素内联样式，主题切换时实时更新）。
+   因此本页只「引用 + 兜底」，不重定义 --evg-* 本身，明暗主题自动换肤。 */
+:root {
+  color-scheme: light dark;
+  --bg: var(--evg-background, #f2f6f3);
+  --card: var(--evg-surface, #ffffff);
+  --ink: var(--evg-text, #20382b);
+  --ink-soft: var(--evg-text-secondary, #5f7f6d);
+  --accent: var(--evg-accent, #3d9e63);
+  --accent-bg: var(--evg-accent-bg, #e1f2e7);
+  --accent-border: var(--evg-accent-border, #bce2ca);
+  --line: var(--evg-border, rgba(32, 56, 43, .12));
+  --error: var(--evg-error, #d64545);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { font-size: 16px; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, sans-serif; background: var(--bg); color: var(--ink); min-height: 100vh; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+.topbar { display: flex; align-items: center; gap: .75rem; padding: 1.1rem 1.5rem; border-bottom: 1px solid var(--line); background: var(--card); background: color-mix(in srgb, var(--card) 72%, transparent); backdrop-filter: blur(.875rem); -webkit-backdrop-filter: blur(.875rem); position: sticky; top: 0; z-index: 5; }
+.topbar .ico { font-size: 1.5rem; line-height: 1; }
+.topbar h1 { font-size: 1.15rem; font-weight: 700; }
+.topbar .sub { font-size: .72rem; color: var(--ink-soft); }
+.container { max-width: 42rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 1rem; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+.card h2 { font-size: .95rem; font-weight: 700; margin-bottom: .9rem; }
+.inputs { display: grid; grid-template-columns: 1fr 1fr; gap: .8rem; margin-bottom: 1rem; }
+.field label { display: block; font-size: .78rem; color: var(--ink-soft); margin-bottom: .3rem; }
+.field .inwrap { position: relative; }
+.field input { width: 100%; padding: .7rem .8rem; border-radius: .75rem; border: 1px solid var(--line); background: var(--bg); background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--ink); font-family: inherit; font-size: 1.05rem; font-weight: 600; }
+.field input:focus-visible { outline: 2px solid var(--accent-border, #bce2ca); outline-offset: 1px; border-color: var(--accent-border, #bce2ca); }
+.field .unit { position: absolute; right: .8rem; top: 50%; transform: translateY(-50%); font-size: .78rem; color: var(--ink-soft); }
+.result-box { text-align: center; padding: 1rem 0; }
+.bmi-value { font-size: 3.2rem; font-weight: 700; letter-spacing: -.03em; line-height: 1.1; }
+.bmi-value .unit { font-size: 1rem; color: var(--ink-soft); margin-left: .2rem; }
+.level { display: inline-block; font-size: .95rem; font-weight: 700; padding: .3rem 1rem; border-radius: 999px; margin-top: .4rem; }
+/* 分级徽章：实色兜底 → 按主题表面做半透明混合，明暗主题均清晰可读 */
+.level.under { color: #2f6fd0; background: #e6eefb; }
+.level.under { color: color-mix(in srgb, #2f6fd0 75%, var(--ink)); background: color-mix(in srgb, #2f6fd0 16%, var(--card)); }
+.level.normal { color: #1e8a4d; background: #e1f2e7; }
+.level.normal { color: color-mix(in srgb, #1e8a4d 75%, var(--ink)); background: color-mix(in srgb, #1e8a4d 16%, var(--card)); }
+.level.over { color: #b5791e; background: #faeed2; }
+.level.over { color: color-mix(in srgb, #b5791e 78%, var(--ink)); background: color-mix(in srgb, #b5791e 18%, var(--card)); }
+.level.obese { color: #d64545; background: #fbe4e4; }
+.level.obese { color: color-mix(in srgb, #d64545 75%, var(--ink)); background: color-mix(in srgb, #d64545 16%, var(--card)); }
+.scale { margin-top: 1.1rem; }
+.scale .bar { height: .6rem; border-radius: 999px; background: linear-gradient(90deg, #2f6fd0 0%, #2f9e5e 25%, #2f9e5e 55%, #d09a2f 65%, #d64545 100%); position: relative; }
+.scale .mark { position: absolute; top: -0.3rem; width: .15rem; height: 1.2rem; background: var(--ink); border-radius: 2px; transition: left .2s ease; }
+.scale .marks { display: flex; justify-content: space-between; font-size: .7rem; color: var(--ink-soft); margin-top: .35rem; }
+.tips { display: grid; grid-template-columns: repeat(4, 1fr); gap: .5rem; margin-top: 1rem; }
+.tip { text-align: center; padding: .55rem .3rem; border-radius: .7rem; font-size: .72rem; border: 1px solid var(--line); background: var(--bg); background: color-mix(in srgb, var(--bg) 48%, transparent); }
+.tip b { display: block; font-size: .8rem; margin-bottom: .15rem; }
+.suggestion { font-size: .85rem; line-height: 1.7; background: var(--bg); background: color-mix(in srgb, var(--bg) 55%, transparent); border: 1px dashed var(--line); border-radius: .75rem; padding: .8rem .95rem; margin-top: 1rem; text-align: left; }
+.suggestion b { color: var(--accent); }
+/* ═══ 最近记录 ═══ */
+.history-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: .6rem; }
+.history-head h2 { margin-bottom: 0; }
+.history-list { list-style: none; }
+.history-item { display: flex; align-items: center; gap: .8rem; padding: .55rem .2rem; border-bottom: 1px solid var(--line); font-size: .85rem; }
+.history-item:last-child { border-bottom: none; }
+.history-item .when { color: var(--ink-soft); font-size: .72rem; white-space: nowrap; flex: none; }
+.history-item .raw { flex: 1; min-width: 0; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.history-item .level { margin-top: 0; flex: none; font-size: .72rem; padding: .15rem .6rem; }
+.history-empty { color: var(--ink-soft); font-size: .8rem; text-align: center; padding: .6rem 0; }
+.storage-note { margin-top: .8rem; font-size: .72rem; color: var(--ink-soft); display: flex; align-items: center; gap: .3rem; }
+.btn-clear { background: var(--accent-bg, #e1f2e7); color: var(--accent); border: 1px solid var(--accent-border, #bce2ca); border-radius: .6rem; font-size: .75rem; font-family: inherit; padding: .3rem .7rem; cursor: pointer; }
+.btn-clear:hover { filter: brightness(.96); }
+.btn-clear:focus-visible { outline: 2px solid var(--accent-border, #bce2ca); outline-offset: 1px; }
+@media (max-width: 40rem) { .inputs { grid-template-columns: 1fr; } .tips { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 23rem) { .bmi-value { font-size: 2.6rem; } .topbar { padding: .9rem 1rem; } .container { padding: 1.1rem .9rem 2.4rem; } }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <span class="ico" aria-hidden="true">⚖️</span>
+  <div><h1>BMI 计算</h1><div class="sub">身高体重 → 体质指数 · 中国标准分级与建议</div></div>
+</header>
+<main class="container">
+  <section class="card" aria-labelledby="calc-title">
+    <h2 id="calc-title">计算</h2>
+    <div class="inputs">
+      <div class="field">
+        <label for="f-height">身高（cm）</label>
+        <div class="inwrap">
+          <input id="f-height" type="number" min="80" max="250" step="0.5" inputmode="decimal" placeholder="175" autocomplete="off">
+          <span class="unit" aria-hidden="true">cm</span>
+        </div>
+      </div>
+      <div class="field">
+        <label for="f-weight">体重（kg）</label>
+        <div class="inwrap">
+          <input id="f-weight" type="number" min="20" max="300" step="0.1" inputmode="decimal" placeholder="65" autocomplete="off">
+          <span class="unit" aria-hidden="true">kg</span>
+        </div>
+      </div>
+    </div>
+    <div class="result-box" role="status">
+      <div class="bmi-value"><span id="bmi">—</span><span class="unit" aria-hidden="true">kg/m²</span></div>
+      <span class="level" id="level">请输入身高体重</span>
+      <div class="scale" aria-hidden="true">
+        <div class="bar"><div class="mark" id="mark" style="left:0%"></div></div>
+        <div class="marks"><span>18.5 偏瘦</span><span>24 正常</span><span>28 超重</span><span>32 肥胖</span></div>
+      </div>
+      <div class="tips" aria-hidden="true">
+        <div class="tip"><b>&lt; 18.5</b>偏瘦</div>
+        <div class="tip"><b>18.5-24</b>正常</div>
+        <div class="tip"><b>24-28</b>超重</div>
+        <div class="tip"><b>≥ 28</b>肥胖</div>
+      </div>
+      <div class="suggestion" id="suggestion">输入身高与体重，自动计算 BMI 并给出健康建议（成人标准，仅供参考）。</div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="history-title">
+    <div class="history-head">
+      <h2 id="history-title">最近记录</h2>
+      <button type="button" class="btn-clear" id="btn-clear-history">清空</button>
+    </div>
+    <ul class="history-list" id="history"></ul>
+    <p class="storage-note"><span aria-hidden="true">💾</span>记录已保存在本机，关闭应用后仍会保留。</p>
+  </section>
+</main>
+<script>
+(function () {
+  'use strict';
+
+  /* ── 存储说明 ──
+     Evergreen 运行时（html_modle）的 bridge 会自动接管 window.localStorage：
+     同步内存 Map + 异步 write-through 落盘到插件目录 storage/storage.json
+     （与 platform.storage.* 同一后端）。因此下面直接使用 localStorage
+     无需改任何代码即自动持久化到本机；若用 file:// 直接打开本页，
+     则退化为浏览器原生 localStorage。 */
+  var KEY = 'evg.bmi-calc';
+  var MAX_HISTORY = 6;
+  var P = (typeof platform !== 'undefined') ? platform : null;
+
+  var store = { h: 175, w: 65, history: [] };
+  try {
+    var saved = JSON.parse(window.localStorage.getItem(KEY) || '{}');
+    if (saved && typeof saved === 'object') store = Object.assign(store, saved);
+    if (!Array.isArray(store.history)) store.history = [];
+  } catch (e) { /* 存储数据损坏时回退默认值 */ }
+
+  // 恢复上次输入时做合法性兜底，防止脏数据进入输入框
+  var initH = parseFloat(store.h);
+  var initW = parseFloat(store.w);
+  store.h = (isFinite(initH) && initH >= 80 && initH <= 250) ? initH : 175;
+  store.w = (isFinite(initW) && initW >= 20 && initW <= 300) ? initW : 65;
+
+  function save() { try { window.localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) {} }
+  function $(id) { return document.getElementById(id); }
+
+  // 中国成人 BMI 分级标准（WS/T 428-2013）：<18.5 偏瘦 / 18.5-23.9 正常 / 24-27.9 超重 / ≥28 肥胖
+  var LEVELS = [
+    { max: 18.5, l: '偏瘦', cls: 'under', tip: '建议适当增加营养摄入，均衡饮食，保持规律作息。' },
+    { max: 24,   l: '正常', cls: 'normal', tip: '体重在健康范围内，请继续保持均衡饮食与适量运动。' },
+    { max: 28,   l: '超重', cls: 'over', tip: '建议控制高热量饮食，增加有氧运动，逐步降低体重。' },
+    { max: Infinity, l: '肥胖', cls: 'obese', tip: '建议咨询专业人士制定减重计划，注重饮食结构并坚持运动。' }
+  ];
+  function levelInfo(bmi) {
+    for (var i = 0; i < LEVELS.length; i++) { if (bmi < LEVELS[i].max) return LEVELS[i]; }
+    return LEVELS[LEVELS.length - 1];
+  }
+
+  function setResult(bmiText, levelText, levelCls, markPct, suggestionHtml) {
+    $('bmi').textContent = bmiText;
+    var lv = $('level');
+    lv.textContent = levelText;
+    lv.className = 'level' + (levelCls ? ' ' + levelCls : '');
+    $('mark').style.left = markPct + '%';
+    $('suggestion').innerHTML = suggestionHtml; // 内容全部来自内部常量与数值，无用户输入注入
+  }
+
+  function fmtTime(iso) {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    function p(n) { return (n < 10 ? '0' : '') + n; }
+    return (d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  function renderHistory() {
+    var ul = $('history');
+    ul.textContent = '';
+    if (!store.history.length) {
+      var empty = document.createElement('li');
+      empty.className = 'history-empty';
+      empty.textContent = '暂无记录，计算一次后自动保存。';
+      ul.appendChild(empty);
+      return;
+    }
+    store.history.forEach(function (r) {
+      var li = document.createElement('li');
+      li.className = 'history-item';
+
+      var when = document.createElement('span');
+      when.className = 'when';
+      when.textContent = fmtTime(r.t);
+
+      var raw = document.createElement('span');
+      raw.className = 'raw';
+      raw.textContent = r.h + 'cm × ' + r.w + 'kg → BMI ' + r.bmi;
+
+      var lv = document.createElement('span');
+      lv.className = 'level ' + r.cls;
+      lv.textContent = r.l;
+
+      li.appendChild(when);
+      li.appendChild(raw);
+      li.appendChild(lv);
+      ul.appendChild(li);
+    });
+  }
+
+  function calc(record) {
+    var h = parseFloat($('f-height').value);
+    var w = parseFloat($('f-weight').value);
+    if (!isFinite(h) || !isFinite(w) || h < 80 || h > 250 || w < 20 || w > 300) {
+      setResult('—', '请输入有效身高体重', '', 0,
+        '输入身高与体重，自动计算 BMI 并给出健康建议（成人标准，仅供参考）。');
+      return;
+    }
+    var raw = w / Math.pow(h / 100, 2);   // BMI = 体重(kg) / 身高(m)²
+    var bmi = Math.round(raw * 10) / 10;  // 展示保留 1 位小数
+    var info = levelInfo(raw);            // 分级用未四舍五入的原始值，避免边界误判（如 23.96 仍属正常）
+    // 刻度定位：BMI 12 ~ 36 映射到 0% ~ 100%
+    var pct = Math.max(0, Math.min(100, (raw - 12) / 24 * 100));
+    setResult(bmi.toFixed(1), info.l, info.cls, pct,
+      '当前 BMI <b>' + bmi.toFixed(1) + '</b>（' + info.l + '）。' + info.tip +
+      '<br>健康 BMI 参考范围：18.5 - 23.9。');
+
+    store.h = h; store.w = w;
+    if (record) {
+      store.history.unshift({ t: new Date().toISOString(), h: h, w: w, bmi: bmi.toFixed(1), l: info.l, cls: info.cls });
+      if (store.history.length > MAX_HISTORY) store.history.length = MAX_HISTORY;
+      save();
+      renderHistory();
+      if (P && P.emit) { try { P.emit('bmi-calc:update', { bmi: bmi, level: info.l }); } catch (e) {} }
+    } else {
+      save();
+    }
+  }
+
+  $('f-height').addEventListener('input', function () { calc(true); });
+  $('f-weight').addEventListener('input', function () { calc(true); });
+  $('btn-clear-history').addEventListener('click', function () {
+    store.history = [];
+    save();
+    renderHistory();
+  });
+
+  $('f-height').value = store.h;
+  $('f-weight').value = store.w;
+  renderHistory();
+  calc(false); // 初始恢复上次结果展示，不产生新记录
+})();
+</script>
+</body>
+</html>

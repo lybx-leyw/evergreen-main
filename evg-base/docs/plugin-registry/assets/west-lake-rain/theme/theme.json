@@ -1,0 +1,15 @@
+{
+  "type": "theme",
+  "id": "west-lake-rain",
+  "name": "西湖烟雨",
+  "colors": {
+    "background": "#EDF1F4",
+    "surface": "#F8FAFB",
+    "border": "#CBD8DE",
+    "text": "#2C3A42",
+    "textSecondary": "#58707C",
+    "accent": "#4A6673",
+    "error": "#AF4D4D",
+    "others": "#9FB6C0"
+  }
+}

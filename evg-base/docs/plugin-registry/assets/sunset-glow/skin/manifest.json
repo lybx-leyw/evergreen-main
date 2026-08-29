@@ -1,0 +1,40 @@
+{
+  "type": "skin",
+  "id": "sunset-glow",
+  "name": "落日余晖",
+  "version": "1.0.0",
+  "description": "「落日余晖」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+  "background": {
+    "type": "image",
+    "imageDesktop": "bg_desktop.svg",
+    "imageMobile": "bg_mobile.svg"
+  },
+  "bubble": {
+    "userBackgroundColor": "#FBE7DE",
+    "userTextColor": "#45261E",
+    "borderRadius": 18
+  },
+  "avatar": {
+    "user": "avatar_user.svg",
+    "userBackgroundColor": "#A74C35"
+  },
+  "thinking": {
+    "title": "思考过程",
+    "colors": {
+      "header": "#A74C35",
+      "containerBackground": "#FBE7DE",
+      "containerBorder": "#45261E",
+      "contentText": "#45261E",
+      "chipMemoryBg": "#FBE7DE",
+      "chipMemoryFg": "#A74C35",
+      "chipSkillBg": "#FBE7DE",
+      "chipSkillFg": "#A74C35",
+      "chipToolBg": "#FBE7DE",
+      "chipToolFg": "#A74C35",
+      "chipToolResultBg": "#FBE7DE",
+      "chipToolResultFg": "#A74C35"
+    }
+  },
+  "effortColor": "#A74C35",
+  "toolActiveColor": "#A74C35"
+}

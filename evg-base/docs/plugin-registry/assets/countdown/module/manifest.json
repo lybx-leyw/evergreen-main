@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "countdown",
+  "name": "倒计时",
+  "description": "纪念日与目标日期倒计时：添加、编辑、删除倒计时事项，剩余天数与时分秒实时显示，支持每年重复（生日、周年纪念）；内置定时倒计时；数据保存在本机。",
+  "template": "html",
+  "version": "1.1.0",
+  "icon": "hourglass_bottom",
+  "route": "/countdown",
+  "nav": {
+    "sidebar": {
+      "section": "效率",
+      "sectionOrder": 20,
+      "order": 4
+    }
+  }
+}

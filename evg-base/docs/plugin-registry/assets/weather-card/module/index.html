@@ -1,0 +1,417 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>天气卡片</title><style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+/* 主题：只消费平台注入的 --evg-* 变量（var(--evg-x, 兜底)），不在 :root 重定义 --evg-*。
+   平台主题色存在时自动生效（明暗自适应由平台色板驱动）；无平台时用下方兜底色。 */
+:root {
+  --bg: var(--evg-background, #eaf2f8);
+  --card: var(--evg-surface, #ffffff);
+  --ink: var(--evg-text, #1c3140);
+  --ink-soft: var(--evg-text-secondary, #5d7689);
+  --accent: var(--evg-accent, #2f8fd0);
+  --accent-bg: var(--evg-accent-bg, #e2eff9);
+  --accent-border: var(--evg-accent-border, #bcdcf0);
+  --line: var(--evg-border, rgba(28, 49, 64, .09));
+  --err: var(--evg-error, #d64545);
+}
+/* 无平台主题时的暗色兜底（仅兜底值，不触碰 --evg-*） */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #101a24; --card: #1b2836; --ink: #e8f0f8;
+    --ink-soft: #9db4c9; --accent: #4da8e8; --accent-bg: #1e3347;
+    --accent-border: #3a6488; --line: rgba(232, 240, 248, .12);
+    --err: #e88f8f;
+  }
+}
+html { font-size: 16px; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, sans-serif; background: var(--bg); color: var(--ink); min-height: 100vh; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+:focus-visible { outline: 2px solid var(--accent-border); outline-offset: 2px; border-radius: 2px; }
+.topbar { display: flex; align-items: center; gap: .75rem; padding: 1.1rem 1.5rem; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--card) 72%, transparent); backdrop-filter: blur(.875rem); -webkit-backdrop-filter: blur(.875rem); position: sticky; top: 0; z-index: 5; }
+.topbar .ico { font-size: 1.5rem; }
+.topbar h1 { font-size: 1.15rem; font-weight: 700; }
+.topbar .sub { font-size: .72rem; color: var(--ink-soft); }
+.container { max-width: 44rem; margin: 0 auto; padding: 1rem 1.25rem 3rem; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 1rem; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+.city-row { display: flex; gap: .5rem; flex-wrap: wrap; }
+.city-row input { flex: 1; min-width: 10rem; padding: .55rem .7rem; border-radius: .65rem; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--ink); font-family: inherit; font-size: .88rem; }
+.city-row input:focus { outline: 2px solid var(--accent-border); border-color: var(--accent-border); }
+.status { font-size: .72rem; color: var(--ink-soft); margin-top: .5rem; min-height: 1.1em; }
+.hero { display: flex; align-items: center; gap: 1.2rem; padding: .5rem 0 .75rem; }
+.hero .big-em { font-size: 3.4rem; line-height: 1; }
+.hero .temp { font-size: 3rem; font-weight: 700; letter-spacing: -.03em; }
+.hero .temp small { font-size: 1.1rem; font-weight: 500; color: var(--ink-soft); }
+.hero .cond { font-size: 1.05rem; font-weight: 600; }
+.hero .loc { font-size: .8rem; color: var(--ink-soft); }
+.detail-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: .6rem; margin: .5rem 0 1rem; }
+.detail { text-align: center; padding: .65rem .4rem; border-radius: .75rem; background: color-mix(in srgb, var(--bg) 55%, transparent); border: 1px solid var(--line); }
+.detail .l { font-size: .68rem; color: var(--ink-soft); }
+.detail .v { font-size: 1.05rem; font-weight: 700; margin-top: .2rem; }
+.detail .v small { font-size: .7rem; font-weight: 500; color: var(--ink-soft); }
+.forecast { display: grid; grid-template-columns: repeat(auto-fit, minmax(3.6rem, 1fr)); gap: .45rem; }
+.fday { text-align: center; padding: .6rem .2rem; border-radius: .7rem; background: color-mix(in srgb, var(--bg) 48%, transparent); border: 1px solid var(--line); }
+.fday .d { font-size: .7rem; color: var(--ink-soft); }
+.fday .e { font-size: 1.35rem; margin: .25rem 0; }
+.fday .t { font-size: .78rem; font-weight: 600; }
+.fday .t span { color: var(--ink-soft); font-weight: 500; }
+.meta { font-size: .72rem; color: var(--ink-soft); margin-top: .8rem; }
+.btn { appearance: none; border: none; cursor: pointer; font-family: inherit; font-size: .85rem; font-weight: 600; padding: .55rem 1.1rem; border-radius: .7rem; color: #fff; background: var(--accent); transition: transform .15s ease, opacity .15s ease; }
+.btn:hover { transform: translateY(-1px); opacity: .92; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.note { font-size: .72rem; color: var(--ink-soft); background: color-mix(in srgb, var(--bg) 55%, transparent); border: 1px dashed var(--line); border-radius: .6rem; padding: .5rem .7rem; margin-top: .7rem; line-height: 1.6; }
+.note b { color: var(--err); }
+.empty { text-align: center; color: var(--ink-soft); font-size: .85rem; padding: 1.5rem 0; }
+.foot { text-align: center; font-size: .72rem; color: var(--ink-soft); padding: .5rem 0 1rem; }
+@media (max-width: 40rem) { .detail-grid { grid-template-columns: 1fr 1fr 1fr 1fr; } }
+@media (max-width: 26rem) { .detail-grid { grid-template-columns: 1fr 1fr; } .hero { gap: .8rem; } .hero .temp { font-size: 2.4rem; } }
+</style></head><body>
+<header class="topbar">
+  <span class="ico">⛅</span>
+  <div><h1>天气卡片</h1><div class="sub">当前天气 · 生活指数 · 多日预报</div></div>
+</header>
+<main class="container">
+  <section class="card">
+    <div class="city-row">
+      <input id="f-city" placeholder="输入城市名，如：杭州" aria-label="城市">
+      <button class="btn" id="b-query" type="button">查询天气</button>
+      <button class="btn ghost" id="b-refresh" type="button">↻ 刷新</button>
+    </div>
+    <div id="status" class="status" role="status"></div>
+    <div id="weather-area"></div>
+  </section>
+  <footer class="foot">💾 数据保存在本机 · 仅本插件可见，不会上传</footer>
+</main>
+<script>
+(function () {
+  'use strict';
+  var P = (typeof platform !== 'undefined' && platform) ? platform : null;
+  var KEY = 'evg.weather-card';
+  var DEFAULTS = { city: '杭州' };
+
+  // 城市 → 数据源名（campus_weather 系列，名称随用户环境而定，先用 data.list() 探测）
+  var SOURCES = {
+    '杭州': 'campus_weather', '北京': 'beijing_weather', '上海': 'shanghai_weather',
+    '深圳': 'shenzhen_weather', '成都': 'chengdu_weather', '广州': 'guangzhou_weather'
+  };
+
+  var store = null;          // 内存状态
+  var booted = false;        // 权威重读完成
+  var bootQueue = [];        // 启动期间用户操作队列（防竞态覆盖）
+  var bootTimer = null;
+  var sourceName = null;     // 当前选中的数据源名
+  var sourceNames = [];      // 探测到的全部可用数据源名
+  var probeDone = false;     // 探测是否完成
+  var probing = null;        // 探测 promise
+  var subscribed = {};       // 已订阅的数据源（name → true）
+
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function toNum(v) { var n = Number(v); return isFinite(n) ? n : null; }
+
+  // ── 启动：同步快读 + 权威重读合并（预载竞态防护，绝不覆盖丢失） ──
+  function bootLoad() {
+    var local = null;
+    try { local = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) {}
+    store = (local && typeof local === 'object') ? local : {};
+    if (typeof store.city !== 'string' || !store.city.trim()) store.city = DEFAULTS.city;
+    document.getElementById('f-city').value = store.city; // 同步快读先行填充（权威重读后自动刷新）
+
+    if (P && P.storage && typeof P.storage.get === 'function') {
+      var settled = false;
+      function done() { if (!settled) { settled = true; finishBoot(); } }
+      P.storage.get(KEY).then(function (raw) {
+        var persisted = null;
+        try { persisted = (raw == null || raw === '') ? null : JSON.parse(raw); } catch (e) {}
+        if (persisted && typeof persisted === 'object' && typeof persisted.city === 'string' && persisted.city.trim()) {
+          store.city = persisted.city; // 已持久化的城市偏好为权威
+        }
+        done();
+      }).catch(function () { done(); });
+      // 兜底：storage 桥异常/挂起时 800ms 后放行，保证 UI 不卡死
+      bootTimer = setTimeout(done, 800);
+    } else {
+      finishBoot();
+    }
+  }
+
+  function finishBoot() {
+    if (booted) return;
+    booted = true;
+    if (bootTimer) { clearTimeout(bootTimer); bootTimer = null; }
+    var q = bootQueue; bootQueue = [];
+    q.forEach(function (fn) { try { fn(); } catch (e) {} });
+    save();
+    document.getElementById('f-city').value = store.city;
+    fetchWeather(store.city); // 首次查询（含数据源探测）
+  }
+
+  // 变更入口：未启动完成前排队，启动后顺序应用（防覆盖竞态）
+  function mutate(fn) {
+    if (!booted) { bootQueue.push(fn); return; }
+    fn();
+    save();
+  }
+
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) {} }
+
+  // ── 数据源探测（名称随用户环境而定，data.list() 探测） ──
+  function probeSources() {
+    if (!P || !P.data || !P.data.list) return Promise.resolve();
+    return Promise.resolve(P.data.list())
+      .then(function (list) {
+        sourceNames = [];
+        if (Array.isArray(list)) {
+          list.forEach(function (s) {
+            if (s && s.name != null) sourceNames.push(String(s.name));
+            else if (s != null) sourceNames.push(String(s));
+          });
+        }
+        sourceName = pickSource(sourceNames, store.city);
+      })
+      .catch(function () { sourceName = null; sourceNames = []; });
+  }
+
+  function pickSource(names, city) {
+    if (!names || !names.length) return null;
+    var byCity = SOURCES[city];
+    if (byCity && names.indexOf(byCity) >= 0) return byCity;
+    var weather = names.filter(function (n) { return /weather/i.test(n); });
+    if (weather.length) return weather[0];
+    var campus = names.filter(function (n) { return /campus/i.test(n); });
+    if (campus.length) return campus[0];
+    return null;
+  }
+
+  // ── 数据获取（防御式：null/未注册/异常/超时 5s → 降级内置参考数据并标注离线） ──
+  function withTimeout(p) {
+    var timer = null;
+    return new Promise(function (resolve, reject) {
+      timer = setTimeout(function () { reject(new Error('timeout')); }, 5000);
+      p.then(function (v) { clearTimeout(timer); resolve(v); }, function (e) { clearTimeout(timer); reject(e); });
+    });
+  }
+
+  function fetchWeather(c) {
+    if (!probeDone) {
+      if (!probing) probing = probeSources();
+      probing.then(function () {
+        probeDone = true;
+        sourceName = pickSource(sourceNames, c); // 按当前城市重新选择数据源
+        if (sourceName) { subscribeSource(sourceName); doFetch(c); }
+        else tryDirect(c);
+      }).catch(function () { probeDone = true; applyFallback(c); });
+      return;
+    }
+    sourceName = pickSource(sourceNames, c); // 城市变化时重新选择数据源
+    if (sourceName) { subscribeSource(sourceName); doFetch(c); }
+    else applyFallback(c);
+  }
+
+  // 探测无果时兜底直连已知名（防御式：list 可能为空但 get 可用）
+  function tryDirect(c) {
+    setStatus('正在获取天气…');
+    if (P && P.data && P.data.get) {
+      withTimeout(P.data.get('campus_weather')).then(function (d) {
+        var v = d ? fromDataSource(d, c) : null;
+        if (v) {
+          sourceName = 'campus_weather';
+          subscribeSource(sourceName);
+          render(v);
+          setStatus('已更新 · 实时数据');
+        } else applyFallback(c);
+      }).catch(function () { applyFallback(c); });
+    } else applyFallback(c);
+  }
+
+  function doFetch(c) {
+    setStatus('正在获取天气…');
+    if (!P || !P.data || !P.data.get) { applyFallback(c); return; }
+    withTimeout(P.data.get(sourceName)).then(function (d) {
+      var v = d ? fromDataSource(d, c) : null;
+      if (v) { render(v); setStatus('已更新 · 实时数据'); }
+      else applyFallback(c);
+    }).catch(function () { applyFallback(c); });
+  }
+
+  // 订阅数据源：变化自动刷新（事件驱动 + 轮询兜底由平台维护）；
+  // 每个源只订阅一次，且仅响应当前选中源的事件，避免切城市后串数据
+  function subscribeSource(name) {
+    if (subscribed[name] || !P || !P.data || !P.data.subscribe) return;
+    subscribed[name] = true;
+    try {
+      P.data.subscribe(name, function (ev) {
+        if (!ev || ev.name !== name || name !== sourceName) return;
+        var v = ev.data ? fromDataSource(ev.data, store.city) : null;
+        if (v) { render(v); setStatus('已更新 · 实时数据'); }
+        else applyFallback(store.city);
+      });
+    } catch (e) { /* 订阅失败不影响手动查询 */ }
+  }
+
+  // ── 数据 → 视图模型（真实天气优先，字段缺失安全降级） ──
+  var COMPASS = { N:'北', NNE:'北东北', NE:'东北', ENE:'东北偏东', E:'东', ESE:'东南偏东', SE:'东南', SSE:'南东南', S:'南', SSW:'南西南', SW:'西南', WSW:'西西南', W:'西', WNW:'西西北', NW:'西北', NNW:'北西北' };
+
+  function mapCondition(text) {
+    var t = String(text || '').trim();
+    if (!t) return { e: '❓', l: '未知' };
+    if (/晴/.test(t)) return { e: '☀️', l: t };
+    if (/多云/.test(t)) return { e: '⛅', l: t };
+    if (/阴/.test(t)) return { e: '☁️', l: t };
+    if (/雷/.test(t)) return { e: '⛈️', l: t };
+    if (/雪/.test(t)) return { e: '🌨️', l: t };
+    if (/雨/.test(t)) return { e: '🌧️', l: t };
+    if (/雾|霾/.test(t)) return { e: '🌫️', l: t };
+    if (/风/.test(t)) return { e: '💨', l: t };
+    return { e: '🌤️', l: t };
+  }
+
+  function windText(d) {
+    var dir = COMPASS[String(d.wind_dir || '').toUpperCase()] || String(d.wind_dir || '');
+    var kmh = toNum(d.wind_kmh);
+    if (kmh != null && kmh > 0) return (dir ? dir + '风 ' : '风 ') + Math.round(kmh) + ' km/h';
+    return dir ? dir + '风' : '微风';
+  }
+
+  function dayLabel(dateStr) {
+    var s = String(dateStr || '').trim();
+    if (!s) return '—';
+    var d = new Date(s + 'T00:00:00');
+    if (isNaN(d.getTime())) return '—';
+    var tk = nowDay();
+    if (s === tk) return '今天';
+    return '周' + '日一二三四五六'[d.getDay()];
+  }
+  function nowDay() {
+    var t = new Date();
+    return t.getFullYear() + '-' + pad(t.getMonth() + 1) + '-' + pad(t.getDate());
+  }
+
+  function forecastFrom(d) {
+    var arr = Array.isArray(d.forecast) ? d.forecast : [];
+    var list = [];
+    var seen = {};
+    arr.forEach(function (f) {
+      if (!f || typeof f !== 'object') return;
+      var hi = toNum(f.max_c);
+      var lo = toNum(f.min_c);
+      if (hi == null && lo == null) return;
+      var day = dayLabel(f.date);
+      if (seen[day]) return;
+      seen[day] = true;
+      var desc = mapCondition(f.desc);
+      list.push({ day: day, e: desc.e, hi: hi != null ? Math.round(hi) : '--', lo: lo != null ? Math.round(lo) : '--' });
+    });
+    return list;
+  }
+
+  function fromDataSource(d, city) {
+    if (!d || typeof d !== 'object') return null;
+    var temp = toNum(d.temp_c);
+    if (temp == null) return null; // 无核心温度字段 → 视为无效数据，走降级
+    return {
+      city: city,
+      temp: Math.round(temp),
+      cond: mapCondition(d.condition),
+      wind: windText(d),
+      humidity: toNum(d.humidity),
+      feels: toNum(d.feels_like_c),
+      uv: toNum(d.uv_index),
+      precip: toNum(d.precip_mm),
+      forecast: forecastFrom(d),
+      sourceName: String(d.source || '') || '数据源',
+      updated: String(d.observed_local || d.fetched_at || d.updated || ''),
+      offline: false,
+      offlineText: ''
+    };
+  }
+
+  // ── 内置参考数据（仅离线降级使用，明确标注） ──
+  var CONDITIONS = [
+    { e: '☀️', l: '晴' }, { e: '⛅', l: '多云' }, { e: '☁️', l: '阴' },
+    { e: '🌧️', l: '小雨' }, { e: '⛈️', l: '雷阵雨' }, { e: '🌨️', l: '小雪' }, { e: '🌫️', l: '雾' }
+  ];
+  function hash(s) { var h = 0; for (var i = 0; i < s.length; i++) { h = ((h << 5) - h + s.charCodeAt(i)) | 0; } return Math.abs(h); }
+  function genWeather(city) {
+    var h = hash(city || '杭州');
+    var c = CONDITIONS[h % CONDITIONS.length];
+    var now = new Date();
+    var temp = 12 + h % 20;
+    var forecast = [];
+    for (var i = 0; i < 7; i++) {
+      var hh = hash(city + '|' + i);
+      var cc = CONDITIONS[(hh + i) % CONDITIONS.length];
+      var d = new Date(now); d.setDate(d.getDate() + i);
+      var tLo = 10 + hh % 12, tHi = tLo + 4 + hh % 6;
+      forecast.push({ day: (i === 0 ? '今天' : '周' + '日一二三四五六'[d.getDay()]), e: cc.e, hi: tHi, lo: tLo });
+    }
+    return {
+      city: city, temp: temp, cond: c, wind: '微风',
+      humidity: 40 + h % 55, feels: temp + 1, uv: 1 + h % 5, precip: 0,
+      forecast: forecast
+    };
+  }
+
+  function applyFallback(c) {
+    var v = genWeather(c);
+    v.offline = true;
+    v.offlineText = '未发现可用天气数据源（campus_weather），当前为内置参考数据；接入数据源后将自动显示实时天气';
+    v.sourceName = '';
+    v.updated = '';
+    render(v);
+    setStatus('离线 · 内置参考数据');
+  }
+
+  // ── 渲染 ──
+  function detail(l, val, unit) {
+    if (val == null) return '<div class="detail"><div class="l">' + l + '</div><div class="v">--</div></div>';
+    return '<div class="detail"><div class="l">' + l + '</div><div class="v">' + esc(val) + '<small>' + esc(unit) + '</small></div></div>';
+  }
+  function metaText(v) {
+    var parts = [];
+    if (v.sourceName) parts.push('数据源：' + esc(v.sourceName));
+    if (v.updated) parts.push('更新于 ' + esc(v.updated));
+    return parts.length ? parts.join(' · ') : '内置参考数据';
+  }
+  function render(v) {
+    var area = document.getElementById('weather-area');
+    var forecastHtml;
+    if (v.forecast && v.forecast.length) {
+      forecastHtml = '<div class="forecast">' + v.forecast.map(function (f) {
+        return '<div class="fday"><div class="d">' + esc(f.day) + '</div><div class="e">' + esc(f.e) + '</div><div class="t">' + esc(f.hi) + '° <span>' + esc(f.lo) + '°</span></div></div>';
+      }).join('') + '</div>';
+    } else {
+      forecastHtml = '<div class="empty">暂无预报数据</div>';
+    }
+    area.innerHTML =
+      '<div class="hero">' +
+        '<span class="big-em">' + esc(v.cond.e) + '</span>' +
+        '<div><div class="temp">' + esc(v.temp) + '<small>°C</small></div>' +
+        '<div class="cond">' + esc(v.cond.l) + '</div>' +
+        '<div class="loc">📍 ' + esc(v.city) + (v.wind ? ' · ' + esc(v.wind) : '') + '</div></div>' +
+      '</div>' +
+      '<div class="detail-grid">' +
+        detail('湿度', v.humidity, '%') + detail('体感', v.feels, '°C') +
+        detail('紫外线', v.uv, ' 级') + detail('降水', v.precip, ' mm') +
+      '</div>' +
+      forecastHtml +
+      '<div class="meta">' + metaText(v) + '</div>' +
+      (v.offline ? '<div class="note"><b>⚠️ 离线</b>：' + esc(v.offlineText) + '</div>' : '');
+  }
+
+  function setStatus(t) { document.getElementById('status').textContent = t; }
+
+  // ── 查询入口 ──
+  function query(city) {
+    mutate(function () {
+      var c = (city || '').trim() || '杭州';
+      store.city = c;
+      document.getElementById('f-city').value = c;
+      fetchWeather(c);
+    });
+  }
+
+  document.getElementById('b-query').addEventListener('click', function () { query(document.getElementById('f-city').value); });
+  document.getElementById('f-city').addEventListener('keydown', function (e) { if (e.key === 'Enter') query(document.getElementById('f-city').value); });
+  document.getElementById('b-refresh').addEventListener('click', function () { query(store.city || '杭州'); });
+
+  bootLoad();
+})();
+</script></body></html>

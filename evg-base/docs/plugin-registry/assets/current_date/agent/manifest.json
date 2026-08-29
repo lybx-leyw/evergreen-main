@@ -1,0 +1,18 @@
+{
+  "name": "current_date",
+  "description": "返回当前日期，可附带星期几；只读工具，可并行调用。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "with_weekday": {
+        "type": "boolean",
+        "description": "是否附带星期几。默认 true。"
+      }
+    },
+    "required": []
+  },
+  "readOnly": true,
+  "argMode": "stdin",
+  "runtime": "python",
+  "lifetime": "once"
+}

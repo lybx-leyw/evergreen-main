@@ -1,0 +1,24 @@
+{
+  "name": "json_format",
+  "description": "把 JSON 字符串格式化/压缩为可读文本；只读工具。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "json": {
+        "type": "string",
+        "description": "JSON 字符串。"
+      },
+      "indent": {
+        "type": "integer",
+        "description": "缩进空格数，默认 2。"
+      }
+    },
+    "required": [
+      "json"
+    ]
+  },
+  "readOnly": true,
+  "argMode": "stdin",
+  "runtime": "python",
+  "lifetime": "once"
+}

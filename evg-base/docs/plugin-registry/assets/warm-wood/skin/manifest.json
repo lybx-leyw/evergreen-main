@@ -1,0 +1,40 @@
+{
+  "type": "skin",
+  "id": "warm-wood",
+  "name": "温暖原木",
+  "version": "1.0.0",
+  "description": "「温暖原木」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+  "background": {
+    "type": "image",
+    "imageDesktop": "bg_desktop.svg",
+    "imageMobile": "bg_mobile.svg"
+  },
+  "bubble": {
+    "userBackgroundColor": "#EFE3D3",
+    "userTextColor": "#3C2F22",
+    "borderRadius": 18
+  },
+  "avatar": {
+    "user": "avatar_user.svg",
+    "userBackgroundColor": "#B07C4F"
+  },
+  "thinking": {
+    "title": "思考过程",
+    "colors": {
+      "header": "#85552E",
+      "containerBackground": "#EFE3D3",
+      "containerBorder": "#3C2F22",
+      "contentText": "#3C2F22",
+      "chipMemoryBg": "#EFE3D3",
+      "chipMemoryFg": "#85552E",
+      "chipSkillBg": "#EFE3D3",
+      "chipSkillFg": "#85552E",
+      "chipToolBg": "#EFE3D3",
+      "chipToolFg": "#85552E",
+      "chipToolResultBg": "#EFE3D3",
+      "chipToolResultFg": "#85552E"
+    }
+  },
+  "effortColor": "#85552E",
+  "toolActiveColor": "#85552E"
+}

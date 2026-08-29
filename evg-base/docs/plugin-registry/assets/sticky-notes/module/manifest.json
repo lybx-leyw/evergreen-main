@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "sticky-notes",
+  "name": "便签",
+  "description": "便签板：随手记录灵感与待办，支持颜色分类、置顶排序、搜索与本地保存。",
+  "template": "html",
+  "version": "1.0.0",
+  "icon": "note",
+  "route": "/sticky-notes",
+  "nav": {
+    "sidebar": {
+      "section": "效率",
+      "sectionOrder": 20,
+      "order": 3
+    }
+  }
+}

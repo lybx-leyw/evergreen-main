@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>宿舍报修</title>
+<style>
+/* ============ 基础 ============ */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  /* 平台主题变量（--evg-*）：运行时由 platform bridge 注入并随主题切换实时更新；
+     此处为独立预览（无 bridge）时的兜底值。 */
+  --evg-background: #f2f4f2;
+  --evg-surface: #ffffff;
+  --evg-border: rgba(40, 53, 42, .12);
+  --evg-text: #28352a;
+  --evg-text-secondary: #667a6c;
+  --evg-accent: #3d9e63;
+  --evg-accent-bg: #e1f2e7;
+  --evg-accent-border: #bce2ca;
+  --evg-error: #d64545;
+  --evg-others: #f2b880;
+  /* 语义别名 */
+  --bg: var(--evg-background);
+  --card: var(--evg-surface);
+  --line: var(--evg-border);
+  --ink: var(--evg-text);
+  --ink-soft: var(--evg-text-secondary);
+  --accent: var(--evg-accent);
+  --accent-soft: var(--evg-accent-bg);
+  --accent-line: var(--evg-accent-border);
+  --err: var(--evg-error);
+}
+
+html { font-size: 16px; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  min-height: 100vh;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ============ 顶栏 ============ */
+.topbar {
+  display: flex; align-items: center; gap: .75rem;
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--card);
+  background: color-mix(in srgb, var(--card) 74%, transparent);
+  backdrop-filter: blur(.875rem);
+  -webkit-backdrop-filter: blur(.875rem);
+  position: sticky; top: 0; z-index: 20;
+}
+.topbar .ico { font-size: 1.4rem; line-height: 1; }
+.topbar h1 { font-size: 1.12rem; font-weight: 700; }
+.topbar .sub { font-size: .72rem; color: var(--ink-soft); }
+
+.container { max-width: 46rem; margin: 0 auto; padding: 1.25rem 1.1rem 3rem; }
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  padding: 1.15rem 1.1rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .05);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--ink) 8%, transparent);
+}
+.card h2 {
+  font-size: .95rem; font-weight: 700; margin-bottom: .85rem;
+  display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+}
+.card h2 .f { font-size: .72rem; color: var(--ink-soft); font-weight: 500; }
+
+/* ============ 诚实提示条 ============ */
+.notice {
+  display: flex; gap: .55rem; align-items: flex-start;
+  font-size: .8rem; line-height: 1.65;
+  padding: .7rem .8rem;
+  border-radius: .7rem; margin-bottom: .9rem;
+  color: var(--ink);
+  background: var(--card);
+  background: color-mix(in srgb, var(--evg-others) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--evg-others) 42%, transparent);
+}
+.notice .n-ico { font-size: 1rem; line-height: 1.4; flex: none; }
+
+/* ============ 表单 ============ */
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem .7rem; }
+.field label { display: block; font-size: .72rem; color: var(--ink-soft); margin-bottom: .25rem; }
+.field input, .field select, .field textarea {
+  width: 100%;
+  padding: .52rem .62rem;
+  border-radius: .6rem;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  background: color-mix(in srgb, var(--bg) 60%, transparent);
+  color: var(--ink);
+  font-family: inherit; font-size: .86rem;
+}
+.field textarea { min-height: 4.6rem; resize: vertical; }
+.field .err-msg { font-size: .7rem; color: var(--err); margin-top: .28rem; }
+.field input.invalid, .field textarea.invalid { border-color: var(--err); }
+.field input.invalid:focus, .field textarea.invalid:focus {
+  outline-color: color-mix(in srgb, var(--err) 60%, transparent);
+}
+.field input:focus, .field select:focus, .field textarea:focus {
+  outline: 2px solid var(--accent-line);
+  outline-offset: -1px;
+  border-color: var(--accent-line);
+}
+.field.full { grid-column: 1 / -1; }
+.desc-foot { display: flex; justify-content: space-between; align-items: center; margin-top: .3rem; }
+.desc-count { font-size: .7rem; color: var(--ink-soft); margin-left: auto; }
+.desc-count.over { color: var(--err); font-weight: 600; }
+
+.cats { display: flex; gap: .4rem; flex-wrap: wrap; margin-bottom: .85rem; }
+.cat {
+  appearance: none; border: 1px solid var(--line);
+  background: transparent; color: var(--ink-soft);
+  font-family: inherit; font-size: .8rem;
+  padding: .42rem .85rem; border-radius: 999px; cursor: pointer;
+}
+.cat:hover { border-color: var(--accent-line); color: var(--ink); }
+.cat.active { color: var(--bg); background: var(--accent); border-color: var(--accent); }
+
+.form-foot { display: flex; flex-wrap: wrap; gap: .55rem; align-items: center; margin-top: .85rem; }
+.draft-hint { font-size: .72rem; color: var(--ink-soft); }
+.draft-hint[hidden] { display: none; }
+
+/* ============ 按钮 ============ */
+.btn {
+  appearance: none; border: none; cursor: pointer;
+  font-family: inherit; font-size: .85rem; font-weight: 600;
+  padding: .55rem 1.05rem; border-radius: .7rem;
+  color: var(--bg); background: var(--accent);
+  transition: transform .15s ease, opacity .15s ease;
+}
+.btn:hover { transform: translateY(-1px); opacity: .92; }
+.btn:active { transform: translateY(0); opacity: .85; }
+.btn:focus-visible { outline: 2px solid var(--accent-line); outline-offset: 2px; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn.ghost:hover { background: transparent; background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.btn.danger {
+  background: transparent; color: var(--err);
+  border: 1px solid var(--err);
+  border: 1px solid color-mix(in srgb, var(--err) 45%, transparent);
+}
+.btn.danger:hover { background: transparent; background: color-mix(in srgb, var(--err) 10%, transparent); }
+.btn.sm { padding: .38rem .72rem; font-size: .76rem; }
+
+/* ============ 报修记录 ============ */
+.tickets { display: flex; flex-direction: column; gap: .6rem; }
+.ticket {
+  background: var(--card);
+  background: color-mix(in srgb, var(--bg) 50%, transparent);
+  border: 1px solid var(--line);
+  border-radius: .8rem;
+  padding: .8rem .85rem;
+}
+.ticket .head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.ticket .no { font-size: .7rem; color: var(--ink-soft); }
+.ticket .title { font-weight: 700; margin-top: .3rem; font-size: .92rem; }
+.ticket .desc { font-size: .82rem; color: var(--ink-soft); margin-top: .25rem; line-height: 1.55; overflow-wrap: anywhere; }
+.ticket .meta { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .5rem; align-items: center; }
+.ticket .ops { display: flex; gap: .4rem; flex-wrap: wrap; margin-top: .6rem; }
+
+.badge {
+  font-size: .7rem; font-weight: 600;
+  padding: .12rem .55rem; border-radius: 999px;
+  white-space: nowrap;
+}
+.badge.pending {
+  color: var(--ink-soft); background: var(--card); border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--ink-soft) 12%, transparent);
+  border-color: color-mix(in srgb, var(--ink-soft) 28%, transparent);
+}
+.badge.submitted { color: var(--accent); background: var(--accent-soft); }
+.badge.done { color: var(--bg); background: var(--accent); }
+
+.tag2 {
+  font-size: .7rem; color: var(--ink-soft);
+  background: var(--card);
+  background: color-mix(in srgb, var(--ink-soft) 10%, transparent);
+  padding: .1rem .5rem; border-radius: 999px;
+}
+.empty { text-align: center; color: var(--ink-soft); font-size: .85rem; padding: 1.5rem .5rem; line-height: 1.7; }
+.note { font-size: .72rem; color: var(--ink-soft); margin-top: .55rem; line-height: 1.6; }
+
+/* 新单高亮 */
+@keyframes tkflash {
+  from { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+  to   { background: color-mix(in srgb, var(--bg) 50%, transparent); }
+}
+.ticket.flash { animation: tkflash 1.3s ease; }
+
+/* ============ Toast ============ */
+.toast {
+  position: fixed; left: 50%; bottom: 1.4rem;
+  transform: translateX(-50%) translateY(.4rem);
+  max-width: min(24rem, calc(100vw - 2rem));
+  background: var(--ink); color: var(--bg);
+  font-size: .8rem; line-height: 1.5;
+  padding: .6rem .95rem; border-radius: .7rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .18);
+  opacity: 0; pointer-events: none;
+  transition: opacity .22s ease, transform .22s ease;
+  z-index: 60;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ============ 手动复制弹层 ============ */
+.modal-mask {
+  position: fixed; inset: 0; z-index: 50;
+  background: rgba(0, 0, 0, .38);
+  display: flex; align-items: center; justify-content: center;
+  padding: 1rem;
+}
+.modal-mask[hidden] { display: none; }
+.modal {
+  background: var(--card); color: var(--ink);
+  border: 1px solid var(--line); border-radius: .9rem;
+  width: min(30rem, 100%);
+  padding: 1.1rem;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, .22);
+}
+.modal h3 { font-size: .95rem; margin-bottom: .4rem; }
+.modal textarea {
+  width: 100%; min-height: 9rem; resize: vertical;
+  margin-top: .6rem;
+  padding: .55rem .6rem;
+  border: 1px solid var(--line); border-radius: .6rem;
+  background: var(--bg);
+  background: color-mix(in srgb, var(--bg) 60%, transparent);
+  color: var(--ink); font-family: inherit; font-size: .8rem;
+}
+.modal-ops { display: flex; justify-content: flex-end; margin-top: .7rem; }
+
+/* ============ 响应式 / 动效偏好 ============ */
+@media (max-width: 40rem) {
+  .form-grid { grid-template-columns: 1fr; }
+  .topbar { padding: .85rem 1rem; }
+  .container { padding: 1rem .85rem 2.5rem; }
+  .card { padding: 1rem .9rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <span class="ico" aria-hidden="true">🔧</span>
+  <div>
+    <h1>宿舍报修</h1>
+    <div class="sub">本地生成报修单 · 复制后自行提交后勤系统</div>
+  </div>
+</header>
+
+<main class="container">
+  <section class="card" aria-labelledby="h-form">
+    <h2 id="h-form">➕ 登记报修</h2>
+    <div class="notice" role="note">
+      <span class="n-ico" aria-hidden="true">⚠️</span>
+      <span>本插件为<b>纯本地工具</b>，无法直接提交至后勤系统。生成报修单后，请点击「复制报修单」并将内容自行提交至后勤报修渠道（报修群 / 后勤电话 / 线上报修入口）。记录中的状态由你手动维护，不代表后勤实际受理进度。</span>
+    </div>
+    <div class="cats" id="cats" role="group" aria-label="故障类别">
+      <button type="button" class="cat active" data-c="水电" aria-pressed="true">💡 水电</button>
+      <button type="button" class="cat" data-c="家具" aria-pressed="false">🪑 家具</button>
+      <button type="button" class="cat" data-c="门窗" aria-pressed="false">🚪 门窗</button>
+      <button type="button" class="cat" data-c="卫浴" aria-pressed="false">🚿 卫浴</button>
+      <button type="button" class="cat" data-c="网络" aria-pressed="false">📶 网络</button>
+      <button type="button" class="cat" data-c="其他" aria-pressed="false">📦 其他</button>
+    </div>
+    <form id="repair-form" novalidate>
+      <div class="form-grid">
+        <div class="field">
+          <label for="f-room">宿舍楼栋 / 房间 <span aria-hidden="true">*</span></label>
+          <input id="f-room" name="room" maxlength="50" placeholder="例：紫金港 3 舍 501" autocomplete="off" required>
+          <div class="err-msg" id="e-room" hidden></div>
+        </div>
+        <div class="field">
+          <label for="f-phone">联系电话 <span aria-hidden="true">*</span></label>
+          <input id="f-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" placeholder="例：13800000000" required>
+          <div class="err-msg" id="e-phone" hidden></div>
+        </div>
+        <div class="field full">
+          <label for="f-desc">问题描述 <span aria-hidden="true">*</span></label>
+          <textarea id="f-desc" name="desc" maxlength="500" placeholder="例：宿舍灯管不亮，一直闪烁……" required></textarea>
+          <div class="desc-foot">
+            <div class="err-msg" id="e-desc" hidden></div>
+            <span class="desc-count" id="desc-count">0/500</span>
+          </div>
+        </div>
+      </div>
+      <div class="form-foot">
+        <button type="submit" class="btn" id="b-generate">生成报修单</button>
+        <span class="draft-hint" id="draft-hint" hidden></span>
+      </div>
+    </form>
+  </section>
+
+  <section class="card" aria-labelledby="h-list">
+    <h2 id="h-list">📋 报修记录
+      <span class="f">
+        <span id="tcount">0 单</span>
+        <button type="button" class="btn ghost sm" id="b-export-all">导出全部</button>
+      </span>
+    </h2>
+    <div class="tickets" id="tickets"></div>
+    <p class="note">💡 状态说明：<b>待提交</b>＝本地已生成、尚未提交后勤；<b>已提交后勤</b>＝你已手动提交（自行标记）；<b>已解决</b>＝问题已处理（自行标记）。复制报修单后请自行提交至后勤系统。</p>
+  </section>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<div class="modal-mask" id="copy-modal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="copy-modal-title">
+    <h3 id="copy-modal-title">手动复制报修单</h3>
+    <p class="note">当前环境不支持自动复制，请选中下方文本后按 Ctrl+C 复制，再粘贴提交至后勤系统。</p>
+    <textarea id="copy-src" readonly></textarea>
+    <div class="modal-ops">
+      <button type="button" class="btn ghost sm" id="copy-modal-close">关闭</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var P = (typeof platform !== 'undefined') ? platform : null;
+
+  var KEY_TICKETS = 'evg.dorm-repair.tickets';
+  var KEY_DRAFT = 'evg.dorm-repair.draft';
+
+  var CATS = ['水电', '家具', '门窗', '卫浴', '网络', '其他'];
+  var STATUS = {
+    pending:   { label: '待提交',     short: '待提交后勤' },
+    submitted: { label: '已提交后勤', short: '已提交后勤' },
+    done:      { label: '已解决',     short: '已解决' }
+  };
+
+  var state = {
+    tickets: [],
+    draft: null,
+    _ticketsTouched: false,
+    _draftTouched: false
+  };
+
+  var curCat = '水电';
+  var draftTimer = null;
+  var genLock = 0;
+
+  /* ---------- 工具函数 ---------- */
+  function $(id) { return document.getElementById(id); }
+
+  function getLS(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+  function setLS(key, val) { try { localStorage.setItem(key, val); } catch (e) { /* 存储不可用：会话内有效 */ } }
+  function rmLS(key) { try { localStorage.removeItem(key); } catch (e) {} }
+
+  function parseJSON(s, fallback) {
+    if (!s) return fallback;
+    try { return JSON.parse(s); } catch (e) { return fallback; }
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  function pad3(n) { return n < 10 ? '00' + n : (n < 100 ? '0' + n : '' + n); }
+  function fmtTime(d) {
+    return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) +
+      ' ' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+  }
+  function todayKey(d) { return '' + d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate()); }
+
+  function normalizeTicket(t, idx) {
+    if (!t || typeof t !== 'object') return null;
+    return {
+      id: (typeof t.id === 'string' && t.id) ? t.id : 'BX-' + (Date.now() % 1000000) + '-' + idx,
+      cat: CATS.indexOf(t.cat) >= 0 ? t.cat : '水电',
+      room: String(t.room == null ? '' : t.room).slice(0, 50),
+      phone: String(t.phone == null ? '' : t.phone).slice(0, 20),
+      desc: String(t.desc == null ? '' : t.desc).slice(0, 500),
+      status: STATUS[t.status] ? t.status : 'pending',
+      createdAt: typeof t.createdAt === 'string' ? t.createdAt : '',
+      submittedAt: typeof t.submittedAt === 'string' ? t.submittedAt : '',
+      doneAt: typeof t.doneAt === 'string' ? t.doneAt : ''
+    };
+  }
+
+  /* ---------- 存储 ---------- */
+  function loadTicketsSync() {
+    var arr = parseJSON(getLS(KEY_TICKETS), null);
+    if (Array.isArray(arr)) {
+      state.tickets = arr.map(normalizeTicket).filter(Boolean);
+    }
+  }
+
+  function saveTickets() {
+    state._ticketsTouched = true;
+    setLS(KEY_TICKETS, JSON.stringify(state.tickets));
+    updateCount();
+  }
+
+  /* 平台 localStorage polyfill 的预载是异步的：启动瞬间内存可能尚未就绪。
+     通过 platform.storage 直接读取权威数据并合并，避免重启后列表为空。 */
+  function adoptPersistedTickets() {
+    if (!(P && P.storage && P.storage.get)) return;
+    var p;
+    try { p = P.storage.get(KEY_TICKETS); } catch (e) { return; }
+    var apply = function (raw) {
+      var arr = parseJSON(raw, null);
+      if (!Array.isArray(arr) || !arr.length) return;
+      var byId = {};
+      state.tickets.forEach(function (t) { if (t && t.id) byId[t.id] = t; });
+      var changed = false;
+      arr.forEach(function (rawT, i) {
+        var t = normalizeTicket(rawT, i);
+        if (t && t.id && !byId[t.id]) { state.tickets.push(t); byId[t.id] = t; changed = true; }
+      });
+      if (changed) { saveTickets(); renderTickets(); }
+    };
+    if (p && typeof p.then === 'function') p.then(apply).catch(function () {});
+    else if (typeof p === 'string') apply(p);
+  }
+
+  function loadDraftSync() {
+    var d = parseJSON(getLS(KEY_DRAFT), null);
+    if (d && typeof d === 'object') state.draft = d;
+  }
+
+  function adoptPersistedDraft() {
+    if (!(P && P.storage && P.storage.get)) return;
+    var p;
+    try { p = P.storage.get(KEY_DRAFT); } catch (e) { return; }
+    var apply = function (raw) {
+      if (state._draftTouched) return; // 用户已在输入，以内存为准
+      var d = parseJSON(raw, null);
+      if (d && typeof d === 'object') { state.draft = d; fillFormFromDraft(); }
+    };
+    if (p && typeof p.then === 'function') p.then(apply).catch(function () {});
+    else if (typeof p === 'string') apply(p);
+  }
+
+  /* ---------- 草稿 ---------- */
+  function scheduleDraftSave() {
+    state._draftTouched = true;
+    clearTimeout(draftTimer);
+    draftTimer = setTimeout(saveDraftNow, 350);
+  }
+
+  function saveDraftNow() {
+    var d = {
+      cat: curCat,
+      room: $('f-room').value.trim(),
+      phone: $('f-phone').value.trim(),
+      desc: $('f-desc').value.trim()
+    };
+    var empty = !d.room && !d.phone && !d.desc;
+    if (empty) {
+      state.draft = null;
+      rmLS(KEY_DRAFT);
+      setDraftHint(false, '');
+    } else {
+      d.savedAt = fmtTime(new Date());
+      state.draft = d;
+      setLS(KEY_DRAFT, JSON.stringify(d));
+      setDraftHint(true, d.savedAt);
+    }
+  }
+
+  function setDraftHint(show, time) {
+    var el = $('draft-hint');
+    el.hidden = !show;
+    if (show) el.textContent = '✎ 草稿已自动保存 ' + time;
+  }
+
+  function updateDescCounter() {
+    var el = $('desc-count');
+    if (!el) return;
+    var n = $('f-desc').value.length;
+    el.textContent = n + '/500';
+    el.classList.toggle('over', n > 450);
+  }
+
+  function clearFormAndDraft() {
+    $('f-room').value = '';
+    $('f-phone').value = '';
+    $('f-desc').value = '';
+    updateDescCounter();
+    state.draft = null;
+    rmLS(KEY_DRAFT);
+    setDraftHint(false, '');
+  }
+
+  function fillFormFromDraft() {
+    var d = state.draft;
+    if (!d) return;
+    if (d.cat && CATS.indexOf(d.cat) >= 0) {
+      curCat = d.cat;
+      activateCats();
+    }
+    $('f-room').value = d.room || '';
+    $('f-phone').value = d.phone || '';
+    $('f-desc').value = d.desc || '';
+    updateDescCounter();
+    setDraftHint(true, typeof d.savedAt === 'string' && d.savedAt ? d.savedAt : '');
+    toast('已恢复上次未提交的草稿');
+  }
+
+  /* ---------- 校验 ---------- */
+  function isPhone(s) {
+    return /^(1[3-9]\d{9}|0\d{2,3}-?\d{7,8})$/.test(s);
+  }
+
+  function fieldError(id) {
+    var v = $(id).value.trim();
+    if (id === 'f-room') {
+      if (!v) return '请填写宿舍楼栋 / 房间';
+      if (v.length < 2) return '楼栋 / 房间至少 2 个字符';
+      return '';
+    }
+    if (id === 'f-phone') {
+      if (!v) return '请填写联系电话';
+      if (!isPhone(v)) return '手机号需为 11 位（1 开头）或座机格式';
+      return '';
+    }
+    if (id === 'f-desc') {
+      if (!v) return '请描述遇到的问题';
+      if (v.length < 5) return '问题描述至少 5 个字符';
+      return '';
+    }
+    return '';
+  }
+
+  function setErr(inputId, errId, msg) {
+    var input = $(inputId);
+    var err = $(errId);
+    err.textContent = msg;
+    err.hidden = !msg;
+    input.classList.toggle('invalid', !!msg);
+    return !msg;
+  }
+
+  function validateField(id) {
+    var map = { 'f-room': 'e-room', 'f-phone': 'e-phone', 'f-desc': 'e-desc' };
+    setErr(id, map[id], fieldError(id));
+  }
+
+  function validateAll() {
+    var ok = true;
+    var map = { 'f-room': 'e-room', 'f-phone': 'e-phone', 'f-desc': 'e-desc' };
+    ['f-room', 'f-phone', 'f-desc'].forEach(function (id) {
+      if (!setErr(id, map[id], fieldError(id))) ok = false;
+    });
+    return ok;
+  }
+
+  /* ---------- 报修单 ---------- */
+  function genTicketNo(d) {
+    var prefix = 'BX-' + todayKey(d) + '-';
+    var seq = 1;
+    state.tickets.forEach(function (t) {
+      if (t.id && t.id.indexOf(prefix) === 0) {
+        var n = parseInt(t.id.slice(prefix.length), 10);
+        if (!isNaN(n) && n >= seq) seq = n + 1;
+      }
+    });
+    return prefix + pad3(seq);
+  }
+
+  function ticketText(t) {
+    return [
+      '【宿舍报修单】',
+      '单号：' + t.id,
+      '类别：' + t.cat,
+      '楼栋/房间：' + t.room,
+      '联系电话：' + (t.phone || '未留'),
+      '问题描述：' + t.desc,
+      '生成时间：' + t.createdAt,
+      '状态：' + (STATUS[t.status] ? STATUS[t.status].short : '待提交后勤')
+    ].join('\n');
+  }
+
+  function exportAllText() {
+    if (!state.tickets.length) return '';
+    var parts = ['【宿舍报修记录导出】 共 ' + state.tickets.length + ' 单（导出时间：' + fmtTime(new Date()) + '）', ''];
+    state.tickets.forEach(function (t, i) {
+      if (i) parts.push('────────────────────');
+      parts.push(ticketText(t));
+    });
+    return parts.join('\n');
+  }
+
+  function onSubmit(e) {
+    e.preventDefault();
+    if (Date.now() < genLock) return; // 防连点重复生成
+    if (!validateAll()) {
+      var first = document.querySelector('.field input.invalid, .field textarea.invalid');
+      if (first) first.focus();
+      return;
+    }
+    genLock = Date.now() + 600;
+    var now = new Date();
+    var ticket = {
+      id: genTicketNo(now),
+      cat: curCat,
+      room: $('f-room').value.trim(),
+      phone: $('f-phone').value.trim(),
+      desc: $('f-desc').value.trim(),
+      status: 'pending',
+      createdAt: fmtTime(now),
+      submittedAt: '',
+      doneAt: ''
+    };
+    state.tickets.unshift(ticket);
+    saveTickets();
+    renderTickets(ticket.id);
+    clearFormAndDraft();
+    toast('已生成本地报修单（未提交后勤）。请复制后自行提交。');
+    if (P && P.emit) {
+      try { P.emit('dorm-repair:generate', { id: ticket.id, cat: ticket.cat, room: ticket.room }); } catch (err) {}
+    }
+    var el = document.getElementById('tk-' + ticket.id);
+    if (el) el.scrollIntoView({ block: 'nearest' });
+  }
+
+  function setStatus(idx, to, atKey, msg) {
+    var t = state.tickets[idx];
+    if (!t) return;
+    t.status = to;
+    if (atKey) t[atKey] = fmtTime(new Date());
+    saveTickets();
+    renderTickets();
+    toast(msg);
+  }
+
+  /* ---------- 渲染 ---------- */
+  function updateCount() {
+    $('tcount').textContent = state.tickets.length + ' 单';
+  }
+
+  function activateCats() {
+    Array.prototype.forEach.call(document.querySelectorAll('.cat'), function (x) {
+      var on = x.getAttribute('data-c') === curCat;
+      x.classList.toggle('active', on);
+      x.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+  }
+
+  function opsFor(t, idx) {
+    var h = '<button type="button" class="btn ghost sm" data-act="copy" data-idx="' + idx + '">📋 复制报修单</button>';
+    if (t.status === 'pending') {
+      h += '<button type="button" class="btn ghost sm" data-act="mark-submit" data-idx="' + idx + '">✅ 标记已提交后勤</button>';
+    } else if (t.status === 'submitted') {
+      h += '<button type="button" class="btn ghost sm" data-act="mark-done" data-idx="' + idx + '">✅ 标记已解决</button>';
+      h += '<button type="button" class="btn ghost sm" data-act="reopen" data-idx="' + idx + '">↩ 重新打开</button>';
+    } else {
+      h += '<button type="button" class="btn ghost sm" data-act="reopen" data-idx="' + idx + '">↩ 重新打开</button>';
+    }
+    h += '<button type="button" class="btn danger sm" data-act="del" data-idx="' + idx + '">删除</button>';
+    return h;
+  }
+
+  function renderTickets(hlId) {
+    var el = $('tickets');
+    updateCount();
+    if (!state.tickets.length) {
+      el.innerHTML = '<div class="empty">还没有报修单 🔧<br>填写上方表单生成本地报修单，复制后自行提交后勤系统。</div>';
+      return;
+    }
+    var html = state.tickets.map(function (t, idx) {
+      var st = STATUS[t.status] || STATUS.pending;
+      var cls = STATUS[t.status] ? t.status : 'pending';
+      var meta = '<span class="tag2">📞 ' + esc(t.phone || '未留电话') + '</span>';
+      if (t.submittedAt) meta += '<span class="tag2">✅ 提交于 ' + esc(t.submittedAt) + '</span>';
+      if (t.doneAt) meta += '<span class="tag2">🏁 解决于 ' + esc(t.doneAt) + '</span>';
+      return '<div class="ticket' + (t.id === hlId ? ' flash' : '') + '" id="tk-' + esc(t.id) + '">' +
+        '<div class="head"><span class="no">' + esc(t.id) + ' · ' + esc(t.createdAt) + '</span>' +
+        '<span class="badge ' + cls + '">' + st.label + '</span></div>' +
+        '<div class="title">' + esc(t.cat) + ' · ' + esc(t.room) + '</div>' +
+        '<div class="desc">' + esc(t.desc) + '</div>' +
+        '<div class="meta">' + meta + '</div>' +
+        '<div class="ops">' + opsFor(t, idx) + '</div>' +
+      '</div>';
+    }).join('');
+    el.innerHTML = html;
+  }
+
+  /* ---------- 复制 / 导出 ---------- */
+  function copyText(text, okMsg, failMsg) {
+    if (!text) { toast('没有可复制的内容'); return; }
+    var done = function () { toast(okMsg); };
+    var failed = function () { showCopyModal(text, failMsg); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      var p;
+      try { p = navigator.clipboard.writeText(text); } catch (e) { p = null; }
+      if (p && typeof p.then === 'function') {
+        p.then(done).catch(function () {
+          if (legacyCopy(text)) { done(); } else { failed(); }
+        });
+        return;
+      }
+    }
+    if (legacyCopy(text)) { done(); return; }
+    failed();
+  }
+
+  function legacyCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    ta.style.top = '0';
+    document.body.appendChild(ta);
+    var ok = false;
+    try {
+      ta.select();
+      ta.setSelectionRange(0, text.length);
+      ok = document.execCommand('copy');
+    } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    return ok;
+  }
+
+  function showCopyModal(text, failMsg) {
+    $('copy-src').value = text;
+    $('copy-modal').hidden = false;
+    if (failMsg) toast(failMsg);
+    var ta = $('copy-src');
+    setTimeout(function () {
+      try { ta.focus(); ta.select(); } catch (e) {}
+    }, 50);
+  }
+
+  /* ---------- Toast ---------- */
+  var toastTimer = null;
+  function toast(msg) {
+    var el = $('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { el.classList.remove('show'); }, 2600);
+  }
+
+  /* ---------- 事件绑定 ---------- */
+  function bind() {
+    $('cats').addEventListener('click', function (e) {
+      var b = e.target.closest('.cat');
+      if (!b) return;
+      curCat = b.getAttribute('data-c');
+      activateCats();
+      scheduleDraftSave();
+    });
+
+    $('repair-form').addEventListener('submit', onSubmit);
+
+    ['f-room', 'f-phone', 'f-desc'].forEach(function (id) {
+      var el = $(id);
+      el.addEventListener('input', function () {
+        var eid = { 'f-room': 'e-room', 'f-phone': 'e-phone', 'f-desc': 'e-desc' }[id];
+        if (!$(eid).hidden) setErr(id, eid, fieldError(id));
+        if (id === 'f-desc') updateDescCounter();
+        scheduleDraftSave();
+      });
+      el.addEventListener('blur', function () { validateField(id); });
+    });
+
+    $('tickets').addEventListener('click', function (e) {
+      var btn = e.target.closest('button[data-act]');
+      if (!btn) return;
+      var act = btn.getAttribute('data-act');
+      var idx = parseInt(btn.getAttribute('data-idx'), 10);
+      var t = state.tickets[idx];
+      if (!t) return;
+      if (act === 'copy') {
+        copyText(ticketText(t), '已复制报修单，请自行提交至后勤系统', '自动复制失败');
+      } else if (act === 'mark-submit') {
+        setStatus(idx, 'submitted', 'submittedAt', '已标记为「已提交后勤」');
+      } else if (act === 'mark-done') {
+        setStatus(idx, 'done', 'doneAt', '已标记为「已解决」');
+      } else if (act === 'reopen') {
+        setStatus(idx, 'pending', null, '已重新打开为「待提交」');
+      } else if (act === 'del') {
+        state.tickets.splice(idx, 1);
+        saveTickets();
+        renderTickets();
+        toast('已删除该报修单');
+      }
+    });
+
+    $('copy-modal-close').addEventListener('click', function () {
+      $('copy-modal').hidden = true;
+    });
+
+    $('b-export-all').addEventListener('click', function () {
+      copyText(exportAllText(), '已复制全部报修记录（共 ' + state.tickets.length + ' 单）', '自动复制失败');
+    });
+    $('copy-modal').addEventListener('click', function (e) {
+      if (e.target === $('copy-modal')) $('copy-modal').hidden = true;
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !$('copy-modal').hidden) $('copy-modal').hidden = true;
+    });
+
+    // 离开页面 / 隐藏时立即落盘草稿（避免防抖窗口内关闭导致丢失）
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'hidden') { clearTimeout(draftTimer); saveDraftNow(); }
+    });
+    window.addEventListener('pagehide', function () { clearTimeout(draftTimer); saveDraftNow(); });
+  }
+
+  function init() {
+    bind();
+    loadTicketsSync();
+    loadDraftSync();
+    renderTickets();
+    if (state.draft) fillFormFromDraft();
+    updateDescCounter();
+    // 平台 storage polyfill 预载为异步：权威数据到达后合并（防重启后列表为空）
+    adoptPersistedTickets();
+    adoptPersistedDraft();
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,365 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>呼吸引导</title><style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  /* Evergreen 主题变量（bridge 注入并实时更新；此处为独立预览时的兜底值） */
+  --evg-background: #eef5f2; --evg-surface: #ffffff; --evg-text: #1c3a30;
+  --evg-text-secondary: #5f8377; --evg-accent: #2f9e8a; --evg-accent-bg: #e2f3ef;
+  --evg-accent-border: #bce2da; --evg-border: rgba(28, 58, 48, .09);
+  --evg-error: #d64545; --evg-others: #7fb8a8;
+  --bg: var(--evg-background); --card: var(--evg-surface); --ink: var(--evg-text);
+  --ink-soft: var(--evg-text-secondary); --accent: var(--evg-accent); --line: var(--evg-border);
+}
+html { font-size: 16px; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, sans-serif; background: var(--bg); color: var(--ink); min-height: 100vh; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+.topbar { display: flex; align-items: center; gap: .75rem; padding: 1.1rem 1.5rem; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--card) 72%, transparent); backdrop-filter: blur(.875rem); -webkit-backdrop-filter: blur(.875rem); position: sticky; top: 0; z-index: 5; }
+.topbar .ico { font-size: 1.5rem; }
+.topbar h1 { font-size: 1.15rem; font-weight: 700; }
+.topbar .sub { font-size: .72rem; color: var(--ink-soft); }
+.container { max-width: 40rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; text-align: center; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 1rem; padding: 1.5rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+.card h2 { font-size: .95rem; font-weight: 700; margin-bottom: .9rem; }
+.modes { display: flex; gap: .5rem; justify-content: center; flex-wrap: wrap; margin-bottom: 1rem; }
+.mode { appearance: none; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 50%, transparent); color: var(--ink-soft); font-family: inherit; font-size: .82rem; font-weight: 600; padding: .45rem .9rem; border-radius: .7rem; cursor: pointer; }
+.mode.active { color: #fff; background: var(--accent); border-color: var(--accent); }
+.breath-circle { position: relative; width: clamp(12rem, 72vw, 16rem); height: clamp(12rem, 72vw, 16rem); margin: 1rem auto; }
+.breath-circle .halo { position: absolute; inset: 0; border-radius: 50%; border: 1px solid var(--evg-accent-border); }
+.breath-circle .core {
+  position: absolute; inset: 20%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--accent) 65%, #fff), var(--accent));
+  box-shadow: 0 0 2.5rem color-mix(in srgb, var(--accent) 40%, transparent);
+  transform: scale(.55);
+  /* 动画时长由 JS 按每步实际秒数写入 --step-dur（对齐 4-7-8/盒式/谐振各模式） */
+  transition: transform var(--step-dur, 4s) cubic-bezier(.45,.05,.55,.95), opacity var(--step-dur, 4s) ease;
+}
+.breath-circle .core.in { transform: scale(1); opacity: 1; }
+.breath-circle .core.out { transform: scale(.55); opacity: .85; }
+.breath-circle .phase {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 1.3rem; font-weight: 700; color: var(--ink); z-index: 2;
+  flex-direction: column; gap: .2rem;
+}
+.breath-circle .phase .sub { font-size: .8rem; font-weight: 500; color: var(--ink-soft); }
+.ctrl { display: flex; gap: .6rem; justify-content: center; flex-wrap: wrap; margin-top: 1rem; }
+.btn { appearance: none; border: none; cursor: pointer; font-family: inherit; font-size: .9rem; font-weight: 600; padding: .65rem 1.4rem; border-radius: .8rem; color: #fff; background: var(--accent); transition: transform .15s ease, opacity .15s ease; }
+.btn:hover { transform: translateY(-1px); opacity: .92; }
+.btn:active { transform: translateY(0); }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn:disabled { opacity: .45; cursor: default; transform: none; }
+.rounds { display: grid; grid-template-columns: repeat(4, 1fr); gap: .6rem; margin-top: 1rem; }
+.stat { text-align: center; padding: .7rem .4rem; border-radius: .8rem; background: color-mix(in srgb, var(--bg) 55%, transparent); border: 1px solid var(--line); }
+.stat .v { font-size: 1.25rem; font-weight: 700; line-height: 1.2; }
+.stat .l { font-size: .7rem; color: var(--ink-soft); margin-top: .15rem; }
+.durline { margin-top: .75rem; font-size: .75rem; color: var(--ink-soft); }
+.tip { font-size: .8rem; color: var(--ink-soft); line-height: 1.7; background: color-mix(in srgb, var(--bg) 50%, transparent); border: 1px solid var(--line); border-radius: .8rem; padding: .8rem 1rem; text-align: left; }
+.tip b { color: var(--accent); }
+/* 窄屏：统计 2×2 布局，避免 4 列溢出 */
+@media (max-width: 40rem) { .rounds { grid-template-columns: repeat(2, 1fr); } .stat .v { font-size: 1.15rem; } }
+@media (max-width: 22rem) { .topbar { padding: .9rem 1rem; } .container { padding: 1rem .9rem 2.5rem; } .card { padding: 1.1rem; } }
+/* 尊重系统「减弱动态效果」：圆环直接切换状态，不播放过渡 */
+@media (prefers-reduced-motion: reduce) { .core { transition: none !important; } }
+</style></head><body>
+<header class="topbar">
+  <span class="ico">🌬️</span>
+  <div><h1>呼吸引导</h1><div class="sub">正念呼吸 · 缓解焦虑 · 提升专注</div></div>
+</header>
+<main class="container">
+  <section class="card">
+    <div class="modes" id="modes">
+      <button type="button" class="mode active" data-m="478">😌 4-7-8 放松</button>
+      <button type="button" class="mode" data-m="box">🧘 盒式呼吸</button>
+      <button type="button" class="mode" data-m="coherent">🌊 谐振呼吸</button>
+    </div>
+    <div class="breath-circle">
+      <div class="halo"></div>
+      <div class="core" id="core"></div>
+      <div class="phase" role="status" aria-live="polite"><span id="phase-name">准备</span><span class="sub" id="phase-sub">选择一个呼吸模式开始</span></div>
+    </div>
+    <div class="ctrl">
+      <button type="button" class="btn" id="b-start">▶ 开始</button>
+      <button type="button" class="btn ghost" id="b-pause" disabled>⏸ 暂停</button>
+      <button type="button" class="btn ghost" id="b-reset">↺ 重置</button>
+    </div>
+    <div class="rounds">
+      <div class="stat"><div class="v" id="st-session">0</div><div class="l">本轮次数</div></div>
+      <div class="stat"><div class="v" id="st-today">0</div><div class="l">今日轮数</div></div>
+      <div class="stat"><div class="v" id="st-streak">0</div><div class="l">连续天数</div></div>
+      <div class="stat"><div class="v" id="st-total">0</div><div class="l">累计轮数</div></div>
+    </div>
+    <div class="durline" id="st-duration">累计练习 0 秒 · 已坚持 0 天</div>
+  </section>
+  <section class="card">
+    <h2>💡 呼吸小贴士</h2>
+    <div class="tip">
+      <b>4-7-8 放松法</b>：吸气 4 秒 → 屏息 7 秒 → 呼气 8 秒，帮助快速放松入睡。<br>
+      <b>盒式呼吸</b>：吸 4 → 屏 4 → 呼 4 → 屏 4，常用于缓解压力与提升专注。<br>
+      <b>谐振呼吸</b>：每分约 5-6 次呼吸（各 5 秒），与心率谐振，平复情绪。
+    </div>
+  </section>
+</main>
+<script>
+(function () {
+  'use strict';
+
+  var P = (typeof platform !== 'undefined') ? platform : null;
+
+  // ═══ 存储：localStorage（平台 polyfill：同步内存 + 异步落盘到插件私有存储）═══
+  var KEY = 'evg.breathing-guide';
+  var DEFAULT_STORE = {
+    version: 2,
+    totalRounds: 0,   // 累计完成轮数
+    totalSeconds: 0,  // 累计练习秒数（每完成一轮累加该轮总时长）
+    lastDate: '',     // 最近完成轮数的日期（YYYY-MM-DD，本地时区）
+    todayRounds: 0,   // 今日完成轮数
+    days: 0,          // 已坚持天数（去重）
+    streak: 0,        // 连续练习天数
+    mode: '478'       // 上次使用的模式（偏好，启动时恢复）
+  };
+
+  function pad2(n) { return n < 10 ? '0' + n : String(n); }
+  function dateStr(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+  function todayStr() { return dateStr(new Date()); }
+  function yesterdayStr() { var d = new Date(); d.setDate(d.getDate() - 1); return dateStr(d); }
+
+  function loadStore() {
+    var raw = null;
+    try { raw = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { raw = null; }
+    var s = (raw && typeof raw === 'object') ? raw : {};
+    var out = Object.assign({}, DEFAULT_STORE, s);
+    if (s.version !== 2) {
+      // v1 → v2：旧字段 rounds/seconds 迁移为累计值；日期类统计归零（不伪造数据）
+      if (typeof s.rounds === 'number' && s.rounds > 0) out.totalRounds = s.rounds;
+      if (typeof s.seconds === 'number' && s.seconds > 0) out.totalSeconds = s.seconds;
+      out.lastDate = '';
+      out.todayRounds = 0;
+      out.days = 0;
+      out.streak = 0;
+      out.version = 2;
+      save(out); // 迁移结果立即落盘（save 为函数声明，已提升，显式传对象避免引用未赋值的 store）
+    }
+    return out;
+  }
+
+  var store = loadStore();
+
+  function save(obj) {
+    try { localStorage.setItem(KEY, JSON.stringify(obj || store)); } catch (e) { /* 存储不可用：仅会话内有效 */ }
+  }
+
+  // 每完成一轮：累计/今日/坚持天数/连续天数统计（按本地日期滚动）
+  function onRoundComplete() {
+    var t = todayStr();
+    if (store.lastDate !== t) {
+      store.streak = (store.lastDate === yesterdayStr()) ? store.streak + 1 : 1;
+      store.days = store.lastDate ? store.days + 1 : 1;
+      store.lastDate = t;
+      store.todayRounds = 0;
+    }
+    store.todayRounds++;
+    store.totalRounds++;
+    store.totalSeconds += MODES[mode].seq.reduce(function (sum, s) { return sum + s[1]; }, 0);
+    save();
+    if (P && P.emit) {
+      try { P.emit('breathing-guide:round', { total: store.totalRounds, today: store.todayRounds }); } catch (e) {}
+    }
+  }
+
+  // ═══ 呼吸模式 ═══
+  // seq 项 = [阶段名, 时长(秒), 目标缩放状态(1=扩张 / 0=收缩)]；屏息沿用上一阶段状态
+  var MODES = {
+    '478':      { name: '4-7-8 放松', seq: [['吸气', 4, 1], ['屏息', 7, 1], ['呼气', 8, 0]] },
+    'box':      { name: '盒式呼吸',  seq: [['吸气', 4, 1], ['屏息', 4, 1], ['呼气', 4, 0], ['屏息', 4, 0]] },
+    'coherent': { name: '谐振呼吸',  seq: [['吸气', 5, 1], ['呼气', 5, 0]] }
+  };
+
+  var mode = MODES[store.mode] ? store.mode : '478';
+  var timer = null;
+  var running = false;      // 会话进行中
+  var paused = false;       // 已暂停（可继续，而不是重新开始）
+  var pausedRemaining = 0;  // 暂停时当前步骤剩余毫秒
+  var stepIdx = 0;
+  var stepEndsAt = 0;       // 当前步骤截止时间戳（壁钟，保证计时准确、抗漂移）
+  var sessionRounds = 0;
+
+  function el(id) { return document.getElementById(id); }
+  var coreEl = el('core');
+
+  function loadMode(m) {
+    if (!MODES[m]) m = '478';
+    mode = m;
+    store.mode = m;         // 持久化模式偏好
+    save();
+    stop();
+    sessionRounds = 0;
+    setPhase('准备', MODES[m].name);
+    renderModeButtons();
+    renderStats();
+  }
+
+  function renderModeButtons() {
+    Array.prototype.forEach.call(document.querySelectorAll('.mode'), function (b) {
+      b.classList.toggle('active', b.getAttribute('data-m') === mode);
+    });
+  }
+
+  function setPhase(name, sub) {
+    el('phase-name').textContent = name;
+    el('phase-sub').textContent = sub;
+  }
+
+  function setCore(state) {
+    // 同一任务内先移除再加回同类：浏览器只计算最终样式，不触发过渡 → 屏息保持静止
+    coreEl.classList.remove('in', 'out');
+    if (state === 'in') coreEl.classList.add('in');
+    if (state === 'out') coreEl.classList.add('out');
+  }
+
+  function stepInfo() { return MODES[mode].seq[stepIdx]; }
+
+  function updatePhaseSub(remSeconds) {
+    var seq = MODES[mode].seq;
+    setPhase(stepInfo()[0], MODES[mode].name + ' · ' + (stepIdx + 1) + '/' + seq.length + ' 步 · ' + remSeconds + 's');
+  }
+
+  // 自适应节拍：剩余 <2s 时加密轮询（200ms），保证相位切换准时；平时 1s 一次
+  function schedule() {
+    if (!running) return;
+    var delay = (stepEndsAt - Date.now()) < 2000 ? 200 : 1000;
+    timer = setTimeout(tick, delay);
+  }
+
+  function startStep() {
+    var seq = MODES[mode].seq;
+    if (stepIdx >= seq.length) {
+      stepIdx = 0;
+      sessionRounds++;
+      onRoundComplete();
+      renderStats();
+    }
+    var step = stepInfo();
+    var dur = step[1];
+    stepEndsAt = Date.now() + dur * 1000;
+    coreEl.style.setProperty('--step-dur', dur + 's');  // 动画时长对齐本步实际时长
+    updatePhaseSub(dur);
+    setCore(step[2] === 1 ? 'in' : 'out');              // 屏息沿用上一阶段缩放
+    el('st-session').textContent = sessionRounds;
+    schedule();
+  }
+
+  function tick() {
+    if (!running) return;
+    var remMs = stepEndsAt - Date.now();   // 壁钟换算剩余，天然抗 setInterval 漂移
+    var rem = Math.max(0, Math.ceil(remMs / 1000));
+    if (rem <= 0) {
+      stepIdx++;
+      startStep();
+      return;
+    }
+    updatePhaseSub(rem);
+    schedule();
+  }
+
+  function start() {
+    if (running) return;
+    if (paused) { resume(); return; }   // 暂停后「继续」
+    running = true;
+    stepIdx = 0;
+    pausedRemaining = 0;
+    startStep();
+    setRunningUI(true);
+  }
+
+  function resume() {
+    running = true;
+    paused = false;
+    var remMs = pausedRemaining > 0 ? pausedRemaining : stepInfo()[1] * 1000;
+    if (remMs < 250) remMs = 250;
+    stepEndsAt = Date.now() + remMs;
+    coreEl.style.setProperty('--step-dur', (remMs / 1000) + 's');  // 剩余时长内续播动画
+    coreEl.style.transition = '';
+    coreEl.style.transform = '';   // 从冻结位置动画到目标状态
+    updatePhaseSub(Math.ceil(remMs / 1000));
+    setRunningUI(true);
+    schedule();
+  }
+
+  function pause() {
+    if (!running || paused) return;
+    paused = true;
+    pausedRemaining = Math.max(0, stepEndsAt - Date.now());
+    running = false;
+    stopTimer();
+    freezeCore();
+    setPhase('已暂停', MODES[mode].name + (pausedRemaining > 0 ? ' · 剩余 ' + Math.ceil(pausedRemaining / 1000) + 's' : ''));
+    el('b-start').textContent = '▶ 继续';
+    setRunningUI(false);
+  }
+
+  function stop() {
+    running = false;
+    paused = false;
+    pausedRemaining = 0;
+    stopTimer();
+    unfreezeCore();
+    coreEl.classList.remove('in', 'out');
+    coreEl.style.setProperty('--step-dur', '4s');
+    el('b-start').textContent = '▶ 开始';
+    setRunningUI(false);
+  }
+
+  function stopTimer() {
+    if (timer) { clearTimeout(timer); timer = null; }
+  }
+
+  // 暂停时冻结圆环当前动画位置，恢复时从该位置继续
+  function freezeCore() {
+    var t = getComputedStyle(coreEl).transform;
+    coreEl.style.transition = 'none';
+    coreEl.style.transform = (t && t !== 'none') ? t : 'scale(.55)';
+  }
+
+  function unfreezeCore() {
+    coreEl.style.transition = '';
+    coreEl.style.transform = '';
+  }
+
+  function setRunningUI(r) {
+    el('b-start').disabled = r;
+    el('b-pause').disabled = !r;
+  }
+
+  // ═══ 统计 ═══
+  function fmtDuration(sec) {
+    sec = Math.max(0, Math.round(sec || 0));
+    if (sec < 60) return sec + ' 秒';
+    var m = Math.floor(sec / 60);
+    var s = sec % 60;
+    return s > 0 ? m + ' 分 ' + s + ' 秒' : m + ' 分钟';
+  }
+
+  function renderStats() {
+    el('st-session').textContent = sessionRounds;
+    el('st-today').textContent = store.todayRounds;
+    el('st-streak').textContent = store.streak;
+    el('st-total').textContent = store.totalRounds;
+    el('st-duration').textContent = '累计练习 ' + fmtDuration(store.totalSeconds) + ' · 已坚持 ' + store.days + ' 天';
+  }
+
+  // ═══ 事件绑定 ═══
+  el('b-start').addEventListener('click', start);
+  el('b-pause').addEventListener('click', pause);
+  el('b-reset').addEventListener('click', function () { loadMode(mode); });
+  Array.prototype.forEach.call(document.querySelectorAll('.mode'), function (b) {
+    b.addEventListener('click', function () { loadMode(b.getAttribute('data-m')); });
+  });
+  // 页面隐藏时自动暂停（后台无法跟随节奏，避免悄悄跑完一轮）；回到前台由用户手动继续
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden && running && !paused) pause();
+  });
+
+  // ═══ 初始化（恢复上次模式偏好）═══
+  renderModeButtons();
+  setPhase('准备', MODES[mode].name);
+  renderStats();
+})();
+</script></body></html>

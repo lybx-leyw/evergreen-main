@@ -1,0 +1,40 @@
+{
+  "type": "skin",
+  "id": "deep-ocean",
+  "name": "深海",
+  "version": "1.0.0",
+  "description": "「深海」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+  "background": {
+    "type": "image",
+    "imageDesktop": "bg_desktop.svg",
+    "imageMobile": "bg_mobile.svg"
+  },
+  "bubble": {
+    "userBackgroundColor": "#163050",
+    "userTextColor": "#E4EEF8",
+    "borderRadius": 18
+  },
+  "avatar": {
+    "user": "avatar_user.svg",
+    "userBackgroundColor": "#48A1EA"
+  },
+  "thinking": {
+    "title": "思考过程",
+    "colors": {
+      "header": "#48A1EA",
+      "containerBackground": "#163050",
+      "containerBorder": "#0A1A2F",
+      "contentText": "#E4EEF8",
+      "chipMemoryBg": "#163050",
+      "chipMemoryFg": "#48A1EA",
+      "chipSkillBg": "#163050",
+      "chipSkillFg": "#48A1EA",
+      "chipToolBg": "#163050",
+      "chipToolFg": "#48A1EA",
+      "chipToolResultBg": "#163050",
+      "chipToolResultFg": "#48A1EA"
+    }
+  },
+  "effortColor": "#48A1EA",
+  "toolActiveColor": "#48A1EA"
+}

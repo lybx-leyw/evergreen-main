@@ -1,0 +1,58 @@
+{
+  "type": "data-source",
+  "id": "campus-weather",
+  "name": "校园天气",
+  "script": "fetch.py",
+  "runtime": "python",
+  "androidSupport": true,
+  "dataTypes": [
+    {
+      "name": "campus_weather",
+      "typeArg": "campus_weather",
+      "category": "生活",
+      "displayName": "杭州天气",
+      "ttl": "30m",
+      "persistentKey": "campus_weather"
+    },
+    {
+      "name": "beijing_weather",
+      "typeArg": "beijing_weather",
+      "category": "生活",
+      "displayName": "北京天气",
+      "ttl": "30m",
+      "persistentKey": "beijing_weather"
+    },
+    {
+      "name": "shanghai_weather",
+      "typeArg": "shanghai_weather",
+      "category": "生活",
+      "displayName": "上海天气",
+      "ttl": "30m",
+      "persistentKey": "shanghai_weather"
+    },
+    {
+      "name": "shenzhen_weather",
+      "typeArg": "shenzhen_weather",
+      "category": "生活",
+      "displayName": "深圳天气",
+      "ttl": "30m",
+      "persistentKey": "shenzhen_weather"
+    },
+    {
+      "name": "chengdu_weather",
+      "typeArg": "chengdu_weather",
+      "category": "生活",
+      "displayName": "成都天气",
+      "ttl": "30m",
+      "persistentKey": "chengdu_weather"
+    },
+    {
+      "name": "guangzhou_weather",
+      "typeArg": "guangzhou_weather",
+      "category": "生活",
+      "displayName": "广州天气",
+      "ttl": "30m",
+      "persistentKey": "guangzhou_weather"
+    }
+  ]
+}

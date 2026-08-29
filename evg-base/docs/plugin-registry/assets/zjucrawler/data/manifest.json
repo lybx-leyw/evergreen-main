@@ -1,0 +1,27 @@
+{
+  "type": "data-source",
+  "id": "zjucrawler",
+  "name": "ZJU 教务数据",
+  "script": "scraper.py",
+  "runtime": "python",
+  "androidSupport": true,
+  "auth": {
+    "sessionProvider": "zju",
+    "sessionDomain": "courses.zju.edu.cn",
+    "credentialKeys": ["ZJU_USERNAME", "ZJU_PASSWORD"]
+  },
+  "dataTypes": [
+    {
+      "name": "zju_course",
+      "typeArg": "zju_course",
+      "category": "教务",
+      "displayName": "我的课程（学在浙大）",
+      "ttl": "30m",
+      "persistentKey": "zjucrawler_zju_course",
+      "fallbackJson": {
+        "courses": [],
+        "note": "未配置浙大统一认证凭据或拉取失败时返回空课程列表——配置 ZJU_USERNAME/ZJU_PASSWORD 后自动拉取真实数据"
+      }
+    }
+  ]
+}

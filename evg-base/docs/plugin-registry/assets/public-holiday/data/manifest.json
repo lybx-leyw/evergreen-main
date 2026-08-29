@@ -1,0 +1,22 @@
+{
+  "type": "data-source",
+  "id": "public-holiday",
+  "name": "节假日",
+  "script": "fetch.py",
+  "runtime": "python",
+  "androidSupport": true,
+  "dataTypes": [
+    {
+      "name": "public_holiday",
+      "typeArg": "public_holiday",
+      "category": "生活",
+      "displayName": "中国法定节假日",
+      "ttl": "24h",
+      "persistentKey": "public_holiday_cn",
+      "fallbackJson": {
+        "items": [],
+        "warning": "节假日 API 不可用且无缓存"
+      }
+    }
+  ]
+}

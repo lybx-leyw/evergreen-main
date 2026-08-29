@@ -1,0 +1,23 @@
+{
+  "type": "data-source",
+  "id": "oil-price",
+  "name": "油价",
+  "script": "fetch.py",
+  "runtime": "python",
+  "androidSupport": true,
+  "dataTypes": [
+    {
+      "name": "oil_price",
+      "typeArg": "oil_price",
+      "category": "财经",
+      "displayName": "国际油价",
+      "ttl": "60m",
+      "persistentKey": "oil_price",
+      "fallbackJson": {
+        "items": [],
+        "source": "static-fallback",
+        "note": "暂无法获取实时油价（离线或上游不可用），请稍后刷新"
+      }
+    }
+  ]
+}

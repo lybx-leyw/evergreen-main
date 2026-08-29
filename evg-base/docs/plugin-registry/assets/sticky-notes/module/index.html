@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>便签</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+/* 主题：只引用平台注入的 --evg-* 变量（禁止在 :root 重定义它们），
+   缺省值兜底；平台注入后（内联样式）自动覆盖，明暗主题实时跟随。 */
+:root {
+  --bg: var(--evg-background, #f5f1e8);
+  --card: var(--evg-surface, #ffffff);
+  --ink: var(--evg-text, #3a3226);
+  --ink-soft: var(--evg-text-secondary, #8a7d68);
+  --accent: var(--evg-accent, #b8860b);
+  --accent-bg: var(--evg-accent-bg, #faf0d4);
+  --accent-border: var(--evg-accent-border, #e6d6a0);
+  --line: var(--evg-border, rgba(58, 50, 38, .12));
+  --err: var(--evg-error, #c62828);
+  /* 便签纸固定墨色：便签底色恒为浅色，深墨保证两种主题下对比度都可读 */
+  --note-ink: #3b3223;
+  --note-ink-soft: rgba(59, 50, 35, .72);
+  --btn-ink: #ffffff;
+}
+/* 平台未注入主题时（纯浏览器预览）跟随系统明暗；兜底值同样包在 var() 里，
+   保证平台注入后媒体查询不与其冲突 */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: var(--evg-background, #1d1b16);
+    --card: var(--evg-surface, #28251e);
+    --ink: var(--evg-text, #ece5d4);
+    --ink-soft: var(--evg-text-secondary, #a89c86);
+    --accent: var(--evg-accent, #e0b03f);
+    --accent-bg: var(--evg-accent-bg, #3a3117);
+    --accent-border: var(--evg-accent-border, #6a5a24);
+    --line: var(--evg-border, rgba(236, 229, 212, .14));
+    --err: var(--evg-error, #e57373);
+  }
+}
+html { font-size: 16px; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, sans-serif;
+  background: var(--bg); color: var(--ink);
+  min-height: 100vh; line-height: 1.5; -webkit-font-smoothing: antialiased;
+}
+.topbar {
+  display: flex; align-items: center; gap: .75rem; padding: 1.1rem 1.5rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--card);
+  background: color-mix(in srgb, var(--card) 72%, transparent);
+  backdrop-filter: blur(.875rem); -webkit-backdrop-filter: blur(.875rem);
+  position: sticky; top: 0; z-index: 5;
+}
+.topbar .ico { font-size: 1.5rem; }
+.topbar h1 { font-size: 1.15rem; font-weight: 700; }
+.topbar .sub { font-size: .72rem; color: var(--ink-soft); }
+.container { max-width: 62rem; margin: 0 auto; padding: 1.5rem 1.25rem 2rem; }
+.card {
+  background: var(--card); border: 1px solid var(--line); border-radius: 1rem;
+  padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.05);
+}
+.card h2 {
+  font-size: .95rem; font-weight: 700; margin-bottom: .9rem;
+  display: flex; align-items: center; justify-content: space-between; gap: .5rem;
+}
+.card h2 .f { font-size: .72rem; color: var(--ink-soft); font-weight: 500; }
+.board { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: .9rem; }
+.sticky {
+  border-radius: .8rem; padding: .85rem .9rem .7rem; min-height: 9rem;
+  display: flex; flex-direction: column; position: relative;
+  box-shadow: 0 2px 8px rgba(0,0,0,.08);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.sticky:hover, .sticky:focus-within { transform: translateY(-3px) rotate(-.4deg); box-shadow: 0 6px 16px rgba(0,0,0,.12); }
+.sticky.pinned { box-shadow: 0 2px 8px rgba(0,0,0,.08), 0 0 0 2px var(--accent); }
+.sticky .date { font-size: .66rem; color: var(--note-ink-soft); margin-bottom: .35rem; }
+.sticky .text {
+  flex: 1; font-size: .88rem; line-height: 1.55; color: var(--note-ink);
+  white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere;
+}
+.sticky .ops {
+  display: flex; justify-content: flex-end; gap: .2rem; margin-top: .4rem;
+  opacity: 0; transition: opacity .15s ease;
+}
+.sticky:hover .ops, .sticky:focus-within .ops { opacity: 1; }
+@media (hover: none) { .sticky .ops { opacity: 1; } } /* 触屏无 hover：常显操作 */
+.icon-btn {
+  appearance: none; border: none; background: transparent; cursor: pointer;
+  font-family: inherit; font-size: .85rem; padding: .15rem .3rem; border-radius: .4rem;
+  color: var(--ink-soft);
+}
+.icon-btn:hover { background: color-mix(in srgb, var(--ink) 10%, transparent); color: var(--ink); }
+.sticky .icon-btn { color: var(--note-ink-soft); }
+.sticky .icon-btn:hover { background: rgba(59,50,35,.12); color: var(--note-ink); }
+.icon-btn.danger:hover { color: var(--err); }
+.icon-btn.danger.confirming { color: var(--err); font-weight: 700; background: rgba(198,40,40,.1); }
+.edit {
+  flex: 1; display: flex; flex-direction: column; gap: .4rem;
+  min-height: 5.5rem;
+}
+.edit textarea {
+  flex: 1; min-height: 4.5rem; padding: .5rem .6rem; border-radius: .5rem;
+  border: 1px solid var(--line); background: var(--card); color: var(--note-ink);
+  font-family: inherit; font-size: .88rem; resize: vertical; line-height: 1.5;
+}
+.edit-ops { display: flex; justify-content: flex-end; gap: .4rem; }
+.colors { display: flex; gap: .4rem; flex-wrap: wrap; margin-bottom: .8rem; }
+.cpick {
+  width: 1.9rem; height: 1.9rem; border-radius: .5rem;
+  border: 2px solid transparent; cursor: pointer; padding: 0;
+}
+.cpick.active { border-color: var(--ink); }
+.cpick:focus-visible, .icon-btn:focus-visible, .btn:focus-visible,
+.in-field:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.compose { display: flex; gap: .5rem; }
+.compose textarea {
+  flex: 1; min-height: 4rem; padding: .6rem .75rem; border-radius: .7rem;
+  border: 1px solid var(--line); background: var(--card); color: var(--ink);
+  font-family: inherit; font-size: .88rem; resize: vertical; line-height: 1.5;
+}
+.compose textarea:focus, .in-field:focus { outline: 2px solid var(--accent-border); border-color: var(--accent-border); }
+.btn {
+  appearance: none; border: none; cursor: pointer; font-family: inherit;
+  font-size: .85rem; font-weight: 600; padding: .55rem 1.1rem; border-radius: .7rem;
+  color: var(--btn-ink); background: var(--accent);
+  transition: transform .15s ease, opacity .15s ease; align-self: flex-end;
+}
+.btn:hover { transform: translateY(-1px); opacity: .92; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn.small { padding: .3rem .7rem; font-size: .8rem; border-radius: .5rem; align-self: auto; }
+.toolbar { display: flex; gap: .5rem; margin-bottom: .9rem; }
+.in-field {
+  flex: 1; min-width: 0; padding: .45rem .7rem; border-radius: .6rem;
+  border: 1px solid var(--line); background: var(--card); color: var(--ink);
+  font-family: inherit; font-size: .84rem;
+}
+.toolbar select {
+  padding: .45rem .6rem; border-radius: .6rem; border: 1px solid var(--line);
+  background: var(--card); color: var(--ink); font-family: inherit; font-size: .82rem;
+  cursor: pointer;
+}
+.draft-hint {
+  margin-top: .6rem; font-size: .76rem; color: var(--ink-soft);
+  display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+}
+.link-btn {
+  appearance: none; border: none; background: transparent; cursor: pointer;
+  font-family: inherit; font-size: .76rem; color: var(--accent);
+  padding: .1rem .3rem; border-radius: .3rem; text-decoration: underline;
+}
+.link-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.empty {
+  text-align: center; color: var(--ink-soft); font-size: .85rem;
+  padding: 2rem 0; grid-column: 1 / -1;
+}
+.foot {
+  text-align: center; font-size: .72rem; color: var(--ink-soft);
+  padding: .5rem 0 1.2rem;
+}
+[hidden] { display: none !important; }
+@media (max-width: 640px) {
+  .topbar { flex-wrap: wrap; padding: .85rem 1rem; }
+  .container { padding: 1rem .9rem 1.6rem; }
+  .board { grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); gap: .7rem; }
+  .compose { flex-direction: column; align-items: stretch; }
+  .compose .btn { align-self: stretch; }
+  .toolbar { flex-wrap: wrap; }
+  .toolbar .in-field { flex-basis: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+  .sticky:hover, .sticky:focus-within { transform: none; }
+  .btn:hover { transform: none; }
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <span class="ico">📌</span>
+  <div><h1>便签</h1><div class="sub">灵感随手记 · 颜色分类 · 置顶排序 · 数据保存在本机</div></div>
+</header>
+<main class="container">
+  <section class="card">
+    <h2>✍️ 新便签 <span class="f">回车添加 · Shift+回车换行</span></h2>
+    <div class="colors" id="colors" role="radiogroup" aria-label="便签颜色"></div>
+    <div class="compose">
+      <textarea id="in-text" placeholder="记点什么？灵感、待办、电话号码…" aria-label="便签内容"></textarea>
+      <button class="btn" id="b-add">添加</button>
+    </div>
+    <div class="draft-hint" id="draft-hint" hidden>
+      <span>💾 已恢复上次未添加的草稿</span>
+      <button class="link-btn" id="b-clear-draft" type="button">清空草稿</button>
+    </div>
+  </section>
+  <section class="card">
+    <h2>📌 便签墙 <span class="f" id="ncount">0 张</span></h2>
+    <div class="toolbar">
+      <input class="in-field" id="in-search" type="search" placeholder="搜索便签…" aria-label="搜索便签">
+      <select id="in-sort" aria-label="排序方式">
+        <option value="pin">置顶优先</option>
+        <option value="new">最新创建</option>
+        <option value="old">最早创建</option>
+        <option value="color">按颜色</option>
+      </select>
+    </div>
+    <div class="board" id="board" role="list"></div>
+  </section>
+  <footer class="foot">🔒 便签数据保存在本机（模块本地存储），不会上传网络</footer>
+</main>
+<script>
+(function () {
+  'use strict';
+  var P = (typeof platform !== 'undefined') ? platform : null;
+  var KEY = 'evg.sticky-notes';
+  var KEY_DRAFT = 'evg.sticky-notes.draft';
+  var KEY_SORT = 'evg.sticky-notes.sort';
+  var SORTS = ['pin', 'new', 'old', 'color'];
+  var PALETTE = [
+    { c: '#fff3b8', name: '柠檬黄' }, { c: '#ffd9d9', name: '樱粉' }, { c: '#d4f0d2', name: '薄荷绿' },
+    { c: '#d6e4ff', name: '雾蓝' }, { c: '#ecd9ff', name: '香芋紫' }, { c: '#ffe0c2', name: '杏橙' }
+  ];
+
+  var store = { notes: [] };
+  var picked = 0;
+  var query = '';
+  var sortPref = 'pin';
+  var sortTouched = false;
+  var editingId = null;
+  var confirmDel = null;
+  var confirmTimer = null;
+  var draftTimer = null;
+
+  // 启动竞态防护：list() 异步合并完成前禁止落盘覆盖旧数据。
+  // 启动期用户操作只改内存并标记 pendingSave，合并完成后统一落盘，
+  // 保证「本地旧便签」与「启动期新写」都不会因预载竞态丢失。
+  var booted = false;
+  var pendingSave = false;
+  var restoredDraft = false;
+  var bootTombstones = {}; // 启动期已删除的 id：合并时不得复活
+
+  function $(id) { return document.getElementById(id); }
+
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function fmtDate(d) {
+    return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  }
+  function normalizeNote(n) {
+    var now = Date.now();
+    return {
+      id: (n && typeof n.id === 'string' && n.id) ? n.id : ('s' + now + '_' + Math.random().toString(36).slice(2, 7)),
+      text: (n && typeof n.text === 'string') ? n.text : String(n == null || n.text == null ? '' : n.text),
+      color: (n && typeof n.color === 'number' && n.color >= 0 && n.color < PALETTE.length) ? n.color : 0,
+      date: (n && typeof n.date === 'string') ? n.date : fmtDate(new Date()),
+      ts: (n && typeof n.ts === 'number') ? n.ts : now,
+      pinned: !!(n && n.pinned)
+    };
+  }
+
+  // ── 存储 ────────────────────────────────────────────────
+  function loadMemory() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      var obj = raw ? JSON.parse(raw) : null;
+      if (obj && Array.isArray(obj.notes)) {
+        store.notes = obj.notes.map(normalizeNote).filter(function (n) { return n.text; });
+      }
+    } catch (e) { /* 损坏数据静默忽略，从空开始 */ }
+  }
+  function save() {
+    if (!booted) { pendingSave = true; return; } // 启动期只标记，合并后再写
+    try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) { /* 落盘失败：会话内有效 */ }
+  }
+  function flushPending() {
+    booted = true;
+    if (pendingSave) { pendingSave = false; save(); }
+  }
+  /** 按 id 去重合并外部数据；内存（本会话）优先，外部只补缺 */
+  function mergeNotes(incoming) {
+    if (!Array.isArray(incoming) || !incoming.length) return 0;
+    var byId = {};
+    var i;
+    for (i = 0; i < store.notes.length; i++) byId[store.notes[i].id] = store.notes[i];
+    var added = 0;
+    for (i = 0; i < incoming.length; i++) {
+      var raw = incoming[i];
+      if (!raw || typeof raw !== 'object') continue; // 跳过损坏条目
+      var n = normalizeNote(raw);
+      if (!n.text) continue; // 空条目（UI 不允许创建）视为损坏
+      if (n.id && !bootTombstones[n.id] && !byId[n.id]) { byId[n.id] = n; added++; }
+    }
+    if (added) {
+      store.notes = [];
+      for (var k in byId) store.notes.push(byId[k]);
+    }
+    return added;
+  }
+  /** platform.storage.list() 重读合并：便签 / 草稿 / 排序偏好 三合一 */
+  function mergeFromPlatform(entries) {
+    var changed = false;
+    if (entries) {
+      if (typeof entries[KEY] === 'string') {
+        try {
+          var obj = JSON.parse(entries[KEY]);
+          if (obj && Array.isArray(obj.notes)) changed = mergeNotes(obj.notes) > 0;
+        } catch (e) { /* 损坏则忽略 */ }
+      }
+      if (!restoredDraft && typeof entries[KEY_DRAFT] === 'string' && entries[KEY_DRAFT] && !$('in-text').value) {
+        $('in-text').value = entries[KEY_DRAFT];
+        restoredDraft = true;
+        showDraftHint();
+      }
+      if (!sortTouched && typeof entries[KEY_SORT] === 'string' && SORTS.indexOf(entries[KEY_SORT]) >= 0) {
+        sortPref = entries[KEY_SORT];
+      }
+    }
+    flushPending();
+    if (changed) save();
+    renderAll();
+  }
+
+  // ── 渲染 ────────────────────────────────────────────────
+  function compareNotes(a, b) {
+    if (sortPref === 'pin' && a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+    switch (sortPref) {
+      case 'old': return a.ts - b.ts;
+      case 'color': return (a.color - b.color) || (b.ts - a.ts);
+      default: return b.ts - a.ts; // pin（组内最新）/ new
+    }
+  }
+  function visibleNotes() {
+    var q = query.trim().toLowerCase();
+    var list = store.notes.filter(function (n) {
+      return !q || n.text.toLowerCase().indexOf(q) >= 0;
+    });
+    list.sort(compareNotes);
+    return list;
+  }
+  function renderColors() {
+    var el = $('colors');
+    el.innerHTML = PALETTE.map(function (p, i) {
+      return '<span class="cpick' + (i === picked ? ' active' : '') + '" style="background:' + p.c +
+        '" data-i="' + i + '" title="' + p.name + '" role="radio" aria-label="' + p.name + '" aria-checked="' + (i === picked) + '"></span>';
+    }).join('');
+  }
+  function renderBoard() {
+    var el = $('board');
+    var vis = visibleNotes();
+    if (query.trim()) {
+      $('ncount').textContent = vis.length + ' / ' + store.notes.length + ' 张';
+    } else {
+      $('ncount').textContent = store.notes.length + ' 张';
+    }
+    if (!store.notes.length) {
+      el.innerHTML = '<div class="empty">还没有便签，随手记一张吧 📌</div>';
+      return;
+    }
+    if (!vis.length) {
+      el.innerHTML = '<div class="empty">没有找到包含「' + esc(query.trim()) + '」的便签</div>';
+      return;
+    }
+    el.innerHTML = vis.map(function (n) {
+      var c = PALETTE[n.color] ? PALETTE[n.color].c : PALETTE[0].c;
+      var editing = editingId === n.id;
+      var body = editing
+        ? '<div class="edit"><textarea id="note-text-' + esc(n.id) + '" aria-label="编辑便签内容">' + esc(n.text) + '</textarea>' +
+          '<div class="edit-ops">' +
+          '<button class="btn small" data-save="' + esc(n.id) + '">保存</button>' +
+          '<button class="btn ghost small" data-cancel="' + esc(n.id) + '">取消</button>' +
+          '</div></div>'
+        : '<div class="text">' + esc(n.text) + '</div>';
+      var ops = editing ? '' :
+        '<div class="ops">' +
+        '<button class="icon-btn" data-pin="' + esc(n.id) + '" title="' + (n.pinned ? '取消置顶' : '置顶') + '" aria-label="' + (n.pinned ? '取消置顶' : '置顶') + '">' + (n.pinned ? '📌' : '📍') + '</button>' +
+        '<button class="icon-btn" data-edit="' + esc(n.id) + '" title="编辑" aria-label="编辑">✏️</button>' +
+        '<button class="icon-btn danger' + (confirmDel === n.id ? ' confirming' : '') + '" data-del="' + esc(n.id) + '" title="删除" aria-label="删除">' + (confirmDel === n.id ? '确认？' : '🗑') + '</button>' +
+        '</div>';
+      return '<div class="sticky' + (n.pinned ? ' pinned' : '') + '" style="background:' + c + '" role="listitem">' +
+        '<div class="date">' + esc(n.date) + (n.pinned ? ' · 📌' : '') + '</div>' +
+        body + ops + '</div>';
+    }).join('');
+  }
+  function renderAll() {
+    renderColors();
+    $('in-sort').value = sortPref;
+    renderBoard();
+  }
+  function showDraftHint() { $('draft-hint').hidden = false; }
+  function hideDraftHint() { $('draft-hint').hidden = true; }
+
+  // ── 操作 ────────────────────────────────────────────────
+  function findNote(id) {
+    for (var i = 0; i < store.notes.length; i++) if (store.notes[i].id === id) return store.notes[i];
+    return null;
+  }
+  function addNote(text) {
+    var now = new Date();
+    store.notes.unshift({
+      id: 's' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
+      text: text, color: picked, date: fmtDate(now), ts: now.getTime(), pinned: false
+    });
+    save(); renderBoard();
+    clearTimeout(draftTimer);
+    restoredDraft = true;
+    hideDraftHint();
+    try { localStorage.removeItem(KEY_DRAFT); } catch (e) {}
+    if (P && P.emit) { try { P.emit('sticky-notes:add', {}); } catch (e) {} }
+  }
+  function togglePin(id) {
+    var n = findNote(id);
+    if (!n) return;
+    n.pinned = !n.pinned;
+    save(); renderBoard();
+    if (P && P.emit) { try { P.emit('sticky-notes:pin', {}); } catch (e) {} }
+  }
+  function startEdit(id) {
+    editingId = id;
+    confirmDel = null; clearConfirmTimer();
+    renderBoard();
+    var ta = $('note-text-' + id);
+    if (ta) ta.focus();
+  }
+  function commitEdit(id) {
+    var ta = $('note-text-' + id);
+    var v = ta ? ta.value : '';
+    var n = findNote(id);
+    editingId = null;
+    if (!n) return;
+    v = v.trim();
+    if (v) n.text = v;
+    save(); renderBoard();
+  }
+  function clearConfirmTimer() {
+    if (confirmTimer) { clearTimeout(confirmTimer); confirmTimer = null; }
+  }
+  function confirmDelete(id) {
+    if (confirmDel === id) {
+      store.notes = store.notes.filter(function (n) { return n.id !== id; });
+      if (!booted) bootTombstones[id] = true; // 启动期删除：合并时不得复活
+      confirmDel = null; clearConfirmTimer();
+      save(); renderBoard();
+      if (P && P.emit) { try { P.emit('sticky-notes:delete', {}); } catch (e) {} }
+    } else {
+      confirmDel = id;
+      renderBoard();
+      clearConfirmTimer();
+      confirmTimer = setTimeout(function () { confirmDel = null; renderBoard(); }, 3000);
+    }
+  }
+
+  // ── 启动 ────────────────────────────────────────────────
+  function boot() {
+    loadMemory();
+    // 同步直读（polyfill 预载已完成时生效；未完成时下面异步重读兜底）
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (raw) {
+        var obj = JSON.parse(raw);
+        if (obj && Array.isArray(obj.notes)) mergeNotes(obj.notes);
+      }
+    } catch (e) {}
+    // 草稿同步恢复
+    try {
+      var dr = localStorage.getItem(KEY_DRAFT);
+      if (dr && !$('in-text').value) { $('in-text').value = dr; restoredDraft = true; showDraftHint(); }
+    } catch (e) {}
+    // 排序偏好同步恢复
+    try {
+      var sp = localStorage.getItem(KEY_SORT);
+      if (sp && SORTS.indexOf(sp) >= 0) sortPref = sp;
+    } catch (e) {}
+    if (P && P.storage && P.storage.list) {
+      P.storage.list()
+        .then(mergeFromPlatform)
+        .catch(function () { flushPending(); renderAll(); }); // list 失败：降级会话内有效
+    } else {
+      flushPending();
+    }
+    renderAll();
+  }
+
+  // ── 事件 ────────────────────────────────────────────────
+  $('colors').addEventListener('click', function (e) {
+    var el = e.target && e.target.closest ? e.target.closest('.cpick') : null;
+    if (!el) return;
+    var i = parseInt(el.getAttribute('data-i'), 10);
+    if (!isNaN(i)) { picked = i; renderColors(); }
+  });
+  $('b-add').addEventListener('click', function () {
+    var v = $('in-text').value.trim();
+    if (!v) return;
+    addNote(v);
+    $('in-text').value = '';
+    $('in-text').focus();
+  });
+  $('in-text').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('b-add').click(); }
+  });
+  $('in-text').addEventListener('input', function () {
+    clearTimeout(draftTimer);
+    draftTimer = setTimeout(function () {
+      var v = $('in-text').value;
+      try { if (v) localStorage.setItem(KEY_DRAFT, v); else localStorage.removeItem(KEY_DRAFT); } catch (e) {}
+    }, 400);
+  });
+  $('b-clear-draft').addEventListener('click', function () {
+    clearTimeout(draftTimer);
+    try { localStorage.removeItem(KEY_DRAFT); } catch (e) {}
+    $('in-text').value = '';
+    restoredDraft = true;
+    hideDraftHint();
+    $('in-text').focus();
+  });
+  $('in-search').addEventListener('input', function () {
+    query = $('in-search').value;
+    renderBoard();
+  });
+  $('in-sort').addEventListener('change', function () {
+    var v = $('in-sort').value;
+    if (SORTS.indexOf(v) >= 0) {
+      sortPref = v; sortTouched = true;
+      try { localStorage.setItem(KEY_SORT, v); } catch (e) {}
+      renderBoard();
+    }
+  });
+  $('board').addEventListener('click', function (e) {
+    var t = e.target || {};
+    var closest = function (sel) { return t.closest ? t.closest(sel) : null; };
+    var del = closest('[data-del]');
+    var pin = closest('[data-pin]');
+    var ed = closest('[data-edit]');
+    var saveBtn = closest('[data-save]');
+    var cancel = closest('[data-cancel]');
+    if (del) confirmDelete(del.getAttribute('data-del'));
+    else if (pin) togglePin(pin.getAttribute('data-pin'));
+    else if (ed) startEdit(ed.getAttribute('data-edit'));
+    else if (saveBtn) commitEdit(saveBtn.getAttribute('data-save'));
+    else if (cancel) { editingId = null; renderBoard(); }
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      if (editingId) { editingId = null; renderBoard(); }
+      else if (confirmDel) { confirmDel = null; clearConfirmTimer(); renderBoard(); }
+    }
+  });
+  window.addEventListener('beforeunload', function () {
+    var v = $('in-text').value;
+    try { if (v) localStorage.setItem(KEY_DRAFT, v); else localStorage.removeItem(KEY_DRAFT); } catch (e) {}
+    if (!booted) { booted = true; if (pendingSave) { pendingSave = false; save(); } }
+  });
+
+  // 测试钩子（纯函数只读暴露；Node harness 无 DOM 依赖验证）
+  window.__stickyNotesTest = {
+    esc: esc,
+    normalizeNote: normalizeNote,
+    mergeNotes: mergeNotes,
+    mergeFromPlatform: mergeFromPlatform,
+    compareNotes: compareNotes,
+    sortNotes: function (list) { return list.slice().sort(compareNotes); },
+    filterNotes: function (list, q) {
+      var s = String(q == null ? '' : q).trim().toLowerCase();
+      return list.filter(function (n) { return !s || n.text.toLowerCase().indexOf(s) >= 0; });
+    },
+    visibleNotes: visibleNotes,
+    getStore: function () { return store; },
+    getState: function () { return { booted: booted, sortPref: sortPref, editingId: editingId, confirmDel: confirmDel, query: query, restoredDraft: restoredDraft }; },
+    addNote: addNote,
+    togglePin: togglePin,
+    startEdit: startEdit,
+    commitEdit: commitEdit,
+    confirmDelete: confirmDelete,
+    setQuery: function (q) { query = String(q == null ? '' : q); renderBoard(); },
+    setSort: function (v) { if (SORTS.indexOf(v) >= 0) { sortPref = v; sortTouched = true; renderBoard(); } },
+    save: save,
+    flushPending: flushPending,
+    KEY: KEY, KEY_DRAFT: KEY_DRAFT, KEY_SORT: KEY_SORT
+  };
+
+  boot();
+})();
+</script>
+</body>
+</html>

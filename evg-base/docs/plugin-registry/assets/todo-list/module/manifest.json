@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "todo-list",
+  "name": "待办清单",
+  "description": "本地待办清单：添加/完成/编辑/删除任务，支持优先级、分类、截止日期与进度统计，数据保存在本机。",
+  "template": "html",
+  "version": "1.0.0",
+  "icon": "checklist",
+  "route": "/todo-list",
+  "nav": {
+    "sidebar": {
+      "section": "效率",
+      "sectionOrder": 20,
+      "order": 2
+    }
+  }
+}

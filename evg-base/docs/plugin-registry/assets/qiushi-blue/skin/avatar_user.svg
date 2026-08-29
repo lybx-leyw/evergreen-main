@@ -1,0 +1,30 @@
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="求是蓝用户头像 - 求是鹰">
+  <!-- 求是蓝用户头像：浅蓝圆底 + 深蓝抽象求是鹰剪影，
+       28px 圆头像裁切下依然清晰。 -->
+  <defs>
+    <radialGradient id="qbBg" cx="50%" cy="40%" r="65%">
+      <stop offset="0%" stop-color="#F4F8FC"/>
+      <stop offset="60%" stop-color="#DCEAF7"/>
+      <stop offset="100%" stop-color="#B8D6F0"/>
+    </radialGradient>
+    <linearGradient id="qbEagle" x1="20%" y1="0%" x2="80%" y2="100%">
+      <stop offset="0%" stop-color="#3D87C8"/>
+      <stop offset="100%" stop-color="#0057A8"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 圆底 -->
+  <circle cx="64" cy="64" r="60" fill="url(#qbBg)"/>
+  <circle cx="64" cy="64" r="60" fill="none" stroke="#0057A8" stroke-opacity="0.18" stroke-width="2"/>
+
+  <!-- 抽象求是鹰剪影（展翅 + 鹰身）。
+       2026-02 QA 微调：加宽翼面（原双翼曲线近乎重叠，仅 1–4px 细线），
+       并把翼尖收进圆内（原翼尖 r≈68 超出圆底 r=60，圆形裁切会切掉翼尖），
+       保证 28px 圆形头像裁切下展翅轮廓依然可辨。 -->
+  <g>
+    <path d="M64 34 C 42 46, 24 42, 17 31 C 22 42, 30 50, 44 54 C 42 62, 40 70, 38 80 C 44 68, 52 54, 60 46 Z" fill="url(#qbEagle)"/>
+    <path d="M64 34 C 86 46, 104 42, 111 31 C 106 42, 98 50, 84 54 C 86 62, 88 70, 90 80 C 84 68, 76 54, 68 46 Z" fill="url(#qbEagle)"/>
+    <path d="M64 30 C 72 44, 72 58, 64 70 C 56 58, 56 44, 64 30 Z" fill="url(#qbEagle)"/>
+    <path d="M57 66 L 64 88 L 71 66 Z" fill="url(#qbEagle)"/>
+  </g>
+</svg>

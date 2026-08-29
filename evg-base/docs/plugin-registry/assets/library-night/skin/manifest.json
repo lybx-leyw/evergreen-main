@@ -1,0 +1,40 @@
+{
+  "type": "skin",
+  "id": "library-night",
+  "name": "图书馆深夜",
+  "version": "1.0.0",
+  "description": "「图书馆深夜」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+  "background": {
+    "type": "image",
+    "imageDesktop": "bg_desktop.svg",
+    "imageMobile": "bg_mobile.svg"
+  },
+  "bubble": {
+    "userBackgroundColor": "#39445A",
+    "userTextColor": "#E8EAF0",
+    "borderRadius": 18
+  },
+  "avatar": {
+    "user": "avatar_user.svg",
+    "userBackgroundColor": "#F0B35A"
+  },
+  "thinking": {
+    "title": "思考过程",
+    "colors": {
+      "header": "#F0B35A",
+      "containerBackground": "#39445A",
+      "containerBorder": "#161B24",
+      "contentText": "#E8EAF0",
+      "chipMemoryBg": "#39445A",
+      "chipMemoryFg": "#F0B35A",
+      "chipSkillBg": "#39445A",
+      "chipSkillFg": "#F0B35A",
+      "chipToolBg": "#39445A",
+      "chipToolFg": "#F0B35A",
+      "chipToolResultBg": "#39445A",
+      "chipToolResultFg": "#F0B35A"
+    }
+  },
+  "effortColor": "#F0B35A",
+  "toolActiveColor": "#F0B35A"
+}

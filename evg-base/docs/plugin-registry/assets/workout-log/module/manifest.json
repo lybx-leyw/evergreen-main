@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "workout-log",
+  "name": "健身记录",
+  "description": "本地健身记录：按日期与部位记录动作、组数、次数、重量，支持编辑与删除；统计本周/本月训练次数、训练量与连续天数，近 7 天训练频率图表；数据仅保存在本机，不上传云端。",
+  "template": "html",
+  "version": "1.0.0",
+  "icon": "fitness_center",
+  "route": "/workout-log",
+  "nav": {
+    "sidebar": {
+      "section": "健康",
+      "sectionOrder": 30,
+      "order": 4
+    }
+  }
+}

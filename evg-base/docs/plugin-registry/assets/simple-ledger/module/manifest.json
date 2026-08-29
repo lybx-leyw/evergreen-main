@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "simple-ledger",
+  "name": "简易记账",
+  "description": "简易记账：收支记录（金额/分类/日期/备注）、分类汇总与月度统计，账目数据保存在本机（localStorage），支持编辑、删除与 CSV 导出。",
+  "template": "html",
+  "version": "1.0.0",
+  "icon": "account_balance_wallet",
+  "route": "/simple-ledger",
+  "nav": {
+    "sidebar": {
+      "section": "生活",
+      "sectionOrder": 40,
+      "order": 2
+    }
+  }
+}

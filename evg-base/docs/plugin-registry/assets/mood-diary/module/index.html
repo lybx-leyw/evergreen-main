@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>心情日记</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+/* ── 主题接入：只引用平台注入的 --evg-* 变量（带兜底），禁止在 :root 重定义 --evg-* ── */
+:root {
+  --bg: var(--evg-background, #faf0f4);
+  --card: var(--evg-surface, #ffffff);
+  --ink: var(--evg-text, #43222e);
+  --ink-soft: var(--evg-text-secondary, #8f6472);
+  --accent: var(--evg-accent, #d04f7e);
+  --accent-bg: var(--evg-accent-bg, #fbe4ec);
+  --accent-border: var(--evg-accent-border, #f3c2d3);
+  --line: var(--evg-border, rgba(67, 34, 46, .09));
+  --error: var(--evg-error, #d64545);
+}
+html { font-size: 16px; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, sans-serif;
+  background: var(--bg); color: var(--ink); min-height: 100vh; line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; clip: rect(0 0 0 0); overflow: hidden; white-space: nowrap; }
+:focus-visible { outline: 2px solid var(--accent-border); outline-offset: 2px; }
+
+.topbar { display: flex; align-items: center; gap: .75rem; padding: 1.1rem 1.5rem; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--card) 72%, transparent); backdrop-filter: blur(.875rem); -webkit-backdrop-filter: blur(.875rem); position: sticky; top: 0; z-index: 5; }
+.topbar .ico { font-size: 1.5rem; }
+.topbar h1 { font-size: 1.15rem; font-weight: 700; }
+.topbar .sub { font-size: .72rem; color: var(--ink-soft); }
+.badge { margin-left: auto; font-size: .68rem; color: var(--ink-soft); border: 1px solid var(--line); border-radius: 999px; padding: .18rem .6rem; white-space: nowrap; }
+
+.container { max-width: 44rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 1rem; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+.card h2 { font-size: .95rem; font-weight: 700; margin-bottom: .9rem; display: flex; align-items: center; justify-content: space-between; gap: .6rem; flex-wrap: wrap; }
+.card h2 .f { font-size: .72rem; color: var(--ink-soft); font-weight: 500; }
+
+/* 心情选择 */
+.moods { display: flex; gap: .55rem; justify-content: space-between; flex-wrap: wrap; margin-bottom: .9rem; }
+.mood { width: 3.4rem; text-align: center; cursor: pointer; border-radius: .9rem; padding: .5rem .2rem; border: 2px solid transparent; background: transparent; color: inherit; font-family: inherit; transition: transform .15s ease, border-color .15s ease, background .15s ease; }
+.mood:hover { transform: translateY(-2px); }
+.mood.active { border-color: var(--accent-border); background: var(--accent-bg); }
+.mood .em { font-size: 1.7rem; display: block; line-height: 1.1; }
+.mood .l { font-size: .68rem; color: var(--ink-soft); margin-top: .2rem; display: block; }
+.mood.active .l { color: var(--accent); font-weight: 600; }
+
+/* 记录区 */
+textarea { width: 100%; min-height: 6rem; max-height: 20rem; padding: .6rem .75rem; border-radius: .7rem; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--ink); font-family: inherit; font-size: .88rem; resize: vertical; overflow-y: auto; }
+textarea:focus { outline: 2px solid var(--accent-border); border-color: var(--accent-border); }
+.text-meta { display: flex; justify-content: flex-end; font-size: .68rem; color: var(--ink-soft); margin-top: .3rem; }
+.composer-ops { margin-top: .7rem; display: flex; gap: .5rem; flex-wrap: wrap; }
+.status { min-height: 1.1rem; font-size: .78rem; color: var(--ink-soft); margin-top: .5rem; }
+.status.error { color: var(--error); }
+
+.btn { appearance: none; border: none; cursor: pointer; font-family: inherit; font-size: .85rem; font-weight: 600; padding: .55rem 1.2rem; border-radius: .7rem; color: #fff; background: var(--accent); transition: transform .15s ease, opacity .15s ease; }
+.btn:hover { transform: translateY(-1px); opacity: .92; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn.danger { background: transparent; color: var(--error); border: 1px solid color-mix(in srgb, var(--error) 45%, transparent); }
+.btn.sm { padding: .4rem .8rem; font-size: .78rem; }
+
+/* 概览 */
+.stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: .75rem; }
+.stat { text-align: center; padding: .7rem; border-radius: .8rem; background: color-mix(in srgb, var(--bg) 55%, transparent); border: 1px solid var(--line); }
+.stat .v { font-size: 1.3rem; font-weight: 700; }
+.stat .l { font-size: .7rem; color: var(--ink-soft); margin-top: .15rem; }
+
+/* 历史区 */
+.view-toggle { display: inline-flex; border: 1px solid var(--line); border-radius: .6rem; overflow: hidden; }
+.vt { appearance: none; border: none; background: transparent; color: var(--ink-soft); font-family: inherit; font-size: .72rem; padding: .28rem .6rem; cursor: pointer; }
+.vt[aria-pressed="true"] { background: var(--accent-bg); color: var(--accent); font-weight: 600; }
+.list { display: flex; flex-direction: column; gap: .6rem; }
+.entry { background: color-mix(in srgb, var(--bg) 48%, transparent); border: 1px solid var(--line); border-radius: .8rem; padding: .75rem .9rem; }
+.entry .head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.entry .em { font-size: 1.3rem; }
+.entry .date { font-size: .78rem; color: var(--ink-soft); }
+.entry .text { margin-top: .45rem; font-size: .88rem; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+.entry .ops { display: flex; gap: .3rem; margin-top: .45rem; }
+.icon-btn { appearance: none; border: none; background: transparent; color: var(--ink-soft); cursor: pointer; font-family: inherit; font-size: .85rem; padding: .15rem .3rem; border-radius: .4rem; }
+.icon-btn:hover { background: var(--accent-bg); color: var(--accent); }
+.icon-btn.danger { color: var(--error); }
+.icon-btn.danger-solid { background: var(--error); color: #fff; }
+.empty { text-align: center; color: var(--ink-soft); font-size: .85rem; padding: 1.5rem 0; }
+
+/* 日历 */
+.cal-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .6rem; }
+.cal-head .cal-title { font-size: .85rem; font-weight: 600; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: .3rem; }
+.cal-wd { text-align: center; font-size: .68rem; color: var(--ink-soft); padding: .2rem 0; }
+.cal-cell { position: relative; aspect-ratio: 1 / 1; border: 1px solid var(--line); border-radius: .6rem; background: color-mix(in srgb, var(--bg) 48%, transparent); font-family: inherit; color: var(--ink); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .1rem; cursor: pointer; padding: 0; }
+.cal-cell.blank { border-color: transparent; background: transparent; cursor: default; }
+.cal-cell.today { border-color: var(--accent-border); }
+.cal-cell.sel { background: var(--accent-bg); }
+.cal-cell .cd { font-size: .82rem; line-height: 1; }
+.cal-cell .cdot { font-size: .72rem; line-height: 1; }
+.day-detail { margin-top: .7rem; }
+
+.foot { text-align: center; font-size: .7rem; color: var(--ink-soft); margin-top: 1rem; }
+
+.hidden { display: none !important; }
+@media (max-width: 30rem) {
+  .topbar { padding: .8rem .9rem; }
+  .container { padding: 1rem .75rem 2.5rem; }
+  .mood { width: 3rem; }
+  .stat-row { gap: .5rem; }
+  .stat .v { font-size: 1.15rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <span class="ico" aria-hidden="true">💭</span>
+  <div><h1>心情日记</h1><div class="sub">记录每日心情 · 情绪洞察 · 回顾成长</div></div>
+  <span class="badge" title="日记仅保存在本机插件存储中，不会上传">🔒 本机保存</span>
+</header>
+<main class="container">
+  <section class="card" id="composer" aria-labelledby="composer-title">
+    <h2><span id="composer-title">今天的心情</span> <span class="f" id="today-label"></span></h2>
+    <div class="moods" id="moods" role="group" aria-label="选择心情">
+      <button type="button" class="mood" data-m="great" aria-pressed="false" aria-label="超棒"><span class="em" aria-hidden="true">😄</span><span class="l">超棒</span></button>
+      <button type="button" class="mood" data-m="happy" aria-pressed="false" aria-label="开心"><span class="em" aria-hidden="true">🙂</span><span class="l">开心</span></button>
+      <button type="button" class="mood" data-m="ok" aria-pressed="false" aria-label="一般"><span class="em" aria-hidden="true">😐</span><span class="l">一般</span></button>
+      <button type="button" class="mood" data-m="sad" aria-pressed="false" aria-label="低落"><span class="em" aria-hidden="true">😔</span><span class="l">低落</span></button>
+      <button type="button" class="mood" data-m="bad" aria-pressed="false" aria-label="糟糕"><span class="em" aria-hidden="true">😣</span><span class="l">糟糕</span></button>
+    </div>
+    <label class="visually-hidden" for="in-text">日记内容</label>
+    <textarea id="in-text" maxlength="10000" placeholder="此刻想记下什么？写下今天的小事、感受或想法…（也可只选心情）"></textarea>
+    <div class="text-meta"><span id="char-count">0 / 10000</span></div>
+    <div class="composer-ops">
+      <button type="button" class="btn" id="b-save">保存日记</button>
+      <button type="button" class="btn ghost hidden" id="b-cancel-edit">取消编辑</button>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite"></div>
+  </section>
+
+  <section class="card" aria-labelledby="stats-title">
+    <h2><span id="stats-title">情绪概览</span> <span class="f">近 30 天</span></h2>
+    <div class="stat-row">
+      <div class="stat"><div class="v" id="st-count">0</div><div class="l">记录篇数</div></div>
+      <div class="stat"><div class="v" id="st-best">—</div><div class="l">最开心</div></div>
+      <div class="stat"><div class="v" id="st-streak">0</div><div class="l">连续天数</div></div>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="history-title">
+    <h2>
+      <span id="history-title">历史记录</span>
+      <span class="f" id="hcount">0 篇</span>
+      <span class="view-toggle" role="group" aria-label="视图切换">
+        <button type="button" class="vt" id="vt-list" aria-pressed="true">列表</button>
+        <button type="button" class="vt" id="vt-cal" aria-pressed="false">日历</button>
+      </span>
+    </h2>
+    <div id="view-list">
+      <div class="list" id="list"></div>
+    </div>
+    <div id="view-cal" class="hidden">
+      <div class="cal-head">
+        <button type="button" class="icon-btn" id="cal-prev" aria-label="上个月">‹</button>
+        <span class="cal-title" id="cal-title"></span>
+        <button type="button" class="icon-btn" id="cal-next" aria-label="下个月">›</button>
+      </div>
+      <div class="cal-grid" id="cal-grid" role="grid" aria-label="日历"></div>
+      <div class="day-detail" id="day-detail"></div>
+    </div>
+  </section>
+</main>
+<footer class="foot">数据保存在本机 · 不上传云端</footer>
+<script>
+(function () {
+  'use strict';
+
+  // ── 平台与存储接入 ──────────────────────────────────────────────
+  // localStorage 由平台 bridge 的 polyfill 接管（同步内存 + 异步落盘到
+  // 插件私有 storage.json）。因 polyfill 预载是异步的，页面脚本首次读取可能
+  // 拿到空态；若直接覆盖写入，会把远端已存日记冲掉。因此：
+  //   1) 初始同步读 localStorage 仅作「即时渲染」；
+  //   2) bridge 就绪后经 platform.storage.list() 重读远端并合并（按日期去重、
+  //      同日保留保存时间较新的一条），再回写收敛；
+  //   3) 首次落盘前等待上述合并完成（persistSafely 门闩），杜绝先写后并导致
+  //      远端旧日记被覆盖；写路径同时走 localStorage 与 platform.storage.set
+  //      （await 落盘），即便页面立即关闭也不丢。
+  var P = (typeof window !== 'undefined' && window.platform) ? window.platform : null;
+  var KEY = 'evg.mood-diary';
+  var LS = null;
+  try { LS = window.localStorage; } catch (e) { LS = null; }
+
+  var MOODS = { great: '😄', happy: '🙂', ok: '😐', sad: '😔', bad: '😣' };
+  var MOOD_NAMES = { great: '超棒', happy: '开心', ok: '一般', sad: '低落', bad: '糟糕' };
+  var MOOD_ORDER = ['great', 'happy', 'ok', 'sad', 'bad'];
+
+  var store = { entries: [] };
+  var picked = 'ok';          // 当前选中的心情
+  var editingDate = null;     // 正在编辑的日期（null = 今天）
+  var calCursor = null;       // 日历当前年月 {y, m}
+  var selectedDay = null;     // 日历选中日期 YYYY-MM-DD
+  var armedDelete = null;     // 删除二次确认状态
+  var statusTimer = null;
+  var syncDone = false;       // 首次远端重读合并是否已完成
+  var syncPromise = null;     // 首次合并的 Promise（persistSafely 门闩）
+  var dirty = false;          // 输入区是否有未保存草稿（后台合并不回填覆盖）
+
+  // ── 基础工具（日期一律本地时区）────────────────────────────────
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function dateKey(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function todayDate() { return dateKey(new Date()); }
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  function el(id) { return document.getElementById(id); }
+  function byDate(date) {
+    for (var i = 0; i < store.entries.length; i++) {
+      if (store.entries[i].date === date) return store.entries[i];
+    }
+    return null;
+  }
+
+  // ── 数据清洗 / 合并（保证完整性）────────────────────────────────
+  // 每条：{date: 'YYYY-MM-DD', mood ∈ 五档, text: string, time: 'HH:MM'}
+  // 非法日期丢弃；非法心情归一为 'ok'（保留文字，不丢内容）；同日去重保留
+  // 保存时间较新的那条。
+  function isValidDateKey(s) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+    var y = +s.slice(0, 4), m = +s.slice(5, 7), d = +s.slice(8, 10);
+    if (m < 1 || m > 12 || d < 1 || d > 31) return false;
+    var dt = new Date(y, m - 1, d);   // 本地时区构造；Date 会归一化非法日（如 2 月 30 日）
+    return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
+  }
+
+  function sanitizeEntries(list) {
+    if (!Array.isArray(list)) return [];
+    var byDate_ = {};
+    var order = [];
+    list.forEach(function (raw) {
+      if (!raw || typeof raw !== 'object') return;
+      var date = typeof raw.date === 'string' ? raw.date : '';
+      if (!isValidDateKey(date)) return;
+      var mood = (typeof raw.mood === 'string' && Object.prototype.hasOwnProperty.call(MOODS, raw.mood)) ? raw.mood : 'ok';
+      var text = typeof raw.text === 'string' ? raw.text : '';
+      var time = typeof raw.time === 'string' ? raw.time : '';
+      var prev = byDate_[date];
+      if (!prev || (time || '') > (prev.time || '')) {
+        byDate_[date] = { date: date, mood: mood, text: text, time: time };
+        if (!prev) order.push(date);   // 首次出现才入列（同日更新不重复）
+      }
+    });
+    order.sort();
+    return order.map(function (d) { return byDate_[d]; });
+  }
+
+  function parseStore(raw) {
+    if (typeof raw !== 'string' || !raw) return { entries: [] };
+    try {
+      var o = JSON.parse(raw);
+      if (!o || typeof o !== 'object') return { entries: [] };
+      return { entries: sanitizeEntries(o.entries) };
+    } catch (e) { return { entries: [] }; }
+  }
+
+  function readLocal() {
+    if (!LS) return { entries: [] };
+    try { return parseStore(LS.getItem(KEY)); } catch (e) { return { entries: [] }; }
+  }
+
+  function mergeEntries(local, remote) {
+    // 按日期合并：同日保留保存时间较新的一条（本地与远端均为「最后写入优先」）
+    return sanitizeEntries(local.concat(remote));
+  }
+
+  // ── 状态提示（aria-live，替代 alert）────────────────────────────
+  function showStatus(msg) {
+    var s = el('status');
+    s.classList.remove('error');
+    s.textContent = msg;
+    if (statusTimer) { clearTimeout(statusTimer); statusTimer = null; }
+    statusTimer = setTimeout(function () { if (s) s.textContent = ''; }, 2600);
+  }
+  function showError(msg) {
+    var s = el('status');
+    s.textContent = msg;
+    s.classList.add('error');
+    if (statusTimer) { clearTimeout(statusTimer); statusTimer = null; }
+  }
+
+  // ── 持久化：localStorage（polyfill 同步内存 + 异步落盘）+ 平台直写（await）──
+  function persist() {
+    var json = JSON.stringify(store);
+    if (LS) { try { LS.setItem(KEY, json); } catch (e) {} }
+    if (P && P.storage && P.storage.set) {
+      return P.storage.set(KEY, json).then(function () { return true; }, function () {
+        showError('保存失败：本地存储暂不可用，本次记录仅当前页面有效');
+        return false;
+      });
+    }
+    return Promise.resolve(true);
+  }
+
+  function persistSafely() {
+    // 首次落盘前等待初始「重读合并」完成（syncPromise 在超时/失败时也会 settle）
+    if (syncDone) return persist();
+    return Promise.resolve(syncPromise).then(function () { return persist(); });
+  }
+
+  // ── 竞态防护：bridge 就绪后重读远端并合并 ──────────────────────
+  function whenPlatformReady(fn) {
+    if (P && P.storage) { fn(P); return; }
+    var tries = 0;
+    var t = setInterval(function () {
+      if (window.platform && window.platform.storage) {
+        clearInterval(t);
+        P = window.platform;
+        fn(P);
+      } else if (++tries > 20) {
+        clearInterval(t); // ~1s 未就绪：静默降级（内存态继续可用）
+      }
+    }, 50);
+  }
+
+  function refreshFromSync() {
+    // 合并完成后重渲染；若有未保存草稿则不打扰输入区
+    renderStats(); renderList(); renderCalendar();
+    if (!editingDate && !dirty) loadToday();
+  }
+
+  function syncFromPlatform() {
+    return new Promise(function (resolve) {
+      whenPlatformReady(function (PP) {
+        if (!PP.storage || !PP.storage.list) { resolve(); return; }
+        PP.storage.list().then(function (map) {
+          var remote = (map && typeof map === 'object') ? parseStore(map[KEY]) : { entries: [] };
+          var merged = mergeEntries(store.entries, remote.entries);
+          var changed = JSON.stringify(merged) !== JSON.stringify(store.entries);
+          store.entries = merged;
+          if (changed) {
+            persist().then(function () { refreshFromSync(); resolve(); }, function () { resolve(); });
+          } else {
+            resolve();
+          }
+        }, function () { resolve(); });
+      });
+    }).then(function () { syncDone = true; });
+  }
+
+  // ── 心情选择（键盘可达：方向键移动焦点，Enter/Space 选择）────────
+  var moodEls = [];
+  function collectMoods() {
+    moodEls = Array.prototype.slice.call(document.querySelectorAll('.mood'));
+  }
+  function renderMoods() {
+    moodEls.forEach(function (m) {
+      var active = m.getAttribute('data-m') === picked;
+      m.classList.toggle('active', active);
+      m.setAttribute('aria-pressed', active ? 'true' : 'false');
+      m.tabIndex = active ? 0 : -1;
+    });
+  }
+
+  // ── 记录区 ──────────────────────────────────────────────────────
+  var ta = el('in-text');
+  function autoResize() {
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight || 96, 320) + 'px';
+  }
+  function updateCharCount() {
+    el('char-count').textContent = ta.value.length + ' / 10000';
+  }
+  function loadToday() {
+    editingDate = null;
+    dirty = false;
+    var e = byDate(todayDate());
+    el('composer-title').textContent = '今天的心情';
+    el('today-label').textContent = e ? ('今天已记录 · ' + (e.time || '')) : '新的一天，从记录开始';
+    picked = e ? e.mood : 'ok';
+    ta.value = e ? e.text : '';
+    el('b-cancel-edit').classList.add('hidden');
+    updateCharCount();
+    renderMoods();
+    autoResize();
+  }
+
+  function startEdit(date) {
+    var e = byDate(date);
+    if (!e) return;
+    editingDate = date;
+    dirty = false;
+    picked = e.mood;
+    ta.value = e.text;
+    el('composer-title').textContent = '编辑日记';
+    el('today-label').textContent = '正在编辑 ' + date + ' 的日记';
+    el('b-cancel-edit').classList.remove('hidden');
+    updateCharCount();
+    renderMoods();
+    autoResize();
+    var composer = el('composer');
+    if (composer && composer.scrollIntoView) composer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function refresh() {
+    renderStats(); renderList(); renderCalendar(); loadToday();
+  }
+
+  // ── 保存 / 取消编辑 ─────────────────────────────────────────────
+  function saveEntry() {
+    var target = editingDate || todayDate();
+    var text = ta.value;
+    var now = new Date();
+    var t = pad(now.getHours()) + ':' + pad(now.getMinutes());
+    var e = byDate(target);
+    if (e) { e.mood = picked; e.text = text; e.time = t; }
+    else { store.entries.push({ date: target, mood: picked, text: text, time: t }); }
+    store.entries = sanitizeEntries(store.entries);
+    persistSafely().then(function (ok) {
+      if (ok) {
+        showStatus('已保存 ✓');
+        if (P && P.emit) { try { P.emit('mood-diary:save', { date: target, mood: picked }); } catch (err) {} }
+      }
+      refresh();
+    });
+  }
+
+  // ── 删除（二次确认，可键盘操作；Esc 或 3 秒后自动撤销）────────────
+  function disarmDelete() {
+    if (!armedDelete) return;
+    clearTimeout(armedDelete.timer);
+    if (armedDelete.btn && armedDelete.btn.classList) {
+      armedDelete.btn.textContent = '🗑 删除';
+      armedDelete.btn.classList.remove('danger-solid');
+    }
+    armedDelete = null;
+  }
+  function handleDelete(btn, date) {
+    if (armedDelete && armedDelete.date === date) {
+      clearTimeout(armedDelete.timer);
+      armedDelete = null;
+      doDelete(date);
+      return;
+    }
+    disarmDelete();
+    armedDelete = { date: date, btn: btn, timer: null };
+    btn.textContent = '再点一次确认';
+    btn.classList.add('danger-solid');
+    armedDelete.timer = setTimeout(disarmDelete, 3000);
+  }
+  function doDelete(date) {
+    var before = store.entries.length;
+    store.entries = store.entries.filter(function (x) { return x.date !== date; });
+    if (store.entries.length === before) return;
+    if (selectedDay === date) selectedDay = null;
+    persistSafely().then(function (ok) {
+      if (ok) showStatus('已删除');
+      refresh();
+    });
+  }
+
+  // ── 统计（近 30 天；连续天数今天无记录则从昨天起算）──────────────
+  function renderStats() {
+    var now = new Date();
+    var from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
+    var fromKey = dateKey(from);
+    var todayKey = dateKey(now);
+    var recent = store.entries.filter(function (e) { return e.date >= fromKey && e.date <= todayKey; });
+    el('st-count').textContent = recent.length;
+    var bestN = -1, bestMood = null;
+    recent.forEach(function (e) {
+      var n = MOOD_ORDER.indexOf(e.mood);
+      if (n >= 0 && (bestN === -1 || n < bestN)) { bestN = n; bestMood = e.mood; }
+    });
+    el('st-best').textContent = bestMood ? (MOODS[bestMood] + ' ' + MOOD_NAMES[bestMood]) : '—';
+    var keys = {};
+    store.entries.forEach(function (e) { keys[e.date] = true; });
+    var d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (!keys[dateKey(d)]) d.setDate(d.getDate() - 1);
+    var streak = 0;
+    while (keys[dateKey(d)] && streak < 3650) { streak++; d.setDate(d.getDate() - 1); }
+    el('st-streak').textContent = streak;
+  }
+
+  // ── 历史列表 ────────────────────────────────────────────────────
+  function entryCard(e, extra) {
+    return '<div class="entry' + (extra || '') + '">' +
+      '<div class="head"><span class="em">' + (MOODS[e.mood] || '😐') + '</span>' +
+      '<span class="date">' + e.date + (e.time ? ' ' + e.time : '') + ' · ' + (MOOD_NAMES[e.mood] || '') + '</span></div>' +
+      (e.text ? '<div class="text">' + esc(e.text) + '</div>' : '') +
+      '<div class="ops">' +
+      '<button type="button" class="icon-btn" data-action="edit" data-date="' + e.date + '" title="编辑这一天">✏️ 编辑</button>' +
+      '<button type="button" class="icon-btn danger" data-action="delete" data-date="' + e.date + '" title="删除这一天">🗑 删除</button>' +
+      '</div></div>';
+  }
+
+  function renderList() {
+    el('hcount').textContent = store.entries.length + ' 篇';
+    var listEl = el('list');
+    var items = store.entries.slice().sort(function (a, b) { return a.date === b.date ? 0 : (a.date < b.date ? 1 : -1); });
+    if (!items.length) { listEl.innerHTML = '<div class="empty">还没有日记，记录今天的第一篇吧 🌱</div>'; return; }
+    listEl.innerHTML = items.map(function (e) { return entryCard(e); }).join('');
+  }
+
+  function onEntryAction(e) {
+    var b = e.target && e.target.closest ? e.target.closest('[data-action]') : null;
+    if (!b) return;
+    var date = b.getAttribute('data-date');
+    var action = b.getAttribute('data-action');
+    if (action === 'edit') { startEdit(date); }
+    else if (action === 'delete') { handleDelete(b, date); }
+  }
+
+  // ── 日历（周一开头，本地时区）────────────────────────────────────
+  function initCalendarCursor() {
+    var now = new Date();
+    calCursor = { y: now.getFullYear(), m: now.getMonth() };
+  }
+  function monthTitle(y, m) { return y + ' 年 ' + (m + 1) + ' 月'; }
+  function calGrid(y, m) {
+    var first = new Date(y, m, 1);
+    var lead = (first.getDay() + 6) % 7;   // 周一开头
+    var days = new Date(y, m + 1, 0).getDate();
+    return { lead: lead, days: days };
+  }
+  function renderDayDetail() {
+    var box = el('day-detail');
+    if (!selectedDay) { box.innerHTML = ''; return; }
+    var e = byDate(selectedDay);
+    if (!e) { box.innerHTML = '<div class="empty">' + selectedDay + ' 这一天没有记录</div>'; return; }
+    box.innerHTML = entryCard(e, ' day-entry');
+  }
+  function renderCalendar() {
+    if (!calCursor) return;
+    var y = calCursor.y, m = calCursor.m;
+    el('cal-title').textContent = monthTitle(y, m);
+    var g = calGrid(y, m);
+    var todayKey = todayDate();
+    var html = '';
+    ['一', '二', '三', '四', '五', '六', '日'].forEach(function (w) {
+      html += '<div class="cal-wd" aria-hidden="true">' + w + '</div>';
+    });
+    for (var i = 0; i < g.lead; i++) html += '<div class="cal-cell blank"></div>';
+    for (var d = 1; d <= g.days; d++) {
+      var key = y + '-' + pad(m + 1) + '-' + pad(d);
+      var entry = byDate(key);
+      var cls = 'cal-cell';
+      if (key === todayKey) cls += ' today';
+      if (entry) cls += ' has';
+      if (key === selectedDay) cls += ' sel';
+      var label = (m + 1) + ' 月 ' + d + ' 日' + (entry ? '，心情：' + (MOOD_NAMES[entry.mood] || '') : '');
+      html += '<button type="button" class="' + cls + '" data-date="' + key + '" aria-label="' + label + '">' +
+        '<span class="cd">' + d + '</span>' +
+        (entry ? '<span class="cdot" aria-hidden="true">' + (MOODS[entry.mood] || '😐') + '</span>' : '') +
+        '</button>';
+    }
+    el('cal-grid').innerHTML = html;
+    renderDayDetail();
+  }
+
+  function setView(cal) {
+    el('view-list').classList.toggle('hidden', cal);
+    el('view-cal').classList.toggle('hidden', !cal);
+    el('vt-list').setAttribute('aria-pressed', cal ? 'false' : 'true');
+    el('vt-cal').setAttribute('aria-pressed', cal ? 'true' : 'false');
+    if (cal) renderCalendar();
+  }
+
+  // ── 事件绑定 ────────────────────────────────────────────────────
+  el('moods').addEventListener('click', function (e) {
+    var m = e.target && e.target.closest ? e.target.closest('.mood') : null;
+    if (!m) return;
+    picked = m.getAttribute('data-m');
+    dirty = true;
+    renderMoods();
+  });
+  el('moods').addEventListener('keydown', function (e) {
+    var step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+    if (step === undefined) return;
+    e.preventDefault();
+    var idx = -1;
+    var active = document.activeElement;
+    if (active) idx = moodEls.indexOf(active);
+    if (idx < 0) {
+      for (var i = 0; i < moodEls.length; i++) { if (moodEls[i].getAttribute('data-m') === picked) { idx = i; break; } }
+    }
+    var next = (idx + step + moodEls.length) % moodEls.length;
+    if (moodEls[next] && moodEls[next].focus) moodEls[next].focus();
+  });
+
+  ta.addEventListener('input', function () { dirty = true; autoResize(); updateCharCount(); });
+
+  el('b-save').addEventListener('click', saveEntry);
+  el('b-cancel-edit').addEventListener('click', function () { refresh(); });
+
+  el('list').addEventListener('click', onEntryAction);
+  el('day-detail').addEventListener('click', onEntryAction);
+
+  el('vt-list').addEventListener('click', function () { setView(false); });
+  el('vt-cal').addEventListener('click', function () { setView(true); });
+  el('cal-prev').addEventListener('click', function () {
+    var d = new Date(calCursor.y, calCursor.m - 1, 1);
+    calCursor = { y: d.getFullYear(), m: d.getMonth() };
+    renderCalendar();
+  });
+  el('cal-next').addEventListener('click', function () {
+    var d = new Date(calCursor.y, calCursor.m + 1, 1);
+    calCursor = { y: d.getFullYear(), m: d.getMonth() };
+    renderCalendar();
+  });
+  el('cal-grid').addEventListener('click', function (e) {
+    var b = e.target && e.target.closest ? e.target.closest('[data-date]') : null;
+    if (!b || b.getAttribute('data-action')) return;
+    selectedDay = b.getAttribute('data-date');
+    renderCalendar();
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    disarmDelete();
+    if (editingDate) refresh();
+  });
+
+  // ── 初始化 ──────────────────────────────────────────────────────
+  store = readLocal();
+  collectMoods();
+  initCalendarCursor();
+  syncPromise = syncFromPlatform();   // 竞态防护：异步重读合并；首次落盘经 persistSafely 等待
+  renderMoods();
+  renderStats();
+  renderList();
+  renderCalendar();
+  loadToday();
+})();
+</script>
+</body>
+</html>

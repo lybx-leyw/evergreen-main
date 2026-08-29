@@ -1,0 +1,15 @@
+{
+  "type": "theme",
+  "id": "lavender-dusk",
+  "name": "薰衣草暮色",
+  "colors": {
+    "background": "#F3EFFB",
+    "surface": "#FAF8FE",
+    "border": "#DCD2F0",
+    "text": "#3B2D55",
+    "textSecondary": "#75649C",
+    "accent": "#6C54A4",
+    "error": "#C25E8C",
+    "others": "#C4B0EA"
+  }
+}

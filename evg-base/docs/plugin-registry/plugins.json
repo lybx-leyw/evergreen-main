@@ -1,4 +1,4 @@
-{
+﻿{
   "$schema": "https://evergreen.local/schema/plugin-registry-v1.json",
   "generatedNote": "Evergreen 插件市场 registry —— 自动发现的第三方插件清单。第三方作者向本文件提 PR 即可被市场自动收录（飞轮）。字段形态对齐 PluginDescriptor。",
   "plugins": [
@@ -106,6 +106,1868 @@
       "manifest": {
         "source": "local",
         "path": "assets/bright_brand_green"
+      },
+      "stars": 0
+    },
+    {
+      "id": "anime-calendar",
+      "name": "番剧更新",
+      "description": "数据源插件：番剧更新（anime_calendar）。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "data-source",
+      "dimensions": [
+        "data"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/anime-calendar"
+      },
+      "stars": 0
+    },
+    {
+      "id": "bamboo-garden",
+      "name": "竹林",
+      "description": "「竹林」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skin",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/bamboo-garden"
+      },
+      "stars": 0
+    },
+    {
+      "id": "bmi-calc",
+      "name": "BMI 计算",
+      "description": "HTML 交互模块（template:html）：自包含网页 + platform.* bridge，实时预览、即装即用。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "module",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/bmi-calc"
+      },
+      "stars": 0
+    },
+    {
+      "id": "bmi_calc",
+      "name": "bmi_calc",
+      "description": "根据身高体重计算 BMI 与体型建议；只读工具。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "agent",
+      "dimensions": [
+        "agent"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/bmi_calc"
+      },
+      "stars": 0
+    },
+    {
+      "id": "book-crossing",
+      "name": "图书漂流",
+      "description": "HTML 交互模块（template:html）：自包含网页 + platform.* bridge，实时预览、即装即用。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "module",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/book-crossing"
+      },
+      "stars": 0
+    },
+    {
+      "id": "breathing-guide",
+      "name": "呼吸引导",
+      "description": "HTML 交互模块（template:html）：自包含网页 + platform.* bridge，实时预览、即装即用。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "module",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/breathing-guide"
+      },
+      "stars": 0
+    },
+    {
+      "id": "campus-weather",
+      "name": "校园天气",
+      "description": "数据源插件：校园天气（campus_weather）。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "data-source",
+      "dimensions": [
+        "data"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/campus-weather"
+      },
+      "stars": 0
+    },
+    {
+      "id": "candy-pink",
+      "name": "糖果粉",
+      "description": "「糖果粉」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skin",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/candy-pink"
+      },
+      "stars": 0
+    },
+    {
+      "id": "celebration",
+      "name": "celebration",
+      "description": "当用户分享好消息、达成目标、考过、拿到 offer、项目上线等成功时刻时使用。负责把喜悦接住、放大、归档，避免敷衍式祝贺。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skill",
+      "dimensions": [
+        "agent"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/celebration"
+      },
+      "stars": 0
+    },
+    {
+      "id": "class-schedule",
+      "name": "课程表",
+      "description": "HTML 交互模块（template:html）：自包含网页 + platform.* bridge，实时预览、即装即用。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "module",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/class-schedule"
+      },
+      "stars": 0
+    },
+    {
+      "id": "code_review",
+      "name": "code_review",
+      "description": "当用户需要评审代码、被评审前自查、提交 PR/MR 前检查、处理评审意见、学习他人代码时使用。提供按优先级排序的检查清单与可复用评语句式。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skill",
+      "dimensions": [
+        "agent"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/code_review"
+      },
+      "stars": 0
+    },
+    {
+      "id": "coffee-study",
+      "name": "咖啡店自习",
+      "description": "「咖啡店自习」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skin",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/coffee-study"
+      },
+      "stars": 0
+    },
+    {
+      "id": "color-picker",
+      "name": "取色器",
+      "description": "HTML 交互模块（template:html）：自包含网页 + platform.* bridge，实时预览、即装即用。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "module",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/color-picker"
+      },
+      "stars": 0
+    },
+    {
+      "id": "comfort",
+      "name": "comfort",
+      "description": "当用户受挫、失败、被批评、失恋、考试砸了、emo 需要安慰时使用。提供先接情绪再谈事情的陪伴式回应，禁止讲大道理与立刻给建议。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skill",
+      "dimensions": [
+        "agent"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/comfort"
+      },
+      "stars": 0
+    },
+    {
+      "id": "conflict_talk",
+      "name": "conflict_talk",
+      "description": "当用户与同学/同事/家人/对象发生争执、被指责、需要拒绝别人、要谈敏感话题、缓和关系时使用。提供非暴力沟通话术与可复用句式。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skill",
+      "dimensions": [
+        "agent"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/conflict_talk"
+      },
+      "stars": 0
+    },
+    {
+      "id": "countdown",
+      "name": "倒计时",
+      "description": "HTML 交互模块（template:html）：自包含网页 + platform.* bridge，实时预览、即装即用。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "module",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/countdown"
+      },
+      "stars": 0
+    },
+    {
+      "id": "currency-converter",
+      "name": "汇率换算",
+      "description": "HTML 交互模块（template:html）：自包含网页 + platform.* bridge，实时预览、即装即用。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "module",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/currency-converter"
+      },
+      "stars": 0
+    },
+    {
+      "id": "current_date",
+      "name": "current_date",
+      "description": "返回当前日期，可附带星期几；只读工具，可并行调用。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "agent",
+      "dimensions": [
+        "agent"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/current_date"
+      },
+      "stars": 0
+    },
+    {
+      "id": "current_time",
+      "name": "current_time",
+      "description": "返回当前时间，支持 cn（中文格式）或 iso（ISO 8601）格式；只读工具，可并行调用。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "agent",
+      "dimensions": [
+        "agent"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/current_time"
+      },
+      "stars": 0
+    },
+    {
+      "id": "cyber-neon",
+      "name": "赛博霓虹",
+      "description": "「赛博霓虹」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skin",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/cyber-neon"
+      },
+      "stars": 0
+    },
+    {
+      "id": "debug_guide",
+      "name": "debug_guide",
+      "description": "当用户遇到 bug、报错、程序不工作、需要排查问题时使用。提供系统化排查流程、二分定位、报错解读与可复用提问句式。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skill",
+      "dimensions": [
+        "agent"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/debug_guide"
+      },
+      "stars": 0
+    },
+    {
+      "id": "deep-ocean",
+      "name": "深海",
+      "description": "「深海」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skin",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/deep-ocean"
+      },
+      "stars": 0
+    },
+    {
+      "id": "dorm-repair",
+      "name": "宿舍报修",
+      "description": "HTML 交互模块（template:html）：自包含网页 + platform.* bridge，实时预览、即装即用。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "module",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/dorm-repair"
+      },
+      "stars": 0
+    },
+    {
+      "id": "emoji-search",
+      "name": "Emoji 搜索",
+      "description": "HTML 交互模块（template:html）：自包含网页 + platform.* bridge，实时预览、即装即用。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "module",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/emoji-search"
+      },
+      "stars": 0
+    },
+    {
+      "id": "exam-countdown",
+      "name": "考试倒计时",
+      "description": "HTML 交互模块（template:html）：自包含网页 + platform.* bridge，实时预览、即装即用。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "module",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/exam-countdown"
+      },
+      "stars": 0
+    },
+    {
+      "id": "exam_week",
+      "name": "exam_week",
+      "description": "当用户进入考试周/考前冲刺、需要复习计划、考前焦虑、考后估分时使用。提供倒排复习表、重点取舍、心态话术与考场策略。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skill",
+      "dimensions": [
+        "agent"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/exam_week"
+      },
+      "stars": 0
+    },
+    {
+      "id": "exchange-rate",
+      "name": "汇率",
+      "description": "数据源插件：汇率（exchange_rate）。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "data-source",
+      "dimensions": [
+        "data"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/exchange-rate"
+      },
+      "stars": 0
+    },
+    {
+      "id": "express-tracker",
+      "name": "快递查询",
+      "description": "HTML 交互模块（template:html）：自包含网页 + platform.* bridge，实时预览、即装即用。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "module",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/express-tracker"
+      },
+      "stars": 0
+    },
+    {
+      "id": "forest-green",
+      "name": "森林绿意",
+      "description": "「森林绿意」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skin",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/forest-green"
+      },
+      "stars": 0
+    },
+    {
+      "id": "github-trending",
+      "name": "GitHub 趋势",
+      "description": "数据源插件：GitHub 趋势（github_trending）。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "data-source",
+      "dimensions": [
+        "data"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/github-trending"
+      },
+      "stars": 0
+    },
+    {
+      "id": "hash_summary",
+      "name": "hash_summary",
+      "description": "计算文本的 sha256 摘要（数据源增量判断、缓存指纹用）；只读工具。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "agent",
+      "dimensions": [
+        "agent"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/hash_summary"
+      },
+      "stars": 0
+    },
+    {
+      "id": "human_talk",
+      "name": "human_talk",
+      "description": "当用户嫌回复太 AI、太正式、太长、太客套，或要求「说人话」「别像机器人」「自然一点」时使用。把 AI 腔改写成口语化、有温度、有细节的人话。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skill",
+      "dimensions": [
+        "agent"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/human_talk"
+      },
+      "stars": 0
+    },
+    {
+      "id": "idiom-quiz",
+      "name": "成语问答",
+      "description": "HTML 交互模块（template:html）：自包含网页 + platform.* bridge，实时预览、即装即用。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "module",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/idiom-quiz"
+      },
+      "stars": 0
+    },
+    {
+      "id": "ink-landscape",
+      "name": "水墨丹青",
+      "description": "「水墨丹青」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skin",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/ink-landscape"
+      },
+      "stars": 0
+    },
+    {
+      "id": "interview_tips",
+      "name": "interview_tips",
+      "description": "当用户要面试（实习/校招/社招）、需要模拟面试、自我介绍准备、被问到不会的问题、谈薪、面试后复盘时使用。提供问答策略与可套用话术。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skill",
+      "dimensions": [
+        "agent"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/interview_tips"
+      },
+      "stars": 0
+    },
+    {
+      "id": "ip_location",
+      "name": "ip_location",
+      "description": "根据 IP 返回所属网络段与说明（演示用，纯离线判断）；只读工具。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "agent",
+      "dimensions": [
+        "agent"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/ip_location"
+      },
+      "stars": 0
+    },
+    {
+      "id": "json_format",
+      "name": "json_format",
+      "description": "把 JSON 字符串格式化/压缩为可读文本；只读工具。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "agent",
+      "dimensions": [
+        "agent"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/json_format"
+      },
+      "stars": 0
+    },
+    {
+      "id": "lavender-dusk",
+      "name": "薰衣草暮色",
+      "description": "「薰衣草暮色」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skin",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/lavender-dusk"
+      },
+      "stars": 0
+    },
+    {
+      "id": "library-night",
+      "name": "图书馆深夜",
+      "description": "「图书馆深夜」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skin",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/library-night"
+      },
+      "stars": 0
+    },
+    {
+      "id": "markdown_toc",
+      "name": "markdown_toc",
+      "description": "从 Markdown 文本提取标题生成目录（TOC）；只读工具。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "agent",
+      "dimensions": [
+        "agent"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/markdown_toc"
+      },
+      "stars": 0
+    },
+    {
+      "id": "meeting_notes",
+      "name": "meeting_notes",
+      "description": "当用户需要整理会议纪要、会议录音转文字后的整理、待办提取、会议总结、向他人转述会议内容时使用。提供纪要结构模板与可直接套用的句子。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skill",
+      "dimensions": [
+        "agent"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/meeting_notes"
+      },
+      "stars": 0
+    },
+    {
+      "id": "minimal-white",
+      "name": "极简白",
+      "description": "「极简白」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skin",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/minimal-white"
+      },
+      "stars": 0
+    },
+    {
+      "id": "mint-fresh",
+      "name": "薄荷清新",
+      "description": "「薄荷清新」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skin",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/mint-fresh"
+      },
+      "stars": 0
+    },
+    {
+      "id": "mood-diary",
+      "name": "心情日记",
+      "description": "HTML 交互模块（template:html）：自包含网页 + platform.* bridge，实时预览、即装即用。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "module",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/mood-diary"
+      },
+      "stars": 0
+    },
+    {
+      "id": "morning-sun",
+      "name": "晨光",
+      "description": "「晨光」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skin",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/morning-sun"
+      },
+      "stars": 0
+    },
+    {
+      "id": "neon-night-run",
+      "name": "荧光夜跑",
+      "description": "「荧光夜跑」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skin",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/neon-night-run"
+      },
+      "stars": 0
+    },
+    {
+      "id": "news-headlines",
+      "name": "新闻头条",
+      "description": "数据源插件：新闻头条（news_headlines）。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "data-source",
+      "dimensions": [
+        "data"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/news-headlines"
+      },
+      "stars": 0
+    },
+    {
+      "id": "oil-price",
+      "name": "油价",
+      "description": "数据源插件：油价（oil_price）。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "data-source",
+      "dimensions": [
+        "data"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/oil-price"
+      },
+      "stars": 0
+    },
+    {
+      "id": "paper-progress",
+      "name": "论文进度",
+      "description": "HTML 交互模块（template:html）：自包含网页 + platform.* bridge，实时预览、即装即用。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "module",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/paper-progress"
+      },
+      "stars": 0
+    },
+    {
+      "id": "password-gen",
+      "name": "密码生成器",
+      "description": "HTML 交互模块（template:html）：自包含网页 + platform.* bridge，实时预览、即装即用。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "module",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/password-gen"
+      },
+      "stars": 0
+    },
+    {
+      "id": "password_generator",
+      "name": "password_generator",
+      "description": "生成指定长度的随机强密码（大小写字母+数字+符号），一次性工具。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "agent",
+      "dimensions": [
+        "agent"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/password_generator"
+      },
+      "stars": 0
+    },
+    {
+      "id": "pomodoro",
+      "name": "番茄钟",
+      "description": "HTML 交互模块（template:html）：自包含网页 + platform.* bridge，实时预览、即装即用。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "module",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/pomodoro"
+      },
+      "stars": 0
+    },
+    {
+      "id": "pomodoro_planner",
+      "name": "pomodoro_planner",
+      "description": "把总分钟数拆成番茄钟学习计划（25 分钟专注 + 5 分钟休息），返回分块建议。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "agent",
+      "dimensions": [
+        "agent"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/pomodoro_planner"
+      },
+      "stars": 0
+    },
+    {
+      "id": "presentation_tips",
+      "name": "presentation_tips",
+      "description": "当用户要做汇报、答辩、讲课、演讲、pre、分享，需要做 PPT、写讲稿、控制紧张、设计开场与结尾时使用。提供结构化表达与可复用话术。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skill",
+      "dimensions": [
+        "agent"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/presentation_tips"
+      },
+      "stars": 0
+    },
+    {
+      "id": "public-holiday",
+      "name": "节假日",
+      "description": "数据源插件：节假日（public_holiday）。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "data-source",
+      "dimensions": [
+        "data"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/public-holiday"
+      },
+      "stars": 0
+    },
+    {
+      "id": "qiushi-blue",
+      "name": "求是蓝",
+      "description": "「求是蓝」配套皮肤：SVG 求是鹰背景（横竖屏 imageDesktop/imageMobile）+ 求是鹰头像 + 主题色气泡与思考栏，随 theme 成套安装。",
+      "author": "lybx-leyw",
+      "version": "1.1.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skin",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/qiushi-blue"
+      },
+      "stars": 0
+    },
+    {
+      "id": "qr-generator",
+      "name": "二维码生成",
+      "description": "HTML 交互模块（template:html）：自包含网页 + platform.* bridge，实时预览、即装即用。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "module",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/qr-generator"
+      },
+      "stars": 0
+    },
+    {
+      "id": "qr_encode",
+      "name": "qr_encode",
+      "description": "把文本编码成 QR 码 SVG（纯标准库实现，无第三方依赖），输出 SVG 字符串。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "agent",
+      "dimensions": [
+        "agent"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/qr_encode"
+      },
+      "stars": 0
+    },
+    {
+      "id": "random-dinner",
+      "name": "今天吃什么",
+      "description": "HTML 交互模块（template:html）：自包含网页 + platform.* bridge，实时预览、即装即用。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "module",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/random-dinner"
+      },
+      "stars": 0
+    },
+    {
+      "id": "random_pick",
+      "name": "random_pick",
+      "description": "从给定候选项中随机抽取指定个数（食堂选餐、学什么等）；只读工具。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "agent",
+      "dimensions": [
+        "agent"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/random_pick"
+      },
+      "stars": 0
+    },
+    {
+      "id": "reading-notes",
+      "name": "读书笔记",
+      "description": "HTML 交互模块（template:html）：自包含网页 + platform.* bridge，实时预览、即装即用。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "module",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/reading-notes"
+      },
+      "stars": 0
+    },
+    {
+      "id": "resume_optimize",
+      "name": "resume_optimize",
+      "description": "当用户要写简历、改简历、投实习/校招/社招、被拒后想优化、需要针对 JD 定制简历时使用。提供 STAR 改写、量化、关键词对齐与话术。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skill",
+      "dimensions": [
+        "agent"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/resume_optimize"
+      },
+      "stars": 0
+    },
+    {
+      "id": "retro-film",
+      "name": "复古胶片",
+      "description": "「复古胶片」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skin",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/retro-film"
+      },
+      "stars": 0
+    },
+    {
+      "id": "sakura-season",
+      "name": "樱花季",
+      "description": "「樱花季」配套皮肤：SVG 樱枝背景（横竖屏 imageDesktop/imageMobile）+ 樱花头像 + 主题色气泡与思考栏，随 theme 成套安装。",
+      "author": "lybx-leyw",
+      "version": "1.1.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skin",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/sakura-season"
+      },
+      "stars": 0
+    },
+    {
+      "id": "second-hand",
+      "name": "二手集市",
+      "description": "HTML 交互模块（template:html）：自包含网页 + platform.* bridge，实时预览、即装即用。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "module",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/second-hand"
+      },
+      "stars": 0
+    },
+    {
+      "id": "self_intro",
+      "name": "self_intro",
+      "description": "当用户需要自我介绍（面试、开学、社团、入职、社交、破冰）、写个人简介、被要求「介绍一下你自己」时使用。提供不同时长/场景版本与可复用句式。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skill",
+      "dimensions": [
+        "agent"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/self_intro"
+      },
+      "stars": 0
+    },
+    {
+      "id": "semester_countdown",
+      "name": "semester_countdown",
+      "description": "计算距离指定日期（如期末/DDL）还有多少天；大学生刚需，只读工具。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "agent",
+      "dimensions": [
+        "agent"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/semester_countdown"
+      },
+      "stars": 0
+    },
+    {
+      "id": "simple-ledger",
+      "name": "简易记账",
+      "description": "HTML 交互模块（template:html）：自包含网页 + platform.* bridge，实时预览、即装即用。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "module",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/simple-ledger"
+      },
+      "stars": 0
+    },
+    {
+      "id": "sleep-sheep",
+      "name": "睡眠小羊",
+      "description": "HTML 交互模块（template:html）：自包含网页 + platform.* bridge，实时预览、即装即用。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "module",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/sleep-sheep"
+      },
+      "stars": 0
+    },
+    {
+      "id": "sleep-tracker",
+      "name": "睡眠记录",
+      "description": "HTML 交互模块（template:html）：自包含网页 + platform.* bridge，实时预览、即装即用。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "module",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/sleep-tracker"
+      },
+      "stars": 0
+    },
+    {
+      "id": "starry-night",
+      "name": "星空",
+      "description": "「星空」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skin",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/starry-night"
+      },
+      "stars": 0
+    },
+    {
+      "id": "sticky-notes",
+      "name": "便签",
+      "description": "HTML 交互模块（template:html）：自包含网页 + platform.* bridge，实时预览、即装即用。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "module",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/sticky-notes"
+      },
+      "stars": 0
+    },
+    {
+      "id": "stock-quote",
+      "name": "股票行情",
+      "description": "数据源插件：股票行情（stock_quote）。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "data-source",
+      "dimensions": [
+        "data"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/stock-quote"
+      },
+      "stars": 0
+    },
+    {
+      "id": "sunset-glow",
+      "name": "落日余晖",
+      "description": "「落日余晖」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skin",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/sunset-glow"
+      },
+      "stars": 0
+    },
+    {
+      "id": "thesis_writing",
+      "name": "thesis_writing",
+      "description": "当用户需要写论文/开题/毕设/期刊稿、改摘要、定框架、润色语言、处理查重与引用时使用。提供从选题到成稿的写作流程与可直接套用的段落句式。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skill",
+      "dimensions": [
+        "agent"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/thesis_writing"
+      },
+      "stars": 0
+    },
+    {
+      "id": "time_management",
+      "name": "time_management",
+      "description": "当用户觉得时间不够用、拖延、任务堆成山、需要排日程、想提高效率时使用。提供任务优先级排序、时间块安排与可复用计划句式。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skill",
+      "dimensions": [
+        "agent"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/time_management"
+      },
+      "stars": 0
+    },
+    {
+      "id": "todo-list",
+      "name": "待办清单",
+      "description": "HTML 交互模块（template:html）：自包含网页 + platform.* bridge，实时预览、即装即用。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "module",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/todo-list"
+      },
+      "stars": 0
+    },
+    {
+      "id": "unit-converter",
+      "name": "单位换算",
+      "description": "HTML 交互模块（template:html）：自包含网页 + platform.* bridge，实时预览、即装即用。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "module",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/unit-converter"
+      },
+      "stars": 0
+    },
+    {
+      "id": "unit_convert",
+      "name": "unit_convert",
+      "description": "常见单位换算：长度/重量/温度/数据量；只读工具。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "agent",
+      "dimensions": [
+        "agent"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/unit_convert"
+      },
+      "stars": 0
+    },
+    {
+      "id": "url_encode_decode",
+      "name": "url_encode_decode",
+      "description": "URL 编码或解码字符串；只读工具。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "agent",
+      "dimensions": [
+        "agent"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/url_encode_decode"
+      },
+      "stars": 0
+    },
+    {
+      "id": "uuid_gen",
+      "name": "uuid_gen",
+      "description": "生成一个 v4 UUID（随机）；一次性工具。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "agent",
+      "dimensions": [
+        "agent"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/uuid_gen"
+      },
+      "stars": 0
+    },
+    {
+      "id": "warm-wood",
+      "name": "温暖原木",
+      "description": "「温暖原木」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skin",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/warm-wood"
+      },
+      "stars": 0
+    },
+    {
+      "id": "water-reminder",
+      "name": "喝水提醒",
+      "description": "HTML 交互模块（template:html）：自包含网页 + platform.* bridge，实时预览、即装即用。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "module",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/water-reminder"
+      },
+      "stars": 0
+    },
+    {
+      "id": "weather-card",
+      "name": "天气卡片",
+      "description": "HTML 交互模块（template:html）：自包含网页 + platform.* bridge，实时预览、即装即用。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "module",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/weather-card"
+      },
+      "stars": 0
+    },
+    {
+      "id": "weekly_report",
+      "name": "weekly_report",
+      "description": "当用户要写周报/月报、述职材料、周会发言、向老板汇报本周工作时使用。提供从碎片记录到结构化周报的流程与可套用句式。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skill",
+      "dimensions": [
+        "agent"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/weekly_report"
+      },
+      "stars": 0
+    },
+    {
+      "id": "west-lake-rain",
+      "name": "西湖烟雨",
+      "description": "「西湖烟雨」配套皮肤：SVG 远山烟雨背景（横竖屏 imageDesktop/imageMobile）+ 远山头像 + 主题色气泡与思考栏，随 theme 成套安装。",
+      "author": "lybx-leyw",
+      "version": "1.1.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "skin",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/west-lake-rain"
+      },
+      "stars": 0
+    },
+    {
+      "id": "word-flashcards",
+      "name": "单词卡片",
+      "description": "HTML 交互模块（template:html）：自包含网页 + platform.* bridge，实时预览、即装即用。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "module",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/word-flashcards"
+      },
+      "stars": 0
+    },
+    {
+      "id": "workout-log",
+      "name": "健身记录",
+      "description": "HTML 交互模块（template:html）：自包含网页 + platform.* bridge，实时预览、即装即用。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "module",
+      "dimensions": [
+        "ui"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/workout-log"
+      },
+      "stars": 0
+    },
+    {
+      "id": "zju-bus",
+      "name": "校车时刻",
+      "description": "数据源插件：校车时刻（zju_bus）。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "data-source",
+      "dimensions": [
+        "data"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/zju-bus"
+      },
+      "stars": 0
+    },
+    {
+      "id": "zju-calendar",
+      "name": "浙大校历",
+      "description": "数据源插件：浙大校历（zju_calendar）。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "data-source",
+      "dimensions": [
+        "data"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/zju-calendar"
+      },
+      "stars": 0
+    },
+    {
+      "id": "zju-canteen",
+      "name": "食堂菜单",
+      "description": "数据源插件：食堂菜单（zju_canteen）。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "data-source",
+      "dimensions": [
+        "data"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/zju-canteen"
+      },
+      "stars": 0
+    },
+    {
+      "id": "zju-grades",
+      "name": "浙大成绩",
+      "description": "数据源插件：浙大成绩（zju_grades）。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "data-source",
+      "dimensions": [
+        "data"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/zju-grades"
+      },
+      "stars": 0
+    },
+    {
+      "id": "zju-ical",
+      "name": "ZJU 课表 iCal 导出",
+      "description": "数据源插件：ZJU 课表 iCal 导出（zju_ical）。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "data-source",
+      "dimensions": [
+        "data"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/zju-ical"
+      },
+      "stars": 0
+    },
+    {
+      "id": "zju-lectures",
+      "name": "讲座日历",
+      "description": "数据源插件：讲座日历（zju_lectures）。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "data-source",
+      "dimensions": [
+        "data"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/zju-lectures"
+      },
+      "stars": 0
+    },
+    {
+      "id": "zju-library",
+      "name": "ZJU 图书馆检索",
+      "description": "数据源插件：ZJU 图书馆检索（zju_library）。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "data-source",
+      "dimensions": [
+        "data"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/zju-library"
+      },
+      "stars": 0
+    },
+    {
+      "id": "zju-library-seats",
+      "name": "图书馆座位",
+      "description": "数据源插件：图书馆座位（zju_library_seats）。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "data-source",
+      "dimensions": [
+        "data"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/zju-library-seats"
+      },
+      "stars": 0
+    },
+    {
+      "id": "zju-schedule",
+      "name": "浙大课表",
+      "description": "数据源插件：浙大课表（zju_schedule）。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "data-source",
+      "dimensions": [
+        "data"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/zju-schedule"
+      },
+      "stars": 0
+    },
+    {
+      "id": "zjucrawler",
+      "name": "ZJU 教务数据",
+      "description": "数据源插件：ZJU 教务数据（zju_course）。",
+      "author": "lybx-leyw",
+      "version": "1.0.0",
+      "repo": "https://github.com/lybx-leyw/evg-plugins",
+      "homepage": "https://github.com/lybx-leyw/evg-plugins",
+      "license": "MIT",
+      "lattice": "data-source",
+      "dimensions": [
+        "data"
+      ],
+      "manifest": {
+        "source": "local",
+        "path": "assets/zjucrawler"
       },
       "stars": 0
     }

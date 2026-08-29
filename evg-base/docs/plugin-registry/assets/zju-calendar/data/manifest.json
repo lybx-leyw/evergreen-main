@@ -1,0 +1,24 @@
+{
+  "type": "data-source",
+  "id": "zju-calendar",
+  "name": "浙大校历",
+  "script": "fetch.py",
+  "runtime": "python",
+  "androidSupport": true,
+  "dataTypes": [
+    {
+      "name": "zju_calendar",
+      "typeArg": "zju_calendar",
+      "category": "校园",
+      "displayName": "浙大校历",
+      "ttl": "24h",
+      "persistentKey": "zju_calendar",
+      "fallbackJson": {
+        "items": [],
+        "total": 0,
+        "fromFallback": true,
+        "note": "校历源暂不可达且无旧缓存时的静态兜底：仅含空列表与说明（不含任何伪造数据），请联网刷新获取真实校历。"
+      }
+    }
+  ]
+}

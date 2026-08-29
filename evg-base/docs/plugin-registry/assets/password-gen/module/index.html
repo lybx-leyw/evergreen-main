@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light dark">
+<title>密码生成器</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* 主题别名：只消费平台注入的 --evg-* 变量（禁止在 :root 重定义 --evg-*）。
+   平台注入时内联样式优先 → 平台主题永远生效；
+   脱离平台独立打开时回退到下方浅色/深色兜底值（跟随系统 prefers-color-scheme）。 */
+:root {
+  --bg: var(--evg-background, #f2f0f6);
+  --card: var(--evg-surface, #ffffff);
+  --ink: var(--evg-text, #2c2440);
+  --ink-soft: var(--evg-text-secondary, #6f6488);
+  --accent: var(--evg-accent, #7a5af0);
+  --accent-bg: var(--evg-accent-bg, #ebe6fc);
+  --accent-border: var(--evg-accent-border, #cfc3f5);
+  --line: var(--evg-border, rgba(44, 36, 64, .09));
+  --err: var(--evg-error, #d64545);
+  --c-weak: #d64545; --c-fair: #d09a2f; --c-good: #3d9e63; --c-strong: #2f6fd0;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: var(--evg-background, #17151f);
+    --card: var(--evg-surface, #221f2e);
+    --ink: var(--evg-text, #e9e5f3);
+    --ink-soft: var(--evg-text-secondary, #a49cb9);
+    --accent: var(--evg-accent, #9d82f5);
+    --accent-bg: var(--evg-accent-bg, rgba(157, 130, 245, .16));
+    --accent-border: var(--evg-accent-border, rgba(157, 130, 245, .38));
+    --line: var(--evg-border, rgba(233, 229, 243, .14));
+    --err: var(--evg-error, #f07178);
+    --c-weak: #f07178; --c-fair: #e0b341; --c-good: #56c07f; --c-strong: #6fa8f0;
+  }
+}
+/* 平台主题为深色时（JS 按 getColors().background 亮度判定）覆盖状态色与原生控件明暗 */
+:root[data-theme="dark"] {
+  --c-weak: #f07178; --c-fair: #e0b341; --c-good: #56c07f; --c-strong: #6fa8f0;
+  color-scheme: dark;
+}
+
+html { font-size: 16px; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, sans-serif;
+  background: var(--bg); color: var(--ink); min-height: 100vh; line-height: 1.5; -webkit-font-smoothing: antialiased;
+}
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: .4rem; }
+
+.topbar { display: flex; align-items: center; gap: .75rem; padding: 1.1rem 1.5rem; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--card) 72%, transparent); backdrop-filter: blur(.875rem); -webkit-backdrop-filter: blur(.875rem); position: sticky; top: 0; z-index: 5; }
+.topbar .ico { font-size: 1.5rem; }
+.topbar h1 { font-size: 1.15rem; font-weight: 700; }
+.topbar .sub { font-size: .72rem; color: var(--ink-soft); }
+
+.container { max-width: 42rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 1rem; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+.card h2 { font-size: .95rem; font-weight: 700; margin-bottom: .9rem; display: flex; align-items: center; justify-content: space-between; gap: .5rem; flex-wrap: wrap; }
+.card h2 .f { font-size: .72rem; color: var(--ink-soft); font-weight: 500; display: inline-flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+
+.tag { display: inline-block; padding: .1rem .5rem; border-radius: 999px; font-size: .68rem; font-weight: 600; background: var(--accent-bg); color: var(--accent); border: 1px solid var(--accent-border); }
+.tag-warn { background: color-mix(in srgb, var(--c-fair) 14%, transparent); color: var(--c-fair); border-color: color-mix(in srgb, var(--c-fair) 40%, transparent); }
+
+.output { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; background: color-mix(in srgb, var(--bg) 55%, transparent); border: 1px solid var(--line); border-radius: .8rem; padding: .8rem .9rem; margin-bottom: 1rem; }
+.output .pw { flex: 1 1 14rem; font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 1.1rem; font-weight: 600; word-break: break-all; letter-spacing: .02em; min-height: 1.4em; }
+
+.btn { appearance: none; border: none; cursor: pointer; font-family: inherit; font-size: .85rem; font-weight: 600; padding: .55rem 1.1rem; border-radius: .7rem; color: #fff; background: var(--accent); transition: transform .15s ease, opacity .15s ease; }
+.btn:hover { transform: translateY(-1px); opacity: .92; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn.sm { padding: .45rem .85rem; font-size: .8rem; }
+.btn-danger { background: var(--c-weak); }
+.btn-err { color: var(--c-weak) !important; border-color: color-mix(in srgb, var(--c-weak) 50%, transparent) !important; }
+
+.strength { margin-bottom: 1.1rem; }
+.strength .row { display: flex; align-items: center; gap: .6rem; margin-bottom: .4rem; }
+.strength .label { font-size: .78rem; color: var(--ink-soft); }
+.strength .val { font-size: .85rem; font-weight: 700; }
+.strength .seg { display: flex; gap: .25rem; flex: 1; }
+.strength .seg i { height: .45rem; border-radius: 999px; flex: 1; background: color-mix(in srgb, var(--ink-soft) 12%, transparent); transition: background .2s ease; }
+
+.warn { background: color-mix(in srgb, var(--c-fair) 10%, transparent); border: 1px solid color-mix(in srgb, var(--c-fair) 45%, transparent); border-radius: .75rem; padding: .75rem .9rem; font-size: .78rem; line-height: 1.6; color: var(--ink); margin-bottom: 1rem; }
+.warn-title { font-weight: 700; margin-bottom: .35rem; color: var(--c-fair); }
+.warn p { margin-bottom: .6rem; }
+.warn-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+
+.options { display: flex; flex-direction: column; gap: .7rem; margin-bottom: 1rem; }
+.opt { display: flex; align-items: center; justify-content: space-between; gap: .6rem; }
+.opt label[for] { font-size: .88rem; cursor: pointer; }
+.opt .hint { font-size: .72rem; color: var(--ink-soft); font-weight: 400; }
+
+.switch { position: relative; width: 2.6rem; height: 1.5rem; flex-shrink: 0; cursor: pointer; }
+.switch input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; }
+.switch .sl { position: absolute; inset: 0; border-radius: 999px; background: color-mix(in srgb, var(--ink-soft) 25%, transparent); transition: background .2s ease; pointer-events: none; }
+.switch .sl::before { content: ""; position: absolute; width: 1.15rem; height: 1.15rem; border-radius: 50%; left: .18rem; top: .18rem; background: #fff; transition: transform .2s ease; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
+.switch input:checked + .sl { background: var(--accent); }
+.switch input:checked + .sl::before { transform: translateX(1.1rem); }
+.switch input:focus-visible + .sl { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.range-row { display: flex; align-items: center; gap: .7rem; }
+.range-row label { font-size: .88rem; white-space: nowrap; }
+.range-row input[type=range] { flex: 1; accent-color: var(--accent); min-width: 5rem; }
+.range-row .num { font-weight: 700; min-width: 2rem; text-align: center; }
+
+.history { display: flex; flex-direction: column; gap: .4rem; }
+.hitem { display: flex; align-items: center; gap: .6rem; background: color-mix(in srgb, var(--bg) 48%, transparent); border: 1px solid var(--line); border-radius: .65rem; padding: .45rem .6rem; }
+.hitem code { flex: 1; font-family: ui-monospace, Consolas, monospace; font-size: .82rem; word-break: break-all; }
+.hitem .t { color: var(--ink-soft); font-size: .7rem; font-family: inherit; white-space: nowrap; }
+.hcopy { appearance: none; border: 1px solid var(--line); background: transparent; color: var(--ink-soft); border-radius: .5rem; cursor: pointer; padding: .25rem .5rem; font-size: .78rem; font-family: inherit; flex-shrink: 0; transition: color .15s ease, border-color .15s ease; }
+.hcopy:hover { color: var(--accent); border-color: var(--accent-border); }
+.empty { text-align: center; color: var(--ink-soft); font-size: .85rem; padding: 1rem 0; }
+.note { font-size: .72rem; color: var(--ink-soft); line-height: 1.6; margin-top: .7rem; }
+.note strong { color: var(--c-fair); font-weight: 700; }
+
+.toast { position: fixed; left: 50%; bottom: 1.3rem; transform: translateX(-50%) translateY(.9rem); opacity: 0; pointer-events: none; background: var(--card); border: 1px solid var(--line); color: var(--ink); padding: .55rem 1rem; border-radius: .7rem; font-size: .82rem; box-shadow: 0 4px 16px rgba(0,0,0,.12); transition: opacity .2s ease, transform .2s ease; z-index: 20; max-width: 90vw; }
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast.ok { border-color: color-mix(in srgb, var(--c-good) 55%, transparent); color: var(--c-good); }
+.toast.warn { border-color: color-mix(in srgb, var(--c-fair) 55%, transparent); color: var(--c-fair); }
+.toast.err { border-color: color-mix(in srgb, var(--c-weak) 55%, transparent); color: var(--c-weak); }
+
+@media (max-width: 480px) {
+  .topbar { padding: .85rem 1rem; }
+  .container { padding: 1.1rem 1rem 2.5rem; }
+  .card { padding: 1rem; }
+  .output { flex-direction: column; align-items: stretch; }
+  .output .pw { font-size: 1rem; }
+  .range-row { flex-wrap: wrap; }
+  .opt { align-items: flex-start; }
+  .hitem { flex-wrap: wrap; }
+  .hitem .t { white-space: normal; }
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <span class="ico">🔐</span>
+  <div><h1>密码生成器</h1><div class="sub">强密码生成 · 强度评估 · 默认不保存密码</div></div>
+</header>
+<main class="container">
+  <section class="card">
+    <div class="output">
+      <div class="pw" id="pw">—</div>
+      <button type="button" class="btn ghost sm" id="b-copy">📋 复制</button>
+    </div>
+    <div class="strength">
+      <div class="row">
+        <span class="label">强度</span>
+        <div class="seg" id="segs"><i></i><i></i><i></i><i></i></div>
+        <span class="val" id="sval">—</span>
+        <span class="label" id="bits" style="min-width:4.5rem">—</span>
+      </div>
+    </div>
+    <div id="rng-warn" class="warn" role="alert" style="display:none">⚠ 当前环境不支持安全随机数（crypto.getRandomValues），已降级为伪随机源，请勿用于高价值账户。</div>
+    <div class="options">
+      <div class="range-row">
+        <label for="len">长度</label>
+        <input type="range" id="len" min="6" max="64" value="16">
+        <span class="num" id="len-num">16</span>
+      </div>
+      <div class="opt"><label for="o-upper">大写字母 <span class="hint">A-Z（排除 I、O）</span></label><label class="switch"><input type="checkbox" id="o-upper" checked><span class="sl"></span></label></div>
+      <div class="opt"><label for="o-lower">小写字母 <span class="hint">a-z（排除 l）</span></label><label class="switch"><input type="checkbox" id="o-lower" checked><span class="sl"></span></label></div>
+      <div class="opt"><label for="o-digit">数字 <span class="hint">2-9（排除 0、1）</span></label><label class="switch"><input type="checkbox" id="o-digit" checked><span class="sl"></span></label></div>
+      <div class="opt"><label for="o-sym">符号 <span class="hint">!@#$%^&amp;*()-_=+[]{}&lt;&gt;?/</span></label><label class="switch"><input type="checkbox" id="o-sym" checked><span class="sl"></span></label></div>
+    </div>
+    <div style="display:flex; gap:.5rem; flex-wrap:wrap;">
+      <button type="button" class="btn" id="b-gen">⚡ 生成密码</button>
+      <button type="button" class="btn ghost" id="b-clear-h">清空历史</button>
+    </div>
+    <div class="note">密码仅在本地生成，不会上传，<strong>默认不保存到磁盘</strong>：生成历史只保留在本次会话中（关闭页面即消失）。只有在你显式开启「保存到本地」并经风险确认后，密码明文才会落盘。随机源为浏览器安全随机数（crypto.getRandomValues，均匀无取模偏差）；已自动排除易混淆字符（I、O、0、1、l），并保证密码包含所有已选字符类型。建议长度 16 位以上、包含全部字符类型，并为不同网站使用不同密码。</div>
+  </section>
+
+  <section class="card">
+    <h2>📜 生成历史 <span class="f"><span id="hcount">0 条</span> · <span id="hstate" class="tag">仅本次会话 · 不落盘</span></span></h2>
+    <div class="opt" style="margin-bottom:.9rem">
+      <label for="o-persist">保存到本地 <span class="hint">明文落盘，需确认风险</span></label>
+      <label class="switch"><input type="checkbox" id="o-persist"><span class="sl"></span></label>
+    </div>
+    <div id="persist-confirm" class="warn" role="alertdialog" aria-label="风险确认" style="display:none">
+      <div class="warn-title">⚠ 风险提示：确认开启本地保存？</div>
+      <p>开启后，每次生成的密码将<strong>以其原始明文形式</strong>保存在本机插件存储（storage.json）中。任何能访问该文件或设备的人、程序、备份工具，都可能读取这些密码。请仅在私人可信设备上使用，并养成使用后「清空历史」的习惯。</p>
+      <div class="warn-actions">
+        <button type="button" class="btn sm btn-danger" id="persist-yes">确认开启保存</button>
+        <button type="button" class="btn ghost sm" id="persist-no">取消</button>
+      </div>
+    </div>
+    <p class="note" id="persist-note" style="display:none">⚠ 当前已开启本地保存：密码明文保存在本机，存在被读取的风险，建议使用后及时「清空历史」或关闭保存。</p>
+    <div class="history" id="history"></div>
+  </section>
+</main>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script>
+(function () {
+  'use strict';
+
+  var P = (typeof platform !== 'undefined' && platform) ? platform : null;
+
+  var PREFS_KEY = 'evg.password-gen.prefs';   // 偏好（绝不含密码）
+  var HIST_KEY = 'evg.password-gen.history';  // 历史明文（仅用户显式开启保存后才写入）
+  var MAX_HISTORY = 20;
+  var MIN_LEN = 6, MAX_LEN = 64;
+  var PLACEHOLDER = '—';
+
+  // ---------- 元素缓存 ----------
+  var els = {};
+  function el(id) {
+    if (!els[id]) els[id] = document.getElementById(id);
+    return els[id];
+  }
+
+  // ---------- 存储（localStorage 由平台 bridge polyfill 接管，落盘到插件私有目录） ----------
+  function lsGet(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
+  function lsSet(key, value) { try { localStorage.setItem(key, value); } catch (e) {} }
+  function lsDel(key) { try { localStorage.removeItem(key); } catch (e) {} }
+  function readJSON(key, fallback) {
+    var raw = lsGet(key);
+    if (raw == null) return fallback;
+    try { var v = JSON.parse(raw); return v == null ? fallback : v; } catch (e) { return fallback; }
+  }
+  function writeJSON(key, value) { lsSet(key, JSON.stringify(value)); }
+
+  // ---------- 偏好（长度/字符集/是否保存历史；只存选项，绝不包含密码） ----------
+  var DEFAULT_PREFS = { v: 1, len: 16, upper: true, lower: true, digit: true, sym: true, saveHistory: false };
+  var prefs = null;
+
+  function sanitizePrefs(o) {
+    var p = {
+      v: 1, len: DEFAULT_PREFS.len,
+      upper: DEFAULT_PREFS.upper, lower: DEFAULT_PREFS.lower,
+      digit: DEFAULT_PREFS.digit, sym: DEFAULT_PREFS.sym,
+      saveHistory: DEFAULT_PREFS.saveHistory
+    };
+    if (o && typeof o === 'object') {
+      if (typeof o.len === 'number' && o.len >= MIN_LEN && o.len <= MAX_LEN) p.len = Math.round(o.len);
+      if (typeof o.upper === 'boolean') p.upper = o.upper;
+      if (typeof o.lower === 'boolean') p.lower = o.lower;
+      if (typeof o.digit === 'boolean') p.digit = o.digit;
+      if (typeof o.sym === 'boolean') p.sym = o.sym;
+      if (typeof o.saveHistory === 'boolean') p.saveHistory = o.saveHistory;
+    }
+    // 至少保留一种字符类型
+    if (!p.upper && !p.lower && !p.digit && !p.sym) p.upper = true;
+    return p;
+  }
+  function loadPrefs() { return sanitizePrefs(readJSON(PREFS_KEY, null)); }
+  function savePrefs() { writeJSON(PREFS_KEY, prefs); }
+
+  // ---------- 历史（默认仅会话内存；仅用户显式开启保存后才写盘） ----------
+  var history = [];      // 会话历史（内存）
+  var sessionOnly = true; // true = 仅会话、不落盘（默认，安全优先）
+  var persisted = null;   // 磁盘上的历史（仅 saveHistory 开启时可能非空）
+
+  function loadHistory() {
+    if (prefs.saveHistory && Array.isArray(persisted)) {
+      history = persisted.slice(0, MAX_HISTORY);
+      sessionOnly = false;
+    } else {
+      history = [];
+      sessionOnly = true;
+      lsDel(HIST_KEY); // 兜底清理：未开启保存时确保磁盘上无历史明文
+    }
+  }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function addToHistory(pw) {
+    var d = new Date();
+    var ts = pad(d.getFullYear()) + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    history.unshift({ pw: pw, len: pw.length, at: ts });
+    if (history.length > MAX_HISTORY) history.length = MAX_HISTORY;
+    if (!sessionOnly) writeJSON(HIST_KEY, history); // 仅显式开启保存时落盘
+  }
+  function clearHistory() {
+    history = [];
+    if (!sessionOnly) lsDel(HIST_KEY);
+    renderHistory();
+  }
+
+  // ---------- 安全随机源：crypto.getRandomValues + 拒绝采样（无取模偏差）；缺失时降级伪随机并标注 ----------
+  var RNG = (function () {
+    var hasCrypto = false;
+    try { hasCrypto = !!(window.crypto && typeof window.crypto.getRandomValues === 'function'); } catch (e) { hasCrypto = false; }
+    var nextU32 = null;
+    var degraded = false;
+
+    if (hasCrypto) {
+      var buf = new Uint32Array(1);
+      nextU32 = function () { crypto.getRandomValues(buf); return buf[0]; };
+    } else {
+      // ⚠ 降级伪随机（xorshift128+，非加密安全）：种子取自多种熵源，UI 已标注。
+      function mix(x) { x = ((x ^ (x >>> 16)) * 0x45d9f3b) >>> 0; return (x ^ (x >>> 13)) >>> 0; }
+      var s0 = 0x9e3779b9, s1 = 0x243f6a88;
+      var seedA = Date.now() >>> 0;                                       // __SEED_ONLY__
+      var seedB = (typeof performance !== 'undefined' && performance.now) ? Math.floor(performance.now() * 1000) >>> 0 : 0; // __SEED_ONLY__
+      var seedC = 0;
+      try { seedC = ((navigator.userAgent || '').length * 2654435761) >>> 0; } catch (e) {} // __SEED_ONLY__
+      var seedD = Math.floor(Math.random() * 4294967296) >>> 0;           // __SEED_ONLY__
+      s0 = mix(seedA ^ seedC);
+      s1 = mix(seedB ^ seedD ^ 0x85ebca6b);
+      if (s0 === 0 && s1 === 0) { s0 = 0xde4db56d; s1 = 0x9e3779b9; }
+      degraded = true;
+      nextU32 = function () {
+        var x = s0, y = s1;
+        s0 = y;
+        x = (x ^ (x << 23)) >>> 0;
+        s1 = (x ^ y ^ (x >>> 17) ^ (y >>> 26)) >>> 0;
+        return (s1 + y) >>> 0;
+      };
+    }
+
+    // 拒绝采样：仅接受 < floor(2^32 / bound) * bound 的值，消除取模偏差
+    function rngInt(bound) {
+      if (bound <= 1) return 0;
+      var max = Math.floor(4294967296 / bound) * bound;
+      var r = nextU32();
+      while (r >= max) r = nextU32();
+      return r % bound;
+    }
+    return { degraded: degraded, next: rngInt };
+  })();
+
+  // ---------- 字符集（已排除易混淆字符：I/O/0/1/l） ----------
+  var SETS = {
+    upper: 'ABCDEFGHJKLMNPQRSTUVWXYZ',
+    lower: 'abcdefghijkmnopqrstuvwxyz',
+    digit: '23456789',
+    sym:   '!@#$%^&*()-_=+[]{}<>?/'
+  };
+  var SET_ORDER = ['upper', 'lower', 'digit', 'sym'];
+
+  function currentEnabled() {
+    var en = [];
+    for (var i = 0; i < SET_ORDER.length; i++) {
+      var k = SET_ORDER[i];
+      if (el('o-' + k).checked) en.push(k);
+    }
+    return en;
+  }
+
+  function clampLen(n) { if (isNaN(n)) return DEFAULT_PREFS.len; return Math.min(MAX_LEN, Math.max(MIN_LEN, n)); }
+
+  function doGenerate() {
+    var len = clampLen(parseInt(el('len').value, 10));
+    var enabled = currentEnabled();
+    if (!enabled.length) { toast('请至少选择一种字符类型', 'err'); return null; }
+    var pool = '';
+    for (var i = 0; i < enabled.length; i++) pool += SETS[enabled[i]];
+    var chars = [];
+    // 必含各类：先从每个已启用字符集各取 1 个
+    for (i = 0; i < enabled.length && chars.length < len; i++) {
+      var set = SETS[enabled[i]];
+      chars.push(set.charAt(RNG.next(set.length)));
+    }
+    // 其余位从全池均匀抽取
+    while (chars.length < len) chars.push(pool.charAt(RNG.next(pool.length)));
+    // Fisher–Yates 洗牌（同样用安全随机），消除「必含位」的顺序模式
+    for (i = chars.length - 1; i > 0; i--) {
+      var j = RNG.next(i + 1);
+      var t = chars[i]; chars[i] = chars[j]; chars[j] = t;
+    }
+    return chars.join('');
+  }
+
+  // ---------- 强度评估（按当前启用的字符集估算熵） ----------
+  function entropyBits(pw, enabled) {
+    var pool = 0;
+    for (var i = 0; i < enabled.length; i++) pool += SETS[enabled[i]].length;
+    return Math.round(pw.length * Math.log2(pool || 1));
+  }
+  function strengthInfo(bits) {
+    if (bits < 40) return { segs: 1, label: '弱', color: 'var(--c-weak)' };
+    if (bits < 60) return { segs: 2, label: '中', color: 'var(--c-fair)' };
+    if (bits < 90) return { segs: 3, label: '强', color: 'var(--c-good)' };
+    return { segs: 4, label: '极强', color: 'var(--c-strong)' };
+  }
+  function render(pw) {
+    el('pw').textContent = pw;
+    var bits = entropyBits(pw, currentEnabled());
+    var s = strengthInfo(bits);
+    el('sval').textContent = s.label;
+    el('sval').style.color = s.color;
+    el('bits').textContent = '≈ ' + bits + ' bit';
+    var segs = document.querySelectorAll('#segs i');
+    for (var i = 0; i < segs.length; i++) segs[i].style.background = i < s.segs ? s.color : '';
+  }
+
+  // ---------- 生成入口 ----------
+  function generate(silent) {
+    var pw = doGenerate();
+    if (!pw) return null;
+    render(pw);
+    if (!silent) { addToHistory(pw); renderHistory(); }
+    return pw;
+  }
+
+  // ---------- 复制（clipboard 优先；降级 execCommand，成功才提示） ----------
+  function fallbackCopy(text) {
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.top = '-9999px';
+      ta.style.left = '-9999px';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      if (ta.setSelectionRange) ta.setSelectionRange(0, text.length);
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      document.body.removeChild(ta);
+      return ok;
+    } catch (e) { return false; }
+  }
+  function copyText(text, btn) {
+    if (!text || text === PLACEHOLDER) return;
+    function finish(ok) {
+      if (!btn) return;
+      var prev = btn.textContent;
+      btn.textContent = ok ? '✅ 已复制' : '复制失败';
+      if (ok) btn.classList.remove('btn-err'); else btn.classList.add('btn-err');
+      setTimeout(function () {
+        btn.textContent = prev;
+        btn.classList.remove('btn-err');
+      }, 1500);
+    }
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      navigator.clipboard.writeText(text).then(function () { finish(true); }).catch(function () { finish(fallbackCopy(text)); });
+    } else {
+      finish(fallbackCopy(text));
+    }
+  }
+
+  // ---------- 历史渲染 ----------
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+  function renderHistory() {
+    el('hcount').textContent = history.length + ' 条';
+    var tag = el('hstate');
+    tag.textContent = sessionOnly ? '仅本次会话 · 不落盘' : '已开启本地保存';
+    tag.className = sessionOnly ? 'tag' : 'tag tag-warn';
+    el('persist-note').style.display = sessionOnly ? 'none' : 'block';
+    var listEl = el('history');
+    if (!history.length) { listEl.innerHTML = '<div class="empty">还没有生成记录</div>'; return; }
+    var html = '';
+    for (var i = 0; i < history.length; i++) {
+      var h = history[i];
+      html += '<div class="hitem"><button type="button" class="hcopy" data-i="' + i + '" aria-label="复制第 ' + (i + 1) + ' 条密码">📋</button><code>' + esc(h.pw) + '</code><span class="t">' + esc(h.at) + ' · ' + h.len + ' 位</span></div>';
+    }
+    listEl.innerHTML = html;
+  }
+
+  // ---------- 轻提示（替代 alert/confirm 阻塞弹窗） ----------
+  var toastTimer = null;
+  function toast(msg, type) {
+    var t = el('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (type ? ' ' + type : '');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.className = 'toast'; }, 2600);
+  }
+
+  // ---------- 本地保存开关（显式确认 + 风险提示；默认关闭） ----------
+  function hidePersistConfirm() { el('persist-confirm').style.display = 'none'; el('o-persist').checked = false; }
+  function enablePersistence() {
+    el('persist-confirm').style.display = 'none';
+    sessionOnly = false;
+    prefs.saveHistory = true;
+    savePrefs();
+    writeJSON(HIST_KEY, history); // 当前会话历史一并落盘（用户已确认风险）
+    el('o-persist').checked = true;
+    toast('已开启本地保存：密码明文将保存在本机，请注意风险并及时清空', 'warn');
+    renderHistory();
+  }
+  function disablePersistence() {
+    sessionOnly = true;
+    prefs.saveHistory = false;
+    savePrefs();
+    lsDel(HIST_KEY); // 停止保存并清除已落盘的密码明文
+    toast('已停止本地保存，并清除了本机已保存的密码明文', 'ok');
+    renderHistory();
+  }
+  function initPersist() {
+    el('o-persist').checked = !sessionOnly;
+    el('o-persist').addEventListener('change', function () {
+      userTouched = true;
+      if (this.checked) {
+        this.checked = false; // 先回滚，等待确认
+        el('persist-confirm').style.display = 'block';
+        el('persist-yes').focus();
+      } else {
+        disablePersistence();
+      }
+    });
+    el('persist-yes').addEventListener('click', function () { enablePersistence(); });
+    el('persist-no').addEventListener('click', function () { hidePersistConfirm(); });
+  }
+
+  // ---------- 清空历史（两步确认，替代 confirm） ----------
+  var clearArmed = false, clearTimer = null;
+  function disarmClear() {
+    clearArmed = false;
+    if (clearTimer) { clearTimeout(clearTimer); clearTimer = null; }
+    el('b-clear-h').textContent = '清空历史';
+    el('b-clear-h').classList.remove('btn-danger');
+  }
+  function initClear() {
+    el('b-clear-h').addEventListener('click', function () {
+      if (!clearArmed) {
+        clearArmed = true;
+        this.textContent = '再次点击确认清空';
+        this.classList.add('btn-danger');
+        clearTimer = setTimeout(disarmClear, 3000);
+        return;
+      }
+      disarmClear();
+      clearHistory();
+      toast('历史已清空', 'ok');
+    });
+  }
+
+  // ---------- 偏好绑定与持久化（不含任何密码） ----------
+  function applyPrefsToUI() {
+    el('len').value = prefs.len;
+    el('len-num').textContent = prefs.len;
+    el('o-upper').checked = prefs.upper;
+    el('o-lower').checked = prefs.lower;
+    el('o-digit').checked = prefs.digit;
+    el('o-sym').checked = prefs.sym;
+  }
+  function bindPrefs() {
+    el('len').addEventListener('input', function () {
+      userTouched = true;
+      prefs.len = clampLen(parseInt(this.value, 10));
+      el('len-num').textContent = prefs.len;
+      savePrefs();
+    });
+    for (var i = 0; i < SET_ORDER.length; i++) {
+      (function (k) {
+        el('o-' + k).addEventListener('change', function () {
+          userTouched = true;
+          prefs[k] = this.checked;
+          if (!prefs.upper && !prefs.lower && !prefs.digit && !prefs.sym) {
+            this.checked = true;
+            prefs[k] = true;
+            toast('至少需要一种字符类型', 'err');
+          }
+          savePrefs();
+        });
+      })(SET_ORDER[i]);
+    }
+  }
+
+  // ---------- 主题：按平台主题背景亮度判定明暗（状态色/原生控件适配） ----------
+  function applyThemeMode(colors) {
+    var mode = 'light';
+    if (colors && typeof colors.background === 'string') {
+      var m = /^#([0-9a-f]{6})$/i.exec(colors.background.trim());
+      if (m) {
+        var r = parseInt(m[1].substring(0, 2), 16), g = parseInt(m[1].substring(2, 4), 16), b = parseInt(m[1].substring(4, 6), 16);
+        if (0.299 * r + 0.587 * g + 0.114 * b < 128) mode = 'dark';
+      }
+    }
+    document.documentElement.setAttribute('data-theme', mode);
+  }
+
+  // ---------- 预载竞态处理 ----------
+  // bridge 的 localStorage polyfill 是「同步内存 + 异步预载落盘」，启动首读可能为空。
+  // 用权威数据源（platform.storage.list）或延迟重读校准一次；用户已交互则跳过（不覆盖用户操作）。
+  var userTouched = false;
+  function applyStoredState() {
+    if (userTouched) return;
+    prefs = loadPrefs();
+    persisted = readJSON(HIST_KEY, null);
+    loadHistory();
+    applyPrefsToUI();
+    renderHistory();
+    generate(true); // 校准后重新生成一次（静默，不入历史）
+  }
+  function applyEntries(entries) {
+    if (userTouched || !entries || typeof entries !== 'object') return;
+    var p = entries[PREFS_KEY];
+    if (typeof p === 'string') { try { prefs = sanitizePrefs(JSON.parse(p)); } catch (e) {} }
+    var h = entries[HIST_KEY];
+    if (typeof h === 'string' && prefs.saveHistory) { try { persisted = JSON.parse(h); } catch (e) { persisted = null; } }
+    loadHistory();
+    applyPrefsToUI();
+    renderHistory();
+    generate(true);
+  }
+
+  // ---------- 启动 ----------
+  function boot() {
+    prefs = loadPrefs();
+    persisted = readJSON(HIST_KEY, null);
+    loadHistory();
+    applyPrefsToUI();
+    renderHistory();
+    generate(true); // 初始静默生成
+    refreshRngBadge();
+
+    if (P && P.storage && typeof P.storage.list === 'function') {
+      try {
+        P.storage.list().then(applyEntries).catch(function () { setTimeout(applyStoredState, 250); });
+      } catch (e) { setTimeout(applyStoredState, 250); }
+    } else {
+      setTimeout(applyStoredState, 300);
+    }
+    if (P && P.theme && typeof P.theme.getColors === 'function') {
+      try { P.theme.getColors().then(applyThemeMode).catch(function () {}); } catch (e) {}
+    }
+    if (P && P.on) { try { P.on('theme:changed', applyThemeMode); } catch (e) {} }
+  }
+  function refreshRngBadge() { el('rng-warn').style.display = RNG.degraded ? 'block' : 'none'; }
+
+  // ---------- 事件 ----------
+  el('b-gen').addEventListener('click', function () {
+    userTouched = true;
+    var pw = generate(false);
+    if (pw && P && P.emit) { try { P.emit('password-gen:generate', { len: pw.length }); } catch (e) {} }
+  });
+  el('b-copy').addEventListener('click', function () { copyText(el('pw').textContent, this); });
+  el('history').addEventListener('click', function (e) {
+    var t = e.target;
+    while (t && t !== this && !(t.getAttribute && t.getAttribute('data-i') != null)) t = t.parentNode;
+    if (!t || t === this) return;
+    var i = parseInt(t.getAttribute('data-i'), 10);
+    var item = history[i];
+    if (item) copyText(item.pw, t);
+  });
+
+  bindPrefs();
+  initPersist();
+  initClear();
+  boot();
+})();
+</script>
+</body>
+</html>

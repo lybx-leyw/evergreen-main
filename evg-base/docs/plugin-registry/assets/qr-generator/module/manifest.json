@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "qr-generator",
+  "name": "二维码生成",
+  "description": "文本、链接、WiFi 一键生成二维码：支持纠错级别、尺寸与前景/背景颜色定制，可下载或复制 PNG，生成历史与偏好本地保存。",
+  "template": "html",
+  "version": "1.0.0",
+  "icon": "qr_code_2",
+  "route": "/qr-generator",
+  "nav": {
+    "sidebar": {
+      "section": "工具",
+      "sectionOrder": 50,
+      "order": 4
+    }
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "type": "skin",
+  "id": "forest-green",
+  "name": "森林绿意",
+  "version": "1.0.0",
+  "description": "「森林绿意」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+  "background": {
+    "type": "image",
+    "imageDesktop": "bg_desktop.svg",
+    "imageMobile": "bg_mobile.svg"
+  },
+  "bubble": {
+    "userBackgroundColor": "#E4EFE3",
+    "borderRadius": 18
+  },
+  "avatar": {
+    "user": "avatar_user.svg",
+    "userBackgroundColor": "#3A764C"
+  },
+  "thinking": {
+    "title": "思考过程",
+    "colors": {
+      "header": "#3A764C",
+      "containerBackground": "#E4EFE3",
+      "containerBorder": "#23311F",
+      "contentText": "#23311F",
+      "chipMemoryBg": "#E4EFE3",
+      "chipMemoryFg": "#3A764C",
+      "chipSkillBg": "#E4EFE3",
+      "chipSkillFg": "#3A764C",
+      "chipToolBg": "#E4EFE3",
+      "chipToolFg": "#3A764C",
+      "chipToolResultBg": "#E4EFE3",
+      "chipToolResultFg": "#3A764C"
+    }
+  },
+  "effortColor": "#3A764C",
+  "toolActiveColor": "#3A764C"
+}

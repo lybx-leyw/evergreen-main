@@ -1,0 +1,39 @@
+{
+  "type": "skin",
+  "id": "qiushi-blue",
+  "name": "求是蓝",
+  "version": "1.1.0",
+  "description": "「求是蓝」配套皮肤：SVG 求是鹰背景（横竖屏 imageDesktop/imageMobile）+ 求是鹰头像 + 主题色气泡与思考栏，随 theme 成套安装。",
+  "background": {
+    "type": "image",
+    "imageDesktop": "bg_desktop.svg",
+    "imageMobile": "bg_mobile.svg"
+  },
+  "bubble": {
+    "userBackgroundColor": "#E8F1FA",
+    "borderRadius": 18
+  },
+  "avatar": {
+    "user": "avatar_user.svg",
+    "userBackgroundColor": "#0057A8"
+  },
+  "thinking": {
+    "title": "思考过程",
+    "colors": {
+      "header": "#0057A8",
+      "containerBackground": "#E8F1FA",
+      "containerBorder": "#0B2447",
+      "contentText": "#0B2447",
+      "chipMemoryBg": "#E8F1FA",
+      "chipMemoryFg": "#0057A8",
+      "chipSkillBg": "#E8F1FA",
+      "chipSkillFg": "#0057A8",
+      "chipToolBg": "#E8F1FA",
+      "chipToolFg": "#0057A8",
+      "chipToolResultBg": "#E8F1FA",
+      "chipToolResultFg": "#0057A8"
+    }
+  },
+  "effortColor": "#0057A8",
+  "toolActiveColor": "#0057A8"
+}

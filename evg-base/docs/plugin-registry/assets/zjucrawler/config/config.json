@@ -1,0 +1,19 @@
+{
+  "id": "zjucrawler",
+  "name": "ZJU 教务数据",
+  "settings": [
+    {
+      "key": "ZJU_USERNAME",
+      "label": "学号",
+      "type": "string",
+      "hint": "浙大统一认证账号"
+    },
+    {
+      "key": "ZJU_PASSWORD",
+      "label": "密码",
+      "type": "string",
+      "isSecure": true,
+      "hint": "浙大统一认证密码"
+    }
+  ]
+}

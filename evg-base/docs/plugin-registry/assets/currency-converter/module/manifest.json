@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "currency-converter",
+  "name": "汇率换算",
+  "description": "汇率换算器：常用货币互转、一键交换、汇率表与最近转换；优先接入 exchange_rate 数据源实时汇率，离线时降级为内置参考汇率并标注。",
+  "template": "html",
+  "version": "1.1.0",
+  "icon": "currency_exchange",
+  "route": "/currency-converter",
+  "nav": {
+    "sidebar": {
+      "section": "工具",
+      "sectionOrder": 50,
+      "order": 1
+    }
+  }
+}

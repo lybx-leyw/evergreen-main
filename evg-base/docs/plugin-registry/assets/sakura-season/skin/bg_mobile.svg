@@ -1,0 +1,73 @@
+<svg width="900" height="1600" viewBox="0 0 900 1600" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="樱花季对话背景（竖屏）">
+  <!-- 樱花季主题竖屏背景：浅粉纵向渐变 + 樱枝 + 五瓣樱花 + 飘落花瓣，
+       低对比度，叠加渲染层 35% 白遮罩后消息文字清晰可读。 -->
+  <defs>
+    <linearGradient id="skBg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FEF8FB"/>
+      <stop offset="60%" stop-color="#FAEAF3"/>
+      <stop offset="100%" stop-color="#F2D6E6"/>
+    </linearGradient>
+    <linearGradient id="skPetal" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F8C4DC" stop-opacity="0.80"/>
+      <stop offset="100%" stop-color="#F08BB4" stop-opacity="0.45"/>
+    </linearGradient>
+    <linearGradient id="skStem" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#A58A97" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#8A6780" stop-opacity="0.35"/>
+    </linearGradient>
+    <radialGradient id="skGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <g id="skBlossom">
+      <circle cx="0" cy="-15" r="11" fill="url(#skPetal)"/>
+      <circle cx="14" cy="-5" r="11" fill="url(#skPetal)"/>
+      <circle cx="9" cy="12" r="11" fill="url(#skPetal)"/>
+      <circle cx="-9" cy="12" r="11" fill="url(#skPetal)"/>
+      <circle cx="-14" cy="-5" r="11" fill="url(#skPetal)"/>
+      <circle cx="0" cy="0" r="5" fill="#F08BB4" fill-opacity="0.85"/>
+    </g>
+  </defs>
+
+  <rect width="900" height="1600" fill="url(#skBg)"/>
+
+  <!-- 柔和光斑 -->
+  <circle cx="450" cy="600" r="420" fill="url(#skGlow)"/>
+  <circle cx="170" cy="1420" r="290" fill="url(#skGlow)"/>
+  <circle cx="770" cy="180" r="250" fill="url(#skGlow)"/>
+
+  <!-- 樱枝（主枝 + 分枝，从左上探入） -->
+  <path d="M-40 1000 C 180 920, 380 940, 620 720 C 780 580, 860 480, 950 300"
+        fill="none" stroke="url(#skStem)" stroke-width="14" stroke-linecap="round"/>
+  <path d="M420 820 C 500 720, 560 640, 660 520" fill="none" stroke="url(#skStem)" stroke-width="8" stroke-linecap="round"/>
+  <path d="M680 600 C 760 540, 800 500, 880 420" fill="none" stroke="url(#skStem)" stroke-width="6" stroke-linecap="round"/>
+  <path d="M120 960 C 150 890, 200 840, 260 780" fill="none" stroke="url(#skStem)" stroke-width="6" stroke-linecap="round"/>
+
+  <!-- 枝上樱花 -->
+  <use href="#skBlossom" transform="translate(620 720) scale(1.8)"/>
+  <use href="#skBlossom" transform="translate(420 822) scale(1.2)"/>
+  <use href="#skBlossom" transform="translate(520 740) scale(1.0)"/>
+  <use href="#skBlossom" transform="translate(700 560) scale(1.4)"/>
+  <use href="#skBlossom" transform="translate(810 480) scale(1.0)"/>
+  <use href="#skBlossom" transform="translate(240 860) scale(0.8)"/>
+  <use href="#skBlossom" transform="translate(180 940) scale(0.9)"/>
+
+  <!-- 飘落花瓣（单瓣） -->
+  <g fill="url(#skPetal)">
+    <ellipse cx="220" cy="1200" rx="10" ry="14" transform="rotate(24 220 1200)"/>
+    <ellipse cx="640" cy="1280" rx="9" ry="13" transform="rotate(-18 640 1280)"/>
+    <ellipse cx="380" cy="1500" rx="8" ry="11" transform="rotate(40 380 1500)"/>
+    <ellipse cx="700" cy="1020" rx="9" ry="12" transform="rotate(-30 700 1020)"/>
+    <ellipse cx="160" cy="600" rx="8" ry="11" transform="rotate(15 160 600)"/>
+    <ellipse cx="520" cy="240" rx="7" ry="10" transform="rotate(-22 520 240)"/>
+    <ellipse cx="820" cy="880" rx="9" ry="13" transform="rotate(32 820 880)"/>
+  </g>
+
+  <!-- 点缀圆点 -->
+  <circle cx="180" cy="520" r="6" fill="#F08BB4" fill-opacity="0.15"/>
+  <circle cx="700" cy="920" r="8" fill="#F5C6DC" fill-opacity="0.30"/>
+  <circle cx="450" cy="1560" r="5" fill="#F08BB4" fill-opacity="0.13"/>
+  <circle cx="810" cy="460" r="6" fill="#F5C6DC" fill-opacity="0.25"/>
+  <circle cx="140" cy="880" r="5" fill="#D35D7E" fill-opacity="0.12"/>
+  <circle cx="620" cy="260" r="5" fill="#F08BB4" fill-opacity="0.14"/>
+</svg>

@@ -1,0 +1,15 @@
+{
+  "type": "theme",
+  "id": "sakura-season",
+  "name": "樱花季",
+  "colors": {
+    "background": "#FDF6FA",
+    "surface": "#FFFBFD",
+    "border": "#F3D9E8",
+    "text": "#4A2C3E",
+    "textSecondary": "#8A6780",
+    "accent": "#9E4168",
+    "error": "#D35D7E",
+    "others": "#F5C6DC"
+  }
+}

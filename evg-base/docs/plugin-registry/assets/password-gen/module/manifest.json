@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "password-gen",
+  "name": "密码生成器",
+  "description": "本地生成高强度随机密码：支持长度与字符集自定义、必含各类字符、强度评估与一键复制；密码默认不落盘，仅用户显式开启保存并确认风险后才本地保存。",
+  "template": "html",
+  "version": "1.0.0",
+  "icon": "password",
+  "route": "/password-gen",
+  "nav": {
+    "sidebar": {
+      "section": "工具",
+      "sectionOrder": 50,
+      "order": 3
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "type": "theme",
+  "id": "candy-pink",
+  "name": "糖果粉",
+  "colors": {
+    "background": "#FDF2F7",
+    "surface": "#FFF9FC",
+    "border": "#F5D8E8",
+    "text": "#4E2A3E",
+    "textSecondary": "#92627D",
+    "accent": "#BA1567",
+    "error": "#D94E7A",
+    "others": "#F8BBD9"
+  }
+}

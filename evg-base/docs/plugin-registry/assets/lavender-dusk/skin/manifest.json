@@ -1,0 +1,39 @@
+{
+  "type": "skin",
+  "id": "lavender-dusk",
+  "name": "薰衣草暮色",
+  "version": "1.0.0",
+  "description": "「薰衣草暮色」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+  "background": {
+    "type": "image",
+    "imageDesktop": "bg_desktop.svg",
+    "imageMobile": "bg_mobile.svg"
+  },
+  "bubble": {
+    "userBackgroundColor": "#EBE3FA",
+    "borderRadius": 18
+  },
+  "avatar": {
+    "user": "avatar_user.svg",
+    "userBackgroundColor": "#6C54A4"
+  },
+  "thinking": {
+    "title": "思考过程",
+    "colors": {
+      "header": "#6C54A4",
+      "containerBackground": "#EBE3FA",
+      "containerBorder": "#3B2D55",
+      "contentText": "#3B2D55",
+      "chipMemoryBg": "#EBE3FA",
+      "chipMemoryFg": "#6C54A4",
+      "chipSkillBg": "#EBE3FA",
+      "chipSkillFg": "#6C54A4",
+      "chipToolBg": "#EBE3FA",
+      "chipToolFg": "#6C54A4",
+      "chipToolResultBg": "#EBE3FA",
+      "chipToolResultFg": "#6C54A4"
+    }
+  },
+  "effortColor": "#6C54A4",
+  "toolActiveColor": "#6C54A4"
+}

@@ -1,0 +1,65 @@
+<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="西湖烟雨对话背景（横屏）">
+  <!-- 西湖烟雨主题横屏背景：灰蓝渐变 + 层叠远山 + 雨丝 + 水波，
+       低对比度，叠加渲染层 35% 白遮罩后消息文字清晰可读。 -->
+  <defs>
+    <linearGradient id="wlBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#EDF1F4"/>
+      <stop offset="55%" stop-color="#DEE6EA"/>
+      <stop offset="100%" stop-color="#CBD8DE"/>
+    </linearGradient>
+    <linearGradient id="wlHill" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#9FB6C0" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#5B7E8C" stop-opacity="0.16"/>
+    </linearGradient>
+    <radialGradient id="wlGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#wlBg)"/>
+
+  <!-- 柔和光斑（提亮中心，衬托消息区） -->
+  <circle cx="800" cy="430" r="430" fill="url(#wlGlow)"/>
+  <circle cx="200" cy="760" r="260" fill="url(#wlGlow)"/>
+  <circle cx="1420" cy="150" r="240" fill="url(#wlGlow)"/>
+
+  <!-- 远山三层（由远及近） -->
+  <path d="M0 560 L 260 360 L 480 500 L 720 320 L 960 480 L 1240 340 L 1460 470 L 1600 400 L 1600 900 L 0 900 Z"
+        fill="#9FB6C0" opacity="0.20"/>
+  <path d="M0 640 L 320 440 L 560 580 L 840 400 L 1120 560 L 1380 430 L 1600 540 L 1600 900 L 0 900 Z"
+        fill="#5B7E8C" opacity="0.22"/>
+  <path d="M0 720 L 400 560 L 700 680 L 1000 540 L 1320 660 L 1600 580 L 1600 900 L 0 900 Z"
+        fill="#2C3A42" opacity="0.16"/>
+
+  <!-- 断桥拱（雷峰夕照·断桥意象） -->
+  <path d="M560 700 Q 800 560 1040 700" fill="none" stroke="#2C3A42" stroke-opacity="0.30" stroke-width="10" stroke-linecap="round"/>
+  <path d="M540 700 L 1060 700" stroke="#2C3A42" stroke-opacity="0.14" stroke-width="4" stroke-linecap="round"/>
+
+  <!-- 雨丝（斜线） -->
+  <g stroke="#5E727C" stroke-opacity="0.35" stroke-width="2" stroke-linecap="round">
+    <line x1="180" y1="80" x2="150" y2="200"/>
+    <line x1="420" y1="140" x2="390" y2="260"/>
+    <line x1="1180" y1="90" x2="1150" y2="210"/>
+    <line x1="1380" y1="180" x2="1350" y2="300"/>
+    <line x1="300" y1="330" x2="270" y2="450"/>
+    <line x1="1310" y1="360" x2="1280" y2="480"/>
+    <line x1="560" y1="220" x2="530" y2="340"/>
+    <line x1="1010" y1="260" x2="980" y2="380"/>
+  </g>
+
+  <!-- 水面波纹 -->
+  <g fill="none" stroke="#9FB6C0" stroke-opacity="0.30" stroke-linecap="round">
+    <path d="M200 780 Q 260 768 320 780 Q 380 792 440 780" stroke-width="3"/>
+    <path d="M1080 800 Q 1140 788 1200 800 Q 1260 812 1320 800" stroke-width="3"/>
+    <path d="M620 840 Q 680 828 740 840 Q 800 852 860 840" stroke-width="3"/>
+  </g>
+
+  <!-- 点缀圆点（西湖烟雨语义色） -->
+  <circle cx="340" cy="620" r="6" fill="#5B7E8C" fill-opacity="0.15"/>
+  <circle cx="1240" cy="640" r="8" fill="#9FB6C0" fill-opacity="0.25"/>
+  <circle cx="700" cy="820" r="5" fill="#5E727C" fill-opacity="0.14"/>
+  <circle cx="1560" cy="520" r="6" fill="#9FB6C0" fill-opacity="0.22"/>
+  <circle cx="120" cy="520" r="5" fill="#5B7E8C" fill-opacity="0.16"/>
+  <circle cx="920" cy="140" r="5" fill="#5E727C" fill-opacity="0.13"/>
+</svg>

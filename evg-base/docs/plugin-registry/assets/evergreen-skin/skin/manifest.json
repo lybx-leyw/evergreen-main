@@ -31,9 +31,9 @@
   "thinking": {
     "title": "思考过程",
     "colors": {
-      "header": "#1B8A4F",
+      "header": "#177A44",
       "containerBackground": "#F0F9F2",
-      "containerBorder": "#A5D6A7",
+      "containerBorder": "#5E9A6C",
       "contentText": "#3E7C55",
       "chipMemoryBg": "#E8F5E9",
       "chipMemoryFg": "#1B5E20",
@@ -59,6 +59,6 @@
   "emptyState": {
     "title": "我是你的教学 AI 助手"
   },
-  "effortColor": "#0F9D58",
-  "toolActiveColor": "#0F9D58"
+  "effortColor": "#0B7A43",
+  "toolActiveColor": "#0B7A43"
 }

@@ -1,0 +1,21 @@
+{
+  "type": "data-source",
+  "id": "anime-calendar",
+  "name": "番剧更新",
+  "script": "fetch.py",
+  "runtime": "python",
+  "androidSupport": true,
+  "dataTypes": [
+    {
+      "name": "anime_calendar",
+      "typeArg": "anime_calendar",
+      "category": "娱乐",
+      "displayName": "番剧日历（Bangumi）",
+      "ttl": "6h",
+      "persistentKey": "anime_calendar_bangumi_v1",
+      "fallbackJson": {
+        "items": []
+      }
+    }
+  ]
+}

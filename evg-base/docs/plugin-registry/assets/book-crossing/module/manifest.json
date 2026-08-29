@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "book-crossing",
+  "name": "图书漂流",
+  "description": "共享藏书 · 借阅登记 · 让书流动起来。登记藏书、借出/归还登记、丢失找回，数据仅保存在本机。",
+  "template": "html",
+  "version": "1.1.0",
+  "icon": "auto_stories",
+  "route": "/book-crossing",
+  "nav": {
+    "sidebar": {
+      "section": "学习",
+      "sectionOrder": 10,
+      "order": 6
+    }
+  }
+}

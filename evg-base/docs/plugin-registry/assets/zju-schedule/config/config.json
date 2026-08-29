@@ -1,0 +1,20 @@
+{
+  "id": "zju-schedule",
+  "name": "浙大课表",
+  "settings": [
+    {
+      "key": "ZJU_USERNAME",
+      "label": "浙大学号",
+      "type": "string",
+      "isSecure": false,
+      "hint": "浙大统一认证账号（学号），用于登录教务系统获取课表"
+    },
+    {
+      "key": "ZJU_PASSWORD",
+      "label": "浙大统一认证密码",
+      "type": "string",
+      "isSecure": true,
+      "hint": "对应学号的浙大统一认证密码，用于登录教务系统获取课表"
+    }
+  ]
+}

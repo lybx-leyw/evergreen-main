@@ -1,0 +1,20 @@
+{
+  "name": "markdown_toc",
+  "description": "从 Markdown 文本提取标题生成目录（TOC）；只读工具。",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "markdown": {
+        "type": "string",
+        "description": "Markdown 文本。"
+      }
+    },
+    "required": [
+      "markdown"
+    ]
+  },
+  "readOnly": true,
+  "argMode": "stdin",
+  "runtime": "python",
+  "lifetime": "once"
+}

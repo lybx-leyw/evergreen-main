@@ -1,0 +1,40 @@
+{
+  "type": "skin",
+  "id": "west-lake-rain",
+  "name": "西湖烟雨",
+  "version": "1.1.0",
+  "description": "「西湖烟雨」配套皮肤：SVG 远山烟雨背景（横竖屏 imageDesktop/imageMobile）+ 远山头像 + 主题色气泡与思考栏，随 theme 成套安装。",
+  "background": {
+    "type": "image",
+    "imageDesktop": "bg_desktop.svg",
+    "imageMobile": "bg_mobile.svg"
+  },
+  "bubble": {
+    "userBackgroundColor": "#E4ECEF",
+    "userTextColor": "#2C3A42",
+    "borderRadius": 18
+  },
+  "avatar": {
+    "user": "avatar_user.svg",
+    "userBackgroundColor": "#4A6673"
+  },
+  "thinking": {
+    "title": "思考过程",
+    "colors": {
+      "header": "#4A6673",
+      "containerBackground": "#E4ECEF",
+      "containerBorder": "#2C3A42",
+      "contentText": "#2C3A42",
+      "chipMemoryBg": "#E4ECEF",
+      "chipMemoryFg": "#4A6673",
+      "chipSkillBg": "#E4ECEF",
+      "chipSkillFg": "#4A6673",
+      "chipToolBg": "#E4ECEF",
+      "chipToolFg": "#4A6673",
+      "chipToolResultBg": "#E4ECEF",
+      "chipToolResultFg": "#4A6673"
+    }
+  },
+  "effortColor": "#4A6673",
+  "toolActiveColor": "#4A6673"
+}

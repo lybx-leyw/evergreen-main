@@ -1,0 +1,15 @@
+{
+  "type": "theme",
+  "id": "starry-night",
+  "name": "星空",
+  "colors": {
+    "background": "#101524",
+    "surface": "#1A2136",
+    "border": "#2C3654",
+    "text": "#E9ECF6",
+    "textSecondary": "#98A2C0",
+    "accent": "#5FA8FF",
+    "error": "#FF6B6B",
+    "others": "#8E7BFF"
+  }
+}

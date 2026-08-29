@@ -1,0 +1,470 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>汇率换算</title><style>
+/* 主题适配：只消费平台注入的 --evg-* 变量（平台自动换肤，禁止重定义），
+   括号内为变量缺失时的兜底色（允许形态 var(--evg-x, #fallback)）。 */
+:root {
+  --bg: var(--evg-background, #f0f4f3);
+  --card: var(--evg-surface, #ffffff);
+  --ink: var(--evg-text, #1d3a35);
+  --ink-soft: var(--evg-text-secondary, #5d7f78);
+  --accent: var(--evg-accent, #2f9e8c);
+  --accent-bg: var(--evg-accent-bg, #e0f2ee);
+  --accent-border: var(--evg-accent-border, #b9e2da);
+  --line: var(--evg-border, rgba(29, 58, 53, .09));
+  --err: var(--evg-error, #d64545);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { font-size: 16px; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, sans-serif; background: var(--bg); color: var(--ink); min-height: 100vh; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+.topbar { display: flex; align-items: center; gap: .75rem; padding: 1.1rem 1.5rem; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--card) 72%, transparent); backdrop-filter: blur(.875rem); -webkit-backdrop-filter: blur(.875rem); position: sticky; top: 0; z-index: 5; }
+.topbar .ico { font-size: 1.5rem; }
+.topbar h1 { font-size: 1.15rem; font-weight: 700; }
+.topbar .sub { font-size: .72rem; color: var(--ink-soft); }
+.container { max-width: 42rem; margin: 0 auto; padding: 1.5rem 1.25rem 3rem; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 1rem; padding: 1.25rem; margin-bottom: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,.05); }
+.card h2 { font-size: .95rem; font-weight: 700; margin-bottom: .9rem; display: flex; align-items: center; justify-content: space-between; }
+.card h2 .f { font-size: .72rem; color: var(--ink-soft); font-weight: 500; }
+.converter { display: flex; flex-direction: column; gap: .8rem; }
+.unit-row { display: flex; gap: .6rem; align-items: center; }
+.unit-row .amt { flex: 1; min-width: 0; padding: .75rem .85rem; border-radius: .8rem; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--ink); font-family: inherit; font-size: 1.25rem; font-weight: 600; }
+.unit-row .amt:focus { outline: 2px solid var(--accent-border); border-color: var(--accent-border); }
+.unit-row select { padding: .65rem .7rem; border-radius: .7rem; border: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 55%, transparent); color: var(--ink); font-family: inherit; font-size: .9rem; min-width: 7.5rem; }
+.unit-row select:focus { outline: 2px solid var(--accent-border); }
+.swap { align-self: center; appearance: none; border: 1px solid var(--accent-border); background: var(--accent-bg); color: var(--accent); font-family: inherit; font-size: 1.2rem; width: 2.6rem; height: 2.6rem; border-radius: 50%; cursor: pointer; transition: transform .2s ease; }
+.swap:hover { transform: rotate(180deg); }
+.result { text-align: center; font-size: clamp(1.35rem, 6vw, 1.7rem); font-weight: 700; letter-spacing: -.02em; padding: .5rem 0 0; word-break: break-all; }
+.result .sub { font-size: .82rem; color: var(--ink-soft); font-weight: 500; margin-top: .2rem; word-break: break-all; }
+/* 数据源状态：online=实时 / mixed=部分实时 / offline=内置降级 */
+.status { display: flex; align-items: center; justify-content: center; gap: .45rem; font-size: .74rem; color: var(--ink-soft); background: color-mix(in srgb, var(--bg) 55%, transparent); border: 1px solid var(--line); border-radius: 999px; padding: .35rem .85rem; margin-top: .55rem; }
+.status .dot { width: .52rem; height: .52rem; border-radius: 50%; background: var(--ink-soft); flex: none; }
+.status.online .dot { background: var(--accent); }
+.status.offline .dot { background: var(--err); }
+.status.mixed .dot { background: color-mix(in srgb, var(--err) 42%, var(--accent)); }
+.rate { font-size: .78rem; color: var(--ink-soft); background: color-mix(in srgb, var(--bg) 55%, transparent); border: 1px solid var(--line); border-radius: .6rem; padding: .5rem .7rem; text-align: center; word-break: break-all; }
+.rate b { color: var(--accent); }
+.quick { display: flex; gap: .4rem; flex-wrap: wrap; justify-content: center; margin-top: .4rem; }
+.qbtn { appearance: none; border: 1px solid var(--line); background: transparent; color: var(--ink-soft); font-family: inherit; font-size: .8rem; padding: .4rem .8rem; border-radius: 999px; cursor: pointer; }
+.qbtn:hover { color: var(--accent); border-color: var(--accent-border); }
+.list { display: flex; flex-direction: column; gap: .45rem; }
+.citem { display: flex; align-items: center; justify-content: space-between; background: color-mix(in srgb, var(--bg) 48%, transparent); border: 1px solid var(--line); border-radius: .7rem; padding: .55rem .8rem; font-size: .85rem; cursor: pointer; }
+.citem:hover { border-color: var(--accent-border); }
+.citem .c { font-weight: 700; }
+.citem .n { color: var(--ink-soft); font-size: .78rem; }
+.citem .r { color: var(--accent); font-weight: 600; white-space: nowrap; }
+.tag { font-size: .6rem; color: var(--ink-soft); border: 1px solid var(--line); border-radius: 999px; padding: .05rem .38rem; margin-left: .4rem; vertical-align: middle; }
+.tag.live { color: var(--accent); border-color: var(--accent-border); }
+.note { font-size: .72rem; color: var(--ink-soft); margin-top: .6rem; line-height: 1.6; }
+.empty { display: block; text-align: center; }
+/* 窄屏：输入/币种选择上下堆叠，避免溢出 */
+@media (max-width: 520px) {
+  .container { padding: 1.1rem .8rem 2.5rem; }
+  .unit-row { flex-wrap: wrap; }
+  .unit-row .amt { flex: 1 1 100%; }
+  .unit-row select { width: 100%; min-width: 0; }
+}
+</style></head><body>
+<header class="topbar">
+  <span class="ico">💱</span>
+  <div><h1>汇率换算</h1><div class="sub">常用货币互转 · 一键交换 · 实时汇率</div></div>
+</header>
+<main class="container">
+  <section class="card">
+    <h2>💱 货币换算</h2>
+    <div class="converter">
+      <div class="unit-row">
+        <input class="amt" id="in-amt" type="number" value="100" inputmode="decimal" min="0" step="any" aria-label="换算金额">
+        <select id="in-cur" aria-label="源币种"></select>
+      </div>
+      <button class="swap" id="b-swap" type="button" title="交换货币" aria-label="交换货币">⇅</button>
+      <div class="unit-row">
+        <input class="amt" id="out-amt" type="number" readonly aria-label="换算结果">
+        <select id="out-cur" aria-label="目标币种"></select>
+      </div>
+      <div class="result"><span id="out-text">—</span><div class="sub" id="out-sub"></div></div>
+      <div class="status" id="rate-status" role="status"><span class="dot"></span><span id="rate-status-text">加载中…</span></div>
+      <div class="quick" id="quick"></div>
+    </div>
+  </section>
+  <section class="card">
+    <h2>🕘 最近转换 <span class="f">点击可再次使用</span></h2>
+    <div class="quick" id="recent"></div>
+  </section>
+  <section class="card">
+    <h2>📊 常用汇率表 <span class="f">兑 CNY（1 单位）</span></h2>
+    <div class="list" id="rates"></div>
+    <div class="note" id="rates-note">加载汇率数据…</div>
+  </section>
+</main>
+<script>
+(function () {
+  'use strict';
+  var P = (typeof platform !== 'undefined' && platform) ? platform : null;
+  var KEY = 'evg.currency-converter';
+  var DATA_SOURCE = 'exchange_rate';
+
+  // ── 内置基准汇率（CNY 基准：1 单位外币 = r CNY）——离线/数据源不可用时的兜底，
+  //    同时提供币种元数据（名称/符号/小数位）。不伪造数据：仅作降级标注使用。 ──
+  var BUILTIN = {
+    CNY: { r: 1, n: '人民币', e: '¥', f: 2 },
+    USD: { r: 7.24, n: '美元', e: '$', f: 2 },
+    EUR: { r: 7.85, n: '欧元', e: '€', f: 2 },
+    GBP: { r: 9.20, n: '英镑', e: '£', f: 2 },
+    JPY: { r: 0.048, n: '日元', e: '¥', f: 0 },
+    KRW: { r: 0.0053, n: '韩元', e: '₩', f: 0 },
+    HKD: { r: 0.928, n: '港币', e: 'HK$', f: 2 },
+    TWD: { r: 0.225, n: '新台币', e: 'NT$', f: 2 },
+    SGD: { r: 5.38, n: '新加坡元', e: 'S$', f: 2 },
+    AUD: { r: 4.79, n: '澳元', e: 'A$', f: 2 },
+    CAD: { r: 5.31, n: '加元', e: 'C$', f: 2 },
+    CHF: { r: 8.12, n: '瑞士法郎', e: 'Fr', f: 2 },
+    THB: { r: 0.205, n: '泰铢', e: '฿', f: 2 },
+    RUB: { r: 0.081, n: '卢布', e: '₽', f: 2 }
+  };
+  var CURRENCY_ORDER = ['CNY', 'USD', 'EUR', 'GBP', 'JPY', 'KRW', 'HKD', 'TWD', 'SGD', 'AUD', 'CAD', 'CHF', 'THB', 'RUB'];
+  var RECENT_MAX = 6;
+
+  // 实时汇率（exchange_rate 数据源，USD 基准：rates[code] = 1 USD 可兑 code 数）。
+  // parseLive 通过后才非空；失败/未注册/异常一律置 null（→ 内置降级）。
+  var live = null;
+
+  // ── 持久化（localStorage 由平台 bridge polyfill 接管：同步内存 + 异步落盘） ──
+  var store = { from: 'CNY', to: 'USD', amt: 100, recent: [] };
+  try {
+    var saved = JSON.parse(localStorage.getItem(KEY) || '{}') || {};
+    if (typeof saved === 'object') {
+      if (typeof saved.from === 'string') store.from = saved.from;
+      if (typeof saved.to === 'string') store.to = saved.to;
+      var amt = Number(saved.amt);
+      if (isFinite(amt) && amt >= 0) store.amt = amt;
+      if (Array.isArray(saved.recent)) {
+        store.recent = saved.recent.filter(function (it) {
+          return it && typeof it.f === 'string' && typeof it.t === 'string' &&
+            (typeof it.a === 'number' || typeof it.a === 'string') && !isNaN(Number(it.a));
+        }).slice(0, RECENT_MAX);
+      }
+    }
+  } catch (e) { /* 存储不可用：会话内有效 */ }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) {} }
+
+  // ── 币种元数据与汇率取值 ──
+  function meta(code) { return BUILTIN[code] || { n: code, e: '', f: 2 }; }
+  // 该币种当前是否由实时数据覆盖（live 需含 CNY 基准，经 USD 折算为 CNY 等价）
+  function isLive(code) {
+    return !!(live && live.rates && live.rates['CNY'] && live.rates[code]);
+  }
+  // 币种 CNY 等价汇率：实时优先（live.rates.CNY / live.rates.code，与数据源 base 无关），
+  // 缺失/离线回退内置基准。返回 null 表示完全无数据（不应发生，防御）。
+  function cnyRate(code) {
+    if (isLive(code)) return live.rates['CNY'] / live.rates[code];
+    var b = BUILTIN[code];
+    return (b && typeof b.r === 'number') ? b.r : null;
+  }
+  // 全部币种：内置顺序在前，实时表新增币种追加（按码排序）
+  function allCodes() {
+    var out = CURRENCY_ORDER.slice();
+    if (live && live.rates) {
+      var extras = Object.keys(live.rates).filter(function (k) { return out.indexOf(k) < 0; }).sort();
+      for (var i = 0; i < extras.length; i++) out.push(extras[i]);
+    }
+    return out;
+  }
+
+  // ── 数字格式化（千分位 + 自适应小数位） ──
+  function fmtNum(v, f) {
+    if (typeof v !== 'number' || !isFinite(v)) return '—';
+    var maxF = (typeof f === 'number' && f >= 0 && f <= 6) ? f : 2;
+    try { return v.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: maxF }); }
+    catch (e) { return String(Math.round(v * Math.pow(10, maxF)) / Math.pow(10, maxF)); }
+  }
+  // 汇率展示：小数值自适应更多小数位，避免 JPY/KRW 类币种被截成 0
+  function fmtRate(v) {
+    if (typeof v !== 'number' || !isFinite(v)) return '—';
+    var f = (v !== 0 && Math.abs(v) < 0.01) ? 6 : (Math.abs(v) < 1 ? 4 : 2);
+    try { return v.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: f }); }
+    catch (e) { return String(+v.toFixed(f)); }
+  }
+  function roundTo(v, f) { var p = Math.pow(10, f); return Math.round(v * p) / p; }
+
+  // ── 数据源接入（防御式：null / 未注册 / error 对象 / 异常 → 内置降级，不报错） ──
+  function parseLive(d) {
+    if (!d || typeof d !== 'object') return null;
+    // 数据源自身失败：返回 { error: string, ... }
+    if (typeof d.error === 'string' && d.error) return null;
+    var raw = d.rates;
+    if (!raw || typeof raw !== 'object') return null;
+    var rates = {};
+    var n = 0;
+    for (var k in raw) {
+      if (!Object.prototype.hasOwnProperty.call(raw, k)) continue;
+      var v = raw[k];
+      if (typeof k === 'string' && /^[A-Za-z]{3}$/.test(k) && typeof v === 'number' && isFinite(v) && v > 0) {
+        rates[k.toUpperCase()] = v;
+        n++;
+      }
+    }
+    // 无 CNY 基准（无法折算）或表过小 → 视为不可用
+    if (!rates['CNY'] || n < 2) return null;
+    return {
+      rates: rates,
+      updatedAt: (typeof d.updatedAt === 'string') ? d.updatedAt : '',
+      source: (typeof d.source === 'string') ? d.source : ''
+    };
+  }
+  function loadLive() {
+    if (!P || !P.data || typeof P.data.get !== 'function') { setStatus('offline', '离线汇率 · 内置参考数据（平台数据源不可用）'); return; }
+    try {
+      P.data.get(DATA_SOURCE).then(function (d) {
+        var parsed = parseLive(d);
+        if (parsed) { live = parsed; applyLive(); }
+        else { live = null; setStatus('offline', '离线汇率 · 内置参考数据（exchange_rate 数据源暂不可用）'); }
+      }).catch(function () {
+        live = null; setStatus('offline', '离线汇率 · 内置参考数据（exchange_rate 数据源读取失败）');
+      });
+    } catch (e) {
+      live = null; setStatus('offline', '离线汇率 · 内置参考数据');
+    }
+  }
+  function subscribeLive() {
+    if (!P || !P.data || typeof P.data.subscribe !== 'function') return;
+    try {
+      P.data.subscribe(DATA_SOURCE, function (payload) {
+        var d = payload && payload.data;
+        if (!d) return;
+        var parsed = parseLive(d);
+        if (parsed) { live = parsed; applyLive(); }
+        else if (live) {
+          // 数据源刷新失败（平台保留旧缓存）：继续用上次真实数据，明确标注为缓存
+          setStatus('online', '实时汇率（缓存）· 更新于 ' + (fmtTime(live.updatedAt) || '未知时间'));
+        }
+      });
+    } catch (e) { /* 订阅失败不影响已加载数据 */ }
+  }
+
+  // ── 状态标注（实时 / 部分实时 / 离线，含更新时间） ──
+  function setStatus(mode, text) {
+    var el = document.getElementById('rate-status');
+    if (!el) return;
+    el.className = 'status ' + mode;
+    var t = document.getElementById('rate-status-text');
+    if (t) t.textContent = text;
+  }
+  function fmtTime(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    try { return d.toLocaleString('zh-CN', { hour12: false }); } catch (e) { return iso; }
+  }
+  function liveStats() {
+    if (!live || !live.rates) return { mode: 'offline' };
+    var codes = allCodes();
+    var total = codes.length, on = 0;
+    for (var i = 0; i < codes.length; i++) if (isLive(codes[i])) on++;
+    if (on === 0) return { mode: 'offline' };
+    if (on < total) return { mode: 'mixed', on: on, total: total };
+    return { mode: 'online' };
+  }
+  function renderStatus() {
+    var st = liveStats();
+    if (st.mode === 'online') {
+      var t = fmtTime(live.updatedAt);
+      setStatus('online', '实时汇率 · 更新于 ' + (t || '未知时间'));
+    } else if (st.mode === 'mixed') {
+      setStatus('mixed', '部分实时 · ' + st.on + '/' + st.total + ' 个币种来自实时汇率，其余为内置参考');
+    } else {
+      setStatus('offline', '离线汇率 · 内置参考数据（接入 exchange_rate 数据源后自动切换实时）');
+    }
+    var note = document.getElementById('rates-note');
+    if (note) {
+      if (st.mode === 'online') note.textContent = '汇率来自 exchange_rate 数据源（USD 基准折算为 CNY 等价），随数据源后台刷新自动更新。';
+      else if (st.mode === 'mixed') note.textContent = '标注「实时」的币种来自 exchange_rate 数据源，标注「内置」的为内置参考值。';
+      else note.textContent = '当前为内置参考汇率（离线降级，不保证时效）。数据源接入后自动切换为实时汇率。';
+    }
+  }
+
+  // ── 渲染 ──
+  function optionHTML(k) {
+    var m = meta(k);
+    return '<option value="' + k + '">' + m.e + ' ' + k + ' · ' + m.n + '</option>';
+  }
+  function fillSelect(sel, selVal) {
+    var codes = allCodes();
+    sel.innerHTML = codes.map(optionHTML).join('');
+    if (codes.indexOf(selVal) >= 0) { sel.value = selVal; }
+    else if (codes.length) { sel.value = codes[0]; }
+  }
+  function currentFrom() { return document.getElementById('in-cur').value || 'CNY'; }
+  function currentTo() { return document.getElementById('out-cur').value || 'USD'; }
+  function currentAmt() {
+    var v = parseFloat(document.getElementById('in-amt').value);
+    if (isNaN(v) || v < 0 || !isFinite(v)) v = 0;
+    return v;
+  }
+
+  function convert() {
+    var from = currentFrom(), to = currentTo(), amt = currentAmt();
+    var rf = cnyRate(from), rt = cnyRate(to);
+    var f = meta(to).f;
+    var out = document.getElementById('out-amt');
+    var txt = document.getElementById('out-text');
+    var sub = document.getElementById('out-sub');
+    if (rf == null || rt == null || rf <= 0 || rt <= 0) {
+      out.value = '';
+      txt.textContent = '—';
+      sub.textContent = '该币种暂无可用汇率';
+      return;
+    }
+    var res = amt * rf / rt;
+    var rounded = roundTo(res, f);
+    out.value = String(rounded);
+    txt.textContent = meta(to).e + ' ' + fmtNum(rounded, f);
+    sub.textContent = '1 ' + from + ' = ' + fmtRate(rf / rt) + ' ' + to;
+    store.from = from; store.to = to; store.amt = amt;
+    pushRecent(from, to, amt);
+    save();
+    renderRecent();
+  }
+
+  function pushRecent(from, to, amt) {
+    var a = Number(amt); if (!isFinite(a) || a < 0) a = 0;
+    var list = store.recent.slice();
+    var idx = -1;
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].f === from && list[i].t === to) { idx = i; break; }
+    }
+    if (idx >= 0) list.splice(idx, 1);
+    list.unshift({ f: from, t: to, a: a, ts: Date.now() });
+    if (list.length > RECENT_MAX) list.length = RECENT_MAX;
+    store.recent = list;
+  }
+
+  function renderRecent() {
+    var el = document.getElementById('recent');
+    if (!el) return;
+    var list = store.recent || [];
+    if (!list.length) {
+      el.innerHTML = '<span class="note empty">暂无最近转换，完成一次换算后自动记录</span>';
+      return;
+    }
+    el.innerHTML = list.map(function (it) {
+      var m = meta(it.f);
+      return '<button type="button" class="qbtn" data-f="' + it.f + '" data-t="' + it.t + '" data-a="' + it.a + '">' +
+        fmtNum(it.a, m.f) + ' ' + it.f + ' → ' + it.t + '</button>';
+    }).join('');
+  }
+
+  function renderQuick() {
+    var el = document.getElementById('quick');
+    var pairs = [['CNY', 'USD'], ['CNY', 'EUR'], ['USD', 'JPY'], ['CNY', 'HKD'], ['EUR', 'GBP'], ['CNY', 'SGD']];
+    el.innerHTML = pairs.map(function (p) {
+      return '<button type="button" class="qbtn" data-f="' + p[0] + '" data-t="' + p[1] + '">' + p[0] + '→' + p[1] + '</button>';
+    }).join('');
+  }
+
+  function renderRates() {
+    var el = document.getElementById('rates');
+    if (!el) return;
+    var codes = allCodes();
+    el.innerHTML = codes.map(function (k) {
+      if (k === 'CNY') return '';
+      var rv = cnyRate(k);
+      var tag = isLive(k) ? '<span class="tag live">实时</span>' : '<span class="tag">内置</span>';
+      return '<div class="citem" data-c="' + k + '" role="button" tabindex="0"><span><span class="c">' + k + '</span>' +
+        '<span class="n">' + meta(k).n + '</span>' + tag + '</span>' +
+        '<span class="r">' + fmtRate(rv) + '</span></div>';
+    }).join('');
+  }
+
+  // 数据源就绪后整体刷新（含新增币种）
+  function applyLive() {
+    var from = currentFrom(), to = currentTo();
+    fillSelect(document.getElementById('in-cur'), from);
+    fillSelect(document.getElementById('out-cur'), to);
+    renderRates();
+    renderStatus();
+    convert();
+  }
+
+  // ── 明暗主题辅助：根据平台 --evg-background 亮度同步原生控件 color-scheme ──
+  function luminance(bg) {
+    var s = String(bg || '').trim();
+    if (!s) return null;
+    var m = s.match(/^#([0-9a-fA-F]{6})$/);
+    var r, g, b;
+    if (m) {
+      r = parseInt(m[1].substr(0, 2), 16); g = parseInt(m[1].substr(2, 2), 16); b = parseInt(m[1].substr(4, 2), 16);
+    } else {
+      var m2 = s.match(/^rgba?\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)/);
+      if (!m2) return null;
+      r = +m2[1]; g = +m2[2]; b = +m2[3];
+    }
+    return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  }
+  function syncColorScheme() {
+    try {
+      var bg = getComputedStyle(document.documentElement).getPropertyValue('--evg-background').trim();
+      var L = luminance(bg);
+      if (L == null) return;
+      document.documentElement.style.setProperty('color-scheme', L < 0.5 ? 'dark' : 'light');
+    } catch (e) {}
+  }
+
+  // ── 事件 ──
+  document.getElementById('in-amt').addEventListener('input', convert);
+  document.getElementById('in-cur').addEventListener('change', convert);
+  document.getElementById('out-cur').addEventListener('change', convert);
+  document.getElementById('b-swap').addEventListener('click', function () {
+    var a = currentFrom(), b = currentTo();
+    document.getElementById('in-cur').value = b;
+    document.getElementById('out-cur').value = a;
+    convert();
+  });
+  document.getElementById('quick').addEventListener('click', function (e) {
+    var btn = e.target.closest('.qbtn');
+    if (!btn || !btn.getAttribute('data-t')) return;
+    document.getElementById('in-cur').value = btn.getAttribute('data-f');
+    document.getElementById('out-cur').value = btn.getAttribute('data-t');
+    convert();
+  });
+  document.getElementById('recent').addEventListener('click', function (e) {
+    var btn = e.target.closest('.qbtn');
+    if (!btn || !btn.getAttribute('data-t')) return;
+    document.getElementById('in-cur').value = btn.getAttribute('data-f');
+    document.getElementById('out-cur').value = btn.getAttribute('data-t');
+    var a = Number(btn.getAttribute('data-a'));
+    if (isFinite(a) && a >= 0) document.getElementById('in-amt').value = String(a);
+    convert();
+  });
+  document.getElementById('rates').addEventListener('click', function (e) {
+    var c = e.target.closest('.citem');
+    if (!c) return;
+    var k = c.getAttribute('data-c');
+    if (currentFrom() === 'CNY') {
+      document.getElementById('out-cur').value = k;
+    } else {
+      document.getElementById('in-cur').value = (currentTo() === k) ? currentFrom() : k;
+      document.getElementById('out-cur').value = 'CNY';
+    }
+    convert();
+  });
+  document.getElementById('rates').addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    var c = e.target.closest('.citem');
+    if (c) { e.preventDefault(); c.click(); }
+  });
+
+  // ── 启动 ──
+  fillSelect(document.getElementById('in-cur'), store.from);
+  fillSelect(document.getElementById('out-cur'), store.to);
+  var savedAmt = Number(store.amt);
+  if (isFinite(savedAmt) && savedAmt >= 0) document.getElementById('in-amt').value = String(savedAmt);
+  renderQuick();
+  renderRecent();
+  syncColorScheme();
+  loadLive();
+  subscribeLive();
+  convert();
+  window.addEventListener('load', syncColorScheme);
+  if (P && typeof P.on === 'function') {
+    try { P.on('theme:changed', syncColorScheme); } catch (e) {}
+  }
+})();
+</script></body></html>

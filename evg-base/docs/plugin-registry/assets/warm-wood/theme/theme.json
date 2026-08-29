@@ -1,0 +1,15 @@
+{
+  "type": "theme",
+  "id": "warm-wood",
+  "name": "温暖原木",
+  "colors": {
+    "background": "#F4ECE2",
+    "surface": "#FAF5EE",
+    "border": "#E0CFBA",
+    "text": "#3C2F22",
+    "textSecondary": "#786650",
+    "accent": "#85552E",
+    "error": "#A94B31",
+    "others": "#D9B98E"
+  }
+}

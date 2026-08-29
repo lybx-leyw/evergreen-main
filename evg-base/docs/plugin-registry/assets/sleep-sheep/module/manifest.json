@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "sleep-sheep",
+  "name": "睡眠小羊",
+  "description": "数羊助眠 · 睡前打卡 · 睡眠时长统计，支持呼吸引导与白噪音。",
+  "template": "html",
+  "version": "1.0.0",
+  "icon": "bedtime",
+  "route": "/sleep-sheep",
+  "nav": {
+    "sidebar": {
+      "section": "健康",
+      "sectionOrder": 30,
+      "order": 1
+    }
+  }
+}

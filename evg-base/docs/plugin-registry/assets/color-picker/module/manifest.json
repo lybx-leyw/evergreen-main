@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "2.0",
+  "type": "module",
+  "id": "color-picker",
+  "name": "取色器",
+  "description": "RGB/HEX/HSL 取色器：色相与颜色通道滑块调色、HEX 输入、格式转换、一键复制、收藏与最近使用（本地持久化，适配明暗主题）。",
+  "template": "html",
+  "version": "1.0.0",
+  "icon": "palette",
+  "route": "/color-picker",
+  "nav": {
+    "sidebar": {
+      "section": "工具",
+      "sectionOrder": 50,
+      "order": 5
+    }
+  }
+}

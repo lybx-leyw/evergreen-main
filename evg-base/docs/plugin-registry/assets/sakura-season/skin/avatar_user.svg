@@ -1,0 +1,33 @@
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="樱花季用户头像 - 樱花">
+  <!-- 樱花季用户头像：浅粉圆底 + 深粉五瓣樱花剪影，
+       28px 圆头像裁切下依然清晰。 -->
+  <defs>
+    <radialGradient id="skBg" cx="50%" cy="40%" r="65%">
+      <stop offset="0%" stop-color="#FDF6FA"/>
+      <stop offset="60%" stop-color="#F8E0EE"/>
+      <stop offset="100%" stop-color="#F2C9DE"/>
+    </radialGradient>
+    <linearGradient id="skPetal" x1="20%" y1="0%" x2="80%" y2="100%">
+      <stop offset="0%" stop-color="#F6A8C6"/>
+      <stop offset="100%" stop-color="#F08BB4"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 圆底 -->
+  <circle cx="64" cy="64" r="60" fill="url(#skBg)"/>
+  <circle cx="64" cy="64" r="60" fill="none" stroke="#F08BB4" stroke-opacity="0.18" stroke-width="2"/>
+
+  <!-- 五瓣樱花（中心 (64,68)） -->
+  <g>
+    <circle cx="64" cy="50" r="13" fill="url(#skPetal)"/>
+    <circle cx="76.5" cy="59" r="13" fill="url(#skPetal)"/>
+    <circle cx="71.5" cy="74" r="13" fill="url(#skPetal)"/>
+    <circle cx="56.5" cy="74" r="13" fill="url(#skPetal)"/>
+    <circle cx="51.5" cy="59" r="13" fill="url(#skPetal)"/>
+    <circle cx="64" cy="64" r="6" fill="#D35D7E"/>
+  </g>
+
+  <!-- 飘落小花瓣点缀 -->
+  <ellipse cx="30" cy="34" rx="4" ry="6" fill="#F08BB4" opacity="0.55" transform="rotate(24 30 34)"/>
+  <ellipse cx="98" cy="100" rx="4" ry="6" fill="#F08BB4" opacity="0.55" transform="rotate(-18 98 100)"/>
+</svg>

@@ -1,0 +1,29 @@
+{
+  "type": "data-source",
+  "id": "zju-grades",
+  "name": "浙大成绩",
+  "script": "scraper.py",
+  "runtime": "python",
+  "androidSupport": true,
+  "auth": {
+    "sessionProvider": "zju",
+    "sessionDomain": "zdbk.zju.edu.cn",
+    "credentialKeys": ["ZJU_USERNAME", "ZJU_PASSWORD"]
+  },
+  "dataTypes": [
+    {
+      "name": "zju_grades",
+      "typeArg": "zju_grades",
+      "category": "教务",
+      "displayName": "成绩与 GPA",
+      "ttl": "10m",
+      "persistentKey": "zju_grades",
+      "fallbackJson": {
+        "grades": [],
+        "authenticated": false,
+        "fromFallback": true,
+        "message": "暂无法获取成绩（未登录或网络不可用）。请确认已配置 ZJU_USERNAME / ZJU_PASSWORD 后重试。"
+      }
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "type": "skin",
+  "id": "minimal-white",
+  "name": "极简白",
+  "version": "1.0.0",
+  "description": "「极简白」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+  "background": {
+    "type": "image",
+    "imageDesktop": "bg_desktop.svg",
+    "imageMobile": "bg_mobile.svg"
+  },
+  "bubble": {
+    "userBackgroundColor": "#F0F0F0",
+    "userTextColor": "#1C1C1C",
+    "borderRadius": 18
+  },
+  "avatar": {
+    "user": "avatar_user.svg",
+    "userBackgroundColor": "#1C1C1C"
+  },
+  "thinking": {
+    "title": "思考过程",
+    "colors": {
+      "header": "#1C1C1C",
+      "containerBackground": "#F0F0F0",
+      "containerBorder": "#6E6E6E",
+      "contentText": "#6E6E6E",
+      "chipMemoryBg": "#F0F0F0",
+      "chipMemoryFg": "#1C1C1C",
+      "chipSkillBg": "#F0F0F0",
+      "chipSkillFg": "#1C1C1C",
+      "chipToolBg": "#F0F0F0",
+      "chipToolFg": "#1C1C1C",
+      "chipToolResultBg": "#F0F0F0",
+      "chipToolResultFg": "#1C1C1C"
+    }
+  },
+  "effortColor": "#1C1C1C",
+  "toolActiveColor": "#1C1C1C"
+}

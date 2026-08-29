@@ -1,0 +1,40 @@
+{
+  "type": "skin",
+  "id": "starry-night",
+  "name": "星空",
+  "version": "1.0.0",
+  "description": "「星空」配套皮肤：渐变背景 + 主题色气泡与头像，随 theme 成套安装。",
+  "background": {
+    "type": "image",
+    "imageDesktop": "bg_desktop.svg",
+    "imageMobile": "bg_mobile.svg"
+  },
+  "bubble": {
+    "userBackgroundColor": "#252F4E",
+    "userTextColor": "#E9ECF6",
+    "borderRadius": 18
+  },
+  "avatar": {
+    "user": "avatar_user.svg",
+    "userBackgroundColor": "#5FA8FF"
+  },
+  "thinking": {
+    "title": "思考过程",
+    "colors": {
+      "header": "#5FA8FF",
+      "containerBackground": "#252F4E",
+      "containerBorder": "#101524",
+      "contentText": "#E9ECF6",
+      "chipMemoryBg": "#252F4E",
+      "chipMemoryFg": "#5FA8FF",
+      "chipSkillBg": "#252F4E",
+      "chipSkillFg": "#5FA8FF",
+      "chipToolBg": "#252F4E",
+      "chipToolFg": "#5FA8FF",
+      "chipToolResultBg": "#252F4E",
+      "chipToolResultFg": "#5FA8FF"
+    }
+  },
+  "effortColor": "#5FA8FF",
+  "toolActiveColor": "#5FA8FF"
+}

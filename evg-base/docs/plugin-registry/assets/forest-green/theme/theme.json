@@ -1,0 +1,15 @@
+{
+  "type": "theme",
+  "id": "forest-green",
+  "name": "森林绿意",
+  "colors": {
+    "background": "#F0F5EF",
+    "surface": "#FBFDFB",
+    "border": "#D5E3D4",
+    "text": "#23311F",
+    "textSecondary": "#5F735B",
+    "accent": "#3A764C",
+    "error": "#B5503E",
+    "others": "#8FBC8F"
+  }
+}
