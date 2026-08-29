@@ -1,12 +1,11 @@
 /// 数据预览服务 —— 从 DataOrchestrator 加载数据源列表和缓存内容。
-/// 增强（B3）：刷新 / 连通性测试走 DataHttpServer（复用 A1 端口发现），
-/// 端口文件缺失或 HTTP 失败时降级为直连 DataOrchestrator。
+/// 契约③：刷新入口语义降级为缓存优先读（不再手动强制拉取）；连通性测试
+/// 仍走 DataHttpServer（复用 A1 端口发现）。
 library;
 
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:evergreen_base/core/data/data.dart';
 import 'package:evergreen_base/renderer/templates/html_modle/core_api_discovery.dart';
 import 'package:evergreen_base/renderer/templates/v4_modle/components/creative/html-creator/models/html_project.dart';
@@ -40,28 +39,17 @@ class DataPreviewService {
     }
   }
 
-  /// 强制刷新数据源（B3）。
+  /// 读取指定数据源的缓存内容（契约③ 语义降级）。
   ///
-  /// 优先走 DataHttpServer `POST /data/types/:name/refresh`（核心真实拉取），
-  /// 端口文件缺失 / HTTP 失败时降级为直连 [DataOrchestrator.refresh]。
-  /// 返回刷新后的数据；失败返回 null。
+  /// 历史（B3）语义：手动强制刷新——优先走 DataHttpServer `POST /data/types/:name/refresh`
+  /// （核心真实拉取），端口缺失 / HTTP 失败时降级直连 [DataOrchestrator.refresh]。
+  /// 契约③（数据中枢不再让用户手动控制拉取/重试）下语义降级：不再强制重抓，
+  /// 等价于 [fetchPreview] 的缓存优先读（fastRead 内存未命中内部 fallback get()）；
+  /// 真实刷新由中枢后台调度（startAutoRefresh/refreshAllStale）维护，UI 经
+  /// data:changed 订阅感知变化。方法名与签名保留（向后兼容，不删公开 API）。
+  /// 返回缓存数据；失败返回 null。
   Future<dynamic> refresh(String name) async {
-    final port = coreApiDiscovery.portOf(CoreService.data);
-    if (port != null) {
-      try {
-        return await _httpPost(port, '/data/types/$name/refresh');
-      } catch (e) {
-        debugPrint('[DataPreview] HTTP 刷新 $name 失败，降级直连: $e');
-      }
-    }
-    final dt = orch.typeByName(name);
-    if (dt == null) return null;
-    try {
-      return await orch.refresh(dt);
-    } catch (e) {
-      debugPrint('[DataPreview] 直连刷新 $name 失败: $e');
-      return null;
-    }
+    return fetchPreview(name);
   }
 
   /// 测试全部数据源连通性（B3）。
@@ -88,7 +76,9 @@ class DataPreviewService {
           .timeout(const Duration(seconds: 5));
       req.headers.contentType = ContentType.json;
       final res = await req.close().timeout(const Duration(seconds: 10));
-      final raw = await res.transform(utf8.decoder).join()
+      final raw = await res
+          .transform(utf8.decoder)
+          .join()
           .timeout(const Duration(seconds: 10));
       if (res.statusCode >= 400) {
         throw Exception('HTTP ${res.statusCode}: $raw');

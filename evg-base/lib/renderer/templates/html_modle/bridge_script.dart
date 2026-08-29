@@ -36,6 +36,9 @@ import 'core_api_discovery.dart';
 /// ## 插件侧可用 API（Promise 风格）
 /// - `platform.data.get(name)` / `list()` / `refresh(name)` /
 ///   `testConnectivity()` / `subscribe(name, fn)`
+/// - `platform.data.refresh(name)`：契约③ 语义降级——等价于 `data.get` 的缓存优先读，
+///   不再强制重抓（POST /data/types/:name/refresh 已停用）；真实刷新由数据中枢
+///   后台调度（startAutoRefresh / refreshAllStale）维护，插件请用 `subscribe` 感知变化。
 /// - `platform.ai.chat(prompt, [style])`（style ∈ explanatory/learning/concise/socratic）
 /// - `platform.api.call(service, path, {method, body})` 通用 core 服务转发
 /// - `platform.settings.get(key)` / `set(key, value)`
@@ -90,6 +93,8 @@ String buildBridgeScript() {
     data: {
       get: function(name) { return _call('data.get', [name]); },
       list: function() { return _call('data.list', []); },
+      // refresh(name)：契约③ 语义降级——等价于 data.get 的缓存优先读（不再强制重抓），
+      // 真实刷新由数据中枢后台调度（startAutoRefresh/refreshAllStale）维护。
       refresh: function(name) { return _call('data.refresh', [name]); },
       testConnectivity: function() { return _call('data.testConnectivity', []); },
       subscribe: function(name, fn) {
@@ -255,8 +260,8 @@ class DataSubscriptionPoller {
     required Future<void> Function(String js) executeJs,
     this.interval = const Duration(seconds: 5),
     Stream<DataChangeEvent>? dataChangeEvents,
-  }) : _fetch = fetch,
-       _executeJs = executeJs {
+  })  : _fetch = fetch,
+        _executeJs = executeJs {
     if (dataChangeEvents != null) {
       _changeEventsSub = dataChangeEvents.listen(_onDataChange);
     }

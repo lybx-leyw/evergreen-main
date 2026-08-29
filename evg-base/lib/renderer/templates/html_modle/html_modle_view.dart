@@ -1,9 +1,10 @@
 /// HtmlModleView —— 用 WebView 加载插件 HTML，通过 JS Bridge 暴露平台 API。
 ///
 /// JS Bridge API (插件侧)：
-///   platform.data.get(name)      → 从数据中枢获取数据
+///   platform.data.get(name)      → 从数据中枢获取数据（缓存优先）
 ///   platform.data.list()         → 列出可用数据源（[{name, displayName, freshness}]）
-///   platform.data.refresh(name)  → 强制刷新数据源（POST /data/types/:name/refresh）
+///   platform.data.refresh(name)  → 读缓存（契约③ 语义降级：不再强制重抓，
+///                                 等价于 data.get 的缓存优先读；真实刷新由中枢后台调度）
 ///   platform.data.testConnectivity() → 测试全部数据源连通性（POST /data/connectivity/test）
 ///   platform.data.subscribe(name, fn) → 订阅数据变化（事件驱动 + 5s 轮询兜底，变化触发 data:changed）
 ///   platform.ai.chat(prompt, [style]) → AI 对话（接 AgentHttpServer POST /agent/chat）
@@ -200,15 +201,15 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
   }
 
   String _mimeType(String ext) => switch (ext) {
-    'html' => 'text/html; charset=utf-8',
-    'css' => 'text/css',
-    'js' => 'application/javascript',
-    'json' => 'application/json',
-    'png' => 'image/png',
-    'jpg' => 'image/jpeg',
-    'svg' => 'image/svg+xml',
-    _ => 'text/plain',
-  };
+        'html' => 'text/html; charset=utf-8',
+        'css' => 'text/css',
+        'js' => 'application/javascript',
+        'json' => 'application/json',
+        'png' => 'image/png',
+        'jpg' => 'image/jpeg',
+        'svg' => 'image/svg+xml',
+        _ => 'text/plain',
+      };
 
   String? _pluginDir() {
     if (widget.workingDirectory != null) return widget.workingDirectory;
@@ -343,12 +344,14 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
         return 'ok';
 
       case 'data.refresh':
-        // POST /data/types/:name/refresh —— 强制重抓并写回中枢缓存。
-        return await _httpForward(
-          CoreService.data,
-          'POST',
-          '/data/types/${args[0] as String}/refresh',
-        );
+        // 契约③：语义降级——不再手动强制拉取（POST /data/types/:name/refresh 已停用）。
+        // 等价于「读缓存」：与 data.get 一致（fastRead 内存未命中内部已 fallback
+        // get()，仍缓存优先），真实刷新由数据中枢后台调度（startAutoRefresh /
+        // refreshAllStale）维护；插件如需感知变化请用 data.subscribe 订阅。
+        final refreshName = args[0] as String;
+        final refreshDt = orch.typeByName(refreshName);
+        if (refreshDt == null) return null;
+        return await orch.fastRead(refreshDt);
 
       case 'data.testConnectivity':
         // POST /data/connectivity/test —— 测试全部数据源连通性。
@@ -361,9 +364,8 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
       case 'ai.chat':
         // POST /agent/chat —— 非流式对话，返回事件数组 + 拼接文本。
         final prompt = (args[0] ?? '').toString();
-        final style = args.length > 1 && args[1] != null
-            ? args[1].toString()
-            : null;
+        final style =
+            args.length > 1 && args[1] != null ? args[1].toString() : null;
         final result = await _httpForward(
           CoreService.agent,
           'POST',
@@ -487,8 +489,7 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
       throw Exception('进程 "$exe" 未在 manifest 的 process 中声明，拒绝执行（fail-closed）');
     }
 
-    final args =
-        (opts['args'] as List?)?.map((e) => e.toString()).toList() ??
+    final args = (opts['args'] as List?)?.map((e) => e.toString()).toList() ??
         <String>[];
 
     // exe 相对插件目录解析（与 ProcessManager 一致），并做跨平台扩展名兜底：
@@ -577,8 +578,7 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
       return {'ok': true}; // 幂等：已在运行
     }
 
-    final args =
-        (opts['args'] as List?)?.map((e) => e.toString()).toList() ??
+    final args = (opts['args'] as List?)?.map((e) => e.toString()).toList() ??
         <String>[];
 
     final pluginDir = _pluginDir();
@@ -663,7 +663,8 @@ class _HtmlModleViewState extends ConsumerState<HtmlModleView> {
     String method,
     String path, [
     Map<String, dynamic>? body,
-  ]) => forwardCoreHttp(service, method, path, body);
+  ]) =>
+      forwardCoreHttp(service, method, path, body);
 
   // ═══════ UI ═══════
 
@@ -759,32 +760,30 @@ class _LongProcessSession {
         .transform(utf8.decoder)
         .transform(const LineSplitter())
         .listen((line) {
-          _stdoutBuf.writeln(line);
-          onOutput('stdout', line);
-        });
+      _stdoutBuf.writeln(line);
+      onOutput('stdout', line);
+    });
 
     _stderrSub = process.stderr
         .transform(utf8.decoder)
         .transform(const LineSplitter())
         .listen((line) {
-          onOutput('stderr', line);
-        });
+      onOutput('stderr', line);
+    });
 
     // 进程退出：取消订阅并通知（fire-and-forget，避免未捕获异常）。
-    process.exitCode
-        .then((code) {
-          _stdoutSub?.cancel();
-          _stderrSub?.cancel();
-          _stdoutSub = null;
-          _stderrSub = null;
-          _process = null;
-          _stopped = true;
-          onExit(code);
-        })
-        .catchError((_) {
-          _stopped = true;
-          onExit(-1);
-        });
+    process.exitCode.then((code) {
+      _stdoutSub?.cancel();
+      _stderrSub?.cancel();
+      _stdoutSub = null;
+      _stderrSub = null;
+      _process = null;
+      _stopped = true;
+      onExit(code);
+    }).catchError((_) {
+      _stopped = true;
+      onExit(-1);
+    });
   }
 
   /// 向进程 stdin 写入数据（供交互式终端）。
