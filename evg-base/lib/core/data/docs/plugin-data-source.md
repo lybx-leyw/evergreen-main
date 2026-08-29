@@ -120,6 +120,7 @@ plugins/
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `auth.sessionProvider` | string | 会话提供者标识（如 `"zju"`），供上层 SessionProvider 路由 |
+| `auth.sessionDomain` | string | **登录锁分组键**（如 `"jwxt.zju.edu.cn"`）：声明后按网站域分组共享登录锁；缺省回退按 `sessionProvider` 分组（零行为变化） |
 | `auth.credentialKeys` | string[] | 引用的凭据 key 列表（对应 config.json 已声明 key） |
 
 **顶层 `process` 对象增强**（吸收 module `ProcessDescriptor` 语义；字符串形态等价 `{exe: "..."}` 全默认）：

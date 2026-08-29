@@ -112,8 +112,11 @@ List<String> registerDataSourcesFromManifest({
         fallback: decl.fallbackJson,
         // 会话绑定（主题 A）：manifest 顶层 auth.sessionProvider 声明后，数据层
         // 拉取失败且错误被判为「会话失效」时经 SessionCoordinator 单点重登重拉；
-        // 未声明（null）零行为变化。
+        // 未声明（null）零行为变化。auth.sessionDomain 为登录锁分组键：同一网站域
+        // 的数据源共享一把登录锁（比按 sessionProvider 分组更细），未声明回退
+        // sessionProviderId 分组。
         sessionProviderId: manifest.auth?.sessionProvider,
+        sessionDomain: manifest.auth?.sessionDomain,
       );
 
       // CLI fetcher：与启动扫描完全一致（Process.run → stdout JSON）。

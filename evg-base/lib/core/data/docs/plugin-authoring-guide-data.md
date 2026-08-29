@@ -338,9 +338,16 @@ curl -X POST http://127.0.0.1:<port>/data/connectivity/test
 ```json
 "auth": {
   "sessionProvider": "zju",
+  "sessionDomain": "jwxt.zju.edu.cn",
   "credentialKeys": ["ZJU_USERNAME", "ZJU_PASSWORD"]
 }
 ```
+
+- `sessionProvider`：登录实现标识（上层注册的 SessionProvider，如 zju 的 SSO/CAS）。
+- `sessionDomain`：**登录锁分组键**（数据来源网站域）。声明后，从同一域拉取的
+  数据源共享同一把登录锁——并发会话失效只触发一次重登；缺省时回退按
+  `sessionProvider` 分组（零行为变化）。同一 `sessionDomain` 应声明同一
+  `sessionProvider`（域决定登录实现归属）。
 
 配套的 `config/config.json`（凭据声明入口，`type:"string"` + `isSecure:true` 表示密码）：
 

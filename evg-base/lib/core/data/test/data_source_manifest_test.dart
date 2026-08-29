@@ -240,6 +240,7 @@ void main() {
         'script': 'fetch.py',
         'auth': {
           'sessionProvider': 'zju',
+          'sessionDomain': 'jwxt.zju.edu.cn',
           'credentialKeys': ['ZJU_USERNAME', 'ZJU_PASSWORD'],
         },
         'dataTypes': [
@@ -248,7 +249,20 @@ void main() {
       });
       expect(m.auth, isNotNull);
       expect(m.auth!.sessionProvider, 'zju');
+      expect(m.auth!.sessionDomain, 'jwxt.zju.edu.cn');
       expect(m.auth!.credentialKeys, ['ZJU_USERNAME', 'ZJU_PASSWORD']);
+    });
+
+    test('auth.sessionDomain 缺省为 null（回退 sessionProvider 分组）', () {
+      final m = DataSourceManifest.fromJson({
+        'type': 'data-source',
+        'script': 'fetch.py',
+        'auth': {'sessionProvider': 'zju'},
+        'dataTypes': [
+          {'name': 'x'}
+        ],
+      });
+      expect(m.auth!.sessionDomain, isNull);
     });
 
     test('auth 缺省为 null（零行为变化）', () {
@@ -398,6 +412,7 @@ void main() {
         },
         'auth': {
           'sessionProvider': 'zju',
+          'sessionDomain': 'jwxt.zju.edu.cn',
           'credentialKeys': ['K']
         },
         'dataTypes': [
@@ -412,6 +427,7 @@ void main() {
       final m = DataSourceManifest.fromJson(src);
       final rt = DataSourceManifest.fromJson(m.toJson());
       expect(rt.auth!.sessionProvider, 'zju');
+      expect(rt.auth!.sessionDomain, 'jwxt.zju.edu.cn');
       expect(rt.auth!.credentialKeys, ['K']);
       expect(rt.process!.protocol, 'stdio');
       expect(rt.process!.autoRestart, isTrue);

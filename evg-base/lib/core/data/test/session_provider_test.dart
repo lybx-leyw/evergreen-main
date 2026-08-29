@@ -122,6 +122,96 @@ void main() {
     });
   });
 
+  group('登录锁 + provider 解耦（ensureSessionFor / refreshSessionFor）', () {
+    test('同一 lockKey（网站域）并发 ensureSessionFor 只触发一次真实登录', () async {
+      final coord = SessionCoordinator();
+      final p = InMemorySessionProvider(
+        sessionProviderId: 'zju',
+        onEnsure: () async {
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+          return true;
+        },
+      );
+      coord.registerSessionProvider(p.sessionProviderId, p);
+
+      // 同域多数据源（此处模拟两个 DataType 都声明 sessionDomain=jwxt.zju.edu.cn）
+      final results = await Future.wait([
+        coord.ensureSessionFor('jwxt.zju.edu.cn', 'zju'),
+        coord.ensureSessionFor('jwxt.zju.edu.cn', 'zju'),
+        coord.ensureSessionFor('jwxt.zju.edu.cn', 'zju'),
+      ]);
+
+      expect(results, everyElement(isTrue));
+      expect(p.ensureCalls, 1);
+    });
+
+    test('不同 lockKey 互不影响（各自独立登录）', () async {
+      final coord = SessionCoordinator();
+      final p = InMemorySessionProvider(sessionProviderId: 'zju');
+      coord.registerSessionProvider(p.sessionProviderId, p);
+
+      final results = await Future.wait([
+        coord.ensureSessionFor('jwxt.zju.edu.cn', 'zju'),
+        coord.ensureSessionFor('zdbk.zju.edu.cn', 'zju'),
+      ]);
+
+      expect(results, everyElement(isTrue));
+      expect(p.ensureCalls, 2);
+    });
+
+    test('同一 lockKey 并发 refreshSessionFor 只触发一次重登（单点重登按域去重）', () async {
+      final coord = SessionCoordinator();
+      final p = InMemorySessionProvider(
+        sessionProviderId: 'zju',
+        onRefresh: () async {
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+          return true;
+        },
+      );
+      coord.registerSessionProvider(p.sessionProviderId, p);
+
+      final results = await Future.wait([
+        coord.refreshSessionFor('jwxt.zju.edu.cn', 'zju'),
+        coord.refreshSessionFor('jwxt.zju.edu.cn', 'zju'),
+      ]);
+
+      expect(results, everyElement(isTrue));
+      expect(p.refreshCalls, 1);
+    });
+
+    test('lockKey 与 providerId 解耦：同 provider、不同域各自重登', () async {
+      final coord = SessionCoordinator();
+      final p = InMemorySessionProvider(sessionProviderId: 'zju');
+      coord.registerSessionProvider(p.sessionProviderId, p);
+
+      await coord.refreshSessionFor('jwxt.zju.edu.cn', 'zju');
+      await coord.refreshSessionFor('zdbk.zju.edu.cn', 'zju');
+
+      expect(p.refreshCalls, 2);
+    });
+
+    test('未注册 providerId 的 ensureSessionFor 返回 false', () async {
+      final coord = SessionCoordinator();
+      expect(await coord.ensureSessionFor('jwxt.zju.edu.cn', 'nope'), isFalse);
+      expect(await coord.refreshSessionFor('jwxt.zju.edu.cn', 'nope'), isFalse);
+    });
+
+    test('ensureSession(id) 与 ensureSessionFor 等价（id 即 lockKey）', () async {
+      final coord = SessionCoordinator();
+      final p = InMemorySessionProvider(sessionProviderId: 'zju');
+      coord.registerSessionProvider(p.sessionProviderId, p);
+
+      // 同一 id 分别走旧 API 与新 API，共享同一 in-flight 锁
+      final results = await Future.wait([
+        coord.ensureSession('zju'),
+        coord.ensureSessionFor('zju', 'zju'),
+      ]);
+
+      expect(results, everyElement(isTrue));
+      expect(p.ensureCalls, 1);
+    });
+  });
+
   group('isSessionExpired 透传', () {
     test('按 error 判定会话失效', () {
       final p = InMemorySessionProvider(

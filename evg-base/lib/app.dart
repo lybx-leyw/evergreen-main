@@ -224,6 +224,9 @@ class _EvergreenAppState extends ConsumerState<EvergreenApp> {
     Future.microtask(() {
       try {
         final orchestrator = ref.read(dataOrchestratorProvider);
+        // 启动即后台刷一轮过期源（不 await、不阻塞 UI——前端照常读磁盘缓存，
+        // 刷新完成经 DataChangeEvent 推更新），随后进入时钟对齐的周期调度。
+        unawaited(orchestrator.refreshAllStale());
         orchestrator.startAutoRefresh();
         DataChangeNotificationService.instance.listenTo(orchestrator);
         // 异步初始化通知渠道/权限，不阻塞 UI

@@ -26,12 +26,15 @@
 | `ttl` | | 缓存有效期，默认 5 分钟 |
 | `persistentKey` | | 持久化键，不设则不缓存 |
 | `fallback` | | 静态兜底值（可选）：拉取失败且无旧缓存时由中枢返回，缺省 null 零行为变化 |
+| `sessionProviderId` | | 会话提供者标识（可选）：来自 manifest `auth.sessionProvider`，缺省 null 零行为变化 |
+| `sessionDomain` | | 登录锁分组键（可选）：来自 manifest `auth.sessionDomain`（数据来源网站域），同一域数据源共享登录锁；缺省回退按 `sessionProviderId` 分组 |
 | `label` | | getter：`displayName ?? name` |
 
 ### DataOrchestrator
 
 | 方法 | 说明 | 示例 |
 |------|------|------|
+| `DataOrchestrator({domainRetryDelay})` | 构造；`domainRetryDelay` 为同域后台重试延迟（默认 2s） | `DataOrchestrator()` |
 | `register(type, fetcher)` | 注册数据类型与拉取方式；重复覆盖 | `orch.register(scoresType, _fetchScores)` |
 | | | 入: `DataType<T>`, `() → Future<T>` / 出: `void` |
 | `registerAll(entries)` | 批量注册 | `orch.registerAll({scoresType: f1, newsType: f2})` |
@@ -139,6 +142,12 @@
 
 > 完整示例：`example/plugins/douban/`（豆瓣 Top250 爬虫，模型 A CLI，Python 标准库）。
 > 详细指南见 `docs/plugin-authoring-guide-data.md` 与规范 `docs/plugin-data-source.md`。
+
+> **同域后台重试（主题 A2）**：声明了 `auth.sessionDomain` 但对应域 provider 不可用
+> （未注册/未声明）的数据源拉取失败时，**立即返回失败**（不堵塞调用方/启动期并行拉取），
+> 中枢登记后在 `domainRetryDelay`（默认 2s）后**后台串行重试**一次；重试成功即覆写缓存
+> 并恢复 `connected`，仍失败保留 `lastError` 且不无限重试。未声明 `sessionDomain`
+> 或有可用 provider（走会话重登）时此机制不介入（零行为变化）。
 
 数据源插件支持**两种模型**，manifest 中二选一（**模型 A 为规范化形态，新数据源优先走 A**；模型 B 为 legacy）：
 
@@ -251,7 +260,7 @@ server.serve_forever()
 | `script` | ✓（模型 A） | CLI 脚本文件名（与 process **互斥二选一**） |
 | `runtime` | | 脚本运行时：`native`（默认）/ `python`（也可按 `.py` 扩展名推断） |
 | `androidSupport` | | **严格 bool**：仅真实 bool 有效，缺省 true，非 bool 视为 false（安卓跳过） |
-| `auth` | | **可选，缺省零行为变化**：`{sessionProvider?, credentialKeys?[]}`，引用 config.json 已声明凭据 key |
+| `auth` | | **可选，缺省零行为变化**：`{sessionProvider?, sessionDomain?, credentialKeys?[]}`，引用 config.json 已声明凭据 key；`sessionDomain` 为登录锁分组键（数据来源网站域），同一域数据源共享登录锁，缺省回退 `sessionProvider` |
 | `dataTypes` | ✓ | 数据类型声明数组 |
 | `dataTypes[].name` | ✓ | 类型唯一标识 |
 | `dataTypes[].typeArg` | | 传给 CLI 脚本的 `--type` 参数，默认同 name（仅模型 A） |
