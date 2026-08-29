@@ -65,6 +65,7 @@ lib/core/data/
 ├── provider.dart                # Riverpod Provider（可选，不被 barrel 导出）
 ├── data_http_server.dart        # HTTP 管理服务器（REST 端点）
 ├── register_data_source.dart    # CLI 数据源热注册：registerDataSourcesFromManifest
+├── register_module_storage.dart # 插件模块存储 → 数据中枢数据源：registerModuleStorageSource（T5-storage）
 ├── plugin/
 │   ├── data_source_manifest.dart  # DataSourceManifest / DataSourceTypeDecl 模型
 │   ├── data_source_loader.dart    # HTTP 长驻 .exe 生命周期 + scanAndLoadDataSources
@@ -73,7 +74,7 @@ lib/core/data/
 │   ├── flutter_stub/           #   Flutter SDK 最小签名（foundation / services）
 │   ├── path_provider_stub/     #   path_provider 最小签名
 │   ├── flutter_riverpod_stub/  #   flutter_riverpod 最小签名
-│   └── core/                   #   根 core 副本：log / plugin_runner / utils（python_env、path_sandbox）
+│   └── core/                   #   根 core 副本：log / plugin_runner / utils（python_env、greenix_path、path_sandbox）/ services（module_storage_service）
 ├── docs/
 │   ├── plugin-data-source.md    # 数据源插件开发规范（CLI + HTTP 双模型）
 │   └── plugin-authoring-guide-data.md  # Data 数据源插件撰写指南
@@ -280,7 +281,9 @@ registerDataSourcesFromManifest(
 | `flutter_riverpod_stub` | `lib/flutter_riverpod_stub/` | `flutter_riverpod` (Flutter) |
 
 `lib/core/` 下是根 core 的**本地副本**（子包测试隔离用，与根包同步）：`log.dart`、`plugin/plugin_runner.dart`
-（`SubprocessRunner` / `ChaquopyRunner` / `sharedPluginRunner`）、`utils/python_env.dart`、`utils/path_sandbox.dart`。
+（`SubprocessRunner` / `ChaquopyRunner` / `sharedPluginRunner`）、`utils/python_env.dart`、`utils/path_sandbox.dart`
+（T5-storage 起为根包实例化 API 版本）、`utils/greenix_path.dart`、`services/module_storage_service.dart`
+（T5-storage 新增，供 `register_module_storage.dart` 子包独立测试）。
 
 **设计理由**：Data 模块是纯 Dart，不应依赖 Flutter SDK。stub 包提供最小签名，使 `dart analyze` 和 `dart test` 可独立运行。
 注意：`data_http_server.dart` / `register_data_source.dart` / `plugin/data_source_loader.dart` 还依赖根包 core（`greenix_path` 等），
@@ -497,6 +500,7 @@ data 模块（pubspec.yaml，name: evergreen_base）
 
 | 日期 | 变更 |
 |------|------|
+| 2026-08-29 | **T5-storage 插件模块存储 → 数据中枢数据源**：新增 `register_module_storage.dart`（`registerModuleStorageSource({orch, pluginId, pluginsRoot?, category?, ttl?})`：把 HTML 插件的模块存储器 `storage.json` 全量注册成数据源 `name=<pluginId>_storage`（displayName `<pluginId> 存储`、缺省分类「未分类」、TTL 默认 30s = `kModuleStorageSourceTtl`、`persistentKey=null` 不二次缓存——storage.json 本身即持久化）；fetcher 只读 storage.json（经 `ModuleStorageService.forPlugin(...).readAll()`，**不触发网络**），storage.json 缺失返回 `{}` 幂等（源可达，空数据门控标记「源可达但数据为空」）；`unregisterModuleStorageSource(orch, pluginId)` 注销（不删 storage.json）；重复注册覆盖对齐 orchestrator 覆盖语义；非法 pluginId 注册即抛 ArgumentError；barrel `data.dart` 导出）。`ModuleStorageService` 本体见 core-services 域（`services/module_storage_service.dart`）；子包独立测试经 `data/lib/core/` 本地副本（新增 `services/module_storage_service.dart`、`utils/greenix_path.dart`，`utils/path_sandbox.dart` 同步为根包实例化 API 版本）。测试：新增 `register_module_storage_test.dart`（9 用例：注册返回内容/更新后重新 get 读新值（fetcher 读盘）/未注册名/unregister 清除+幂等/重复注册覆盖/空存储幂等/自定义 category/非法 pluginId/类型名格式），全量 217 通过（基线 208 + 9，6 跳过为既有 python3 不可用） |
 | 2026-08-29 | **T2e 数据拉取阶段追踪（fetch path tracing）**：`orchestrator.dart` 新增公开符号——`DataFetchPhase` 枚举（queued/cacheLookup/fetching/validating/caching/done/failed，单次拉取阶段链）、`DataSourceFetchStep`（phase + completed + at，const 构造不变类）、`DataSourceFetchPath`（steps + isActive + retryCount，含 toJson 供看板动态解析）；`DataOrchestrator` 内部维护 `_fetchPaths`（name→轨迹构建器，只保留最近一次防内存膨胀），新增 `fetchPathOf(name)`（未拉取过返回 null）与 `fetchPaths`（全量快照，看板轮询一次取全）。打点：get/refresh/fastRead 进入建 `queued`；get 缓存命中（磁盘/内存）→ cacheLookup + done（isActive=false）；未命中进 `_fetchAndCache` → cacheLookup → fetching；`_attemptFetch` fetcher 返回 → fetching 完成 + validating；写缓存 → caching → done；异常 catch → 当前进行中阶段终结，会话重登重拉保留轨迹重新进入 fetching，`_handleFinalFailure` 追加 failed（登记同域后台重试 → isActive=true + retryCount+1，重试耗尽/非重试失败 → isActive=false）；静态兜底返回视为 done。retryCount 与 `_domainRetryAttempts` 后台重试登记对齐（每次登记/重新入队 +1，新轨迹归零）；每 step `at` 用真实 `DateTime.now()`；`unregister` 清理轨迹。测试：新增 `orchestrator_fetch_path_test.dart`（15 用例：get/refresh/fastRead 成功链、磁盘命中缓存链、fetcher 异常失败、空数据门控、兜底收敛 done、重试期间 retryCount 增长与耗尽收敛、重试成功收敛 done、从未拉取 null、unregister 清理、fetchPaths 全量、toJson、const 构造），全量通过（基线 193 + 15 = 208 通过，6 跳过为既有 python3 不可用） |
 | 2026-08-29 | **T2d 追加·时钟对齐的周期调度**：`startAutoRefresh({interval})` 由 `Timer.periodic`（首 tick 从启动时刻起算）改为**时钟对齐**——首 tick **不立即执行**，用单发 Timer 对齐到下一个本地墙上时钟刻度（新增纯函数 `durationToNextClockBoundary(now, interval)`：5m → :00/:05/:10…、1h → 下一整点 :00、30s → :00/:30 秒刻度；恰在边界上跳下一刻度，首 tick 永不立即执行），到点执行一轮 `refreshAllStale` 后转为以该刻度为相位的 periodic（相位锁定不随执行时长漂移）。`DataSourceSchedulingSnapshot` 增 `nextRefreshAt`（推算值：启动时 = 启动时刻 + 对齐等待，此后 = 上一 tick 触发时刻 + interval；未启动/已停止为 null）。**失败源周期重试语义确认（报错 ≠ 终态）**：`refreshAllStale` 对 `isFresh == false` 的源每个 tick 自动重试——报错（connected=false）后仍持续周期重试直至成功或注销，配合契约④（同域后台重试 ≥3 次）与契约⑤（有真实缓存永不报错）。测试 +3（对齐计算纯函数/首 tick 不立即执行并周期延续/nextRefreshAt 非空晚于当前且停止为 null），全量 193 用例通过 |
 | 2026-08-29 | **T2d 数据中枢拉取调度契约（core 侧）**：① **重试次数 ≥3（契约④）**——`DataOrchestrator` 增构造参数 `domainRetryMaxAttempts`（默认 3，≤0 禁用后台重试）：同域后台重试循环对每个失败的数据源最多执行该次数，`_domainRetryAttempts`（name→次数）计数，失败未达上限重新入队并再次启动 Timer（每次间隔 `domainRetryDelay`），达到上限放弃（保留 lastError）；仍为后台 Timer 串行、不堵塞调用方。② **有真实缓存永不报错（契约⑤）**——`_handleFinalFailure` 存在真实旧缓存（磁盘/内存）时 `lastError` 用新增警告级常量 `kDataFetchFailedWithCachePrefix`（「拉取失败（已展示缓存数据）」），connected=false 但错误不升级为硬错误，仅无缓存才走 `kDataFetchFailedPrefix`/兜底；新增只读 `readCachedByName(name)`；`data_http_server.dart` GET/POST `/data/types/:name` 拉取失败但存在真实缓存时返回 200+缓存数据（含 `fromCache`/`cachedAt`/`warning`），仅无缓存且重试耗尽才 502。③ **时间标签真实性（契约②）**——验证并补测试：get 磁盘命中写内存用磁盘 cachedAt、fastRead/status.lastFetchedAt 与磁盘一致、refresh 用拉取完成时刻、磁盘时间标签更新后内存重新拉缓存。④ **调度可观测性（契约③ 看板支撑）**——新增只读 `DataSourceSchedulingSnapshot`（isRetrying/pendingRetryNames/lastBackgroundRefreshAt/domainRetryDelay/domainRetryMaxAttempts，含 toJson）+ `schedulingSnapshot` getter（最近一次后台刷新时间 `_lastDomainRetryAt`）。测试：`orchestrator_domain_retry_test` 改为默认重试 3 次后停止 + 新增 maxAttempts 可配置（2/1/0）与快照用例（+5），新增 `orchestrator_timestamp_test.dart`（3 用例），`orchestrator_test` 新增契约⑤ 组（4 用例）。全量 190 用例通过（+12，6 跳过为既有 python3 不可用） |

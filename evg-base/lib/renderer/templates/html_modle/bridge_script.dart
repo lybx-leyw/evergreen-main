@@ -42,8 +42,20 @@ import 'core_api_discovery.dart';
 /// - `platform.ai.chat(prompt, [style])`（style ∈ explanatory/learning/concise/socratic）
 /// - `platform.api.call(service, path, {method, body})` 通用 core 服务转发
 /// - `platform.settings.get(key)` / `set(key, value)`
+/// - `platform.storage.get(key)` / `set(key, value)` / `remove(key)` / `list()` /
+///   `clear()` —— 模块私有存储（持久化到插件私有目录 `storage/storage.json`，
+///   字符串语义；`get` 未知 key 返回 null，`list` 返回全量 `{key: value}` Map）
 /// - `platform.theme.getColors()`
 /// - `platform.emit(event, payload)` / `platform.on(event, fn)`
+///
+/// ## localStorage / sessionStorage polyfill（注入时接管）
+/// 因 WebView origin 随机端口隔离 + 跨平台 WebView 存储不一致导致插件进度丢失，
+/// 本脚本在 bridge 注入时**接管 `window.localStorage`**（同步内存 Map + 异步
+/// write-through 落盘到插件私有存储），现有插件零改造恢复进度保存：
+/// - 读（`getItem` / `length` / `key`）全走内存，同步返回、绝不阻塞 UI 线程；
+/// - 写（`setItem` / `removeItem` / `clear`）同步更新内存后异步 `_call('storage.*')`
+///   落盘；预载失败 / 落盘失败静默降级为「会话内有效」（仅内存）；
+/// - `sessionStorage` 同 API、仅内存不落盘；不做 IndexedDB（交付边界）。
 ///
 /// 双通道发送：Windows `chrome.webview.postMessage` / Android `evgBridge` JS 通道。
 String buildBridgeScript() {
@@ -152,6 +164,17 @@ String buildBridgeScript() {
       get: function(key) { return _call('settings.get', [key]); },
       set: function(key, value) { return _call('settings.set', [key, value]); },
     },
+    storage: {
+      // 模块私有存储（持久化到插件私有目录 storage/storage.json，字符串语义）。
+      // get(key) → string | null（未知 key 返回 null，storage.json 缺失不报错）；
+      // list() → 全量 {key: value} Map（供 polyfill 预载 / 遍历）；
+      // set/remove/clear 为异步落盘（write-through），写失败经 __evgReject 抛错。
+      get: function(key) { return _call('storage.get', [key]); },
+      set: function(key, value) { return _call('storage.set', [key, value]); },
+      remove: function(key) { return _call('storage.remove', [key]); },
+      list: function() { return _call('storage.list', []); },
+      clear: function() { return _call('storage.clear', []); },
+    },
     theme: {
       getColors: function() { return _call('theme.getColors', []); },
     },
@@ -161,6 +184,125 @@ String buildBridgeScript() {
       _listeners[event].push(fn);
     },
   };
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // localStorage / sessionStorage polyfill（bridge 注入时接管）
+  //
+  // 背景：WebView origin 随机端口隔离 + 跨平台 WebView 存储不一致，插件
+  // localStorage 进度保存不可靠。此处用「同步内存 Map + 异步 write-through」
+  // 接管 window.localStorage（并在原生 localStorage 不存在/不稳定的 WebView
+  // 中保证可用）：
+  //   - 读（getItem/length/key）全走内存，同步返回，绝不阻塞 UI 线程；
+  //   - 写（setItem/removeItem/clear）同步更新内存，再异步 _call('storage.*')
+  //     落盘到插件私有目录 storage/storage.json；
+  //   - 注入时异步预载一次（storage.list）；预载失败（core 未就绪等）→ 内存
+  //     为空但 API 照常工作；写仍尝试落盘，失败静默降级为「会话内有效」（仅
+  //     内存，重启丢失）。
+  // sessionStorage 同 API、仅内存不落盘（会话内有效）。不做 IndexedDB。
+  // 原生引用保留到 window.__evgNativeLocalStorage 供调试。
+  // ═══════════════════════════════════════════════════════════════════════
+  var _nativeLocalStorage = null;
+  try { _nativeLocalStorage = window.localStorage; } catch (e) { _nativeLocalStorage = null; }
+
+  // 存储后端工厂：persist=true 走落盘 write-through（localStorage），
+  // persist=false 仅内存（sessionStorage）。
+  function _evgStorageBackend(persist) {
+    var data = {};    // 同步内存态（读的唯一来源）
+    var dirty = {};   // 预载期间被插件写入的 key（防预载响应覆盖新写）
+    var cleared = false; // 预载期间 clear() 过 → 丢弃预载合并
+    var loaded = false;  // 已发起预载
+
+    function ensureLoaded() {
+      if (loaded) return;
+      loaded = true;
+      if (!persist) return; // 仅内存后端：无需预载
+      try {
+        _call('storage.list', []).then(function(entries) {
+          if (!entries || cleared) return;
+          for (var k in entries) {
+            if (!dirty[k] && !(k in data)) data[k] = entries[k];
+          }
+        }).catch(function() {
+          // 预载失败（core 未就绪等）：内存保持为空，API 照常工作（会话内有效）。
+        });
+      } catch (e) { /* 同上：静默降级 */ }
+    }
+
+    // 异步 write-through：同步内存已更新，落盘失败静默降级（仅内存）。
+    function flush(method, args) {
+      try {
+        _call(method, args).catch(function() {
+          // 落盘失败：会话内有效（内存保留，重启丢失）。
+        });
+      } catch (e) { /* 同上 */ }
+    }
+
+    return {
+      getItem: function(key) {
+        ensureLoaded();
+        key = String(key);
+        return Object.prototype.hasOwnProperty.call(data, key) ? String(data[key]) : null;
+      },
+      setItem: function(key, value) {
+        ensureLoaded();
+        key = String(key);
+        value = String(value);
+        data[key] = value;
+        dirty[key] = true;
+        if (persist) flush('storage.set', [key, value]);
+      },
+      removeItem: function(key) {
+        ensureLoaded();
+        key = String(key);
+        if (Object.prototype.hasOwnProperty.call(data, key)) {
+          delete data[key];
+          dirty[key] = true;
+          if (persist) flush('storage.remove', [key]);
+        }
+      },
+      clear: function() {
+        ensureLoaded();
+        data = {};
+        cleared = true;
+        if (persist) flush('storage.clear', []);
+      },
+      key: function(index) {
+        ensureLoaded();
+        var keys = Object.keys(data);
+        return (typeof index === 'number' && index >= 0 && index < keys.length)
+            ? keys[index] : null;
+      },
+      get length() {
+        ensureLoaded();
+        return Object.keys(data).length;
+      },
+    };
+  }
+
+  // 接管 window.localStorage / window.sessionStorage（幂等：重复注入不重复接管；
+  // bridge 顶部 __evgBridgeInjected 已整体防重，__evgStoragePolyfilled 作为
+  // polyfill 段落的独立守卫）。优先 defineProperty（Chromium 可重定义），
+  // 失败退回直接赋值；极少数只读 accessor 引擎两者均失败时保持原生行为。
+  if (!window.__evgStoragePolyfilled) {
+    var _evgLocalStorage = _evgStorageBackend(true);
+    var _evgSessionStorage = _evgStorageBackend(false);
+    try {
+      Object.defineProperty(window, 'localStorage', {
+        value: _evgLocalStorage, configurable: true, writable: true,
+      });
+    } catch (e) {
+      try { window.localStorage = _evgLocalStorage; } catch (e2) {}
+    }
+    try {
+      Object.defineProperty(window, 'sessionStorage', {
+        value: _evgSessionStorage, configurable: true, writable: true,
+      });
+    } catch (e) {
+      try { window.sessionStorage = _evgSessionStorage; } catch (e2) {}
+    }
+    window.__evgNativeLocalStorage = _nativeLocalStorage;
+    window.__evgStoragePolyfilled = true;
+  }
 
   // 把主题色板应用到 CSS 变量（--evg-*），并触发 'theme:changed' 事件。
   window.__evgApplyTheme = function(colors) {

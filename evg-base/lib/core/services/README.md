@@ -30,6 +30,7 @@
 | `GithubStarsFetcher` | `github_stars.dart` | star 数数据中枢接入（DataType） | ✅ |
 | `SyncImportService` | `sync_import_service.dart` | .egsync.zip 导入：fail-closed 校验 + 版本感知冲突 + 注册回放（t-C3） | ✅ |
 | `DataFileService` | `data_file_service.dart` | 文件下载：headers/超时/退避重试 + 路径沙箱（T8a） | ✅ |
+| `ModuleStorageService` | `module_storage_service.dart` | 插件级 JSON 键值存储（HTML localStorage polyfill 落盘端，T5-storage） | ✅ |
 | `GithubCloner` | `github_clone.dart` | GitHub 源克隆（git clone 子进程） | 直接 import |
 | `GithubMetadata` | `github_metadata.dart` | 仓库元数据抓取（市场卡片实时 star） | 直接 import |
 | `ReleaseDownloader` | `release_downloader.dart` | GitHub release 二进制下载/解压 | 直接 import |
@@ -246,6 +247,50 @@ final results = await svc.downloadFiles(
   HTTP 状态 → `Err(AppError.httpStatus)`，其它 → `Err(AppError.downloadFailed)`，非法 URL/越界 → `Err(AppError.validationError)`。
 - **实现**：`dart:io` 的 `HttpClient`（零新依赖，纯 Dart，可独立 `dart test`）；复用 `release_downloader.dart`
   的 `_download` 模式，但服务化 + `Result` + headers + 沙箱。
+
+---
+
+## 七、HTML 插件模块存储器（ModuleStorageService，T5-storage）
+
+> HTML 插件经 WebView 加载，`localStorage` 按 origin（含随机端口）隔离且 Windows WebView2 /
+> Android webview_flutter 存储行为不一致——本服务在**平台侧**提供按插件隔离的 JSON 键值存储。
+> renderer 的 localStorage polyfill（同步内存 + 异步 write-through）与 `platform.storage.*` 桥消费本服务
+> （`data/register_module_storage.dart` 把 storage 注册进数据中枢供 `platform.data.get` 消费）。
+
+```dart
+import 'package:evergreen_base/core/services/services.dart';
+
+final store = ModuleStorageService.forPlugin('my-plugin'); // pluginsRoot 缺省 resolvePluginsRoot()
+
+store.readSync('score');            // 同步读（内存优先，首次读盘全量；文件不存在返回 null）
+await store.write('score', 99);     // 异步 write-through（value=null 即删除该 key）
+await store.remove('key');
+await store.clear();                // 清空并删除 storage.json
+final all = await store.readAll();  // 全量（桥 list / 数据源注册用）
+```
+
+| API | 说明 |
+|------|------|
+| `ModuleStorageService.forPlugin(pluginId, {pluginsRoot?})` | 构造；`pluginId` 须通过 `moduleStoragePluginIdError`（对齐 renderer `htmlPluginIdError`：小写字母开头 kebab-case、拒绝路径穿越），落盘路径再经 `PathSandbox` confine（双保险） |
+| `.readSync(key)` → `dynamic` | 同步读；内存命中即返回，首次访问同步读盘全量加载 |
+| `.write(key, value)` → `Future<void>` | 更新内存 + 异步原子写盘（临时文件 + rename）；`null` 值 = 删除该 key；非 JSON 可序列化值同步拒绝；全文件编码超 `kModuleStorageMaxBytes`（1MB）拒绝写入（抛 `ModuleStorageException`） |
+| `.remove(key)` / `.clear()` | 删 key / 清空并删除 storage.json |
+| `.readAll()` → `Future<Map<String, dynamic>>` | 全量（顶层浅拷贝）；无待落盘写入时重新读盘，外部实例/直写改动可见 |
+| `.isLoaded` / `.ensureLoaded()` | 是否已加载 / 异步预热 |
+
+- 落盘：`{resolvePluginsRoot()}/{pluginId}/storage/storage.json`，顶层 `Map<String, dynamic>`，
+  值 JSON 可序列化（Map/List/String/num/bool/null）。
+- 并发：读同步（内存 Map）；写路径单 isolate Future 链串行（对齐 Cache 互斥队列），原子写崩溃不损坏。
+- 实例隔离：按 `pluginId` 隔离（不同插件互不可见）；同一插件建议复用同一实例。
+
+**数据源注册（data 域）**：`registerModuleStorageSource({orch, pluginId, pluginsRoot?, category?, ttl?})`
+（`evg-base/lib/core/data/register_module_storage.dart`，barrel `data.dart` 导出；`services.dart` 不导出）
+把插件 storage.json 全量注册为数据中枢数据源 `<pluginId>_storage`（`displayName` `<pluginId> 存储`、
+缺省分类「未分类」、TTL 默认 30s、`persistentKey=null` 不二次缓存——storage.json 本身即持久化）：
+fetcher 只读 storage.json（经 `ModuleStorageService.forPlugin(...).readAll()`，**不触发网络**），
+storage.json 缺失返回 `{}` 幂等（源可达，中枢空数据门控标记「源可达但数据为空」）；
+`unregisterModuleStorageSource(orch, pluginId)` 注销（不删除 storage.json，归模块存储生命周期）。
+renderer 在模块加载/卸载时调用本注册函数（接线见 renderer 子代理交付）。
 
 ---
 

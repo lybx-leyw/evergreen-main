@@ -7,3 +7,4 @@ export 'core_http_server.dart';
 export 'github_stars.dart';
 export 'sync_import_service.dart';
 export 'data_file_service.dart';
+export 'module_storage_service.dart';
