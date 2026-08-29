@@ -24,6 +24,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:evergreen_base/core/data/data.dart' show DataOrchestrator;
 import 'package:evergreen_base/core/module/module_descriptor.dart';
 import 'package:evergreen_base/providers.dart';
 import 'package:evergreen_base/renderer/atomic/data_source_resolver.dart';
@@ -67,19 +68,33 @@ abstract class DataSourceSlotState<T extends DataSourceSlot> extends ConsumerSta
   }
 
   /// 按 [DataSourceDescriptor.refreshInterval]（秒）周期性重新拉取并刷新 UI。
+  ///
+  /// 契约①（前端永拉缓存、后台永写缓存）下定时刷新拆为两步：到点先经
+  /// [DataOrchestrator.refresh] 强制后台重抓并覆写缓存（写侧），再读缓存
+  /// （[resolveDataSource] 缓存优先）刷新 UI——读侧永不绕过缓存。
   void _startAutoRefresh(DataSourceDescriptor ds) {
     final secs = ds.refreshInterval;
     if (secs <= 0) return;
-    _timer = Timer.periodic(Duration(seconds: secs), (_) {
+    _timer = Timer.periodic(Duration(seconds: secs), (_) async {
+      if (!mounted) return;
+      final orch = ref.read(dataOrchestratorProvider);
+      await _refreshCacheWrite(ds, orch); // 写侧：强制重抓写缓存
       if (!mounted) return;
       setState(() {
-        _future = resolveDataSource(
-          ds: ds,
-          orch: ref.read(dataOrchestratorProvider),
-          forceRefresh: true,
-        );
+        _future = resolveDataSource(ds: ds, orch: orch); // 读侧：缓存优先
       });
     });
+  }
+
+  /// 定时刷新写侧：对 `orch://<name>` 端点经中枢强制重抓并覆写缓存。
+  /// 未注册/拉取失败静默（随后读缓存时 [resolveDataSource] 会优雅降级）。
+  Future<void> _refreshCacheWrite(
+      DataSourceDescriptor ds, DataOrchestrator orch) async {
+    final ep = ds.endpoint;
+    if (ep == null || !ep.startsWith('orch://')) return;
+    try {
+      await orch.refreshByName(ep.substring('orch://'.length));
+    } catch (_) {/* 契约①：刷新失败不阻塞 UI，读侧仍缓存优先 */}
   }
 
   @override

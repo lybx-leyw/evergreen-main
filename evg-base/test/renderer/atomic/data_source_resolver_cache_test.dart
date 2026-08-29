@@ -69,7 +69,7 @@ void main() {
     expect(calls, 1, reason: '声明了 persistentKey 时应命中缓存，不应重复拉取');
   });
 
-  test('forceRefresh → 绕过缓存强制重拉（供自动刷新使用）', () async {
+  test('forceRefresh 已弃用（契约①）→ 与普通读一致，仍缓存优先', () async {
     await Cache.getInstance();
     int calls = 0;
     final orch = DataOrchestrator();
@@ -82,8 +82,11 @@ void main() {
     await resolveDataSource(ds: ds, orch: orch); // calls==1，写缓存
     final refreshed =
         await resolveDataSource(ds: ds, orch: orch, forceRefresh: true);
-    expect((refreshed as Map)['value'], 'v2');
-    expect(calls, 2, reason: 'forceRefresh 应绕过缓存强制重抓');
+    // 契约①（前端永拉缓存、后台永写缓存）：forceRefresh 已弃用，不再绕过
+    // 缓存强制重抓；数据新鲜度由中枢后台调度（startAutoRefresh/refreshAllStale）
+    // 维护。因此 forceRefresh=true 仍返回缓存旧值，fetcher 不再被调用。
+    expect((refreshed as Map)['value'], 'v1');
+    expect(calls, 1, reason: '契约①下 forceRefresh 不再绕过缓存，仍缓存优先读');
   });
 
   test('未注册类型 → 优雅降级返回 null（不抛到 UI）', () async {

@@ -81,7 +81,7 @@ void main() {
   });
 
   group('自动刷新（refreshInterval）', () {
-    testWidgets('到点经 forceRefresh 重新拉取并刷新 UI（非命中缓存）',
+    testWidgets('到点经中枢强制重抓写缓存后读缓存刷新 UI（非命中缓存）',
         (tester) async {
       int calls = 0;
       final orch = DataOrchestrator();
@@ -108,8 +108,9 @@ void main() {
       await tester.pump(const Duration(milliseconds: 500)); // 首次拉取（<2s，不触发刷新）
       expect(find.text('v1'), findsWidgets);
 
-      // 推进到 2s 之后：Timer 触发 → resolveDataSource(forceRefresh:true)
-      // → orch.refresh 绕过缓存重抓，UI 应显示新值。
+      // 推进到 2s 之后：Timer 触发 → 先经 orch.refreshByName 强制重抓并覆写缓存
+      // （契约①写侧）→ 再 resolveDataSource 缓存优先读（读侧不绕过缓存），
+      // UI 应显示新值。
       await tester.pump(const Duration(seconds: 3));
       await tester.pump(const Duration(milliseconds: 500)); // 让刷新 future 完成并重建
       expect(find.text('REFRESHED'), findsWidgets);
