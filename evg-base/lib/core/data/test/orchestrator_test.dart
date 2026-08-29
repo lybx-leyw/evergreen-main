@@ -576,6 +576,85 @@ void main() {
   });
 
   // ═══════════════════════════════════════════════════════════════════════
+  // 时钟对齐自动刷新（T2d 追加）：首 tick 对齐下一刻度、不立即执行；nextRefreshAt
+  // ═══════════════════════════════════════════════════════════════════════
+
+  group('时钟对齐自动刷新（T2d 追加）', () {
+    test('时钟对齐计算（纯函数）：5m → :05、1h → 整点、30s 秒刻度、边界跳下一刻度', () {
+      // 08:03:20：5m 刻度 → 08:05:00（1m40s 后）
+      final t1 = DateTime(2026, 8, 29, 8, 3, 20);
+      expect(
+        DataOrchestrator.durationToNextClockBoundary(
+            t1, const Duration(minutes: 5)),
+        const Duration(minutes: 1, seconds: 40),
+      );
+      // 08:03:20：1h 刻度 → 09:00:00（56m40s 后）
+      expect(
+        DataOrchestrator.durationToNextClockBoundary(
+            t1, const Duration(hours: 1)),
+        const Duration(minutes: 56, seconds: 40),
+      );
+      // 08:03:20：30s 刻度 → 08:03:30（10s 后）
+      expect(
+        DataOrchestrator.durationToNextClockBoundary(
+            t1, const Duration(seconds: 30)),
+        const Duration(seconds: 10),
+      );
+      // 恰在边界 08:05:00 → 跳到下一刻度（完整 5m），首 tick 永不立即执行
+      final t2 = DateTime(2026, 8, 29, 8, 5);
+      expect(
+        DataOrchestrator.durationToNextClockBoundary(
+            t2, const Duration(minutes: 5)),
+        const Duration(minutes: 5),
+      );
+      // interval <= 0 → 立即
+      expect(
+        DataOrchestrator.durationToNextClockBoundary(t1, Duration.zero),
+        Duration.zero,
+      );
+    });
+
+    test('首 tick 不对齐立即执行：启动后未立即刷新，约一个刻度后触发并周期延续', () async {
+      var fetches = 0;
+      const tickType = DataType<Map<String, dynamic>>(
+        name: '${_pfx}align',
+        category: '测试',
+        ttl: Duration(milliseconds: 1), // 恒过期 → 每个 tick 都会刷新
+        persistentKey: '${_pfx}align_cache',
+      );
+      orch.register(tickType, () async {
+        fetches++;
+        return {'v': fetches};
+      });
+
+      orch.startAutoRefresh(interval: const Duration(milliseconds: 100));
+      // 立即断言：尚未触发（首 tick 需先对齐到下一刻度，不立即执行）
+      expect(fetches, 0);
+
+      // 约一个刻度（首 tick 延迟 ≤100ms）后首个 tick 已触发
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      expect(fetches, greaterThanOrEqualTo(1));
+
+      // periodic 延续：再过约一个刻度再次刷新（相位锁定，不停止）
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      expect(fetches, greaterThanOrEqualTo(2));
+    });
+
+    test('nextRefreshAt：启动后非 null 且晚于当前时间；停止后为 null', () async {
+      expect(orch.schedulingSnapshot.nextRefreshAt, isNull); // 未启动
+
+      orch.startAutoRefresh(interval: const Duration(minutes: 5));
+      final before = DateTime.now();
+      final snap = orch.schedulingSnapshot;
+      expect(snap.nextRefreshAt, isNotNull);
+      expect(snap.nextRefreshAt!.isAfter(before), isTrue);
+
+      orch.stopAutoRefresh();
+      expect(orch.schedulingSnapshot.nextRefreshAt, isNull);
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
   // refreshStatusFromDisk
   // ═══════════════════════════════════════════════════════════════════════
 
@@ -696,6 +775,89 @@ void main() {
       expect(data, isNull);
       expect(orch.status(testType.name)!.lastError,
           startsWith(kDataFetchFailedPrefix));
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 契约⑤：有真实缓存时永不报错、失败仅警告（T2d）
+  // ═══════════════════════════════════════════════════════════════════════
+
+  group('契约⑤：有真实缓存永不报错、失败仅警告', () {
+    test('拉取失败但存在旧缓存（磁盘）→ lastError 用警告级文案，get 仍返回缓存数据', () async {
+      const cachedType = DataType<Map<String, dynamic>>(
+        name: '${_pfx}warn_cached',
+        category: '测试',
+        persistentKey: '${_pfx}warn_cached',
+      );
+      orch.register(cachedType, () async => {'value': 1});
+      await orch.refresh(cachedType); // 写入真实旧缓存
+
+      orch.register(cachedType, () async => throw Exception('down'));
+      final data = await orch.refresh(cachedType); // 强制刷新失败
+
+      expect(data, isNull);
+      final s = orch.status(cachedType.name)!;
+      expect(s.connected, isFalse);
+      expect(s.lastError, startsWith(kDataFetchFailedWithCachePrefix));
+      // 非硬错误文案：不出现「拉取失败:」直接标记（区分无缓存路径）
+      expect(s.lastError, isNot(startsWith('$kDataFetchFailedPrefix:')));
+
+      // 有真实缓存 → 永不报错：get 仍返回缓存数据（不重新拉取）
+      final cached = await orch.get(cachedType);
+      expect(cached, {'value': 1});
+    });
+
+    test('仅内存缓存（persistentKey 为 null）时拉取失败 → 警告级文案，缓存可读回', () async {
+      const memType = DataType<Map<String, dynamic>>(
+        name: '${_pfx}warn_mem',
+        category: '测试',
+        persistentKey: null, // 不落盘，refresh 只写内存
+      );
+      orch.register(memType, () async => {'value': 1});
+      await orch.refresh(memType); // 内存缓存
+
+      orch.register(memType, () async => throw Exception('down'));
+      final data = await orch.get(memType); // 无磁盘缓存 → 拉取 → 失败
+      expect(data, isNull);
+      final s = orch.status(memType.name)!;
+      expect(s.connected, isFalse);
+      expect(s.lastError, startsWith(kDataFetchFailedWithCachePrefix));
+
+      // readCachedByName 可读回内存缓存（HTTP 端点拉取失败回退缓存数据用）
+      final cached = orch.readCachedByName(memType.name);
+      expect(cached, isNotNull);
+      expect(cached!.$1, {'value': 1});
+    });
+
+    test('无缓存且失败 → 保持硬失败文案（真实失败语义，仅此才报错）', () async {
+      const freshType = DataType<Map<String, dynamic>>(
+        name: '${_pfx}warn_none',
+        category: '测试',
+        persistentKey: '${_pfx}warn_none',
+      );
+      orch.register(freshType, () async => throw Exception('down'));
+      await orch.get(freshType);
+
+      final s = orch.status(freshType.name)!;
+      expect(s.connected, isFalse);
+      expect(s.lastError, startsWith(kDataFetchFailedPrefix));
+      expect(s.lastError, isNot(startsWith(kDataFetchFailedWithCachePrefix)));
+      expect(orch.readCachedByName(freshType.name), isNull);
+    });
+
+    test('readCachedByName 读取真实缓存（磁盘优先），cachedAt 与磁盘一致', () async {
+      const rType = DataType<Map<String, dynamic>>(
+        name: '${_pfx}readc',
+        category: '测试',
+        persistentKey: '${_pfx}readc',
+      );
+      orch.register(rType, () async => {'v': 1});
+      await orch.refresh(rType);
+
+      final cached = orch.readCachedByName(rType.name);
+      expect(cached, isNotNull);
+      expect(cached!.$1, {'v': 1});
+      expect(cached.$2, Cache.instanceOrNull!.read(rType.name)!.$2);
     });
   });
 }

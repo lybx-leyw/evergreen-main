@@ -78,10 +78,17 @@ class DataSourceAuth {
   /// 会话提供者标识（如 `"zju"`，供上层 SessionProvider 路由；本模型仅声明不消费）。
   final String? sessionProvider;
 
+  /// 数据来源网站域（如 `"jwxt.zju.edu.cn"`）——**登录锁分组键**：
+  /// 声明后，从同一域拉取的数据源共享同一把登录锁（单点重登去重），比按
+  /// sessionProvider 分组更细；缺省（null）时回退到 sessionProvider 分组（零行为变化）。
+  /// 同一 [sessionDomain] 应声明同一 [sessionProvider]（域决定登录实现归属）。
+  final String? sessionDomain;
+
   /// 引用的凭据 key 列表（对应 config.json 已声明 key）。
   final List<String> credentialKeys;
 
-  const DataSourceAuth({this.sessionProvider, this.credentialKeys = const []});
+  const DataSourceAuth(
+      {this.sessionProvider, this.sessionDomain, this.credentialKeys = const []});
 
   /// 解析 [json]；`null` 或空对象 → `null`（未声明）。
   static DataSourceAuth? fromJson(Map<String, dynamic>? json) {
@@ -89,16 +96,21 @@ class DataSourceAuth {
     final keys = json['credentialKeys'];
     return DataSourceAuth(
       sessionProvider: json['sessionProvider'] as String?,
+      sessionDomain: json['sessionDomain'] as String?,
       credentialKeys:
           keys is List ? keys.map((e) => e.toString()).toList() : const [],
     );
   }
 
   /// 是否无任何声明内容（用于 `toJson` 省略）。
-  bool get isEmpty => sessionProvider == null && credentialKeys.isEmpty;
+  bool get isEmpty =>
+      sessionProvider == null &&
+      sessionDomain == null &&
+      credentialKeys.isEmpty;
 
   Map<String, dynamic> toJson() => {
         if (sessionProvider != null) 'sessionProvider': sessionProvider,
+        if (sessionDomain != null) 'sessionDomain': sessionDomain,
         if (credentialKeys.isNotEmpty) 'credentialKeys': credentialKeys,
       };
 
@@ -106,15 +118,16 @@ class DataSourceAuth {
   bool operator ==(Object other) =>
       other is DataSourceAuth &&
       other.sessionProvider == sessionProvider &&
+      other.sessionDomain == sessionDomain &&
       _listEquals(other.credentialKeys, credentialKeys);
 
   @override
-  int get hashCode =>
-      Object.hash(sessionProvider, Object.hashAll(credentialKeys));
+  int get hashCode => Object.hash(
+      sessionProvider, sessionDomain, Object.hashAll(credentialKeys));
 
   @override
   String toString() =>
-      'DataSourceAuth(sessionProvider: $sessionProvider, keys: $credentialKeys)';
+      'DataSourceAuth(sessionProvider: $sessionProvider, sessionDomain: $sessionDomain, keys: $credentialKeys)';
 }
 
 // ═══════════════════════════════════════════════════════════════════════════

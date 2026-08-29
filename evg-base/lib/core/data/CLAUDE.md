@@ -83,7 +83,8 @@ lib/core/data/
 ├── test/
 │   ├── orchestrator_test.dart   # 用例：注册/获取/刷新/空数据/变更事件/状态/连通性/自动刷新
 │   ├── cache_test.dart          # 用例：读写/删除/清空/编码/批量
-│   └── data_diff_test.dart      # 用例：差异引擎
+│   ├── data_diff_test.dart      # 用例：差异引擎
+│   ├── orchestrator_fetch_path_test.dart # 用例：数据拉取阶段轨迹（T2e，fetchPathOf/fetchPaths）
 ├── pubspec.yaml
 ├── dart_test.yaml               # concurrency: 1（缓存单例需要顺序执行）
 ├── README.md                    # 面向开发者的 API 文档
@@ -206,6 +207,31 @@ data 层新增**流式数据类型**形态，与 pull（`register`）并存，�
 
 **设计理由**：pull 路径（get/refresh/fastRead）语义完全不变（回归）；流式形态是**新增**传输能力，把 agent 侧已成熟的 SSE 通道复用到 data 层，替换未来 renderer 的 5s 轮询订阅。
 
+### 7. 同域后台重试（声明了域但 provider 不可用时的兜底）
+
+场景：数据源声明了 `auth.sessionDomain`（数据来源网站域）但对应域 provider **不可用**
+（`sessionProviderId` 未声明 / coordinator 未设置 / provider 未注册）——此时会话重登链路
+不可用，失败若直接放弃，启动期并行拉取的数据源会全部停留在失败态，且没有恢复机会。
+
+机制（`_scheduleDomainRetry` / `_runDomainRetries`）：
+
+- **触发**：`_handleFinalFailure` 里检查——声明了 `sessionDomain` 且 `_hasUsableProvider`
+  为 false 时登记进后台重试队列（按 name 去重），并启动一个 `domainRetryDelay`
+  （构造参数，默认 2 秒）的 Timer。
+- **不堵塞**：登记是同步 O(1)，重试在后台 Timer 中串行执行；调用方（含 app 启动期的
+  并行 `get`/`refreshAllStale`）拿到失败结果即继续，不被重试阻塞。
+- **串行**：`_runDomainRetries` 取出队列快照后逐项 `refresh`（单源失败只记录，不阻塞
+  后续）；重试成功即覆写缓存 + 恢复 `connected`，仍失败保留 `lastError`。
+- **防无限循环（契约④，T2d）**：`_domainRetryRunning` 为 true（正在执行后台重试）
+  时不再登记；重试循环内按 `_domainRetryAttempts`（name→已重试次数）计数——失败
+  未达 `domainRetryMaxAttempts`（默认 3，可配置）重新入队再次重试，达到上限即放弃。
+- **不介入场景**：未声明 `sessionDomain`（零行为变化）；有可用 provider（走会话重登，
+  见设计决策 §会话中心）；`domainRetryMaxAttempts <= 0`（禁用后台重试）。
+- `unregister` 同步清理重试队列与重试计数。
+
+**设计理由**：登录域是"数据从哪个网站来"的自然分组——同域失败往往同因（目标站不可达 /
+provider 未就绪），有限次（默认 3）串行重试覆盖整组，成本可控且不挤占登录锁语义。
+
 ---
 
 ## 开发约定
@@ -277,7 +303,7 @@ registerDataSourcesFromManifest(
 | 状态 | allStatuses 排序/categories 去重/statusByCategory 过滤/成功更新/失败更新/计数 |
 | DataSourceStatus | 从未/新鲜/过期/relativeTime |
 | 连通性 | 单源成功/单源失败/全源测试 |
-| 自动刷新 | 启动/停止/未注册停止 |
+| 自动刷新 | 启动/停止/未注册停止；时钟对齐（T2d 追加）：对齐计算纯函数、首 tick 不立即执行并周期延续、nextRefreshAt 非空晚于当前且停止为 null |
 | refreshStatusFromDisk | 从缓存恢复时间戳 |
 
 ### cache_test.dart
@@ -326,6 +352,27 @@ onError→connected=false+lastError、onDone→completed 且不注销、每次�
 
 覆盖：`registerFile` 后 `fileOf`/`fileByName` 返回声明、未登记/未注册返回 null、`registerFile(null)`
 清除既有声明（重注册语义）、`unregister` 连带清除、`enabled=false` 声明仍可查询（由消费方判 enabled）。
+
+### orchestrator_domain_retry_test.dart（T2c/T2d 新增）
+
+覆盖：同域后台重试——失败**立即返回**不堵塞（calls 保持 1）、延迟后后台串行重试成功（calls=2 +
+connected=true）、同域多源失败重试阶段无并发（maxActive 验证）、重试仍失败默认重试 3 次后停止 /
+`domainRetryMaxAttempts` 可配置（2/1/0，设 1 兼容旧「只重试一次」）、调度可观测性快照
+（isRetrying 状态机 + pendingRetryNames + lastBackgroundRefreshAt）、
+未声明 `sessionDomain` 不介入（零行为变化）、有可用 provider 走会话重登不触发后台重试、
+coordinator 未设置时仍走后台重试。
+
+### orchestrator_fetch_path_test.dart（T2e 新增）
+
+覆盖数据拉取阶段追踪：**成功路径** get 完整链（queued→cacheLookup→fetching→validating→caching→done，
+全部 completed + 时间戳递增 + isActive=false）、refresh 链无 cacheLookup、fastRead 内存命中
+（queued→cacheLookup→done）；**缓存命中** get 磁盘命中（无 fetching）；**失败路径** fetcher 抛异常
+（…→failed + isActive=false）、空数据门控（…→validating→failed）、静态兜底返回收敛 done；
+**同域后台重试期间**（本地实例 + 短 domainRetryDelay + 慢 fetcher 观察中间态）：登记后
+failed + isActive=true + retryCount=1 → 重试进行中 retryCount 增长 → 耗尽后 isActive=false 且
+retryCount 累计保留；重试成功收敛 done；**从未拉取** fetchPathOf 返回 null / fetchPaths 为空、
+unregister 清理轨迹、fetchPaths 全量多源一次取全（快照不受后续拉取影响）、toJson 结构完整、
+step/path 支持 const 构造（不变类）。
 
 ### 运行测试
 
@@ -382,6 +429,7 @@ dart test test/data_diff_test.dart
   "androidSupport": true,            // 可选：严格 bool，仅真实 bool 有效，缺省 true，非 bool 视为 false
   "auth": {                          // 可选（缺省零行为变化）：引用 config.json 已声明凭据 key
     "sessionProvider": "zju",
+    "sessionDomain": "jwxt.zju.edu.cn", // 可选：登录锁分组键（数据来源网站域），缺省回退 sessionProvider
     "credentialKeys": ["ZJU_USERNAME"]
   },
   "dataTypes": [
@@ -449,6 +497,11 @@ data 模块（pubspec.yaml，name: evergreen_base）
 
 | 日期 | 变更 |
 |------|------|
+| 2026-08-29 | **T2e 数据拉取阶段追踪（fetch path tracing）**：`orchestrator.dart` 新增公开符号——`DataFetchPhase` 枚举（queued/cacheLookup/fetching/validating/caching/done/failed，单次拉取阶段链）、`DataSourceFetchStep`（phase + completed + at，const 构造不变类）、`DataSourceFetchPath`（steps + isActive + retryCount，含 toJson 供看板动态解析）；`DataOrchestrator` 内部维护 `_fetchPaths`（name→轨迹构建器，只保留最近一次防内存膨胀），新增 `fetchPathOf(name)`（未拉取过返回 null）与 `fetchPaths`（全量快照，看板轮询一次取全）。打点：get/refresh/fastRead 进入建 `queued`；get 缓存命中（磁盘/内存）→ cacheLookup + done（isActive=false）；未命中进 `_fetchAndCache` → cacheLookup → fetching；`_attemptFetch` fetcher 返回 → fetching 完成 + validating；写缓存 → caching → done；异常 catch → 当前进行中阶段终结，会话重登重拉保留轨迹重新进入 fetching，`_handleFinalFailure` 追加 failed（登记同域后台重试 → isActive=true + retryCount+1，重试耗尽/非重试失败 → isActive=false）；静态兜底返回视为 done。retryCount 与 `_domainRetryAttempts` 后台重试登记对齐（每次登记/重新入队 +1，新轨迹归零）；每 step `at` 用真实 `DateTime.now()`；`unregister` 清理轨迹。测试：新增 `orchestrator_fetch_path_test.dart`（15 用例：get/refresh/fastRead 成功链、磁盘命中缓存链、fetcher 异常失败、空数据门控、兜底收敛 done、重试期间 retryCount 增长与耗尽收敛、重试成功收敛 done、从未拉取 null、unregister 清理、fetchPaths 全量、toJson、const 构造），全量通过（基线 193 + 15 = 208 通过，6 跳过为既有 python3 不可用） |
+| 2026-08-29 | **T2d 追加·时钟对齐的周期调度**：`startAutoRefresh({interval})` 由 `Timer.periodic`（首 tick 从启动时刻起算）改为**时钟对齐**——首 tick **不立即执行**，用单发 Timer 对齐到下一个本地墙上时钟刻度（新增纯函数 `durationToNextClockBoundary(now, interval)`：5m → :00/:05/:10…、1h → 下一整点 :00、30s → :00/:30 秒刻度；恰在边界上跳下一刻度，首 tick 永不立即执行），到点执行一轮 `refreshAllStale` 后转为以该刻度为相位的 periodic（相位锁定不随执行时长漂移）。`DataSourceSchedulingSnapshot` 增 `nextRefreshAt`（推算值：启动时 = 启动时刻 + 对齐等待，此后 = 上一 tick 触发时刻 + interval；未启动/已停止为 null）。**失败源周期重试语义确认（报错 ≠ 终态）**：`refreshAllStale` 对 `isFresh == false` 的源每个 tick 自动重试——报错（connected=false）后仍持续周期重试直至成功或注销，配合契约④（同域后台重试 ≥3 次）与契约⑤（有真实缓存永不报错）。测试 +3（对齐计算纯函数/首 tick 不立即执行并周期延续/nextRefreshAt 非空晚于当前且停止为 null），全量 193 用例通过 |
+| 2026-08-29 | **T2d 数据中枢拉取调度契约（core 侧）**：① **重试次数 ≥3（契约④）**——`DataOrchestrator` 增构造参数 `domainRetryMaxAttempts`（默认 3，≤0 禁用后台重试）：同域后台重试循环对每个失败的数据源最多执行该次数，`_domainRetryAttempts`（name→次数）计数，失败未达上限重新入队并再次启动 Timer（每次间隔 `domainRetryDelay`），达到上限放弃（保留 lastError）；仍为后台 Timer 串行、不堵塞调用方。② **有真实缓存永不报错（契约⑤）**——`_handleFinalFailure` 存在真实旧缓存（磁盘/内存）时 `lastError` 用新增警告级常量 `kDataFetchFailedWithCachePrefix`（「拉取失败（已展示缓存数据）」），connected=false 但错误不升级为硬错误，仅无缓存才走 `kDataFetchFailedPrefix`/兜底；新增只读 `readCachedByName(name)`；`data_http_server.dart` GET/POST `/data/types/:name` 拉取失败但存在真实缓存时返回 200+缓存数据（含 `fromCache`/`cachedAt`/`warning`），仅无缓存且重试耗尽才 502。③ **时间标签真实性（契约②）**——验证并补测试：get 磁盘命中写内存用磁盘 cachedAt、fastRead/status.lastFetchedAt 与磁盘一致、refresh 用拉取完成时刻、磁盘时间标签更新后内存重新拉缓存。④ **调度可观测性（契约③ 看板支撑）**——新增只读 `DataSourceSchedulingSnapshot`（isRetrying/pendingRetryNames/lastBackgroundRefreshAt/domainRetryDelay/domainRetryMaxAttempts，含 toJson）+ `schedulingSnapshot` getter（最近一次后台刷新时间 `_lastDomainRetryAt`）。测试：`orchestrator_domain_retry_test` 改为默认重试 3 次后停止 + 新增 maxAttempts 可配置（2/1/0）与快照用例（+5），新增 `orchestrator_timestamp_test.dart`（3 用例），`orchestrator_test` 新增契约⑤ 组（4 用例）。全量 190 用例通过（+12，6 跳过为既有 python3 不可用） |
+| 2026-08-29 | **T2c 同域后台重试**：`DataOrchestrator` 增构造参数 `domainRetryDelay`（默认 2s）+ `_scheduleDomainRetry`/`_runDomainRetries`/`_hasUsableProvider`——`_handleFinalFailure` 里检查：声明了 `sessionDomain` 且对应域 provider 不可用（`sessionProviderId` 未声明 / coordinator 未设置 / provider 未注册）时，失败**立即返回**（不堵塞调用方与启动期并行拉取），登记进后台队列（按 name 去重）并启动延迟 Timer，到点后**串行** `refresh` 重试一次；重试成功覆写缓存 + 恢复 `connected`，仍失败保留 `lastError`；`_domainRetryRunning` 防无限循环（只重试一次）；`unregister` 同步清理队列；未声明 `sessionDomain` / 有可用 provider 不介入（零行为变化）。新增 `orchestrator_domain_retry_test.dart`（6 用例：不堵塞/串行/只重试一次/无域不介入/有 provider 走会话重登/coordinator 未设置），`orchestrator_auth_test` 域无 provider 用例改为验证后台重试。全量 178 用例通过 |
+| 2026-08-29 | **T2b 登录域分组细化（sessionDomain）**：新增 `DataSourceAuth.sessionDomain`/`DataType.sessionDomain`（manifest `auth.sessionDomain`，数据来源网站域）作为**登录锁分组键**——同一域拉取的数据源共享同一把登录锁（并发会话失效只重登一次），比按 `sessionProvider` 分组更细；缺省 null 回退 `sessionProviderId` 分组（零行为变化）。`SessionCoordinator` 新增 `ensureSessionFor(lockKey, providerId)`/`refreshSessionFor(lockKey, providerId)`（锁键与 provider 解析解耦，旧 API 委托等价）；`orchestrator._fetchAndCache` 重登锁键改为 `sessionDomain ?? sessionProviderId`；`register_data_source.dart` 透传 `auth.sessionDomain`。测试 +11 用例（manifest 解析×2、session_provider 解耦×6、orchestrator 登录域分组×4），全量 172 用例通过 |
 | 2026-08-25 | **T8a 文件型数据源 core 支持**：新增 `file_entries.dart`（`FileEntry` + `extractFileEntries` 纯函数：识别 `files`/`downloads`/`attachments`/`fileList`、`file` 单对象、`downloadEndpoint` 字符串形态，未知结构返回空）；`orchestrator.dart` 增 `_fileDecls` 登记表 + `registerFile`/`fileOf`/`fileByName`（未声明/未登记返回 null，`unregister` 连带清除）；`register_data_source.dart` 把 `decl.file` 经 `orch.registerFile` 接线；`data.dart` barrel 导出 `file_entries.dart`。测试 +16 用例（file_entries_test + orchestrator_file_test），全量 167 用例通过。下载服务 `DataFileService` 见 core-services 域（`services/data_file_service.dart`） |
 | 2026-08-25 | **T2 会话中心（主题 A 登录不挤占）**：新增 `session_provider.dart`（`SessionProvider` 抽象：`ensureSession`/`isSessionExpired`/`refreshSession`/`invalidate` + `SessionCoordinator` 登录锁/注册表：同一 `sessionProviderId` 并发 `ensureSession`/`refreshSession` Future 共享、单点重登 + `InMemorySessionProvider` 最小示例）；`DataType` 增可选 `sessionProviderId`（来自 manifest `auth.sessionProvider`）；`register_data_source.dart` 把 `manifest.auth?.sessionProvider` 透传到 `DataType`；`orchestrator.dart` 增 `sessionCoordinator` 字段 + `_fetchAndCache` 会话失效自动重登重拉（声明 auth + 注册 provider + 错误被判会话失效 → `refreshSession` → 重拉一次；仍失败 `lastError`「已重登仍失败」/重登失败「重登失败」；未声明/未注册零行为变化，走 T4 既有降级链）。新增 `kDataReloginRetryFailedPrefix`/`kDataReloginFailedPrefix`；`data.dart` barrel 导出 `session_provider.dart`；测试 +17 用例（session_provider_test + orchestrator_auth_test），全量 151 用例通过 |
 | 2026-08-25 | **T4 降级链第三级 + 进程守护 + 一次性陷阱修复**：① `PluginRunner.runOnce` 增可选 `timeout`（超时 kill 子进程 + 抛 `TimeoutException`，三副本 core/agent/data 同步）；CLI 数据源 fetcher 用 `kCliDataSourceTimeout`（60s）。② `_fetchAndCache` 区分「源可达但语义空」（`lastError=kDataEmptyReachableError`）vs「源不可达/异常」（`kDataFetchFailedPrefix: $e`）。③ `DataType.fallback`/`DataSourceTypeDecl.fallbackJson` 静态兜底（第三级降级：拉取失败且无旧缓存 → 返回兜底 + `lastError`「使用静态兜底」，缺省零行为变化）。④ `Cache` 写/删/清空路径加互斥队列（单 isolate Future 链式串行）。⑤ `DataSourceLoader` 崩溃自动重启（退避 1s/3s/9s 最多 3 次，成功恢复 `_healthy`、用尽标记 `connected=false`+`lastError`）+ 手动 `restart()`，重启期间已注册 DataType 保留 |

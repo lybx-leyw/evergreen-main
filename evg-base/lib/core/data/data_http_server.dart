@@ -236,7 +236,22 @@ class DataHttpServer {
       try {
         final data = await _orchestrator.get(dt);
         if (data == null) {
-          // fetcher 失败（如网络错误、认证失败等）——返回错误详情
+          // 契约⑤：有真实缓存时永不报错、失败仅警告——拉取失败但存在真实缓存
+          // （磁盘/内存，经 readCachedByName 读取）时返回缓存数据（200 + data），
+          // 仅无缓存且重试耗尽才 502。
+          final cached = _orchestrator.readCachedByName(name);
+          if (cached != null) {
+            final status = _orchestrator.status(name);
+            _respond(req.response, 200, {
+              'data': cached.$1,
+              'fromCache': true,
+              'cachedAt': cached.$2.toIso8601String(),
+              if (status != null && status.lastError != null)
+                'warning': status.lastError,
+            });
+            return;
+          }
+          // fetcher 失败且无缓存（如网络错误、认证失败等）——返回错误详情
           final status = _orchestrator.status(name);
           final errMsg = status?.lastError ?? '数据源 "$name" 拉取失败';
           _respond(req.response, 502, {'error': errMsg, 'name': name});
@@ -258,6 +273,20 @@ class DataHttpServer {
       try {
         final data = await _orchestrator.refresh(dt);
         if (data == null) {
+          // 契约⑤：刷新失败但旧缓存仍在（refresh 失败不覆写缓存）→ 返回缓存数据
+          // 而非 502；仅无缓存且重试耗尽才 502。
+          final cached = _orchestrator.readCachedByName(name);
+          if (cached != null) {
+            final status = _orchestrator.status(name);
+            _respond(req.response, 200, {
+              'data': cached.$1,
+              'fromCache': true,
+              'cachedAt': cached.$2.toIso8601String(),
+              if (status != null && status.lastError != null)
+                'warning': status.lastError,
+            });
+            return;
+          }
           final status = _orchestrator.status(name);
           final errMsg = status?.lastError ?? '数据源 "$name" 刷新失败';
           _respond(req.response, 502, {'error': errMsg, 'name': name});

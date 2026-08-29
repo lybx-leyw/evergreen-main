@@ -76,13 +76,23 @@ class SessionCoordinator {
   bool hasProvider(String id) => _providers.containsKey(id);
 
   /// 登录 / 恢复会话（登录锁）：并发调用共享同一 in-flight Future，只触发一次真实登录。
-  Future<bool> ensureSession(String id) =>
-      _dedupe(id, _inflightEnsure, _providers[id], (p) => p.ensureSession());
+  Future<bool> ensureSession(String id) => _dedupe(
+      id, _inflightEnsure, _providers[id], (p) => p.ensureSession());
 
   /// 单点重登（登录锁）：并发调用共享同一 Future，只触发一次
   /// [SessionProvider.refreshSession]，其余等待者复用新会话。
-  Future<bool> refreshSession(String id) =>
-      _dedupe(id, _inflightRefresh, _providers[id], (p) => p.refreshSession());
+  Future<bool> refreshSession(String id) => _dedupe(
+      id, _inflightRefresh, _providers[id], (p) => p.refreshSession());
+
+  /// 登录锁 + provider 解耦版：[lockKey] 为去重分组键（如数据来源网站域
+  /// `sessionDomain`），[providerId] 为实际执行登录的 provider 注册 id。
+  /// 同一 [lockKey] 的并发调用共享同一 Future——**同域多数据源共享一把登录锁**。
+  Future<bool> ensureSessionFor(String lockKey, String providerId) => _dedupe(
+      lockKey, _inflightEnsure, _providers[providerId], (p) => p.ensureSession());
+
+  /// 登录锁 + provider 解耦版（重登）：按 [lockKey] 去重，按 [providerId] 解析实现。
+  Future<bool> refreshSessionFor(String lockKey, String providerId) => _dedupe(
+      lockKey, _inflightRefresh, _providers[providerId], (p) => p.refreshSession());
 
   /// 登出 / 清会话。
   Future<void> invalidate(String id) async {

@@ -25,6 +25,15 @@
 /// | `connectedCount` / `freshCount` / `totalCount` | 计数 |
 /// | `testConnectivity(name)` | 单源连通性测试 |
 /// | `testAllConnectivity()` | 全源测试，返回 Map |
+/// | `fetchPathOf(name)` | 按名称返回最近一次拉取轨迹（[DataSourceFetchPath]，未拉取过返回 null） |
+/// | `fetchPaths` | 全部数据源最近拉取轨迹（看板轮询一次取全） |
+///
+/// ## DataFetchPhase / DataSourceFetchStep / DataSourceFetchPath（T2e 拉取阶段追踪）
+/// | 符号 | 说明 |
+/// |------|------|
+/// | `DataFetchPhase` | 单次拉取阶段链：queued → cacheLookup → fetching → validating → caching → done / failed |
+/// | `DataSourceFetchStep` | 轨迹中的一步：phase + completed + at（真实时间） |
+/// | `DataSourceFetchPath` | 最近一次拉取的完整轨迹：steps + isActive + retryCount（含 toJson） |
 ///
 /// ## DataSourceStatus（状态快照）
 /// | 属性 | 说明 |
@@ -58,6 +67,11 @@ const String kDataEmptyReachableError = '源可达但数据为空';
 
 /// 拉取失败（fetcher 抛异常）时的 `lastError` 前缀。
 const String kDataFetchFailedPrefix = '拉取失败';
+
+/// 拉取失败但存在真实旧缓存时的 `lastError` 警告级前缀（契约⑤：有真实缓存时
+/// 永不报错，失败仅警告——数据仍由缓存展示，错误不升级为硬错误）。仅无缓存且
+/// 重试耗尽才用 [kDataFetchFailedPrefix]（真实失败语义）。
+const String kDataFetchFailedWithCachePrefix = '拉取失败（已展示缓存数据）';
 
 /// 使用静态兜底（[DataType.fallback]）时的 `lastError` 前缀。
 const String kDataStaticFallbackPrefix = '使用静态兜底';
@@ -118,6 +132,129 @@ class DataSourceStatus {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// DataSourceSchedulingSnapshot
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// 调度可观测性快照（契约③ 数据中枢看板支撑）——同域后台重试调度状态的只读视图。
+///
+/// 由 [DataOrchestrator.schedulingSnapshot] 生成；**不触发任何拉取/重试**，纯
+/// 读当前调度状态。字段语义：
+/// - [isRetrying]：当前是否正在执行同域后台串行重试（`_domainRetryRunning`）。
+/// - [pendingRetryNames]：待后台重试队列中的 name 列表（按入队顺序，已去重）。
+/// - [lastBackgroundRefreshAt]：最近一次后台重试周期开始时间；null = 从未执行。
+/// - [nextRefreshAt]：下一次**时钟对齐**自动刷新 tick 的推算时刻（见
+///   [DataOrchestrator.startAutoRefresh]）；自动刷新未启动/已停止时为 null。
+///   推算值语义：启动时 = 启动时刻 + 到下一刻度的对齐等待；此后 = 上一次 tick
+///   触发时刻 + interval（Timer 相位锁定下与真实到点时间一致，允许事件循环抖动）。
+/// - [domainRetryDelay] / [domainRetryMaxAttempts]：调度参数只读回显（供看板展示）。
+class DataSourceSchedulingSnapshot {
+  final bool isRetrying;
+  final List<String> pendingRetryNames;
+  final DateTime? lastBackgroundRefreshAt;
+  final DateTime? nextRefreshAt;
+  final Duration domainRetryDelay;
+  final int domainRetryMaxAttempts;
+
+  const DataSourceSchedulingSnapshot({
+    required this.isRetrying,
+    required this.pendingRetryNames,
+    required this.lastBackgroundRefreshAt,
+    this.nextRefreshAt,
+    required this.domainRetryDelay,
+    required this.domainRetryMaxAttempts,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'isRetrying': isRetrying,
+        'pendingRetryNames': pendingRetryNames,
+        'lastBackgroundRefreshAt': lastBackgroundRefreshAt?.toIso8601String(),
+        'nextRefreshAt': nextRefreshAt?.toIso8601String(),
+        'domainRetryDelayMs': domainRetryDelay.inMilliseconds,
+        'domainRetryMaxAttempts': domainRetryMaxAttempts,
+      };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DataFetchPhase / DataSourceFetchStep / DataSourceFetchPath
+// ═══════════════════════════════════════════════════════════════════════════
+
+/// 数据源单次拉取的阶段链（T2e 数据拉取阶段追踪，供 renderer 看板动态流程图消费）。
+///
+/// 一次完整的拉取（[DataOrchestrator.get]/[refresh]/[fastRead]）按序经历以下阶段：
+/// - [queued]：请求进入（get/refresh/fastRead 被调用）；
+/// - [cacheLookup]：缓存查找（磁盘/内存；无缓存声明的类型立即判定未命中）；
+/// - [fetching]：真实拉取进行中（fetcher 执行）；
+/// - [validating]：结果校验（空数据门控 / 类型检查）；
+/// - [caching]：写缓存（磁盘 + 内存）；
+/// - [done]：成功完成（含静态兜底返回——兜底也算有结果展示）；
+/// - [failed]：最终失败（含重试耗尽、空数据门控返回）。
+enum DataFetchPhase {
+  queued,
+  cacheLookup,
+  fetching,
+  validating,
+  caching,
+  done,
+  failed,
+}
+
+/// 拉取阶段轨迹中的一个步骤——[phase] 阶段 + 该阶段是否已完成 + 到达时间。
+///
+/// 不变类：所有字段 final；`at` 为该阶段**到达/进入**的时刻（真实
+/// [DateTime.now]，契约② 时间真实可信），阶段结束后不再变更。进行中阶段的
+/// [completed] 为 false，完成后为 true（构造时按需传 [completed]）。
+class DataSourceFetchStep {
+  final DataFetchPhase phase;
+
+  /// 该阶段是否已完成（false = 当前进行中）。
+  final bool completed;
+
+  /// 到达该阶段的时刻（真实墙钟时间；null 仅可能出现在显式 const 构造时）。
+  final DateTime? at;
+
+  const DataSourceFetchStep({
+    required this.phase,
+    this.completed = false,
+    this.at,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'phase': phase.name,
+        'completed': completed,
+        'at': at?.toIso8601String(),
+      };
+}
+
+/// 某数据源最近一次拉取的完整轨迹（T2e）——供 renderer 看板按源轮询一次取全。
+///
+/// [steps] 为已发生的阶段序列（含当前进行中的，进行中阶段 [DataSourceFetchStep.completed]
+/// 为 false）；[isActive] 是否正在拉取/重试中（含同域后台重试待执行/执行中）；
+/// [retryCount] 该源当前轨迹累计的重试次数（与同域后台重试计数对齐：每次后台重试
+/// 登记/重新入队 +1，新轨迹归零）。轨迹只保留最近一次，无历史。
+class DataSourceFetchPath {
+  /// 已发生的阶段序列（只读快照，顺序 = 发生顺序）。
+  final List<DataSourceFetchStep> steps;
+
+  /// 是否正在拉取/重试中（fetch 进行中，或同域后台重试待执行/执行中）。
+  final bool isActive;
+
+  /// 该源当前轨迹累计重试次数（0 = 尚无重试）。
+  final int retryCount;
+
+  const DataSourceFetchPath({
+    required this.steps,
+    required this.isActive,
+    required this.retryCount,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'steps': steps.map((s) => s.toJson()).toList(),
+        'isActive': isActive,
+        'retryCount': retryCount,
+      };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // DataOrchestrator
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -128,6 +265,25 @@ class _MemCacheEntry {
   const _MemCacheEntry(this.data, this.cachedAt);
 }
 
+/// 拉取轨迹的可变构建器（T2e）——[DataSourceFetchStep]/[DataSourceFetchPath] 为
+/// 不变对象，运行期在构建器内累积 steps，`fetchPathOf`/`fetchPaths` 取快照。
+/// 每个数据源只保留一个构建器（最近一次轨迹，无历史，防内存膨胀）。
+class _FetchPathBuilder {
+  final List<DataSourceFetchStep> steps = [];
+
+  /// 是否正在拉取/重试中（fetch 进行中，或同域后台重试待执行/执行中）。
+  bool isActive = false;
+
+  /// 当前轨迹累计重试次数（与同域后台重试登记事件对齐，新轨迹归零）。
+  int retryCount = 0;
+
+  DataSourceFetchPath snapshot() => DataSourceFetchPath(
+        steps: List.unmodifiable(steps),
+        isActive: isActive,
+        retryCount: retryCount,
+      );
+}
+
 /// 数据谱仪器——持有数据类型、拉取方式、状态信息。
 class DataOrchestrator {
   final Map<String, DataType> _types = {};
@@ -135,6 +291,40 @@ class DataOrchestrator {
   final Map<String, Stream<dynamic> Function()> _streamFetchers = {};
   final Map<String, DataSourceStatus> _statuses = {};
   final Map<String, _MemCacheEntry> _memCache = {};
+
+  /// 同域后台重试延迟（主题 A2/T2d）。声明了 [DataType.sessionDomain] 且对应域
+  /// provider 不可用（未注册/未声明）的数据源拉取失败后，立即返回失败（不堵塞
+  /// 调用方/启动期并行拉取），等待该时长后在后台**串行**重试。缺省 2 秒。
+  final Duration domainRetryDelay;
+
+  /// 同域后台重试最大次数（契约④：预设所有数据真实存在，重试次数应 ≥3，实在
+  /// 不行才报错）。对每个失败的数据源，后台重试循环**最多**执行该次数（每次失败
+  /// 间隔 [domainRetryDelay]）；达到上限后放弃（保留 lastError，不再重试）。
+  /// 缺省 3；设为 ≤0 时完全禁用同域后台重试（回到未引入后台重试前的零重试
+  /// 语义，失败即放弃）。重试始终在后台 Timer 中串行执行，不堵塞调用方。
+  final int domainRetryMaxAttempts;
+
+  /// 待后台重试的数据源 name 队列（同域失败合并登记，按 name 去重）。
+  final List<String> _domainRetryQueue = [];
+  final Set<String> _inDomainRetryQueue = {};
+  Timer? _domainRetryTimer;
+  bool _domainRetryRunning = false;
+
+  /// 每个 name 已执行的后台重试次数（name → attempts）。防无限循环的计数依据：
+  /// 失败后未达 [domainRetryMaxAttempts] 则重新入队再次重试，达到上限即放弃。
+  final Map<String, int> _domainRetryAttempts = {};
+
+  /// 数据拉取阶段轨迹（T2e）——name → 最近一次拉取的轨迹构建器。`unregister`
+  /// 时清理；每源只保留一个（最近一次，无历史）。
+  final Map<String, _FetchPathBuilder> _fetchPaths = {};
+
+  /// 最近一次后台重试周期开始时间（调度可观测性快照用；null = 从未执行）。
+  DateTime? _lastDomainRetryAt;
+
+  DataOrchestrator({
+    this.domainRetryDelay = const Duration(seconds: 2),
+    this.domainRetryMaxAttempts = 3,
+  });
 
   /// 文件下载声明登记表（name → [DataSourceFileDecl]）。来自 manifest
   /// `dataTypes[].file`（T1 已解析），由 [registerFile] 登记，供 [fileOf] /
@@ -145,6 +335,10 @@ class DataOrchestrator {
   /// 会话协调器（可选，默认 null）。设置后，声明了 `sessionProviderId`
   /// （manifest `auth.sessionProvider`）的数据源在拉取失败且错误被判为「会话失效」时，
   /// 会经协调器**单点重登**后重拉一次（主题 A 登录不挤占）。缺省 null 零行为变化。
+  ///
+  /// 登录锁分组键 = `sessionDomain ?? sessionProviderId`：声明了 `sessionDomain`
+  /// （manifest `auth.sessionDomain`，数据来源网站域）时，同一域的数据源共享同一把
+  /// 登录锁；未声明时按 `sessionProviderId` 分组（与历史一致）。
   ///
   /// app 启动期（或 T9）把 [SessionCoordinator.instance]（或独立实例）赋给本字段，
   /// 使所有数据源共享同一登录锁。
@@ -227,6 +421,13 @@ class DataOrchestrator {
     _memCache.remove(type.name);
     _fileDecls.remove(type.name);
     _cache?.evict(type.name);
+    // 同域后台重试队列清理：已注销类型不再重试（若正被串行执行则由
+    // _runDomainRetries 的 _types 判空跳过），重试计数一并清除。
+    _inDomainRetryQueue.remove(type.name);
+    _domainRetryQueue.remove(type.name);
+    _domainRetryAttempts.remove(type.name);
+    // 拉取轨迹清理：已注销类型不再追踪（其后台重试的 refresh 由 _types 判空跳过）。
+    _fetchPaths.remove(type.name);
     Log().info('DataOrchestrator: 注销 $type');
   }
 
@@ -304,8 +505,10 @@ class DataOrchestrator {
   /// 磁盘命中后会同步写入内存缓存，使后续 [fastRead] 零 I/O 命中。
   Future<T?> get<T>(DataType<T> type) async {
     _requireRegistered(type);
+    _beginFetchPath(type.name);
 
     if (type.persistentKey != null) {
+      _addCompletedStep(type.name, DataFetchPhase.cacheLookup);
       final entry = _cache?.read(type.name);
       if (entry != null) {
         final (data, cachedAt) = entry;
@@ -317,8 +520,12 @@ class DataOrchestrator {
           'cachedAt': cachedAt.toIso8601String(),
           'bytes': data.length
         });
+        _finishPathDone(type.name);
         return decoded;
       }
+    } else {
+      // 无缓存声明：缓存查找阶段立即判定未命中（轨迹保持一致形态）。
+      _addCompletedStep(type.name, DataFetchPhase.cacheLookup);
     }
 
     debugPrint('[Orch] get: ${type.name} 无缓存，进入 _fetchAndCache');
@@ -331,25 +538,91 @@ class DataOrchestrator {
   /// [DataChangeEvent]；默认 false（用户主动刷新/按需拉取不打扰）。
   Future<T?> refresh<T>(DataType<T> type, {bool notifyOnChange = false}) async {
     _requireRegistered(type);
+    _beginFetchPath(type.name);
     return _fetchAndCache(type, notifyOnChange: notifyOnChange);
   }
 
-  /// 启动定时自动刷新（默认每 5 分钟检查一次过期数据）。
+  /// 启动**时钟对齐**的定时自动刷新（默认每 5 分钟检查一次过期数据）。
+  ///
+  /// 时钟对齐语义（T2d 追加·契约② 时间真实）：首个 tick **不立即执行**——先用
+  /// 单发 Timer 对齐到下一个本地墙上时钟刻度（[interval] 即刻度：5m →
+  /// :00/:05/:10…；1h → 下一整点 :00；30s → :00/:30），到点执行一轮
+  /// [refreshAllStale]，再转为以该刻度为相位的 periodic 持续刷新（相位锁定，
+  /// 不随执行时长漂移）。对齐计算见 [durationToNextClockBoundary]。
+  ///
+  /// **失败源周期重试（报错 ≠ 终态）**：`refreshAllStale` 对 `isFresh == false`
+  /// 的源逐一刷新——报错（connected=false）的源在**每个 tick 都会被再次尝试**，
+  /// 直至成功或注销；配合同域后台重试（[domainRetryMaxAttempts] ≥ 3）与「有真实
+  /// 缓存永不报错」，数据源报错后仍持续周期恢复机会。
   ///
   /// 后台循环刷新视为「变更通知源」：覆写缓存且内容变化时发出
-  /// [DataChangeEvent]（见 [addDataChangeListener]）。
+  /// [DataChangeEvent]（见 [addDataChangeListener]）。期间
+  /// [DataSourceSchedulingSnapshot.nextRefreshAt] 给出下一次 tick 的推算时刻。
   Timer? _refreshTimer;
+
+  /// 自动刷新时间刻度（[startAutoRefresh] 的 [interval]，供 [nextRefreshAt] 推算）。
+  Duration _autoRefreshInterval = const Duration(minutes: 5);
+
+  /// 最近一次时钟对齐 tick 触发时刻（null = 尚未触发过）。
+  DateTime? _lastAutoRefreshTickAt;
+
+  /// 下一次时钟对齐 tick 的推算时刻（null = 自动刷新未启动/已停止）。
+  ///
+  /// 推算规则（非精确到点保证，注释说明）：启动时 = 启动时刻 + 到下一刻度的等待
+  /// 时长（对齐计算值）；此后每个 tick 触发时 = 本次 tick 触发时刻 + [interval]
+  /// ——即「上一次 tick 时间 + interval」。Timer 相位锁定下与真实到点时间一致，
+  /// 允许事件循环抖动（推算值语义）。
+  DateTime? _nextAutoRefreshAt;
 
   void startAutoRefresh({Duration interval = const Duration(minutes: 5)}) {
     _refreshTimer?.cancel();
-    _refreshTimer =
-        Timer.periodic(interval, (_) => refreshAllStale(notifyOnChange: true));
+    _autoRefreshInterval = interval;
+    final delay = durationToNextClockBoundary(DateTime.now(), interval);
+    _nextAutoRefreshAt = DateTime.now().add(delay);
+    _refreshTimer = Timer(delay, () {
+      _runAutoRefreshTick();
+      // 首个对齐刻度已触发：转为以该时刻为相位的 periodic（相位锁定）。
+      _refreshTimer = Timer.periodic(interval, (_) => _runAutoRefreshTick());
+    });
+    Log().info('DataOrchestrator: 时钟对齐自动刷新启动', data: {
+      'intervalMs': interval.inMilliseconds,
+      'firstTickDelayMs': delay.inMilliseconds,
+    });
+  }
+
+  /// 执行一轮时钟对齐自动刷新，并记录 tick 时刻（供 [nextRefreshAt] 推算）。
+  void _runAutoRefreshTick() {
+    final now = DateTime.now();
+    _lastAutoRefreshTickAt = now;
+    // 推算下一 tick：本次 tick 触发时刻 + interval（见 _nextAutoRefreshAt 注释）。
+    _nextAutoRefreshAt = now.add(_autoRefreshInterval);
+    refreshAllStale(notifyOnChange: true);
   }
 
   /// 停止自动刷新。
   void stopAutoRefresh() {
     _refreshTimer?.cancel();
     _refreshTimer = null;
+    _nextAutoRefreshAt = null;
+    _lastAutoRefreshTickAt = null;
+  }
+
+  /// 计算 [now] 到下一个「时钟对齐刻度」的等待时长（纯函数，测试友好）。
+  ///
+  /// 语义：以 [interval] 为刻度对齐到**本地墙上时钟**边界（5m → :00/:05/:10…；
+  /// 1h → 下一整点 :00；30s → :00/:30 秒刻度）。实现：取 [now] 本地时刻自当日
+  /// 零点起的毫秒数对 interval 取模，余数补足到下一边界；恰在边界上（余数为 0）
+  /// 时返回一个完整 interval（跳到下一刻度，**首 tick 永不立即执行**）。
+  /// [interval] <= 0 时返回 [Duration.zero]（不等待，立即触发）。
+  @visibleForTesting
+  static Duration durationToNextClockBoundary(DateTime now, Duration interval) {
+    final ms = interval.inMilliseconds;
+    if (ms <= 0) return Duration.zero;
+    final dayStart = DateTime(now.year, now.month, now.day);
+    final localMs =
+        now.millisecondsSinceEpoch - dayStart.millisecondsSinceEpoch;
+    final rem = localMs % ms;
+    return Duration(milliseconds: rem == 0 ? ms : ms - rem);
   }
 
   /// 批量刷新过期数据。可指定 [types] 过滤。
@@ -408,11 +681,14 @@ class DataOrchestrator {
   /// 供模块页面进入时快速获取已缓存数据，避免每次导航都触发磁盘读取。
   Future<T?> fastRead<T>(DataType<T> type) async {
     _requireRegistered(type);
+    _beginFetchPath(type.name);
 
     final mem = _memCache[type.name];
     if (mem != null) {
+      _addCompletedStep(type.name, DataFetchPhase.cacheLookup);
       _updateStatus(type.name, connected: true, fetchedAt: mem.cachedAt);
       Log().info('DataOrchestrator: 快读命中', data: {'name': type.name});
+      _finishPathDone(type.name);
       return mem.data as T?;
     }
 
@@ -438,6 +714,31 @@ class DataOrchestrator {
   Future<void> invalidate(DataType type) async {
     _memCache.remove(type.name);
     await _cache?.evict(type.name);
+  }
+
+  /// 读取该名称数据的**真实缓存**（磁盘优先，其次内存），无缓存返回 null。
+  ///
+  /// 只读，**不触发任何拉取**；供「有真实缓存时永不报错」（契约⑤）的语义判定——
+  /// 如 HTTP 端点拉取失败时回退缓存数据（200 + data）而非 502。磁盘缓存仅对
+  /// `persistentKey` 非 null 的类型存在；内存缓存覆盖所有类型（含 persistentKey
+  /// 为 null 的类型本轮会话内 refresh 过的）。返回 `(data, cachedAt)`，cachedAt
+  /// 即最后一次真实写入磁盘/内存的时间标签（契约② 内存与磁盘同步的依据）。
+  (dynamic data, DateTime cachedAt)? readCachedByName(String name) {
+    final type = _types[name];
+    if (type != null && type.persistentKey != null) {
+      final entry = _cache?.read(type.name);
+      if (entry != null) {
+        try {
+          return (jsonDecode(entry.$1), entry.$2);
+        } catch (_) {
+          // 非 JSON 字符串缓存（如 String 型数据源），按原文返回
+          return (entry.$1, entry.$2);
+        }
+      }
+    }
+    final mem = _memCache[name];
+    if (mem != null) return (mem.data, mem.cachedAt);
+    return null;
   }
 
   // ═══════════════════════════════════════════════════════════════════════
@@ -662,6 +963,122 @@ class DataOrchestrator {
   int get freshCount => _statuses.values.where((s) => s.isFresh).length;
   int get totalCount => _statuses.length;
 
+  /// 当前调度状态快照（只读，不触发拉取/重试）。供 renderer 数据中枢看板
+  /// （契约③）消费：当前是否在后台重试、待重试队列 name 列表、最近一次后台
+  /// 刷新时间、下一次时钟对齐自动刷新 tick（[DataSourceSchedulingSnapshot]，
+  /// 含 toJson 便于序列化）。
+  DataSourceSchedulingSnapshot get schedulingSnapshot =>
+      DataSourceSchedulingSnapshot(
+        isRetrying: _domainRetryRunning,
+        pendingRetryNames: List.of(_domainRetryQueue),
+        lastBackgroundRefreshAt: _lastDomainRetryAt,
+        nextRefreshAt: _nextAutoRefreshAt,
+        domainRetryDelay: domainRetryDelay,
+        domainRetryMaxAttempts: domainRetryMaxAttempts,
+      );
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // 拉取阶段轨迹（T2e 数据拉取阶段追踪）
+  // ═══════════════════════════════════════════════════════════════════════
+
+  /// 按 [name] 返回该数据源**最近一次**拉取的阶段轨迹；从未拉取过（或已注销）
+  /// 返回 null。快照语义：返回对象是构建时拷贝，后续拉取不影响已取回的对象。
+  DataSourceFetchPath? fetchPathOf(String name) {
+    final b = _fetchPaths[name];
+    if (b == null || b.steps.isEmpty) return null;
+    return b.snapshot();
+  }
+
+  /// 全部数据源最近一次拉取轨迹（name → [DataSourceFetchPath]）。看板轮询一次
+  /// 取全，避免逐源调用 [fetchPathOf]。仅包含已发生过拉取的源；含进行中/重试中。
+  Map<String, DataSourceFetchPath> get fetchPaths {
+    final result = <String, DataSourceFetchPath>{};
+    _fetchPaths.forEach((name, b) {
+      if (b.steps.isNotEmpty) result[name] = b.snapshot();
+    });
+    return result;
+  }
+
+  /// 开始一次拉取轨迹（get/refresh/fastRead 进入时）：源无轨迹或上次轨迹已终结
+  /// （done/failed 且已完成）且不在重试中 → 新建轨迹并追加 `queued` 完成步骤；
+  /// 轨迹仍在进行/重试中则沿用当前轨迹（不重复打 queued）。
+  void _beginFetchPath(String name) {
+    final b = _fetchPaths.putIfAbsent(name, () => _FetchPathBuilder());
+    final last = b.steps.isEmpty ? null : b.steps.last;
+    final lastTerminal = last != null &&
+        last.completed &&
+        (last.phase == DataFetchPhase.done ||
+            last.phase == DataFetchPhase.failed);
+    if (b.steps.isEmpty || (lastTerminal && !b.isActive)) {
+      b.steps.clear();
+      b.retryCount = 0;
+      b.isActive = true;
+      _addCompletedStep(name, DataFetchPhase.queued);
+    }
+  }
+
+  /// 追加一个**进行中**阶段步骤（completed=false，at=now）。
+  void _startStep(String name, DataFetchPhase phase) {
+    final b = _fetchPaths[name];
+    if (b == null) return;
+    b.isActive = true;
+    b.steps.add(DataSourceFetchStep(
+        phase: phase, completed: false, at: DateTime.now()));
+  }
+
+  /// 把最后一个未完成的 [phase] 步骤标记为完成（保留其到达时间 at）。
+  void _endStep(String name, DataFetchPhase phase) {
+    final b = _fetchPaths[name];
+    if (b == null) return;
+    for (var i = b.steps.length - 1; i >= 0; i--) {
+      final s = b.steps[i];
+      if (s.phase == phase && !s.completed) {
+        b.steps[i] =
+            DataSourceFetchStep(phase: phase, completed: true, at: s.at);
+        return;
+      }
+    }
+  }
+
+  /// 追加一个已完成步骤（completed=true，at=now）。
+  void _addCompletedStep(String name, DataFetchPhase phase) {
+    final b = _fetchPaths[name];
+    if (b == null) return;
+    b.steps.add(DataSourceFetchStep(
+        phase: phase, completed: true, at: DateTime.now()));
+  }
+
+  /// 成功完成轨迹：追加 `done` 并收敛 isActive（同域后台重试仍在 → 保持活跃）。
+  void _finishPathDone(String name) {
+    _addCompletedStep(name, DataFetchPhase.done);
+    _setPathActive(name, _isDomainRetrying(name));
+  }
+
+  /// 最终失败：追加 `failed` 并收敛 isActive（同域后台重试待执行/执行中 → 活跃）。
+  void _appendFailedStep(String name) {
+    _addCompletedStep(name, DataFetchPhase.failed);
+    _setPathActive(name, _isDomainRetrying(name));
+  }
+
+  void _setPathActive(String name, bool active) {
+    final b = _fetchPaths[name];
+    if (b == null) return;
+    b.isActive = active;
+  }
+
+  /// 该源当前是否处于同域后台重试中（待执行：在队列里；执行中：_domainRetryRunning
+  /// 且已计尝试次数）。用于 [DataSourceFetchPath.isActive] 与失败步骤的活跃判定。
+  bool _isDomainRetrying(String name) =>
+      _inDomainRetryQueue.contains(name) ||
+      (_domainRetryRunning && (_domainRetryAttempts[name] ?? 0) > 0);
+
+  /// 轨迹 retryCount +1（与同域后台重试登记事件对齐；构建器不存在时忽略）。
+  void _bumpRetryCount(String name) {
+    final b = _fetchPaths[name];
+    if (b == null) return;
+    b.retryCount++;
+  }
+
   // ═══════════════════════════════════════════════════════════════════════
   // 内部
   // ═══════════════════════════════════════════════════════════════════════
@@ -686,25 +1103,36 @@ class DataOrchestrator {
     final fetcher = _fetchers[type.name]!;
     debugPrint('[Orch] _fetchAndCache: 即将拉取 ${type.name}');
     Log().info('DataOrchestrator: 拉取 $type');
+    _startStep(type.name, DataFetchPhase.fetching);
     try {
       return await _attemptFetch<T>(type, fetcher, notifyOnChange);
     } catch (e, st) {
       debugPrint('[Orch] _fetchAndCache: ${type.name} 异常: $e\n$st');
+      // 异常：当前进行中阶段（fetching）标记完成（异常终结），后续按重登/降级链
+      // 追加 failed 或重新进入 fetching（会话重登重拉）。
+      _endStep(type.name, DataFetchPhase.fetching);
       // 会话失效自动重登重拉（主题 A）：仅当声明了 sessionProviderId、注册了
       // provider、且错误被判为「会话失效」时触发；否则走既有降级链（零行为变化）。
+      // 登录锁分组键：优先 sessionDomain（同一网站域的数据源共享一把登录锁），
+      // 未声明时回退 sessionProviderId（与历史一致）。
       final sid = type.sessionProviderId;
       final coordinator = sessionCoordinator;
       if (sid != null &&
           sid.isNotEmpty &&
           coordinator != null &&
           coordinator.sessionProviderById(sid)?.isSessionExpired(e) == true) {
-        final refreshed = await coordinator.refreshSession(sid);
+        final lockKey = type.sessionDomain ?? sid;
+        final refreshed =
+            await coordinator.refreshSessionFor(lockKey, sid);
         if (refreshed) {
           Log().info('DataOrchestrator: 会话失效已重登，重拉 $type');
+          // 重试链路：保留轨迹，重新进入 fetching 阶段。
+          _startStep(type.name, DataFetchPhase.fetching);
           try {
             return await _attemptFetch<T>(type, fetcher, notifyOnChange);
           } catch (e2, st2) {
             debugPrint('[Orch] 重登后重拉仍失败: ${type.name}: $e2\n$st2');
+            _endStep(type.name, DataFetchPhase.fetching);
             return _handleFinalFailure<T>(type, e2,
                 prefix: kDataReloginRetryFailedPrefix);
           }
@@ -725,16 +1153,23 @@ class DataOrchestrator {
     final data = await fetcher();
     debugPrint(
         '[Orch] _attemptFetch: ${type.name} fetcher 返回: ${data != null ? "有数据" : "NULL"}');
+    // fetcher 已返回：fetching 完成，进入校验阶段（空数据门控 / 类型检查）。
+    _endStep(type.name, DataFetchPhase.fetching);
+    _addCompletedStep(type.name, DataFetchPhase.validating);
 
     if (data == null || data is! T || _isEmptyData(data)) {
       // 静态兜底（第三级降级）：源可达但返回空/无效，且无旧缓存 → 返回兜底。
       if (type.fallback != null && _readBaseline(type) == null) {
-        return _applyFallback<T>(type, '$kDataStaticFallbackPrefix（源返回空数据）');
+        final v = _applyFallback<T>(type, '$kDataStaticFallbackPrefix（源返回空数据）');
+        // 兜底也算有结果展示：轨迹收敛为 done（与看板展示语义一致）。
+        _finishPathDone(type.name);
+        return v;
       }
       _updateStatus(type.name,
           connected: false, error: kDataEmptyReachableError);
       Log().warn('DataOrchestrator: 源可达但数据为空 $type（不覆写缓存，保留旧缓存）');
       debugPrint('[Orch] _attemptFetch: ${type.name} 返回无效/空数据(NULL/类型不匹配/空容器)');
+      _appendFailedStep(type.name);
       return null;
     }
 
@@ -743,32 +1178,176 @@ class DataOrchestrator {
 
     final now = DateTime.now();
     final encoded = _encode(data);
+    // 写缓存阶段（磁盘 + 内存）：进行中 → 完成后收敛 done。
+    _startStep(type.name, DataFetchPhase.caching);
     if (type.persistentKey != null) {
       await _cache?.write(type.name, encoded);
       Log().info('DataOrchestrator: 缓存写入',
           data: {'name': type.name, 'bytes': encoded.length});
     }
     _memCache[type.name] = _MemCacheEntry(data, now);
+    _endStep(type.name, DataFetchPhase.caching);
     _updateStatus(type.name, connected: true, fetchedAt: now);
 
     if (notifyOnChange) {
       _maybeEmitChange(type, baseline, data, now);
     }
+    _finishPathDone(type.name);
     return data;
   }
 
-  /// 拉取最终失败的统一处理（T4 降级链）：静态兜底（若声明且无旧缓存）→ 否则
-  /// 标记 `connected=false` + `lastError`（默认前缀 [kDataFetchFailedPrefix]，
-  /// 会话重登路径传 `kDataReloginRetryFailedPrefix`/`kDataReloginFailedPrefix`）。
+  /// 拉取最终失败的统一处理（T4 降级链 + 契约⑤）：静态兜底（若声明且无旧缓存）
+  /// → 否则标记 `connected=false` + `lastError`。
+  ///
+  /// 契约⑤（有真实缓存永不报错、失败仅警告）：当 [type] 存在真实旧缓存（磁盘或
+  /// 内存，`_readBaseline(type) != null`）时，数据仍由缓存展示——`lastError` 用
+  /// 警告级文案（[kDataFetchFailedWithCachePrefix] 前缀，如「拉取失败（已展示
+  /// 缓存数据）」），状态可保持 `connected=false` 但错误**不升级为硬错误**；
+  /// 仅无缓存且重试耗尽才用 [prefix]（真实失败语义）。空数据门控与静态兜底路径
+  /// 不受影响（无缓存且失败才走兜底/报错）。
   T? _handleFinalFailure<T>(DataType<T> type, Object e,
       {String prefix = kDataFetchFailedPrefix}) {
     // 静态兜底（第三级降级）：源不可达/异常，且无旧缓存 → 返回兜底。
     if (type.fallback != null && _readBaseline(type) == null) {
-      return _applyFallback<T>(type, '$kDataStaticFallbackPrefix（$prefix: $e）');
+      final v = _applyFallback<T>(type, '$kDataStaticFallbackPrefix（$prefix: $e）');
+      // 兜底也算有结果展示：轨迹收敛为 done（与看板展示语义一致）。
+      _finishPathDone(type.name);
+      return v;
     }
-    _updateStatus(type.name, connected: false, error: '$prefix: $e');
-    Log().warn('DataOrchestrator: 拉取失败 $type', data: {'error': e.toString()});
+    final hasCache = _readBaseline(type) != null;
+    _updateStatus(
+      type.name,
+      connected: false,
+      error: hasCache
+          ? '$kDataFetchFailedWithCachePrefix: $e'
+          : '$prefix: $e',
+    );
+    Log().warn('DataOrchestrator: 拉取失败 $type',
+        data: {'error': e.toString(), 'servingFromCache': hasCache});
+    // 同域后台重试（主题 A2/T2d）：声明了 sessionDomain 但对应域 provider 不可用时，
+    // 失败不立即放弃——登记进后台串行重试队列（本路径不阻塞调用方）。
+    _scheduleDomainRetry(type);
+    // 轨迹：追加 failed；若将登记/正在执行同域后台重试 → isActive=true（重试未终）。
+    _appendFailedStep(type.name);
     return null;
+  }
+
+  /// 同域后台重试调度——登记 [type] 并（首次）启动延迟 Timer。
+  ///
+  /// 触发条件：声明了 [DataType.sessionDomain]，且该域 provider 不可用
+  /// （`sessionProviderId` 未声明 / coordinator 未设置 / provider 未注册）——
+  /// 即会话重登链路不可用时的兜底重试。满足条件则入队（按 name 去重），
+  /// 并在队列从空到非空时启动一个 [domainRetryDelay] 的 Timer。
+  ///
+  /// **不堵塞**：登记本身是同步 O(1)，重试在后台 Timer 中串行执行；
+  /// 调用方（含 app 启动期的并行 `get`/`refreshAllStale`）拿到失败结果即继续。
+  ///
+  /// 防无限循环（契约④）：计数依据 [_domainRetryAttempts]——[_domainRetryRunning]
+  /// 为 true（正在执行后台重试）时不再登记；重试循环内由 _runDomainRetries 按
+  /// 每个 name 的已重试次数判定：未达 [domainRetryMaxAttempts] 重新入队，
+  /// 达到上限即放弃。
+  ///
+  /// 返回是否本次真正登记入队（已去重/已入队返回 false），供轨迹重试计数对齐。
+  bool _scheduleDomainRetry(DataType type) {
+    if (_domainRetryRunning) return false;
+    if (domainRetryMaxAttempts <= 0) return false; // 配置为不重试
+    final domain = type.sessionDomain;
+    if (domain == null || domain.isEmpty) return false;
+    if (_hasUsableProvider(type)) return false; // 有 provider → 走会话重登，不重复兜底
+    if (!_inDomainRetryQueue.add(type.name)) return false; // 已在队列
+    // 登记重试计数（0 = 尚未执行过后台重试）；前一轮失败重新入队的 name 已在
+    // _runDomainRetries 内维护计数，此处仅新登记（putIfAbsent 幂等）。
+    _domainRetryAttempts.putIfAbsent(type.name, () => 0);
+    _domainRetryQueue.add(type.name);
+    // 轨迹 retryCount +1（该源累计重试次数，与后台重试登记对齐）。
+    _bumpRetryCount(type.name);
+    _domainRetryTimer ??= Timer(domainRetryDelay, _runDomainRetries);
+    Log().info('DataOrchestrator: 同域失败已登记后台重试 $type',
+        data: {
+          'domain': domain,
+          'delayMs': domainRetryDelay.inMilliseconds,
+          'maxAttempts': domainRetryMaxAttempts,
+        });
+    return true;
+  }
+
+  /// 该类型是否有可用的会话 provider（重登链路可用则后台重试不介入）。
+  bool _hasUsableProvider(DataType type) {
+    final sid = type.sessionProviderId;
+    if (sid == null || sid.isEmpty) return false;
+    final coordinator = sessionCoordinator;
+    if (coordinator == null) return false;
+    return coordinator.sessionProviderById(sid) != null;
+  }
+
+  /// 执行后台串行重试（契约④：重试次数 ≥3，实在不行才报错）：取出队列快照
+  /// （清空后逐项 `refresh`），单源失败只记录不阻塞后续；重试成功即覆写缓存 +
+  /// 恢复状态，失败且未达 [domainRetryMaxAttempts] 则**重新入队**（等待下一个
+  /// [domainRetryDelay] 周期再次重试），达到上限即放弃（保留 lastError）。
+  /// 防无限循环依据 [_domainRetryAttempts] 计数：每轮对每个 name 计一次，
+  /// 超过上限不再入队。重试始终在后台 Timer 中串行执行，不堵塞调用方。
+  Future<void> _runDomainRetries() async {
+    _domainRetryTimer = null;
+    _domainRetryRunning = true;
+    _lastDomainRetryAt = DateTime.now();
+    try {
+      final names = List.of(_domainRetryQueue);
+      _domainRetryQueue.clear();
+      _inDomainRetryQueue.clear();
+      Log().info('DataOrchestrator: 同域后台串行重试开始',
+          data: {'count': names.length});
+      for (final name in names) {
+        final type = _types[name];
+        if (type == null) {
+          _domainRetryAttempts.remove(name); // 已被注销，清理计数
+          continue;
+        }
+        if (!_fetchers.containsKey(type.name)) continue;
+        final attempt = (_domainRetryAttempts[name] ?? 0) + 1;
+        _domainRetryAttempts[name] = attempt;
+        dynamic data;
+        try {
+          Log().info('DataOrchestrator: 后台重试拉取 $type '
+              '(第 $attempt 次/最多 $domainRetryMaxAttempts 次)');
+          data = await refresh<dynamic>(type);
+        } catch (e) {
+          // refresh 内部已把 fetcher 异常收敛为 null 返回，正常不会走到；
+          // 防御性捕获（如 fetcher 外层的意外异常）。
+          Log().warn('DataOrchestrator: 后台重试拉取异常 $type',
+              data: {'error': e.toString()});
+        }
+        if (data != null) {
+          // 重试拿到数据（真实或静态兜底）→ 本次失败周期结束，不再重试。
+          _domainRetryAttempts.remove(name);
+          // 轨迹：重试成功（refresh 已打 done 步骤）→ 收敛 isActive=false。
+          _setPathActive(name, false);
+          continue;
+        }
+        Log().warn('DataOrchestrator: 后台重试失败 $type',
+            data: {'error': _statuses[name]?.lastError, 'attempt': attempt});
+        if (attempt < domainRetryMaxAttempts) {
+          // 未达上限：重新入队，等待下一个 Timer 周期再次重试（计数保留）。
+          if (_inDomainRetryQueue.add(name)) {
+            _domainRetryQueue.add(name);
+            // 轨迹 retryCount +1（累计重试次数与登记事件对齐）。
+            _bumpRetryCount(name);
+          }
+        } else {
+          // 达到上限：放弃，保留 lastError（不再重试）。
+          _domainRetryAttempts.remove(name);
+          // 轨迹：重试耗尽 → 终结（failed 步骤已由 _handleFinalFailure 追加）。
+          _setPathActive(name, false);
+          Log().warn('DataOrchestrator: 同域后台重试已达上限，放弃 $type',
+              data: {'attempt': attempt, 'maxAttempts': domainRetryMaxAttempts});
+        }
+      }
+    } finally {
+      _domainRetryRunning = false;
+      // 队列非空（本轮失败重新入队 / 周期内新登记）→ 启动下一个周期。
+      if (_domainRetryQueue.isNotEmpty && _domainRetryTimer == null) {
+        _domainRetryTimer = Timer(domainRetryDelay, _runDomainRetries);
+      }
+    }
   }
 
   /// 应用静态兜底：标记 `connected=false` + `lastError`（含「使用静态兜底」），

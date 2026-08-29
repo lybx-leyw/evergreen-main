@@ -29,9 +29,16 @@ typedef HttpFetcher = Future<dynamic> Function(DataSourceDescriptor ds);
 ///     已注册的对应 [DataType]（CLI/HTTP 插件数据源），[dataType] 冗余参数也可直接指定。
 /// [dio] 与 [httpFetcher] 用于路径 1；[orch] 用于路径 2。
 ///
-/// [forceRefresh]：为 true 时 orch 路径改用 [DataOrchestrator.refresh] 强制重抓
+/// [forceRefresh]：已弃用（契约①：前端永拉缓存、后台永写缓存）。
+///
+/// 历史语义：为 true 时 orch 路径改用 [DataOrchestrator.refresh] 强制重抓
 /// （绕过缓存），供组件的 [DataSourceSlotState] 自动刷新（refreshInterval）使用——
 /// 否则 [orch.get] 命中缓存会令定时刷新永远拿到旧值（R5 无实际刷新）。
+/// 契约① 下组件层不再自行强制 refresh：数据新鲜度由数据中枢后台调度
+/// （[DataOrchestrator.startAutoRefresh] / [DataOrchestrator.refreshAllStale]）
+/// 维护，组件只需 fastRead/get 缓存 + 订阅变更。因此本参数保留仅为向后兼容
+/// （不删签名），传 true 与 false 行为一致：统一缓存优先读（fastRead，
+/// 内存未命中内部 fallback get()，仍缓存优先）。
 Future<dynamic> resolveDataSource({
   required DataSourceDescriptor ds,
   DataOrchestrator? orch,
@@ -43,10 +50,10 @@ Future<dynamic> resolveDataSource({
   try {
     dynamic raw;
     final ep = ds.endpoint;
-    debugPrint('[resolveDataSource] ep=$ep, orch=${orch != null ? "非null" : "NULL"}');
+    debugPrint(
+        '[resolveDataSource] ep=$ep, orch=${orch != null ? "非null" : "NULL"}');
     if (ep != null && ep.isNotEmpty) {
-      if (ep.startsWith('orch://') &&
-          (orch != null || dataType != null)) {
+      if (ep.startsWith('orch://') && (orch != null || dataType != null)) {
         // 引用已注册的 DataType（插件/CLI 数据源），不改动 descriptor 契约。
         final name = ep.startsWith('orch://')
             ? ep.substring('orch://'.length)
@@ -56,7 +63,8 @@ Future<dynamic> resolveDataSource({
         // 每次都真实拉取（绕过缓存）。未注册时兜底匿名 DataType，get 内部的
         // _requireRegistered 仍会正确降级。
         final registered = orch?.typeByName(name);
-        debugPrint('[resolveDataSource] orch://$name → typeByName=${registered != null ? "命中" : "NULL(兜底匿名)"}');
+        debugPrint(
+            '[resolveDataSource] orch://$name → typeByName=${registered != null ? "命中" : "NULL(兜底匿名)"}');
         final t = registered ??
             DataType<dynamic>(
               name: name,
@@ -65,8 +73,14 @@ Future<dynamic> resolveDataSource({
               ttl: const Duration(minutes: 5),
             );
         debugPrint('[resolveDataSource] 即将 orch.fastRead("$name")...');
-        raw = forceRefresh ? await orch!.refresh(t) : await orch!.fastRead(t);
-        debugPrint('[resolveDataSource] orch.fastRead("$name") 返回: raw=${raw != null ? "有数据" : "NULL"}');
+        if (forceRefresh) {
+          // 契约①：forceRefresh 已弃用——不再绕过缓存强制重抓，
+          // 统一缓存优先读（数据新鲜度由中枢后台 startAutoRefresh 维护）。
+          debugPrint('[resolveDataSource] forceRefresh 已弃用（契约①），按缓存优先读处理');
+        }
+        raw = await orch!.fastRead(t);
+        debugPrint(
+            '[resolveDataSource] orch.fastRead("$name") 返回: raw=${raw != null ? "有数据" : "NULL"}');
       } else {
         // 注入的 fetcher 仅接收 ds（1 参）；默认实现内部创建 dio（2 参）。
         raw = httpFetcher != null
@@ -82,7 +96,12 @@ Future<dynamic> resolveDataSource({
             displayName: dataType,
             ttl: const Duration(minutes: 5),
           );
-      raw = forceRefresh ? await orch.refresh(t) : await orch.fastRead(t);
+      if (forceRefresh) {
+        // 契约①：forceRefresh 已弃用——不再绕过缓存强制重抓，
+        // 统一缓存优先读（数据新鲜度由中枢后台 startAutoRefresh 维护）。
+        debugPrint('[resolveDataSource] forceRefresh 已弃用（契约①），按缓存优先读处理');
+      }
+      raw = await orch.fastRead(t);
     } else {
       // 既无 endpoint 也无 dataType+orch → 无数据源可解析。
       return null;
