@@ -13,7 +13,7 @@
 ![version](https://img.shields.io/badge/版本-v2.0--rc.6.3-2e2e33?style=flat-square&labelColor=232326)
 ![flutter](https://img.shields.io/badge/Flutter-本地优先-4dc878?style=flat-square&labelColor=232326)
 
-<span style="color:#99999a;font-size:13px;">当前版本 v2.0-rc 系列（最新 tag：`v2.0-rc.6.3`）· 本项目以 **GPLv3** 许可证发布，详见 [LICENSE](./LICENSE)</span>
+<span style="color:#99999a;font-size:13px;">当前版本 v2.0-rc 系列（最新 tag：`v2.0-rc.7`）· 本项目以 **GPLv3** 许可证发布，详见 [LICENSE](./LICENSE)</span>
 
 </div>
 
