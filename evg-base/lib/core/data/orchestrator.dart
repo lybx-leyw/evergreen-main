@@ -139,7 +139,7 @@ class DataSourceStatus {
 ///
 /// 由 [DataOrchestrator.schedulingSnapshot] 生成；**不触发任何拉取/重试**，纯
 /// 读当前调度状态。字段语义：
-/// - [isRetrying]：当前是否正在执行同域后台串行重试（`_domainRetryRunning`）。
+/// - [isRetrying]：当前是否正在执行同域后台重试（按登录域分组：有 provider 的域域内并发，无 provider 的域域内串行）（`_domainRetryRunning`）。
 /// - [pendingRetryNames]：待后台重试队列中的 name 列表（按入队顺序，已去重）。
 /// - [lastBackgroundRefreshAt]：最近一次后台重试周期开始时间；null = 从未执行。
 /// - [nextRefreshAt]：下一次**时钟对齐**自动刷新 tick 的推算时刻（见
@@ -551,7 +551,7 @@ class DataOrchestrator {
   /// 不随执行时长漂移）。对齐计算见 [durationToNextClockBoundary]。
   ///
   /// **失败源周期重试（报错 ≠ 终态）**：`refreshAllStale` 对 `isFresh == false`
-  /// 的源逐一刷新——报错（connected=false）的源在**每个 tick 都会被再次尝试**，
+  /// 的源**并发**刷新——报错（connected=false）的源在**每个 tick 都会被再次尝试**，
   /// 直至成功或注销；配合同域后台重试（[domainRetryMaxAttempts] ≥ 3）与「有真实
   /// 缓存永不报错」，数据源报错后仍持续周期恢复机会。
   ///
@@ -632,6 +632,10 @@ class DataOrchestrator {
   Future<void> refreshAllStale(
       {List<DataType>? types, bool notifyOnChange = true}) async {
     final names = types != null ? types.map((t) => t.name).toSet() : null;
+    // 先收集所有过期（且可拉取）的源，随后**并发**刷新：每个源独立 try/catch，
+    // 单源失败不拖垮整批——「所有数据源并发运行」是调度基线（曾有版本误改为
+    // 循环内 await 串行，导致批量拉取逐个等待）。
+    final stale = <DataType>[];
     for (final entry in _statuses.entries) {
       if (entry.value.isFresh) continue;
       if (names != null && !names.contains(entry.key)) continue;
@@ -639,13 +643,16 @@ class DataOrchestrator {
       if (!_fetchers.containsKey(entry.key)) continue;
       final type = _types[entry.key];
       if (type == null) continue;
+      stale.add(type);
+    }
+    await Future.wait(stale.map((type) async {
       try {
         await refresh<dynamic>(type, notifyOnChange: notifyOnChange);
       } catch (e) {
         Log().warn('DataOrchestrator: 自动刷新失败',
-            data: {'name': entry.key, 'error': e.toString()});
+            data: {'name': type.name, 'error': e.toString()});
       }
-    }
+    }));
   }
 
   /// 按注册顺序强制串行拉取全部数据源（启动期已不再调用，保留给显式全量刷新）。
@@ -1239,7 +1246,8 @@ class DataOrchestrator {
   /// 即会话重登链路不可用时的兜底重试。满足条件则入队（按 name 去重），
   /// 并在队列从空到非空时启动一个 [domainRetryDelay] 的 Timer。
   ///
-  /// **不堵塞**：登记本身是同步 O(1)，重试在后台 Timer 中串行执行；
+  /// **不堵塞**：登记本身是同步 O(1)，重试在后台 Timer 中按域分组执行
+  /// （有 provider 的域域内并发，无 provider 的域域内串行）；
   /// 调用方（含 app 启动期的并行 `get`/`refreshAllStale`）拿到失败结果即继续。
   ///
   /// 防无限循环（契约④）：计数依据 [_domainRetryAttempts]——[_domainRetryRunning]
@@ -1280,12 +1288,14 @@ class DataOrchestrator {
     return coordinator.sessionProviderById(sid) != null;
   }
 
-  /// 执行后台串行重试（契约④：重试次数 ≥3，实在不行才报错）：取出队列快照
-  /// （清空后逐项 `refresh`），单源失败只记录不阻塞后续；重试成功即覆写缓存 +
-  /// 恢复状态，失败且未达 [domainRetryMaxAttempts] 则**重新入队**（等待下一个
-  /// [domainRetryDelay] 周期再次重试），达到上限即放弃（保留 lastError）。
-  /// 防无限循环依据 [_domainRetryAttempts] 计数：每轮对每个 name 计一次，
-  /// 超过上限不再入队。重试始终在后台 Timer 中串行执行，不堵塞调用方。
+  /// 执行同域后台重试（契约④：重试次数 ≥3，实在不行才报错）：取出队列快照，
+  /// 按**登录域分组**——域内注册了会话 provider → 域内失败源**并发** `Future.wait`
+  /// 重试（登录锁由会话协调器串行化重登，域内只重登一次）；域内无 provider →
+  /// **串行**逐个重试（避免无会话域被批量打爆）。单源失败只记录不阻塞同域其他源；
+  /// 重试成功即覆写缓存 + 恢复状态，失败且未达 [domainRetryMaxAttempts] 则
+  /// **重新入队**（等待下一个 [domainRetryDelay] 周期再次重试），达到上限即放弃
+  /// （保留 lastError）。防无限循环依据 [_domainRetryAttempts] 计数：每轮对每个
+  /// name 计一次，超过上限不再入队。重试始终在后台 Timer 中执行，不堵塞调用方。
   Future<void> _runDomainRetries() async {
     _domainRetryTimer = null;
     _domainRetryRunning = true;
@@ -1294,8 +1304,8 @@ class DataOrchestrator {
       final names = List.of(_domainRetryQueue);
       _domainRetryQueue.clear();
       _inDomainRetryQueue.clear();
-      Log().info('DataOrchestrator: 同域后台串行重试开始',
-          data: {'count': names.length});
+      // 按登录域分组（同一域共享登录锁/限流语义）。
+      final groups = <String?, List<DataType>>{};
       for (final name in names) {
         final type = _types[name];
         if (type == null) {
@@ -1303,42 +1313,20 @@ class DataOrchestrator {
           continue;
         }
         if (!_fetchers.containsKey(type.name)) continue;
-        final attempt = (_domainRetryAttempts[name] ?? 0) + 1;
-        _domainRetryAttempts[name] = attempt;
-        dynamic data;
-        try {
-          Log().info('DataOrchestrator: 后台重试拉取 $type '
-              '(第 $attempt 次/最多 $domainRetryMaxAttempts 次)');
-          data = await refresh<dynamic>(type);
-        } catch (e) {
-          // refresh 内部已把 fetcher 异常收敛为 null 返回，正常不会走到；
-          // 防御性捕获（如 fetcher 外层的意外异常）。
-          Log().warn('DataOrchestrator: 后台重试拉取异常 $type',
-              data: {'error': e.toString()});
-        }
-        if (data != null) {
-          // 重试拿到数据（真实或静态兜底）→ 本次失败周期结束，不再重试。
-          _domainRetryAttempts.remove(name);
-          // 轨迹：重试成功（refresh 已打 done 步骤）→ 收敛 isActive=false。
-          _setPathActive(name, false);
-          continue;
-        }
-        Log().warn('DataOrchestrator: 后台重试失败 $type',
-            data: {'error': _statuses[name]?.lastError, 'attempt': attempt});
-        if (attempt < domainRetryMaxAttempts) {
-          // 未达上限：重新入队，等待下一个 Timer 周期再次重试（计数保留）。
-          if (_inDomainRetryQueue.add(name)) {
-            _domainRetryQueue.add(name);
-            // 轨迹 retryCount +1（累计重试次数与登记事件对齐）。
-            _bumpRetryCount(name);
-          }
+        groups.putIfAbsent(type.sessionDomain, () => []).add(type);
+      }
+      Log().info('DataOrchestrator: 同域后台重试开始',
+          data: {'count': names.length, 'domains': groups.length});
+      for (final group in groups.values) {
+        final hasProvider = group.any(_hasUsableProvider);
+        if (hasProvider) {
+          // 域已注册 provider：域内失败源并发重试。
+          await Future.wait(group.map((type) => _retryOne(type)));
         } else {
-          // 达到上限：放弃，保留 lastError（不再重试）。
-          _domainRetryAttempts.remove(name);
-          // 轨迹：重试耗尽 → 终结（failed 步骤已由 _handleFinalFailure 追加）。
-          _setPathActive(name, false);
-          Log().warn('DataOrchestrator: 同域后台重试已达上限，放弃 $type',
-              data: {'attempt': attempt, 'maxAttempts': domainRetryMaxAttempts});
+          // 域未注册 provider：域内串行重试。
+          for (final type in group) {
+            await _retryOne(type);
+          }
         }
       }
     } finally {
@@ -1347,6 +1335,49 @@ class DataOrchestrator {
       if (_domainRetryQueue.isNotEmpty && _domainRetryTimer == null) {
         _domainRetryTimer = Timer(domainRetryDelay, _runDomainRetries);
       }
+    }
+  }
+
+  /// 单源一次后台重试（含计数 / 成功收敛 / 失败重入队 / 达上限放弃）。
+  /// 由 [_runDomainRetries] 按域分组后调用（并发或串行），返回后由调用方决定节奏。
+  Future<void> _retryOne(DataType type) async {
+    final name = type.name;
+    final attempt = (_domainRetryAttempts[name] ?? 0) + 1;
+    _domainRetryAttempts[name] = attempt;
+    dynamic data;
+    try {
+      Log().info('DataOrchestrator: 后台重试拉取 $type '
+          '(第 $attempt 次/最多 $domainRetryMaxAttempts 次)');
+      data = await refresh<dynamic>(type);
+    } catch (e) {
+      // refresh 内部已把 fetcher 异常收敛为 null 返回，正常不会走到；
+      // 防御性捕获（如 fetcher 外层的意外异常）。
+      Log().warn('DataOrchestrator: 后台重试拉取异常 $type',
+          data: {'error': e.toString()});
+    }
+    if (data != null) {
+      // 重试拿到数据（真实或静态兜底）→ 本次失败周期结束，不再重试。
+      _domainRetryAttempts.remove(name);
+      // 轨迹：重试成功（refresh 已打 done 步骤）→ 收敛 isActive=false。
+      _setPathActive(name, false);
+      return;
+    }
+    Log().warn('DataOrchestrator: 后台重试失败 $type',
+        data: {'error': _statuses[name]?.lastError, 'attempt': attempt});
+    if (attempt < domainRetryMaxAttempts) {
+      // 未达上限：重新入队，等待下一个 Timer 周期再次重试（计数保留）。
+      if (_inDomainRetryQueue.add(name)) {
+        _domainRetryQueue.add(name);
+        // 轨迹 retryCount +1（累计重试次数与登记事件对齐）。
+        _bumpRetryCount(name);
+      }
+    } else {
+      // 达到上限：放弃，保留 lastError（不再重试）。
+      _domainRetryAttempts.remove(name);
+      // 轨迹：重试耗尽 → 终结（failed 步骤已由 _handleFinalFailure 追加）。
+      _setPathActive(name, false);
+      Log().warn('DataOrchestrator: 同域后台重试已达上限，放弃 $type',
+          data: {'attempt': attempt, 'maxAttempts': domainRetryMaxAttempts});
     }
   }
 
