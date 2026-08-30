@@ -283,21 +283,24 @@ class ChaquopyRunner implements PluginRunner {
 /// 包装成 [Process] 接口，使 [DataSourceLoader] 的 stdout 端口探测 / kill
 /// 逻辑与桌面完全一致（方案 A，规划 §5.3）。
 ///
-/// stdout/stderr 来自原生 [EventChannel]('evergreen/python_stream') 的行事件；
+/// stdout/stderr 来自原生 [EventChannel]('evergreen/python_stream') 的行事件。
+/// ⚠️ 该 EventChannel 为单监听：所有常驻进程共享一个 Dart 侧订阅
+/// （[_ChaquopyStreamHub]），事件按 `entry`（入口脚本路径）路由到对应实例，
+/// 修复多实例时「后订阅顶掉先订阅者、输出/退出事件静默丢失（exitCode future
+/// 永不完成、会话泄漏）」的问题。旧 Kotlin 侧（事件不带 `entry`）向前兼容：
+/// 单实例时无条件投递，多实例时丢弃无路由事件。
 /// [DataSourceLoader] 仅用到 [stdout] / [stderr] / [exitCode] / [kill]，其余
 /// 接口为占位（安卓进程内 server 无真实 pid / stdin）。
 class ChaquopyLongProcess implements Process {
-  static const EventChannel _streamCh = EventChannel('evergreen/python_stream');
   static const MethodChannel _ctrlCh = MethodChannel('evergreen/python');
 
   final StreamController<List<int>> _stdoutCtl = StreamController<List<int>>();
   final StreamController<List<int>> _stderrCtl = StreamController<List<int>>();
   final Completer<int> _exitCtl = Completer<int>();
   bool _killed = false;
-  StreamSubscription? _streamSub;
 
-  /// 入口脚本路径（用于 stdin 写入时定位目标进程；当前 Kotlin 侧为单实例，
-  /// 仅作透传，未来多实例时据此路由）。
+  /// 入口脚本路径：既是 stdin 写入（`writeStdin`）的透传键，也是共享
+  /// 分发器 [_ChaquopyStreamHub] 的事件路由键。
   final String entry;
 
   /// stdin 写入 sink：把命令经 MethodChannel('evergreen/python') 的
@@ -306,30 +309,16 @@ class ChaquopyLongProcess implements Process {
   IOSink? _stdin;
 
   ChaquopyLongProcess(this.entry) {
-    _streamSub = _streamCh.receiveBroadcastStream().listen(
-      (event) {
-        final map = event as Map<dynamic, dynamic>;
-        final type = map['type'] as String?;
-        final line = (map['line'] as String?) ?? '';
-        if (type == 'stdout') {
-          if (!_stdoutCtl.isClosed) _stdoutCtl.add(utf8.encode('$line\n'));
-        } else if (type == 'stderr') {
-          if (!_stderrCtl.isClosed) _stderrCtl.add(utf8.encode('$line\n'));
-        } else if (type == 'exit') {
-          final code = (map['code'] as int?) ?? 0;
-          _completeExit(code);
-        }
-      },
-      onError: (_) => _completeExit(1),
-      onDone: () => _completeExit(0),
-    );
+    _ChaquopyStreamHub().register(this);
   }
 
+  /// 完成退出：注销分发器注册、完成 exitCode future、关闭流。幂等
+  /// （Kotlin `exit` 事件 / [kill] / 流 onError/onDone 均可触发），
+  /// 先到者胜——真实退出码不被 kill 的 0 覆盖。
   void _completeExit(int code) {
-    if (!_exitCtl.isCompleted) _exitCtl.complete(code);
-    // 先取消订阅，防止后续事件再写已关闭的 controller
-    _streamSub?.cancel();
-    _streamSub = null;
+    if (_exitCtl.isCompleted) return;
+    _ChaquopyStreamHub().unregister(this);
+    _exitCtl.complete(code);
     if (!_stdoutCtl.isClosed) _stdoutCtl.close();
     if (!_stderrCtl.isClosed) _stderrCtl.close();
   }
@@ -356,6 +345,78 @@ class ChaquopyLongProcess implements Process {
     _ctrlCh.invokeMethod<void>('stopLongServer');
     _completeExit(0);
     return true;
+  }
+}
+
+/// 安卓长驻进程 EventChannel 共享分发器（全局单监听）。
+///
+/// 修复：EventChannel 同一时刻只允许一个监听者——若每个 [ChaquopyLongProcess]
+/// 各自 subscribe，第二个实例会把第一个实例的 sink 顶掉（Kotlin `onListen`
+/// 覆盖 `streamSink`），前者输出/退出事件全部丢失、`exitCode` 永不完成。
+/// 本分发器全局唯一订阅一次，按事件的 `entry` 字段路由到对应实例；
+/// `entry` 缺失（旧 Kotlin）时：注册表仅一个实例 → 无条件投递（向后兼容），
+/// 多实例 → 丢弃（旧端本就不支持多实例）。
+class _ChaquopyStreamHub {
+  static final _ChaquopyStreamHub _instance = _ChaquopyStreamHub._();
+  factory _ChaquopyStreamHub() => _instance;
+  _ChaquopyStreamHub._();
+
+  static const EventChannel _streamCh = EventChannel('evergreen/python_stream');
+
+  final Map<String, ChaquopyLongProcess> _registry = {};
+  StreamSubscription? _sub;
+
+  void register(ChaquopyLongProcess proc) {
+    _ensureListening();
+    _registry[proc.entry] = proc;
+  }
+
+  void unregister(ChaquopyLongProcess proc) {
+    _registry.remove(proc.entry);
+    // 注册表清空时取消全局订阅，避免空闲监听泄漏。
+    if (_registry.isEmpty && _sub != null) {
+      _sub?.cancel();
+      _sub = null;
+    }
+  }
+
+  void _ensureListening() {
+    if (_sub != null) return;
+    _sub = _streamCh.receiveBroadcastStream().listen(
+      _dispatch,
+      onError: (_) {
+        for (final proc in List.of(_registry.values)) {
+          proc._completeExit(1);
+        }
+      },
+      onDone: () {
+        for (final proc in List.of(_registry.values)) {
+          proc._completeExit(0);
+        }
+      },
+    );
+  }
+
+  void _dispatch(dynamic event) {
+    final map = event as Map<dynamic, dynamic>;
+    final entry = map['entry'] as String?;
+    final type = map['type'] as String?;
+    final line = (map['line'] as String?) ?? '';
+    final target = (entry != null && entry.isNotEmpty)
+        ? _registry[entry]
+        : (_registry.length == 1 ? _registry.values.first : null);
+    if (target == null) return;
+    if (type == 'stdout') {
+      if (!target._stdoutCtl.isClosed) {
+        target._stdoutCtl.add(utf8.encode('$line\n'));
+      }
+    } else if (type == 'stderr') {
+      if (!target._stderrCtl.isClosed) {
+        target._stderrCtl.add(utf8.encode('$line\n'));
+      }
+    } else if (type == 'exit') {
+      target._completeExit((map['code'] as int?) ?? 0);
+    }
   }
 }
 
