@@ -1,370 +1,314 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Evergreen 下载中心</title>
-  <style>
-    :root {
-      --ink: #16181d;          /* 墨 */
-      --ink-2: #3a3f47;
-      --paper: #fafaf7;        /* 白 */
-      --paper-2: #f0f0ec;
-      --line: #dcdcd6;
-      --muted: #7a7f88;
-      --accent: #2f8f5b;       /* 绿色仅作少量强调 */
-      --accent-ink: #1f5c3c;
-      --badge-pre: #6b7280;
-      --badge-stable: #16181d;
-      --badge-draft: #9ca3af;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
-        "Microsoft YaHei", sans-serif;
-      background: var(--paper);
-      color: var(--ink);
-      line-height: 1.6;
-      min-height: 100vh;
-      padding: 0 16px 64px;
-    }
-    /* —— 放映区：logo 由黑白渐映为彩色，悬停回到黑白 —— */
-    .stage {
-      text-align: center;
-      padding: 44px 16px 20px;
-    }
-    .stage .brand {
-      width: 108px;
-      height: 108px;
-      margin: 0 auto 18px;
-      border-radius: 50%;
-      background: #fff;
-      box-shadow: 0 10px 30px rgba(22, 24, 29, 0.10);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      overflow: hidden;
-      animation: reelshow 6s ease-in-out infinite alternate;
-    }
-    .stage .brand svg {
-      width: 84px;
-      height: 84px;
-      filter: grayscale(1) contrast(1.12);
-      transition: filter 0.6s ease;
-    }
-    .stage .brand:hover svg { filter: grayscale(0) contrast(1); }
-    @keyframes reelshow {
-      0%   { transform: translateY(0) scale(1); }
-      100% { transform: translateY(-5px) scale(1.03); }
-    }
-    .stage h1 {
-      font-size: 2rem;
-      font-weight: 700;
-      letter-spacing: 0.02em;
-      color: var(--ink);
-    }
-    .stage p { color: var(--muted); font-size: 0.95rem; margin-top: 6px; }
-    .container { max-width: 880px; margin: 0 auto; }
-    .status {
-      text-align: center;
-      color: var(--muted);
-      padding: 24px;
-      font-size: 0.95rem;
-    }
-    .status.error { color: #b03a3a; }
-    .version {
-      background: #fff;
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      padding: 22px 24px;
-      margin-bottom: 18px;
-      box-shadow: 0 2px 10px rgba(22, 24, 29, 0.04);
-      transition: border-color 0.2s, box-shadow 0.2s;
-    }
-    .version:hover {
-      border-color: var(--ink);
-      box-shadow: 0 6px 18px rgba(22, 24, 29, 0.08);
-    }
-    .version-head {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-bottom: 4px;
-    }
-    .version-name { font-size: 1.25rem; font-weight: 700; }
-    .badge {
-      font-size: 0.7rem;
-      padding: 2px 10px;
-      border-radius: 999px;
-      font-weight: 600;
-      letter-spacing: 0.3px;
-      color: #fff;
-    }
-    .badge.pre { background: var(--badge-pre); }
-    .badge.stable { background: var(--badge-stable); }
-    .badge.draft { background: var(--badge-draft); }
-    .version-date { color: var(--muted); font-size: 0.83rem; margin-left: auto; }
-    .version-note {
-      color: var(--muted);
-      font-size: 0.9rem;
-      white-space: pre-wrap;
-      margin: 8px 0 18px;
-    }
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 14px;
-    }
-    .group {
-      background: var(--paper-2);
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      padding: 14px 16px;
-    }
-    .group-title {
-      font-size: 0.92rem;
-      font-weight: 700;
-      margin-bottom: 12px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .dot { width: 9px; height: 9px; border-radius: 50%; }
-    .dot.zju { background: var(--accent); }
-    .dot.std { background: var(--ink); }
-    .btns { display: flex; flex-direction: column; gap: 8px; }
-    a.btn {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      text-decoration: none;
-      background: #fff;
-      border: 1px solid var(--line);
-      color: var(--ink);
-      padding: 10px 14px;
-      border-radius: 8px;
-      font-size: 0.88rem;
-      transition: all 0.15s;
-    }
-    a.btn:hover {
-      background: var(--ink);
-      border-color: var(--ink);
-      color: #fff;
-      transform: translateY(-1px);
-    }
-    a.btn .tag {
-      font-size: 0.68rem;
-      padding: 1px 8px;
-      border-radius: 6px;
-      font-weight: 600;
-    }
-    a.btn .tag.release { background: var(--ink); color: #fff; }
-    a.btn .tag.debug { background: var(--paper-2); color: var(--muted); border: 1px solid var(--line); }
-    a.btn:hover .tag.release { background: #fff; color: var(--ink); }
-    a.btn:hover .tag.debug { background: rgba(255,255,255,0.16); color: #c9ccd2; border-color: transparent; }
-    a.btn .arrow { color: var(--muted); }
-    a.btn:hover .arrow { color: #fff; }
-    .empty {
-      grid-column: 1 / -1;
-      text-align: center;
-      color: var(--muted);
-      font-size: 0.85rem;
-      padding: 12px;
-    }
-    footer {
-      text-align: center;
-      color: var(--muted);
-      font-size: 0.8rem;
-      margin-top: 44px;
-      line-height: 1.8;
-    }
-    footer .pets { display: flex; justify-content: center; gap: 18px; margin-bottom: 14px; }
-    footer .pets svg { width: 34px; height: 34px; opacity: 0.55; filter: grayscale(1); transition: all 0.4s; }
-    footer .pets svg:hover { opacity: 1; filter: grayscale(0); }
-    footer a { color: var(--ink-2); text-decoration: none; border-bottom: 1px solid var(--line); }
-    footer a:hover { color: var(--accent-ink); border-bottom-color: var(--accent); }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Evergreen 下载与文档中心</title>
+<meta name="description" content="Evergreen 下载中心与文档中心统一入口：下载中心、插件开发指南、8 张架构演示图、20 张功能截图与设计文档，全部墨白风（明暗双色）。" />
+<link rel="stylesheet" href="architecture/_shared/evg-style.css" />
+<style>
+/* ============ 下载与文档中心 · 页面局部布局（颜色一律 var(--evg-*)） ============ */
+.doc-hero { padding: 46px 16px 10px; text-align: center; }
+.doc-hero__inner { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.doc-hero__title { letter-spacing: 0.02em; }
+.doc-hero__en { font-weight: 600; }
+.doc-hero__actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
+
+.doc-lead {
+  margin-top: 18px; padding: 14px 18px;
+  border: 1px solid var(--evg-border); border-radius: var(--evg-radius-lg);
+  background: var(--evg-card); box-shadow: var(--evg-shadow-sm);
+  font-size: 0.86rem; line-height: 1.7; color: var(--evg-fg-2);
+}
+.doc-lead b { color: var(--evg-fg); }
+
+.doc-section { margin-top: 34px; }
+
+/* 快速入口（download / plugin_guide 大卡） */
+.doc-quick { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-top: 16px; }
+.doc-quick__card { display: flex; flex-direction: column; gap: 8px; min-height: 170px; }
+.doc-quick__card .evg-card__desc { font-size: 0.84rem; line-height: 1.65; color: var(--evg-fg-2); }
+
+/* 架构演示卡 */
+.doc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin-top: 14px; }
+.doc-card { display: flex; flex-direction: column; gap: 8px; min-height: 200px; }
+.doc-card__no {
+  font-family: var(--evg-mono); font-size: 0.66rem; font-weight: 700;
+  color: var(--evg-on-accent); background: var(--evg-accent);
+  border-radius: var(--evg-radius-full); padding: 2px 10px; align-self: flex-start;
+}
+.doc-card__desc { font-size: 0.82rem; line-height: 1.6; color: var(--evg-fg-2); }
+.doc-card__tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: auto; }
+.doc-card__open {
+  margin-top: 10px; display: inline-flex; align-items: center; gap: 6px;
+  font-size: 0.8rem; font-weight: 600; color: var(--evg-accent);
+  text-decoration: none; border: 1px solid var(--evg-border);
+  border-radius: var(--evg-radius); padding: 7px 14px; background: var(--evg-card);
+  transition: border-color var(--evg-dur-2) var(--evg-ease), box-shadow var(--evg-dur-2) var(--evg-ease);
+}
+.doc-card__open:hover { border-color: var(--evg-accent); box-shadow: var(--evg-shadow-md); }
+.doc-card__open .evg-arrow { transition: transform var(--evg-dur-2) var(--evg-ease); }
+.doc-card__open:hover .evg-arrow { transform: translateX(3px); }
+
+/* 功能截图画廊 */
+.doc-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-top: 12px; }
+.doc-shot { display: block; text-decoration: none; border: 1px solid var(--evg-border); border-radius: var(--evg-radius-lg); overflow: hidden; background: var(--evg-card); transition: border-color var(--evg-dur-2) var(--evg-ease), box-shadow var(--evg-dur-2) var(--evg-ease); }
+.doc-shot:hover { border-color: var(--evg-accent); box-shadow: var(--evg-shadow-md); }
+.doc-shot img { width: 100%; height: 116px; object-fit: cover; display: block; background: var(--evg-panel); }
+.doc-shot figcaption {
+  font-size: 0.72rem; color: var(--evg-muted); padding: 7px 10px;
+  font-family: var(--evg-mono); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.doc-cat { margin-top: 18px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.doc-cat .evg-badge { margin-left: auto; }
+
+/* 设计文档列表 */
+.doc-docs { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; margin-top: 14px; }
+.doc-doc {
+  display: flex; align-items: baseline; gap: 8px; padding: 11px 14px;
+  border: 1px solid var(--evg-border); border-radius: var(--evg-radius);
+  background: var(--evg-card); text-decoration: none;
+  transition: border-color var(--evg-dur-2) var(--evg-ease), box-shadow var(--evg-dur-2) var(--evg-ease);
+}
+.doc-doc:hover { border-color: var(--evg-accent); box-shadow: var(--evg-shadow-sm); }
+.doc-doc__t { font-size: 0.84rem; font-weight: 600; color: var(--evg-fg); }
+.doc-doc__p { font-family: var(--evg-mono); font-size: 0.66rem; color: var(--evg-muted-2); }
+
+.doc-foot { text-align: center; padding: 34px 16px 44px; margin-top: 40px; border-top: 1px solid var(--evg-border); }
+.doc-foot__pets { display: flex; justify-content: center; gap: 12px; margin-bottom: 10px; }
+.doc-foot p { color: var(--evg-muted); font-size: 0.78rem; line-height: 1.8; }
+</style>
 </head>
 <body>
-  <header class="stage">
-    <!-- logo：黑白放映（CSS 灰度滤镜 + 悬停还原彩色） -->
-    <div class="brand" title="绿意不息">
-      <svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="绿意不息 Logo">
-        <g transform="translate(0 0)">
-          <path fill="#e8e8e2" d="M120 16a104 104 0 1 0 0 208 104 104 0 0 0 0-208z" opacity="0.55"/>
-          <path fill="#d9d9d2" d="M120 26a94 94 0 1 0 0 188 94 94 0 0 0 0-188z" opacity="0.4"/>
-          <g fill="#3a3f47">
-            <path d="M120 52c-22 26-38 50-38 84 0 26 17 46 38 52 21-6 38-26 38-52 0-34-16-58-38-84z"/>
-            <path d="M120 70c-10 16-18 32-18 52 0 16 8 30 18 36 10-6 18-20 18-36 0-20-8-36-18-52z" fill="#fafaf7"/>
-            <path d="M100 118c-10-4-24-2-32 6 4 10 18 16 32 14z" fill="#4a5058"/>
-            <path d="M140 118c10-4 24-2 32 6-4 10-18 16-32 14z" fill="#4a5058"/>
-          </g>
-        </g>
-      </svg>
-    </div>
-    <h1>Evergreen 下载中心</h1>
-    <p>所有版本（含预发布）一键下载安装 · 数据本地优先 · 无账号</p>
-  </header>
 
-  <div class="container">
-    <div id="status" class="status">正在从 GitHub 拉取版本列表…</div>
-    <div id="versions"></div>
+<header class="doc-hero">
+  <div class="evg-container doc-hero__inner">
+    <div class="evg-brand-disc evg-float">
+      <img class="evg-reel evg-reel--auto" src="architecture/_shared/branding/logo.svg" alt="Evergreen 品牌 Logo" width="84" height="84" />
+    </div>
+    <h1 class="evg-title evg-h1 doc-hero__title">Evergreen <span class="evg-muted doc-hero__en">下载与文档中心</span></h1>
+    <p class="evg-sub">下载 · 插件指南 · 架构演示 · 功能截图 · 设计文档 —— 墨白风统一入口</p>
+    <div class="doc-hero__actions">
+      <span class="evg-pill"><strong>2</strong><span>快捷入口</span></span>
+      <span class="evg-pill"><strong>8</strong><span>架构演示</span></span>
+      <span class="evg-pill"><strong>20</strong><span>功能截图</span></span>
+      <span class="evg-pill"><strong>7</strong><span>设计文档</span></span>
+      <button type="button" class="evg-toggle" data-evg-theme-toggle aria-label="切换明暗主题"><span class="evg-toggle__dot"></span><span data-evg-theme-label>白</span></button>
+    </div>
+  </div>
+</header>
+
+<main class="evg-container">
+
+  <div class="doc-lead evg-reveal">
+    <b>墨白风：</b>墨与白两极的高对比、低饱和、克制的绿色强调 —— 本站与全部架构演示图共用
+    <code class="evg-code">architecture/_shared/evg-style.css</code> 设计 token 与组件类；右上角
+    <code class="evg-code">data-evg-theme-toggle</code> 一键切换明暗（或用 <code class="evg-code">?theme=light|dark</code> 固定截图）；
+    品牌 logo 与宠物默认灰度待机、悬停/周期放映还原彩色；动图遵循
+    <code class="evg-code">prefers-reduced-motion</code> 降级，静态可读。
   </div>
 
-  <footer>
-    <div class="pets">
-      <!-- 宠物：黑白待机，悬停放映彩色 -->
-      <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="绿意不息宠物 叶灵猫">
-        <g fill="#3a3f47">
-          <ellipse cx="100" cy="118" rx="52" ry="46"/>
-          <path d="M62 88l-24-30 8-2 20 22z"/>
-          <path d="M138 88l24-30-8-2-20 22z"/>
-        </g>
-        <ellipse cx="100" cy="126" rx="16" ry="10" fill="#fafaf7"/>
-        <circle cx="92" cy="112" r="4" fill="#16181d"/>
-        <circle cx="108" cy="112" r="4" fill="#16181d"/>
-      </svg>
-      <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="绿意不息宠物 绿芽精灵">
-        <g fill="#3a3f47">
-          <circle cx="100" cy="120" r="46"/>
-          <path d="M100 74c-10-14-26-22-40-22 4 14 18 24 34 24z"/>
-          <path d="M100 74c10-14 26-22 40-22-4 14-18 24-34 24z"/>
-        </g>
-        <circle cx="86" cy="114" r="5" fill="#fafaf7"/>
-        <circle cx="114" cy="114" r="5" fill="#fafaf7"/>
-      </svg>
-      <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="绿意不息宠物 睡眠款">
-        <g fill="#3a3f47">
-          <ellipse cx="100" cy="120" rx="52" ry="44"/>
-          <path d="M120 128c6 6 14 8 22 6-4 8-14 12-24 8z" fill="#fafaf7"/>
-        </g>
-        <circle cx="84" cy="112" r="4" fill="#16181d"/>
-        <circle cx="116" cy="112" r="4" fill="#16181d"/>
-      </svg>
+  <!-- ═══ ① 快速入口 ═══ -->
+  <section class="doc-section evg-reveal" aria-label="快速入口">
+    <div class="evg-section-head">
+      <span class="evg-dot evg-dot--accent"></span>快速入口
+      <span class="evg-badge evg-badge--soft">下载 / 指南</span>
     </div>
-    版本数据来自 GitHub Releases，自动同步。<br />
-    遇到问题？前往
-    <a href="https://github.com/lybx-leyw/evergreen-main/issues" target="_blank" rel="noopener">Issue 反馈</a>
-    ·
-    <a href="https://github.com/lybx-leyw/evergreen-main" target="_blank" rel="noopener">项目主页</a>
-  </footer>
+    <div class="doc-quick">
+      <a class="evg-card evg-card--hover doc-quick__card" href="download.html">
+        <div class="evg-card__title">下载中心 <span class="evg-badge evg-badge--accent">stable</span></div>
+        <div class="evg-card__sub">download.html · 安装包与版本</div>
+        <div class="evg-card__desc">Windows / Android 安装包、版本说明与更新日志；按平台选择对应安装程序下载。</div>
+        <span class="doc-card__open" style="margin-top:auto">前往下载中心 <span class="evg-arrow evg-arrow--accent">→</span></span>
+      </a>
+      <a class="evg-card evg-card--hover doc-quick__card" href="plugin_guide.html">
+        <div class="evg-card__title">插件开发指南 <span class="evg-badge evg-badge--pre">HTML-first</span></div>
+        <div class="evg-card__sub">plugin_guide.html · 创作与上架</div>
+        <div class="evg-card__desc">五类插件（theme / module / data-source / agent / skin）的 manifest、适配壳与 registry 上架协议；用户侧以 HTML 插件为主路径。</div>
+        <span class="doc-card__open" style="margin-top:auto">阅读插件指南 <span class="evg-arrow evg-arrow--accent">→</span></span>
+      </a>
+    </div>
+  </section>
 
-  <script>
-    const REPO = "lybx-leyw/evergreen-main";
-    const API = `https://api.github.com/repos/${REPO}/releases?per_page=100`;
+  <!-- ═══ ② 架构演示 ═══ -->
+  <section class="doc-section evg-reveal" aria-label="架构演示图">
+    <div class="evg-section-head">
+      <span class="evg-dot evg-dot--accent"></span>架构演示
+      <span class="evg-badge evg-badge--soft">8 页 · 墨白风动图</span>
+    </div>
+    <div class="doc-grid">
 
-    // 把一个 release 的 assets 按 版本/平台/模式 归类
-    function classify(assets) {
-      const out = { zju: {}, std: {} };
-      for (const a of assets) {
-        const name = a.name || "";
-        const url = a.browser_download_url;
-        const isApk = name.endsWith(".apk");
-        const isExe = name.toLowerCase().endsWith(".exe");
-        if (!isApk && !isExe) continue;
+      <a class="evg-card evg-card--hover doc-card evg-reveal" href="architecture/index.html" aria-label="打开架构演示统一入口">
+        <span class="doc-card__no">总入口</span>
+        <div class="evg-card__title">架构演示 <span class="evg-muted">统一入口</span></div>
+        <div class="evg-card__sub">architecture/index.html</div>
+        <div class="doc-card__desc">全部架构演示图的卡片导航：数据中枢 / Agent 思维导图 / 插件飞轮 / 四工坊泳道 / 自动工作流 / 三视图 / 三角通讯链。</div>
+        <div class="doc-card__tags"><span class="evg-badge evg-badge--accent">入口</span></div>
+        <span class="doc-card__open">打开总入口 <span class="evg-arrow evg-arrow--accent">→</span></span>
+      </a>
 
-        let edition = null;
-        if (name.includes("zju") || name.includes("Zju")) edition = "zju";
-        else if (name.includes("std") || name.includes("Std")) edition = "std";
-        if (!edition) continue;
+      <a class="evg-card evg-card--hover doc-card evg-reveal" data-delay="40" href="architecture/data-hub.html" aria-label="打开数据中枢演示">
+        <span class="doc-card__no">01</span>
+        <div class="evg-card__title">数据中枢 <span class="evg-muted">DataHub</span></div>
+        <div class="evg-card__sub">architecture/data-hub.html</div>
+        <div class="doc-card__desc">L1–L4 栈式分层 + 13 相循环动图：并发拉取、登录域调度、2s 退避 ×3 上限重试、时钟对齐刷新。</div>
+        <div class="doc-card__tags"><span class="evg-badge evg-badge--soft">动图演示</span><span class="evg-badge evg-badge--draft">重试阶梯</span></div>
+        <span class="doc-card__open">打开演示 <span class="evg-arrow evg-arrow--accent">→</span></span>
+      </a>
 
-        const mode = /debug/i.test(name) ? "debug" : /release/i.test(name) ? "release" : null;
-        if (!mode) continue;
+      <a class="evg-card evg-card--hover doc-card evg-reveal" data-delay="80" href="architecture/agent-architecture.html" aria-label="打开 Agent 架构演示">
+        <span class="doc-card__no">02</span>
+        <div class="evg-card__title">Agent 架构 <span class="evg-muted">一中心多核心</span></div>
+        <div class="evg-card__sub">architecture/agent-architecture.html</div>
+        <div class="doc-card__desc">思维导图总览：Skill 加载、奥尔波特五维记忆、Agent Tool 插件、工作区视觉、循环安全网、平台桥接；点击分支联动详情。</div>
+        <div class="doc-card__tags"><span class="evg-badge evg-badge--accent">交互导图</span><span class="evg-badge evg-badge--soft">hash 直达</span></div>
+        <span class="doc-card__open">打开演示 <span class="evg-arrow evg-arrow--accent">→</span></span>
+      </a>
 
-        const platform = isApk ? "android" : "windows";
-        out[edition][`${platform}-${mode}`] = url;
-      }
-      return out;
-    }
+      <a class="evg-card evg-card--hover doc-card evg-reveal" data-delay="120" href="architecture/flywheel.html" aria-label="打开插件飞轮演示">
+        <span class="doc-card__no">03</span>
+        <div class="evg-card__title">插件飞轮 <span class="evg-muted">创作与发现闭环</span></div>
+        <div class="evg-card__sub">architecture/flywheel.html</div>
+        <div class="doc-card__desc">五站闭环（创作→采集→展示→安装→集成）绿环飞转、站点轮播高亮、中心 logo 放映、飞轮动力计数。</div>
+        <div class="doc-card__tags"><span class="evg-badge evg-badge--soft">闭环动图</span><span class="evg-badge evg-badge--success">计数器</span></div>
+        <span class="doc-card__open">打开演示 <span class="evg-arrow evg-arrow--accent">→</span></span>
+      </a>
 
-    function btn(label, url, mode) {
-      if (!url) return "";
-      const tagCls = mode === "release" ? "release" : "debug";
-      const tagTxt = mode === "release" ? "正式" : "调试";
-      return `<a class="btn" href="${url}" download>
-        <span>${label}</span>
-        <span class="tag ${tagCls}">${tagTxt}</span>
-        <span class="arrow">↓</span>
-      </a>`;
-    }
+      <a class="evg-card evg-card--hover doc-card evg-reveal" data-delay="160" href="architecture/workshops.html" aria-label="打开四工坊泳道演示">
+        <span class="doc-card__no">04</span>
+        <div class="evg-card__title">四工坊泳道 <span class="evg-muted">开发者模式 DIY</span></div>
+        <div class="evg-card__sub">architecture/workshops.html</div>
+        <div class="doc-card__desc">网页→scraper 工坊→数据源包裹→四工坊泳道→平台组合器→仓库→用户；七类插件包裹与 7 个装配 Loader。</div>
+        <div class="doc-card__tags"><span class="evg-badge evg-badge--violet">泳道</span><span class="evg-badge evg-badge--soft">水流带</span></div>
+        <span class="doc-card__open">打开演示 <span class="evg-arrow evg-arrow--accent">→</span></span>
+      </a>
 
-    function renderVersion(rel) {
-      const assets = rel.assets || [];
-      const cls = classify(assets);
-      const hasAny = Object.values(cls).some((e) => Object.keys(e).length > 0);
-      if (!hasAny) return "";
+      <a class="evg-card evg-card--hover doc-card evg-reveal" data-delay="200" href="architecture/agent-workflow.html" aria-label="打开 Agent 自动工作流演示">
+        <span class="doc-card__no">05</span>
+        <div class="evg-card__title">Agent 自动工作流 <span class="evg-muted">插件供应链</span></div>
+        <div class="evg-card__sub">architecture/agent-workflow.html</div>
+        <div class="doc-card__desc">skill→auto-workflow-skill→一支笔→AI 产线装配线；五类插件芯片传送带右移入仓、回流再创作；队长向 9 OWNER 派发。</div>
+        <div class="doc-card__tags"><span class="evg-badge evg-badge--soft">传送带动图</span><span class="evg-badge evg-badge--accent">OWNER 派发</span></div>
+        <span class="doc-card__open">打开演示 <span class="evg-arrow evg-arrow--accent">→</span></span>
+      </a>
 
-      const name = rel.name || rel.tag_name;
-      let badge = "";
-      if (rel.draft) badge = `<span class="badge draft">草稿</span>`;
-      else if (rel.prerelease) badge = `<span class="badge pre">预发布</span>`;
-      else badge = `<span class="badge stable">正式版</span>`;
+      <a class="evg-card evg-card--hover doc-card evg-reveal" data-delay="240" href="architecture/three-view.html" aria-label="打开平台三视图演示">
+        <span class="doc-card__no">06</span>
+        <div class="evg-card__title">平台三视图 <span class="evg-muted">插件资源分发</span></div>
+        <div class="evg-card__sub">architecture/three-view.html</div>
+        <div class="doc-card__desc">底层资源层→前端运行时→三路分发（AI 助手 / 插件 / 开发者模式）；SMIL 光点移动与回流闭环。</div>
+        <div class="doc-card__tags"><span class="evg-badge evg-badge--draft">三路分发</span><span class="evg-badge evg-badge--soft">SMIL 光点</span></div>
+        <span class="doc-card__open">打开演示 <span class="evg-arrow evg-arrow--accent">→</span></span>
+      </a>
 
-      const date = rel.published_at
-        ? new Date(rel.published_at).toLocaleDateString("zh-CN")
-        : "";
+      <a class="evg-card evg-card--hover doc-card evg-reveal" data-delay="280" href="architecture/plugin-architecture.html" aria-label="打开三角通讯链架构演示">
+        <span class="doc-card__no">07</span>
+        <div class="evg-card__title">三角通讯链 <span class="evg-muted">core → plugins → renderer</span></div>
+        <div class="evg-card__sub">architecture/plugin-architecture.html</div>
+        <div class="doc-card__desc">三条泳道纵向排布：上游 core/ 纯 Dart 服务层 → 中游 plugins/ HTML 插件主路径 → 下游 renderer/ 模板路由；三条通讯链流动演示，细节外置详情卡。</div>
+        <div class="doc-card__tags"><span class="evg-badge evg-badge--soft">三角泳道</span><span class="evg-badge evg-badge--draft">通讯流动</span></div>
+        <span class="doc-card__open">打开演示 <span class="evg-arrow evg-arrow--accent">→</span></span>
+      </a>
 
-      const group = (edition, label, dotCls) => {
-        const e = cls[edition];
-        const cells = [
-          btn("安卓 APK", e["android-release"], "release"),
-          btn("安卓 APK（调试）", e["android-debug"], "debug"),
-          btn("Windows 安装包", e["windows-release"], "release"),
-          btn("Windows 安装包（调试）", e["windows-debug"], "debug"),
-        ].join("");
-        return `<div class="group">
-          <div class="group-title"><span class="dot ${dotCls}"></span>${label}</div>
-          <div class="btns">${cells}</div>
-        </div>`;
-      };
+    </div>
+  </section>
 
-      return `<div class="version">
-        <div class="version-head">
-          <span class="version-name">${name}</span>
-          ${badge}
-          <span class="version-date">${date}</span>
-        </div>
-        ${rel.body ? `<div class="version-note">${escapeHtml(rel.body)}</div>` : ""}
-        <div class="grid">
-          ${group("zju", "浙大专用版", "zju")}
-          ${group("std", "通用版", "std")}
-        </div>
-      </div>`;
-    }
+  <!-- ═══ ③ 功能截图画廊 ═══ -->
+  <section class="doc-section evg-reveal" aria-label="功能截图画廊">
+    <div class="evg-section-head">
+      <span class="evg-dot evg-dot--accent"></span>功能截图画廊
+      <span class="evg-badge evg-badge--soft">20 张 · 点击放大</span>
+    </div>
 
-    function escapeHtml(s) {
-      return s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
-    }
+    <div class="evg-callout evg-callout--success" style="margin-top:12px">
+      <span class="evg-callout__ic">🖼️</span>
+      <span><b>提示：</b>截图点击后在新标签页打开原图；全部来自 <code class="evg-code">docs/features/</code>，明暗两套主题均有采样。</span>
+    </div>
 
-    async function load() {
-      const statusEl = document.getElementById("status");
-      const wrap = document.getElementById("versions");
-      try {
-        const resp = await fetch(API, {
-          headers: { Accept: "application/vnd.github+json" },
-        });
-        if (!resp.ok) throw new Error("HTTP " + resp.status);
-        const releases = await resp.json();
-        const html = releases
-          .map(renderVersion)
-          .filter((h) => h)
-          .join("");
-        if (!html) {
-          statusEl.textContent = "暂无可下载的版本。";
-          return;
-        }
-        statusEl.style.display = "none";
-        wrap.innerHTML = html;
-      } catch (e) {
-        statusEl.className = "status error";
-        statusEl.innerHTML =
-          "加载失败：" + e.message +
-          '<br/>可前往 <a href="https://github.com/lybx-leyw/evergreen-main/releases" target="_blank" rel="noopener" style="color:var(--ink-2);text-decoration:underline">GitHub Releases</a> 手动下载。';
-      }
-    }
+    <div class="doc-cat">
+      <span class="evg-section-head" style="margin:0"><span class="evg-dot evg-dot--accent"></span>AI 助手</span>
+      <span class="evg-badge evg-badge--soft">5 张</span>
+    </div>
+    <div class="doc-gallery">
+      <figure class="doc-shot"><img src="features/ai_demo1.png" alt="AI 助手对话演示 1" loading="lazy" /><figcaption>ai_demo1 · 对话</figcaption></figure>
+      <figure class="doc-shot"><img src="features/ai_demo2.png" alt="AI 助手对话演示 2" loading="lazy" /><figcaption>ai_demo2 · 对话</figcaption></figure>
+      <figure class="doc-shot"><img src="features/ai_demo3.png" alt="AI 助手对话演示 3" loading="lazy" /><figcaption>ai_demo3 · 对话</figcaption></figure>
+      <figure class="doc-shot"><img src="features/ai_demo4.jpg" alt="AI 助手对话演示 4" loading="lazy" /><figcaption>ai_demo4 · 对话</figcaption></figure>
+      <figure class="doc-shot"><img src="features/ai_demo5.jpg" alt="AI 助手对话演示 5" loading="lazy" /><figcaption>ai_demo5 · 对话</figcaption></figure>
+    </div>
 
-    load();
-  </script>
+    <div class="doc-cat">
+      <span class="evg-section-head" style="margin:0"><span class="evg-dot evg-dot--accent"></span>数据与爬虫</span>
+      <span class="evg-badge evg-badge--soft">3 张</span>
+    </div>
+    <div class="doc-gallery">
+      <figure class="doc-shot"><img src="features/data_demo1.png" alt="数据中枢数据谱仪器演示" loading="lazy" /><figcaption>data_demo1 · 数据中枢</figcaption></figure>
+      <figure class="doc-shot"><img src="features/data_demo2.jpg" alt="数据中枢详情演示" loading="lazy" /><figcaption>data_demo2 · 数据中枢</figcaption></figure>
+      <figure class="doc-shot"><img src="features/data_scraper.png" alt="所见即所得爬虫演示" loading="lazy" /><figcaption>data_scraper · 爬虫</figcaption></figure>
+    </div>
+
+    <div class="doc-cat">
+      <span class="evg-section-head" style="margin:0"><span class="evg-dot evg-dot--accent"></span>市场与插件</span>
+      <span class="evg-badge evg-badge--soft">4 张</span>
+    </div>
+    <div class="doc-gallery">
+      <figure class="doc-shot"><img src="features/market_demo1.png" alt="插件市场列表演示" loading="lazy" /><figcaption>market_demo1 · 市场</figcaption></figure>
+      <figure class="doc-shot"><img src="features/market_demo2.jpg" alt="插件市场详情演示" loading="lazy" /><figcaption>market_demo2 · 市场</figcaption></figure>
+      <figure class="doc-shot"><img src="features/plugins_demo1.png" alt="插件演示 1" loading="lazy" /><figcaption>plugins_demo1 · 插件</figcaption></figure>
+      <figure class="doc-shot"><img src="features/plugins_demo2.jpg" alt="插件演示 2" loading="lazy" /><figcaption>plugins_demo2 · 插件</figcaption></figure>
+    </div>
+
+    <div class="doc-cat">
+      <span class="evg-section-head" style="margin:0"><span class="evg-dot evg-dot--accent"></span>创作中心</span>
+      <span class="evg-badge evg-badge--soft">5 张</span>
+    </div>
+    <div class="doc-gallery">
+      <figure class="doc-shot"><img src="features/module_creator1.png" alt="模块创作中心三栏 IDE" loading="lazy" /><figcaption>module_creator1 · 创作</figcaption></figure>
+      <figure class="doc-shot"><img src="features/module_creator2.jpg" alt="模块创作中心预览" loading="lazy" /><figcaption>module_creator2 · 创作</figcaption></figure>
+      <figure class="doc-shot"><img src="features/theme_creator1.png" alt="主题创作中心演示 1" loading="lazy" /><figcaption>theme_creator1 · 主题</figcaption></figure>
+      <figure class="doc-shot"><img src="features/theme_creator2.jpg" alt="主题创作中心演示 2" loading="lazy" /><figcaption>theme_creator2 · 主题</figcaption></figure>
+      <figure class="doc-shot"><img src="features/skill_workflow.png" alt="Skill 创作工作流演示" loading="lazy" /><figcaption>skill_workflow · Skill</figcaption></figure>
+    </div>
+
+    <div class="doc-cat">
+      <span class="evg-section-head" style="margin:0"><span class="evg-dot evg-dot--accent"></span>设置与桥接</span>
+      <span class="evg-badge evg-badge--soft">3 张</span>
+    </div>
+    <div class="doc-gallery">
+      <figure class="doc-shot"><img src="features/setting_demo1.png" alt="设置中心演示 1" loading="lazy" /><figcaption>setting_demo1 · 设置</figcaption></figure>
+      <figure class="doc-shot"><img src="features/setting_demo2.jpg" alt="设置中心演示 2" loading="lazy" /><figcaption>setting_demo2 · 设置</figcaption></figure>
+      <figure class="doc-shot"><img src="features/dsh_bridge.png" alt="DeepSeek Harness 桥接演示" loading="lazy" /><figcaption>dsh_bridge · 桥接</figcaption></figure>
+    </div>
+  </section>
+
+  <!-- ═══ ④ 设计文档 ═══ -->
+  <section class="doc-section evg-reveal" aria-label="设计文档">
+    <div class="evg-section-head">
+      <span class="evg-dot evg-dot--accent"></span>设计文档
+      <span class="evg-badge evg-badge--soft">specs / 规范</span>
+    </div>
+    <div class="doc-docs">
+      <a class="doc-doc" href="superpowers/specs/egsync-sync-center-spec-v1.md"><span class="doc-doc__t">Egsync 同步中心规范 v1</span><span class="doc-doc__p">specs/</span></a>
+      <a class="doc-doc" href="superpowers/specs/2026-08-26-AI-assistant-improvement.md"><span class="doc-doc__t">AI 助手改进</span><span class="doc-doc__p">2026-08-26</span></a>
+      <a class="doc-doc" href="superpowers/specs/2026-08-27-Re-AI-assistant-improvement.md"><span class="doc-doc__t">AI 助手改进 · 修订</span><span class="doc-doc__p">2026-08-27</span></a>
+      <a class="doc-doc" href="superpowers/specs/2026-08-21-creator-ai-data-fixes-design.md"><span class="doc-doc__t">创作中心 AI 与数据修复设计</span><span class="doc-doc__p">2026-08-21</span></a>
+      <a class="doc-doc" href="superpowers/specs/2026-08-21-skill-deep-search-design.md"><span class="doc-doc__t">Skill 深度搜索设计</span><span class="doc-doc__p">2026-08-21</span></a>
+      <a class="doc-doc" href="architecture/STYLE_GUIDE.md"><span class="doc-doc__t">墨白风风格规范 STYLE_GUIDE</span><span class="doc-doc__p">architecture/</span></a>
+      <a class="doc-doc" href="architecture/README.md"><span class="doc-doc__t">架构演示图目录 README</span><span class="doc-doc__p">architecture/</span></a>
+    </div>
+  </section>
+
+</main>
+
+<footer class="doc-foot">
+  <div class="doc-foot__pets" aria-hidden="true">
+    <img class="evg-pet" src="architecture/_shared/branding/pet.svg" alt="" />
+    <img class="evg-pet" src="architecture/_shared/branding/pet_leafcat.svg" alt="" />
+    <img class="evg-pet" src="architecture/_shared/branding/pet_sleep.svg" alt="" />
+  </div>
+  <p>docs/index.html · Evergreen 下载与文档中心 · 墨白风（明暗双色）<br />基座：architecture/_shared/evg-style.css + evg-common.js · 品牌资源：architecture/_shared/branding/ · GitHub Pages 自动部署</p>
+</footer>
+
+<script src="architecture/_shared/evg-common.js"></script>
 </body>
 </html>

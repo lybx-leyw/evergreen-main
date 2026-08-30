@@ -1,0 +1,57 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="绿意不息宠物 - 睡眠款">
+  <defs>
+    <radialGradient id="sleepBody" cx="42%" cy="34%" r="72%">
+      <stop offset="0%" stop-color="#f3fffa"/>
+      <stop offset="55%" stop-color="#cdf8e2"/>
+      <stop offset="100%" stop-color="#a0eec1"/>
+    </radialGradient>
+    <linearGradient id="sleepSprout" x1="20%" y1="0%" x2="80%" y2="100%">
+      <stop offset="0%" stop-color="#7fe9ab"/>
+      <stop offset="100%" stop-color="#16b865"/>
+    </linearGradient>
+    <radialGradient id="sleepCheek" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ff9bb3" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#ff9bb3" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="sleepShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="5" stdDeviation="6" flood-color="#0a6b48" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#sleepShadow)">
+    <!-- 蜷睡身体 -->
+    <ellipse cx="100" cy="124" rx="66" ry="50" fill="url(#sleepBody)" stroke="#16b865" stroke-opacity="0.25" stroke-width="2"/>
+    <!-- 头 -->
+    <ellipse cx="100" cy="92" rx="46" ry="42" fill="url(#sleepBody)" stroke="#16b865" stroke-opacity="0.25" stroke-width="2"/>
+
+    <!-- 头顶嫩芽 -->
+    <path d="M88 54 C 82 38, 70 32, 66 34 C 70 46, 78 52, 88 54 Z" fill="url(#sleepSprout)"/>
+    <path d="M112 54 C 118 38, 130 32, 134 34 C 130 46, 122 52, 112 54 Z" fill="url(#sleepSprout)"/>
+
+    <!-- 闭眼 -->
+    <path d="M70 92 C 76 98, 86 98, 92 92" fill="none" stroke="#22332b" stroke-width="3" stroke-linecap="round"/>
+    <path d="M108 92 C 114 98, 124 98, 130 92" fill="none" stroke="#22332b" stroke-width="3" stroke-linecap="round"/>
+
+    <!-- 腮红 -->
+    <circle cx="68" cy="108" r="11" fill="url(#sleepCheek)"/>
+    <circle cx="132" cy="108" r="11" fill="url(#sleepCheek)"/>
+
+    <!-- 小嘴 -->
+    <path d="M96 108 C 100 112, 104 112, 108 108" fill="none" stroke="#22332b" stroke-width="2.4" stroke-linecap="round"/>
+
+    <!-- 手搭在脸颊 -->
+    <ellipse cx="58" cy="116" rx="12" ry="9" fill="url(#sleepBody)" stroke="#16b865" stroke-opacity="0.25" stroke-width="1.5"/>
+    <ellipse cx="142" cy="116" rx="12" ry="9" fill="url(#sleepBody)" stroke="#16b865" stroke-opacity="0.25" stroke-width="1.5"/>
+
+    <!-- 尾巴卷曲 -->
+    <path d="M164 132 C 184 130, 186 108, 172 100 C 178 116, 166 126, 156 124 Z" fill="url(#sleepSprout)"/>
+
+    <!-- Zzz -->
+    <text x="138" y="60" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700" fill="#16b865" fill-opacity="0.8">z</text>
+    <text x="150" y="48" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700" fill="#16b865" fill-opacity="0.7">Z</text>
+    <text x="166" y="34" font-family="Segoe UI, Arial, sans-serif" font-size="26" font-weight="700" fill="#16b865" fill-opacity="0.6">Z</text>
+
+    <!-- 高光 -->
+    <path d="M72 64 C 96 54, 124 58, 136 78 C 114 68, 90 68, 72 80 Z" fill="#ffffff" fill-opacity="0.3"/>
+  </g>
+</svg>

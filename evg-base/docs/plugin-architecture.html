@@ -167,7 +167,7 @@ h1{text-align:left;font-size:22px;font-weight:700;letter-spacing:-.02em;line-hei
     <div class='card'><b>page/ 页面层</b><code>CompositeView</code>、布局引擎、独立页面</div>
     <div class='card'><b>slot/ Slot 层</b><code>SlotDispatch</code>、<code>SlotScale</code></div>
     <div class='card'><b>components/ 组件层</b>具名组件 + 占位组件<br><span class='p'>功能域：shared / document / data / interaction / creative / learning / controls</span></div>
-    <div class='card'><b>HTML / Dart 产物</b><code>docs/index.html</code>、<code>plugin_guide.html</code>、<code>架构示意图.html</code>、插件 <code>render_log.html</code>、<code>r12_dart_render.png</code></div>
+    <div class='card'><b>HTML / Dart 产物</b><code>docs/index.html</code>、<code>docs/plugin_guide.html</code>、<code>docs/architecture/plugin-architecture.html</code>、插件 <code>render_log.html</code>、<code>r12_dart_render.png</code></div>
   </div>
   <div class='card' style='margin-top:10px'><b>数据回补（热反馈回路）</b><span class='p'>渲染层用户交互 / 插件设计器修改声明 → 触发 <code>reloadModule</code> 或数据源请求 → 后端进程（<code>PORT</code> + <code>/health</code>，HTTP 数据源）→ 组件重新渲染。冷/热插件共用的同一批 manifest 字段在此最终落地为 HTML 页面。</span></div>
 </div>

@@ -1,0 +1,711 @@
+/* ============================================================================
+   evg-style.css — 墨白风风格基座（Evergreen 架构演示图共享样式）
+   ----------------------------------------------------------------------------
+   来源：docs/index.html（白/浅色 token）+ plugin_guide.html（墨/深色 token）
+   配套：evg-common.js（明暗切换 / 滚动入场 / 工具函数）
+   使用：<link rel="stylesheet" href="_shared/evg-style.css" />
+   ----------------------------------------------------------------------------
+   约定：
+   · 组件只消费语义变量（--evg-bg/--evg-fg/--evg-accent ...），勿写死颜色
+   · 明暗切换：系统 prefers-color-scheme 自动；手动 data-theme="light|dark" 覆盖
+   · 动效节奏统一用 --evg-dur-* / --evg-ease-* token
+   · prefers-reduced-motion 下所有动画自动关闭
+   ========================================================================== */
+
+/* ── 1. Reset & 基础 ─────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  font: 14px/1.6 var(--evg-sans, sans-serif);
+  background: var(--evg-bg);
+  color: var(--evg-fg);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+svg { display: block; }
+img { max-width: 100%; }
+a { color: inherit; }
+button { font: inherit; color: inherit; cursor: pointer; }
+
+::selection { background: var(--evg-accent-soft); }
+:focus-visible { outline: 2px solid var(--evg-accent); outline-offset: 2px; }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: var(--evg-border-strong); border-radius: 99px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ── 2. 墨白双主题变量 ──────────────────────────────────────────────────────
+   白（light）= index.html 逐字 hex；墨（dark）= plugin_guide.html 逐字 oklch。
+   语义层（--evg-bg / --evg-fg / --evg-card / --evg-accent ...）是组件唯一入口。
+   ──────────────────────────────────────────────────────────────────────── */
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  /* 墨 / 白 原语 */
+  --evg-ink: #16181d;
+  --evg-ink-2: #3a3f47;
+  --evg-ink-3: #4a5058;
+  --evg-paper: #fafaf7;
+  --evg-paper-2: #f0f0ec;
+
+  /* 语义层 */
+  --evg-bg: #fafaf7;
+  --evg-bg-2: #f0f0ec;
+  --evg-panel: #f4f4f0;
+  --evg-panel-2: #e9e9e4;
+  --evg-card: #ffffff;
+  --evg-card-hover: #ffffff;
+  --evg-border: #dcdcd6;
+  --evg-border-strong: #c6c6be;
+  --evg-fg: #16181d;
+  --evg-fg-2: #3a3f47;
+  --evg-muted: #7a7f88;
+  --evg-muted-2: #9ca3af;
+
+  /* 强调（绿色少量使用） */
+  --evg-accent: #2f8f5b;
+  --evg-accent-strong: #3aa86b;
+  --evg-accent-ink: #1f5c3c;
+  --evg-accent-soft: rgba(47, 143, 91, 0.12);
+  --evg-on-accent: #ffffff;
+
+  /* 语义色 */
+  --evg-success: #1f9d55;  --evg-success-soft: rgba(31, 157, 85, 0.12);
+  --evg-warning: #b06a1f;  --evg-warning-soft: rgba(176, 106, 31, 0.14);
+  --evg-danger: #b03a3a;   --evg-danger-soft: rgba(176, 58, 58, 0.12);
+  --evg-violet: #6b5fc4;   --evg-violet-soft: rgba(107, 95, 196, 0.14);
+
+  /* 阴影 */
+  --evg-shadow-sm: 0 1px 2px rgba(22, 24, 29, 0.04), 0 2px 10px rgba(22, 24, 29, 0.04);
+  --evg-shadow-md: 0 6px 18px rgba(22, 24, 29, 0.08);
+  --evg-shadow-lg: 0 10px 30px rgba(22, 24, 29, 0.10);
+
+  /* 圆角 */
+  --evg-radius: 8px;
+  --evg-radius-lg: 12px;
+  --evg-radius-xl: 14px;
+  --evg-radius-full: 999px;
+
+  /* 字体栈 */
+  --evg-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", Roboto, sans-serif;
+  --evg-heading: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Microsoft YaHei", sans-serif;
+  --evg-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* 动效节奏 */
+  --evg-dur-1: 0.15s;
+  --evg-dur-2: 0.25s;
+  --evg-dur-3: 0.5s;
+  --evg-dur-4: 0.6s;
+  --evg-dur-5: 1.2s;
+  --evg-ease: ease;
+  --evg-ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --evg-reel: 7s;
+  --evg-float: 6s;
+  --evg-pulse: 1.2s;
+}
+
+/* 跟随系统深色 */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --evg-ink: oklch(96% 0.002 20);
+    --evg-ink-2: oklch(81% 0.004 20);
+    --evg-ink-3: oklch(63% 0.005 20);
+    --evg-paper: oklch(15.5% 0.004 20);
+    --evg-paper-2: oklch(18.5% 0.005 20);
+
+    --evg-bg: oklch(15.5% 0.004 20);
+    --evg-bg-2: oklch(18.5% 0.005 20);
+    --evg-panel: oklch(20.5% 0.005 20);
+    --evg-panel-2: oklch(23.5% 0.006 20);
+    --evg-card: oklch(22.5% 0.005 20);
+    --evg-card-hover: oklch(25.5% 0.006 20);
+    --evg-border: oklch(29% 0.007 20);
+    --evg-border-strong: oklch(37% 0.008 20);
+    --evg-fg: oklch(96% 0.002 20);
+    --evg-fg-2: oklch(81% 0.004 20);
+    --evg-muted: oklch(63% 0.005 20);
+    --evg-muted-2: oklch(49% 0.006 20);
+
+    --evg-accent: oklch(68% 0.10 155);
+    --evg-accent-strong: oklch(74% 0.12 155);
+    --evg-accent-ink: oklch(74% 0.12 155);
+    --evg-accent-soft: oklch(68% 0.10 155 / 0.14);
+    --evg-on-accent: oklch(99% 0 0);
+
+    --evg-success: oklch(70% 0.12 150);  --evg-success-soft: oklch(70% 0.12 150 / 0.12);
+    --evg-warning: oklch(78% 0.10 85);   --evg-warning-soft: oklch(78% 0.10 85 / 0.14);
+    --evg-danger: oklch(66% 0.16 25);    --evg-danger-soft: oklch(66% 0.16 25 / 0.14);
+    --evg-violet: oklch(72% 0.12 295);   --evg-violet-soft: oklch(72% 0.12 295 / 0.14);
+
+    --evg-shadow-sm: 0 1px 0 oklch(0% 0 0 / 0.35);
+    --evg-shadow-md: 0 8px 24px -8px oklch(0% 0 0 / 0.5);
+    --evg-shadow-lg: 0 24px 60px -16px oklch(0% 0 0 / 0.65);
+  }
+}
+
+/* 手动强制深色（在媒体查询之后，等特异性时后写者胜） */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --evg-ink: oklch(96% 0.002 20);
+  --evg-ink-2: oklch(81% 0.004 20);
+  --evg-ink-3: oklch(63% 0.005 20);
+  --evg-paper: oklch(15.5% 0.004 20);
+  --evg-paper-2: oklch(18.5% 0.005 20);
+
+  --evg-bg: oklch(15.5% 0.004 20);
+  --evg-bg-2: oklch(18.5% 0.005 20);
+  --evg-panel: oklch(20.5% 0.005 20);
+  --evg-panel-2: oklch(23.5% 0.006 20);
+  --evg-card: oklch(22.5% 0.005 20);
+  --evg-card-hover: oklch(25.5% 0.006 20);
+  --evg-border: oklch(29% 0.007 20);
+  --evg-border-strong: oklch(37% 0.008 20);
+  --evg-fg: oklch(96% 0.002 20);
+  --evg-fg-2: oklch(81% 0.004 20);
+  --evg-muted: oklch(63% 0.005 20);
+  --evg-muted-2: oklch(49% 0.006 20);
+
+  --evg-accent: oklch(68% 0.10 155);
+  --evg-accent-strong: oklch(74% 0.12 155);
+  --evg-accent-ink: oklch(74% 0.12 155);
+  --evg-accent-soft: oklch(68% 0.10 155 / 0.14);
+  --evg-on-accent: oklch(99% 0 0);
+
+  --evg-success: oklch(70% 0.12 150);  --evg-success-soft: oklch(70% 0.12 150 / 0.12);
+  --evg-warning: oklch(78% 0.10 85);   --evg-warning-soft: oklch(78% 0.10 85 / 0.14);
+  --evg-danger: oklch(66% 0.16 25);    --evg-danger-soft: oklch(66% 0.16 25 / 0.14);
+  --evg-violet: oklch(72% 0.12 295);   --evg-violet-soft: oklch(72% 0.12 295 / 0.14);
+
+  --evg-shadow-sm: 0 1px 0 oklch(0% 0 0 / 0.35);
+  --evg-shadow-md: 0 8px 24px -8px oklch(0% 0 0 / 0.5);
+  --evg-shadow-lg: 0 24px 60px -16px oklch(0% 0 0 / 0.65);
+}
+
+/* ── 3. 版式与容器 ──────────────────────────────────────────────────────── */
+.evg-container { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+.evg-container--narrow { max-width: 880px; }
+
+.evg-title {
+  font-family: var(--evg-heading);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+.evg-h1 { font-size: 2rem; }
+.evg-h2 { font-size: 1.4rem; }
+.evg-h3 { font-size: 1.05rem; }
+.evg-sub { color: var(--evg-muted); font-size: 0.95rem; }
+
+.evg-muted { color: var(--evg-muted); }
+.evg-accent-text { color: var(--evg-accent); }
+.evg-mono { font-family: var(--evg-mono); }
+
+.evg-section-head {
+  font-size: 0.92rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.evg-stack { display: flex; flex-direction: column; gap: 14px; }
+.evg-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+/* ── 4. 卡片 ─────────────────────────────────────────────────────────────── */
+.evg-card {
+  background: var(--evg-card);
+  border: 1px solid var(--evg-border);
+  border-radius: var(--evg-radius-lg);
+  padding: 20px 24px;
+  box-shadow: var(--evg-shadow-sm);
+  transition: border-color var(--evg-dur-2) var(--evg-ease),
+    box-shadow var(--evg-dur-2) var(--evg-ease),
+    transform var(--evg-dur-2) var(--evg-ease),
+    background var(--evg-dur-2) var(--evg-ease);
+}
+.evg-card--hover:hover {
+  border-color: var(--evg-fg);
+  box-shadow: var(--evg-shadow-md);
+}
+.evg-card--flat { background: var(--evg-bg-2); }
+.evg-card--inset { background: var(--evg-panel); }
+.evg-card--accent { border-left: 3px solid var(--evg-accent); }
+.evg-card--lift:hover { transform: translateY(-2px); box-shadow: var(--evg-shadow-md); }
+.evg-card__title { font-weight: 700; font-size: 1rem; }
+.evg-card__sub { font-size: 0.78rem; color: var(--evg-muted); font-family: var(--evg-mono); margin-top: 2px; }
+.evg-card__body { margin-top: 10px; color: var(--evg-fg-2); font-size: 0.88rem; }
+
+/* ── 5. 徽章 ─────────────────────────────────────────────────────────────── */
+.evg-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  padding: 2px 10px;
+  border-radius: var(--evg-radius-full);
+  line-height: 1.7;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+/* 三态（继承 index.html） */
+.evg-badge--stable { background: var(--evg-fg); color: var(--evg-bg); }
+.evg-badge--pre { background: var(--evg-muted-2); color: var(--evg-bg); }
+.evg-badge--draft {
+  background: var(--evg-panel-2);
+  color: var(--evg-muted);
+  border: 1px solid var(--evg-border);
+}
+/* 强调 */
+.evg-badge--accent { background: var(--evg-accent); color: var(--evg-on-accent); }
+.evg-badge--soft { background: var(--evg-accent-soft); color: var(--evg-accent); }
+/* 语义色（soft 款） */
+.evg-badge--success { background: var(--evg-success-soft); color: var(--evg-success); }
+.evg-badge--warning { background: var(--evg-warning-soft); color: var(--evg-warning); }
+.evg-badge--danger { background: var(--evg-danger-soft); color: var(--evg-danger); }
+.evg-badge--violet { background: var(--evg-violet-soft); color: var(--evg-violet); }
+/* 带状态点 */
+.evg-badge--dot::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+/* ── 6. 按钮 / pill / kbd / code ────────────────────────────────────────── */
+.evg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: var(--evg-card);
+  border: 1px solid var(--evg-border);
+  color: var(--evg-fg);
+  padding: 10px 14px;
+  border-radius: var(--evg-radius);
+  font-size: 0.88rem;
+  text-decoration: none;
+  transition: all var(--evg-dur-1) var(--evg-ease);
+}
+.evg-btn:hover {
+  background: var(--evg-fg);
+  border-color: var(--evg-fg);
+  color: var(--evg-bg);
+  transform: translateY(-1px);
+}
+.evg-btn--primary {
+  background: var(--evg-accent);
+  border-color: var(--evg-accent);
+  color: var(--evg-on-accent);
+  font-weight: 600;
+  justify-content: center;
+}
+.evg-btn--primary:hover {
+  background: var(--evg-accent-strong);
+  border-color: var(--evg-accent-strong);
+  color: var(--evg-on-accent);
+}
+.evg-btn__tag {
+  font-size: 0.68rem;
+  padding: 1px 8px;
+  border-radius: 6px;
+  font-weight: 600;
+  background: var(--evg-panel-2);
+  color: var(--evg-muted);
+  border: 1px solid var(--evg-border);
+}
+.evg-btn:hover .evg-btn__tag { background: var(--evg-accent-soft); color: inherit; border-color: transparent; }
+
+.evg-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--evg-border);
+  border-radius: var(--evg-radius-full);
+  background: var(--evg-bg-2);
+  color: var(--evg-fg-2);
+  font-size: 12px;
+}
+.evg-pill strong { font-weight: 600; color: var(--evg-fg); }
+
+.evg-kbd {
+  font-family: var(--evg-mono);
+  font-size: 11px;
+  background: var(--evg-panel-2);
+  border: 1px solid var(--evg-border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 1px 7px;
+  color: var(--evg-fg-2);
+}
+
+.evg-code {
+  font-family: var(--evg-mono);
+  font-size: 0.82em;
+  color: var(--evg-accent);
+  background: var(--evg-accent-soft);
+  padding: 0 6px;
+  border-radius: 5px;
+}
+
+/* ── 7. 节点（HTML 与 SVG <g> 通用）─────────────────────────────────────── */
+.evg-node {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 120px;
+  min-height: 54px;
+  padding: 10px 16px;
+  background: var(--evg-card);
+  border: 1px solid var(--evg-border);
+  border-radius: var(--evg-radius-lg);
+  box-shadow: var(--evg-shadow-sm);
+  color: var(--evg-fg);
+  transition: border-color var(--evg-dur-2) var(--evg-ease),
+    box-shadow var(--evg-dur-2) var(--evg-ease),
+    transform var(--evg-dur-2) var(--evg-ease),
+    background var(--evg-dur-2) var(--evg-ease),
+    opacity var(--evg-dur-2) var(--evg-ease);
+}
+.evg-node__title { font-size: 0.95rem; font-weight: 700; line-height: 1.3; text-align: center; }
+.evg-node__sub { font-size: 0.72rem; color: var(--evg-muted); margin-top: 2px; font-family: var(--evg-mono); text-align: center; }
+
+.evg-node--core {
+  background: var(--evg-accent);
+  border-color: var(--evg-accent);
+  color: var(--evg-on-accent);
+}
+.evg-node--core .evg-node__sub { color: var(--evg-on-accent); opacity: 0.85; }
+.evg-node--active { border-color: var(--evg-accent); background: var(--evg-accent-soft); }
+.evg-node--active .evg-node__title { color: var(--evg-accent); }
+.evg-node--accent { border-color: var(--evg-accent); }
+.evg-node--dim { opacity: 0.55; }
+.evg-node--clickable { cursor: pointer; }
+.evg-node--clickable:hover {
+  border-color: var(--evg-accent);
+  transform: translateY(-2px);
+  box-shadow: var(--evg-shadow-md);
+}
+.evg-node--focus { animation: evg-focus-pulse 2s var(--evg-ease-out) infinite; }
+
+/* SVG 节点：类加在 <g> 上，自动为子 rect/text 上色 */
+g.evg-node { display: block; }
+g.evg-node rect { fill: var(--evg-card); stroke: var(--evg-border); stroke-width: 1; rx: 12; }
+g.evg-node--core rect { fill: var(--evg-accent); stroke: var(--evg-accent); }
+g.evg-node--active rect { fill: var(--evg-accent-soft); stroke: var(--evg-accent); }
+g.evg-node--accent rect { stroke: var(--evg-accent); }
+g.evg-node--dim { opacity: 0.55; }
+g.evg-node text {
+  fill: var(--evg-fg);
+  font-family: var(--evg-sans);
+  font-size: 15px;
+  font-weight: 700;
+}
+g.evg-node--core text, g.evg-node--core text.evg-node__sub { fill: var(--evg-on-accent); }
+g.evg-node text.evg-node__sub {
+  fill: var(--evg-muted);
+  font-family: var(--evg-mono);
+  font-size: 11px;
+  font-weight: 500;
+}
+g.evg-node--active text.evg-node__title { fill: var(--evg-accent); }
+g.evg-node--active text.evg-node__sub { fill: var(--evg-muted); }
+g.evg-node--core text.evg-node__sub { fill: var(--evg-on-accent); opacity: 0.85; }
+
+/* ── 8. 箭头 / 连线（HTML 箭头 + SVG edge）──────────────────────────────── */
+.evg-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--evg-muted);
+  transition: color var(--evg-dur-1) var(--evg-ease);
+}
+.evg-arrow--accent { color: var(--evg-accent); }
+.evg-arrow--big { font-size: 1.4em; }
+.evg-arrow--fg { color: var(--evg-fg); }
+.evg-arrow--flow { animation: evg-arrow-flow var(--evg-dur-5) var(--evg-ease) infinite; }
+
+/* SVG 连线 */
+.evg-edge {
+  fill: none;
+  stroke: var(--evg-border-strong);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+.evg-edge--active { stroke: var(--evg-accent); }
+.evg-edge--thick { stroke-width: 2.5; }
+.evg-edge--ghost { stroke: var(--evg-border); stroke-dasharray: 3 6; }
+.evg-edge--flow {
+  stroke: var(--evg-accent);
+  stroke-dasharray: 6 6;
+  animation: evg-dash var(--evg-dur-5) linear infinite;
+}
+.evg-edge--flow-slow { stroke: var(--evg-accent); stroke-dasharray: 4 8; animation: evg-dash 2.4s linear infinite; }
+
+/* 箭头标记（配合隐藏 defs SVG 使用，见 STYLE_GUIDE §5） */
+.evg-arrowhead path { fill: var(--evg-accent); }
+.evg-arrowhead--muted path { fill: var(--evg-muted); }
+.evg-arrowhead--fg path { fill: var(--evg-fg); }
+
+/* ── 9. 泳道 ─────────────────────────────────────────────────────────────── */
+.evg-lanes { display: grid; gap: 14px; }
+.evg-lane {
+  background: var(--evg-bg-2);
+  border: 1px solid var(--evg-border);
+  border-radius: var(--evg-radius-lg);
+  overflow: hidden;
+}
+.evg-lane__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--evg-panel);
+  border-bottom: 1px solid var(--evg-border);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.evg-lane__tag { margin-left: auto; }
+.evg-lane__body {
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.evg-lane--accent { border-color: var(--evg-accent); }
+.evg-lane--accent .evg-lane__head { color: var(--evg-accent); border-bottom-color: var(--evg-accent-soft); }
+
+/* 状态点 */
+.evg-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--evg-muted); flex-shrink: 0; }
+.evg-dot--accent { background: var(--evg-accent); }
+.evg-dot--fg { background: var(--evg-fg); }
+.evg-dot--success { background: var(--evg-success); }
+.evg-dot--warning { background: var(--evg-warning); }
+.evg-dot--danger { background: var(--evg-danger); }
+.evg-dot--violet { background: var(--evg-violet); }
+
+/* ── 10. 思维导图 ────────────────────────────────────────────────────────── */
+.evg-mind {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.evg-mind__center {
+  min-width: 168px;
+  min-height: 72px;
+  font-size: 1.05rem;
+  z-index: 1;
+}
+.evg-mind__center .evg-node__title { font-size: 1.1rem; }
+.evg-mind__branch { display: flex; flex-direction: column; gap: 12px; z-index: 1; }
+.evg-mind__node { min-width: 132px; }
+/* SVG 分支连线（JS 生成，见 evg-common.js EVG.curvePath） */
+.evg-mind__lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.evg-mind__branch-line { fill: none; stroke: var(--evg-border-strong); stroke-width: 1.5; }
+.evg-mind__branch-line--active {
+  stroke: var(--evg-accent);
+  stroke-dasharray: 5 5;
+  animation: evg-dash var(--evg-dur-5) linear infinite;
+}
+
+/* ── 11. 品牌放映 / 宠物（动图演示核心）─────────────────────────────────── */
+/* logo：默认灰度，hover 还原彩色；--auto 周期放映 */
+.evg-reel {
+  filter: grayscale(1) contrast(1.08);
+  transition: filter var(--evg-dur-4) var(--evg-ease);
+}
+.evg-reel:hover { filter: grayscale(0) contrast(1); }
+.evg-reel--auto { animation: evg-reel-ink var(--evg-reel) ease-in-out infinite; }
+.evg-reel--auto:hover { animation-play-state: paused; }
+.evg-reel--on { filter: grayscale(0) contrast(1); }
+
+/* logo 圆盘容器（index.html .stage .brand 同款） */
+.evg-brand-disc {
+  width: 108px;
+  height: 108px;
+  margin: 0 auto;
+  border-radius: 50%;
+  background: var(--evg-card);
+  box-shadow: var(--evg-shadow-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.evg-brand-disc svg, .evg-brand-disc img { width: 84px; height: 84px; }
+
+/* 宠物：灰阶待机，hover 彩色 */
+.evg-pet {
+  width: 34px;
+  height: 34px;
+  opacity: 0.55;
+  filter: grayscale(1);
+  transition: all var(--evg-dur-3) var(--evg-ease);
+}
+.evg-pet:hover { opacity: 1; filter: grayscale(0); }
+.evg-pet--sm { width: 22px; height: 22px; }
+.evg-pet--md { width: 26px; height: 26px; }
+
+/* ── 12. 主题切换按钮 ───────────────────────────────────────────────────── */
+.evg-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--evg-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--evg-muted);
+  background: var(--evg-card);
+  border: 1px solid var(--evg-border);
+  border-radius: var(--evg-radius-full);
+  padding: 4px 12px;
+  line-height: 1.7;
+  transition: all var(--evg-dur-2) var(--evg-ease);
+}
+.evg-toggle:hover { color: var(--evg-fg); border-color: var(--evg-accent); }
+.evg-toggle__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--evg-muted); transition: background var(--evg-dur-2); }
+html[data-theme="dark"] .evg-toggle .evg-toggle__dot { background: var(--evg-accent); }
+html[data-theme="dark"] .evg-toggle { color: var(--evg-fg-2); }
+
+/* ── 13. 提示 / 进度 / 状态 ──────────────────────────────────────────────── */
+.evg-callout {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  border: 1px solid var(--evg-border);
+  border-left: 2px solid var(--evg-accent);
+  border-radius: 0 var(--evg-radius) var(--evg-radius) 0;
+  background: var(--evg-bg-2);
+  padding: 11px 13px;
+  font-size: 13px;
+  color: var(--evg-fg-2);
+  line-height: 1.6;
+}
+.evg-callout b { color: var(--evg-fg); font-weight: 600; }
+.evg-callout--success { border-left-color: var(--evg-success); }
+.evg-callout--warning { border-left-color: var(--evg-warning); }
+.evg-callout--danger { border-left-color: var(--evg-danger); }
+.evg-callout--violet { border-left-color: var(--evg-violet); }
+.evg-callout__ic { flex-shrink: 0; line-height: 1.5; }
+
+.evg-progress {
+  height: 4px;
+  border-radius: var(--evg-radius-full);
+  background: var(--evg-panel-2);
+  overflow: hidden;
+}
+.evg-progress__fill {
+  height: 100%;
+  border-radius: var(--evg-radius-full);
+  background: var(--evg-accent);
+  transition: width var(--evg-dur-3) var(--evg-ease);
+}
+
+.evg-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--evg-mono);
+  font-size: 11px;
+  color: var(--evg-muted);
+}
+.evg-status__dot { width: 5px; height: 5px; border-radius: 50%; background: var(--evg-success); flex-shrink: 0; }
+.evg-status__dot--busy { background: var(--evg-accent); animation: evg-pulse var(--evg-pulse) ease-in-out infinite; }
+
+/* ── 14. 滚动入场 ────────────────────────────────────────────────────────── */
+.evg-reveal {
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity var(--evg-dur-3) var(--evg-ease),
+    transform var(--evg-dur-3) var(--evg-ease);
+  will-change: opacity, transform;
+}
+.evg-reveal--left { transform: translateX(-18px); }
+.evg-reveal--right { transform: translateX(18px); }
+.evg-reveal--scale { transform: scale(0.94); }
+.evg-reveal.is-visible { opacity: 1; transform: none; }
+
+/* ── 15. 关键帧 ──────────────────────────────────────────────────────────── */
+/* logo 黑白→彩色周期放映（plugin_guide reel-ink） */
+@keyframes evg-reel-ink {
+  0%, 82% { filter: grayscale(1) contrast(1.08); }
+  90%, 100% { filter: grayscale(0) saturate(0.85); }
+}
+/* 悬浮呼吸（index.html reelshow） */
+@keyframes evg-float {
+  from { transform: translateY(0) scale(1); }
+  to { transform: translateY(-5px) scale(1.03); }
+}
+.evg-float { animation: evg-float var(--evg-float) ease-in-out infinite alternate; }
+
+/* 入场（plugin_guide msg-in） */
+@keyframes evg-msg-in {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: none; }
+}
+.evg-msg-in { animation: evg-msg-in var(--evg-dur-2) var(--evg-ease); }
+
+/* 虚线流动（连线/数据流） */
+@keyframes evg-dash {
+  to { stroke-dashoffset: -12; }
+}
+@keyframes evg-arrow-flow {
+  0%, 100% { opacity: 0.35; transform: translateX(0); }
+  50% { opacity: 1; transform: translateX(3px); }
+}
+
+/* 呼吸脉冲 */
+@keyframes evg-pulse {
+  50% { opacity: 0.35; }
+}
+.evg-pulse { animation: evg-pulse var(--evg-pulse) ease-in-out infinite; }
+
+/* 节点聚焦光环 */
+@keyframes evg-focus-pulse {
+  0% { box-shadow: 0 0 0 0 var(--evg-accent-soft); }
+  70% { box-shadow: 0 0 0 10px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+/* 缩放呼吸（占位/待机元素） */
+@keyframes evg-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.7; }
+  50% { transform: scale(1.04); opacity: 1; }
+}
+.evg-breathe { animation: evg-breathe 2.4s ease-in-out infinite; }
+
+/* ── 16. 响应式与无障碍 ──────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .evg-container { padding: 0 12px; }
+  .evg-mind { flex-direction: column; }
+  .evg-h1 { font-size: 1.6rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+  .evg-reveal { opacity: 1; transform: none; }
+  .evg-reveal--left, .evg-reveal--right, .evg-reveal--scale { transform: none; }
+}

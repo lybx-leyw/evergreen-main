@@ -109,7 +109,7 @@ dart tool/gen_template_registry.dart --profile release_full
 
 <span style="font-size:13px;font-weight:600;color:#4dc878;">📚 互动开发指南</span>
 
-<span style="color:#99999a;font-size:12.5px;"><br/>[`plugin_guide.html`](plugin_guide.html)<br/>HTML / Dart / 数据源 / 主题四类插件写法</span>
+<span style="color:#99999a;font-size:12.5px;"><br/>[`plugin_guide.html`](docs/plugin_guide.html)<br/>HTML / Dart / 数据源 / 主题四类插件写法</span>
 
 </td>
 <td align="center" style="background-color:#2e2e33;border:1px solid #3f3f45;border-radius:8px;padding:12px 16px;">

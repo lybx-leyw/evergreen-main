@@ -1,228 +1,191 @@
 <!doctype html><html lang="zh-CN"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Evergreen 插件开发指南</title>
-<meta name="description" content="Evergreen 插件开发指南：HTML / Dart / 数据源 / 主题四类插件写法，快速上手 + 树状目录。" />
+<meta name="description" content="Evergreen 插件开发指南：HTML 插件（用户侧主路径）+ theme / module / data-source / agent / skin 五类插件写法，快速上手 + 树状目录。" />
+<!-- 墨白风风格基座（docs/architecture/_shared）：明暗双主题变量 + 组件类 + 动效 -->
+<link rel="stylesheet" href="architecture/_shared/evg-style.css" />
 <style>
+/* ============================================================================
+   页面级样式（基座之上）：两栏布局 / 侧边树 / 面板 / 表格 / 命令块 / 向导 / 底部条
+   颜色一律使用基座 var(--evg-*) 语义变量（明暗自动切换），不定义自有 token。
+   ========================================================================== */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --bg:oklch(15.5% .004 20);--bg-2:oklch(18.5% .005 20);
-  --panel:oklch(20.5% .005 20);--panel-2:oklch(23.5% .006 20);
-  --card:oklch(22.5% .005 20);--card-hover:oklch(25.5% .006 20);
-  --border:oklch(29% .007 20);--border-strong:oklch(37% .008 20);
-  --fg:oklch(96% .002 20);--fg-2:oklch(81% .004 20);
-  --muted:oklch(63% .005 20);--muted-2:oklch(49% .006 20);
-  --accent:oklch(68% .10 155);--accent-soft:oklch(68% .10 155/.14);--accent-strong:oklch(74% .12 155);
-  --success:oklch(70% .12 150);--success-soft:oklch(70% .12 150/.12);
-  --warning:oklch(78% .10 85);--warning-soft:oklch(78% .10 85/.14);
-  --danger:oklch(66% .16 25);--danger-soft:oklch(66% .16 25/.14);
-  --violet:oklch(72% .12 295);--violet-soft:oklch(72% .12 295/.14);
-  --shadow-sm:0 1px 0 oklch(0% 0 0/.35);
-  --shadow-md:0 8px 24px -8px oklch(0% 0 0/.5);
-  --shadow-lg:0 24px 60px -16px oklch(0% 0 0/.65);
-  --radius:8px;--radius-lg:12px;
-  --sans:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Hiragino Sans GB','Microsoft YaHei',Roboto,sans-serif;
-  --heading:-apple-system,BlinkMacSystemFont,'Segoe UI','PingFang SC','Microsoft YaHei',sans-serif;
-  --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-  color-scheme:dark;
-}
 html,body{height:100%;overflow:hidden}
-body{font:14px/1.6 var(--sans);color:var(--fg);background:var(--bg);-webkit-font-smoothing:antialiased}
-::-webkit-scrollbar{width:6px;height:6px}
-::-webkit-scrollbar-thumb{background:var(--border);border-radius:99px}
-::-webkit-scrollbar-track{background:transparent}
-:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+body{font:14px/1.6 var(--evg-sans);color:var(--evg-fg);background:var(--evg-bg);-webkit-font-smoothing:antialiased}
 button{cursor:pointer;font:inherit;border:none;background:none;color:inherit}
 
+/* ── 两栏布局：sidebar + transcript + footer ── */
 .app{display:grid;grid-template-columns:228px 1fr;grid-template-rows:1fr auto;height:100vh}
-.sidebar{grid-row:1/3;background:var(--bg-2);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.sidebar{grid-row:1/3;background:var(--evg-bg-2);border-right:1px solid var(--evg-border);display:flex;flex-direction:column;overflow:hidden}
 .transcript{overflow-y:auto;padding:24px 28px}
-.footer{border-top:1px solid var(--border);background:var(--bg);padding:12px 28px 16px;display:flex;flex-direction:column;gap:8px;position:relative}
-.footer::before{content:'';position:absolute;inset:-20px 0 auto 0;height:20px;background:linear-gradient(to top,var(--bg),transparent);pointer-events:none}
+.footer{border-top:1px solid var(--evg-border);background:var(--evg-bg);padding:12px 28px 16px;display:flex;flex-direction:column;gap:8px;position:relative}
+.footer::before{content:'';position:absolute;inset:-20px 0 auto 0;height:20px;background:linear-gradient(to top,var(--evg-bg),transparent);pointer-events:none}
+.pets-row{display:flex;justify-content:center;gap:12px}
 
-.sidebar__brand{display:flex;align-items:center;gap:9px;padding:16px 14px 12px;border-bottom:1px solid var(--border)}
-.brand-logo{width:26px;height:26px;flex-shrink:0;border-radius:7px;background:var(--panel-2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;color:var(--fg);box-shadow:var(--shadow-sm)}
+/* ── 侧栏品牌 ── */
+.sidebar__brand{display:flex;align-items:center;gap:9px;padding:16px 14px 12px;border-bottom:1px solid var(--evg-border)}
+.brand-logo{width:26px;height:26px;flex-shrink:0;border-radius:7px;background:var(--evg-panel-2);border:1px solid var(--evg-border);display:inline-flex;align-items:center;justify-content:center;color:var(--evg-fg);box-shadow:var(--evg-shadow-sm)}
 .brand-logo svg{width:17px;height:17px}
-/* 黑白放映：logo 默认灰度（墨白），周期性放映为彩色，悬停还原彩色 */
-.brand-logo svg,.doc-hero__logo svg{filter:grayscale(1) contrast(1.08);transition:filter .5s ease}
-.brand-logo:hover svg,.doc-hero__logo:hover svg{filter:grayscale(0) contrast(1)}
-@keyframes reel-ink{0%,82%{filter:grayscale(1) contrast(1.08)}90%,100%{filter:grayscale(0) saturate(.85)}}
-.brand-logo svg{animation:reel-ink 7s ease-in-out infinite}
-.doc-hero__logo svg{animation:reel-ink 9s ease-in-out infinite}
-.brand-logo:hover svg,.doc-hero__logo:hover svg{animation-play-state:paused}
-.brand-wordmark{font-family:var(--heading);font-size:14px;font-weight:700;letter-spacing:-.01em;color:var(--fg);line-height:1.2}
-.brand-wordmark small{display:block;font-size:10px;font-weight:500;color:var(--muted);letter-spacing:.02em}
+.brand-wordmark{font-family:var(--evg-heading);font-size:14px;font-weight:700;letter-spacing:-.01em;color:var(--evg-fg);line-height:1.2}
+.brand-wordmark small{display:block;font-size:10px;font-weight:500;color:var(--evg-muted);letter-spacing:.02em}
 .sidebar__nav{flex:1;padding:8px;display:flex;flex-direction:column;gap:1px;overflow:hidden}
-.sidebar__item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px;color:var(--fg-2);font-size:13px;transition:background .18s ease,color .18s ease;cursor:pointer;text-align:left;width:100%}
-.sidebar__item:hover{background:var(--panel);color:var(--fg)}
-.sidebar__item--active{background:var(--accent-soft);color:var(--accent)}
-.sidebar__item--accent{background:var(--accent);color:oklch(99% 0 0);font-weight:500;box-shadow:var(--shadow-sm)}
-.sidebar__item--accent:hover{background:var(--accent-strong);color:oklch(99% 0 0)}
-.sidebar__item--accent.is-on{box-shadow:var(--shadow-sm),0 0 0 2px var(--accent-soft),inset 0 0 0 1px oklch(99% 0 0/.4)}
+.sidebar__item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px;color:var(--evg-fg-2);font-size:13px;transition:background .18s ease,color .18s ease;cursor:pointer;text-align:left;width:100%}
+.sidebar__item:hover{background:var(--evg-panel);color:var(--evg-fg)}
+.sidebar__item--active{background:var(--evg-accent-soft);color:var(--evg-accent)}
+.sidebar__item--accent{background:var(--evg-accent);color:var(--evg-on-accent);font-weight:500;box-shadow:var(--evg-shadow-sm)}
+.sidebar__item--accent:hover{background:var(--evg-accent-strong);color:var(--evg-on-accent)}
+.sidebar__item--accent.is-on{box-shadow:var(--evg-shadow-sm),0 0 0 2px var(--evg-accent-soft),inset 0 0 0 1px rgba(255,255,255,.4)}
 .sidebar__item svg{width:15px;height:15px;flex-shrink:0;opacity:.7}
 .sidebar__item--active svg,.sidebar__item--accent svg{opacity:1}
-.sidebar__sep{height:1px;background:var(--border);margin:4px 8px}
-.sidebar__section{padding:8px;border-top:1px solid var(--border)}
+.sidebar__sep{height:1px;background:var(--evg-border);margin:4px 8px}
+.sidebar__section{padding:8px;border-top:1px solid var(--evg-border)}
 .sidebar__ctx{padding:6px 10px;display:flex;flex-direction:column;gap:5px}
-.ctx-bar{height:3px;border-radius:99px;background:var(--panel-2);overflow:hidden}
-.ctx-bar__fill{height:100%;border-radius:99px;background:var(--accent);transition:width .3s ease}
-.ctx-label{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--muted-2)}
-.status-metrics{display:flex;gap:0;padding:5px 8px;border-top:1px dashed var(--border);font-family:var(--mono);font-size:10.5px;color:var(--muted-2)}
+.ctx-label{display:flex;justify-content:space-between;font-family:var(--evg-mono);font-size:11px;color:var(--evg-muted-2)}
+.status-metrics{display:flex;gap:0;padding:5px 8px;border-top:1px dashed var(--evg-border);font-family:var(--evg-mono);font-size:10.5px;color:var(--evg-muted-2)}
 .status-metrics .sm-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px}
-.status-metrics .sm-val{color:var(--fg-2);font-weight:500;font-size:11.5px}
-.status-metrics .sm-val.acc{color:var(--accent)}
-.status-metrics .sm-val.ok{color:var(--success)}
+.status-metrics .sm-val{color:var(--evg-fg-2);font-weight:500;font-size:11.5px}
+.status-metrics .sm-val.acc{color:var(--evg-accent)}
+.status-metrics .sm-val.ok{color:var(--evg-success)}
 
-@keyframes msg-in{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
-
-/* ── 文档树 ── */
+/* ── 文档树（侧边树导航，结构保留）── */
 .tree{flex:1;padding:8px;display:flex;flex-direction:column;gap:1px;overflow-y:auto}
-.tree-group-label{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600;padding:10px 10px 5px;margin-top:6px}
+.tree-group-label{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--evg-muted);font-weight:600;padding:10px 10px 5px;margin-top:6px}
 .tree-group-label:first-child{margin-top:0;padding-top:4px}
 .tree-group{display:flex;flex-direction:column;gap:1px}
-.tree-node{display:flex;align-items:center;gap:8px;width:100%;padding:7px 10px;border-radius:6px;color:var(--fg-2);font-size:13px;text-align:left;transition:background .18s ease,color .18s ease}
-.tree-node:hover{background:var(--panel);color:var(--fg)}
+.tree-node{display:flex;align-items:center;gap:8px;width:100%;padding:7px 10px;border-radius:6px;color:var(--evg-fg-2);font-size:13px;text-align:left;transition:background .18s ease,color .18s ease}
+.tree-node:hover{background:var(--evg-panel);color:var(--evg-fg)}
 .tree-node--leaf{padding-left:14px}
-.tree-node--leaf::before{content:'';flex:none;width:4px;height:4px;border-radius:50%;background:var(--border-strong);transition:background .18s ease}
-.tree-node--leaf:hover::before{background:var(--muted)}
-.tree-node--active{background:var(--accent-soft);color:var(--accent);font-weight:500}
-.tree-node--active::before{background:var(--accent)}
-.tree-node--active:hover{color:var(--accent)}
-.tree-chevron{width:12px;height:12px;flex-shrink:0;color:var(--muted);transition:transform .2s ease}
+.tree-node--leaf::before{content:'';flex:none;width:4px;height:4px;border-radius:50%;background:var(--evg-border-strong);transition:background .18s ease}
+.tree-node--leaf:hover::before{background:var(--evg-muted)}
+.tree-node--active{background:var(--evg-accent-soft);color:var(--evg-accent);font-weight:500}
+.tree-node--active::before{background:var(--evg-accent)}
+.tree-node--active:hover{color:var(--evg-accent)}
+.tree-chevron{width:12px;height:12px;flex-shrink:0;color:var(--evg-muted);transition:transform .2s ease}
 .tree-group.open .tree-chevron{transform:rotate(90deg)}
-.tree-children{display:none;flex-direction:column;gap:1px;margin-left:8px;padding-left:6px;border-left:1px solid var(--border)}
-.tree-group.open .tree-children{display:flex;animation:msg-in .18s ease}
-.tree-count{margin-left:auto;flex-shrink:0;font-family:var(--mono);font-size:10px;color:var(--muted-2);background:var(--panel-2);border:1px solid var(--border);border-radius:99px;padding:0 7px;line-height:16px}
+.tree-children{display:none;flex-direction:column;gap:1px;margin-left:8px;padding-left:6px;border-left:1px solid var(--evg-border)}
+.tree-group.open .tree-children{display:flex;animation:evg-msg-in .18s ease}
+.tree-count{margin-left:auto;flex-shrink:0;font-family:var(--evg-mono);font-size:10px;color:var(--evg-muted-2);background:var(--evg-panel-2);border:1px solid var(--evg-border);border-radius:99px;padding:0 7px;line-height:16px}
 
 /* ── 通用面板 ── */
-.panel{display:none;max-width:760px;margin:8px auto;background:var(--card);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-sm)}
-.panel.active{display:block;animation:msg-in .25s ease}
-.panel-head{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--card)}
-.panel-ico{width:22px;height:22px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;background:var(--accent-soft);color:var(--accent);font-family:var(--mono);font-size:11px;font-weight:600;flex-shrink:0}
-.panel-title{font-family:var(--heading);font-size:15px;font-weight:600;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.panel-badge{font-family:var(--mono);font-size:10.5px;color:var(--muted-2);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
-.panel-body{padding:18px 20px;background:var(--bg)}
-.panel-body h1{font-family:var(--heading);font-size:20px;font-weight:700;letter-spacing:-.02em;margin:0 0 12px}
-.panel-body h2{font-family:var(--heading);font-size:15px;font-weight:600;margin:20px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--border)}
-.panel-body h3{font-size:13.5px;font-weight:600;color:var(--accent);margin:16px 0 6px}
-.panel-body p{color:var(--fg-2);font-size:13.5px;margin:0 0 12px;line-height:1.65}
-.panel-body p b,.panel-body li b{color:var(--fg);font-weight:600}
-.panel-body ul,.panel-body ol{margin:0 0 14px 20px;color:var(--fg-2);font-size:13.5px;line-height:1.7}
+.panel{display:none;max-width:760px;margin:8px auto;background:var(--evg-card);border-radius:var(--evg-radius-lg);overflow:hidden;box-shadow:var(--evg-shadow-sm)}
+.panel.active{display:block;animation:evg-msg-in .25s ease}
+.panel-head{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--evg-border);background:var(--evg-card)}
+.panel-ico{width:22px;height:22px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;background:var(--evg-accent-soft);color:var(--evg-accent);font-family:var(--evg-mono);font-size:11px;font-weight:600;flex-shrink:0}
+.panel-title{font-family:var(--evg-heading);font-size:15px;font-weight:600;letter-spacing:-.01em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.panel-badge{font-family:var(--evg-mono);font-size:10.5px;color:var(--evg-muted-2);letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
+.panel-body{padding:18px 20px;background:var(--evg-bg)}
+.panel-body h1{font-family:var(--evg-heading);font-size:20px;font-weight:700;letter-spacing:-.02em;margin:0 0 12px}
+.panel-body h2{font-family:var(--evg-heading);font-size:15px;font-weight:600;margin:20px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--evg-border)}
+.panel-body h3{font-size:13.5px;font-weight:600;color:var(--evg-accent);margin:16px 0 6px}
+.panel-body p{color:var(--evg-fg-2);font-size:13.5px;margin:0 0 12px;line-height:1.65}
+.panel-body p b,.panel-body li b{color:var(--evg-fg);font-weight:600}
+.panel-body ul,.panel-body ol{margin:0 0 14px 20px;color:var(--evg-fg-2);font-size:13.5px;line-height:1.7}
 .panel-body li{margin-bottom:5px}
-.panel-body pre{background:var(--bg-2);border:1px solid var(--border);border-radius:8px;padding:13px 16px;overflow-x:auto;font-family:var(--mono);font-size:12.5px;line-height:1.55;color:var(--fg-2);margin:0 0 14px}
-.panel-body code{font-family:var(--mono);font-size:12.5px;color:var(--accent);background:var(--accent-soft);padding:0 6px;border-radius:5px}
-.panel-body pre code{background:transparent;padding:0;color:var(--fg-2)}
-.dp-crumb{font-family:var(--mono);font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted-2);margin-bottom:14px;display:flex;align-items:center;gap:6px}
-.dp-crumb b{color:var(--accent);font-weight:600}
-.sp-desc{font-size:13px;color:var(--muted);margin:0 0 14px}
-.sp-desc b{color:var(--fg);font-weight:600}
+.panel-body pre{background:var(--evg-bg-2);border:1px solid var(--evg-border);border-radius:8px;padding:13px 16px;overflow-x:auto;font-family:var(--evg-mono);font-size:12.5px;line-height:1.55;color:var(--evg-fg-2);margin:0 0 14px}
+.panel-body code{font-family:var(--evg-mono);font-size:12.5px;color:var(--evg-accent);background:var(--evg-accent-soft);padding:0 6px;border-radius:5px}
+.panel-body pre code{background:transparent;padding:0;color:var(--evg-fg-2)}
+.dp-crumb{font-family:var(--evg-mono);font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--evg-muted-2);margin-bottom:14px;display:flex;align-items:center;gap:6px}
+.dp-crumb b{color:var(--evg-accent);font-weight:600}
+.sp-desc{font-size:13px;color:var(--evg-muted);margin:0 0 14px}
+.sp-desc b{color:var(--evg-fg);font-weight:600}
 
 /* 向导 */
-.wiz-exit{flex-shrink:0;width:26px;height:26px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;transition:all .15s ease}
-.wiz-exit:hover{background:var(--danger-soft);color:var(--danger)}
-.wiz-prog{height:4px;border-radius:99px;background:var(--panel-2);overflow:hidden;margin:0 20px 16px}
-.wiz-prog__fill{height:100%;border-radius:99px;background:var(--accent);transition:width .3s ease}
+.wiz-exit{flex-shrink:0;width:26px;height:26px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;color:var(--evg-muted);font-size:13px;transition:all .15s ease}
+.wiz-exit:hover{background:var(--evg-danger-soft);color:var(--evg-danger)}
 
 /* ── 概览 hero ── */
 .doc-hero{max-width:760px;margin:0 auto;padding:40px 28px 28px;text-align:center;position:relative;display:none}
-.doc-hero.active{display:block;animation:msg-in .25s ease}
-.doc-hero::before{content:'';position:absolute;top:38%;left:50%;transform:translate(-50%,-50%);width:420px;height:420px;background:radial-gradient(circle,oklch(66% .14 155/.08) 0%,transparent 70%);pointer-events:none}
+.doc-hero.active{display:block;animation:evg-msg-in .25s ease}
+.doc-hero::before{content:'';position:absolute;top:38%;left:50%;transform:translate(-50%,-50%);width:420px;height:420px;background:radial-gradient(circle,var(--evg-accent-soft) 0%,transparent 70%);pointer-events:none}
 .doc-hero__brand{display:inline-flex;align-items:center;justify-content:center;margin-bottom:14px;position:relative}
-.doc-hero__logo{width:48px;height:48px;border-radius:13px;background:var(--panel-2);border:1px solid var(--border-strong);display:inline-flex;align-items:center;justify-content:center;color:var(--fg);box-shadow:var(--shadow-md)}
-.doc-hero__logo svg{width:28px;height:28px}
-.doc-hero__title{font-family:var(--heading);font-size:23px;font-weight:700;letter-spacing:-.03em;position:relative}
-.doc-hero__tag{margin-top:6px;font-size:13.5px;color:var(--fg-2);position:relative}
+.doc-hero__logo{width:48px;height:48px;border-radius:13px;background:var(--evg-panel-2);border:1px solid var(--evg-border-strong);display:inline-flex;align-items:center;justify-content:center;color:var(--evg-fg);box-shadow:var(--evg-shadow-md)}
+.doc-hero__logo img{width:28px;height:28px}
+.doc-hero__title{font-family:var(--evg-heading);font-size:23px;font-weight:700;letter-spacing:-.03em;position:relative}
+.doc-hero__tag{margin-top:6px;font-size:13.5px;color:var(--evg-fg-2);position:relative}
 .doc-hero__meta{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:14px;max-width:680px;position:relative}
-.doc-hero__hints{display:flex;gap:18px;margin-top:20px;font-size:12px;color:var(--muted);position:relative;justify-content:center;flex-wrap:wrap}
+.doc-hero__hints{display:flex;gap:18px;margin-top:20px;font-size:12px;color:var(--evg-muted);position:relative;justify-content:center;flex-wrap:wrap}
 .doc-hero__hints span{display:inline-flex;align-items:center;gap:5px}
-.doc-hero__hints kbd{font-family:var(--mono);font-size:10px;background:var(--panel-2);border:1px solid var(--border);border-radius:4px;padding:1px 6px;color:var(--fg-2)}
-.hero-pet svg{width:26px;height:26px;color:var(--fg-2);opacity:.85;filter:grayscale(1);transition:filter .5s ease,transform .3s ease}
-.hero-pet:hover svg{filter:grayscale(0);transform:translateY(-2px)}
+kbd{font-family:var(--evg-mono);font-size:11px;background:var(--evg-panel-2);border:1px solid var(--evg-border);border-bottom-width:2px;border-radius:4px;padding:1px 7px;color:var(--evg-fg-2)}
+.hero-pet{display:inline-flex;align-items:center}
+.hero-pet img{transition:filter .5s ease,transform .3s ease}
+.hero-pet:hover img{transform:translateY(-2px)}
 .doc-hero__cta{display:flex;flex-direction:column;gap:7px;margin-top:24px;width:100%;max-width:400px;margin-left:auto;margin-right:auto;position:relative}
-.welcome__pill{display:inline-flex;align-items:center;gap:6px;max-width:320px;height:28px;padding:0 10px;border:1px solid var(--border);border-radius:999px;background:var(--bg-2);color:var(--fg-2);font-size:12px}
-.welcome__pill strong{font-weight:600;color:var(--fg)}
-.welcome__ex{text-align:left;background:var(--bg-2);border:1px solid var(--border);border-left:3px solid var(--accent);padding:10px 13px;border-radius:6px;color:var(--fg-2);font-size:13px;cursor:pointer;transition:all .18s ease;display:flex;align-items:center;gap:8px}
-.welcome__ex:hover{color:var(--fg);border-color:var(--accent);background:var(--panel);transform:translateY(-1px)}
-.welcome__ex .w-arrow{margin-left:auto;color:var(--accent);font-size:15px}
-.welcome__ex--primary{justify-content:center;border-left:none;background:var(--accent);color:oklch(99% 0 0);font-weight:600;box-shadow:var(--shadow-sm)}
-.welcome__ex--primary:hover{background:var(--accent-strong);color:oklch(99% 0 0)}
-.welcome__ex--primary .w-arrow{color:inherit}
-.welcome__finish-ic{width:64px;height:64px;border-radius:16px;background:var(--success-soft);border:1px solid transparent;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;position:relative;color:var(--success)}
-.welcome__finish-ic svg{width:28px;height:28px}
+
+/* CTA 按钮：基座 evg-btn 的全宽变体 */
+.cta-btn{width:100%;justify-content:space-between;font-weight:600}
+.cta-btn.evg-btn--primary{justify-content:space-between}
+.cta-btn:hover .evg-arrow{color:inherit}
 
 /* ordered list */
 .ol{list-style:none;counter-reset:ol;display:grid;gap:8px}
-.ol li{counter-increment:ol;display:flex;gap:10px;align-items:flex-start;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:11px 13px;color:var(--fg-2);font-size:13.5px;line-height:1.6}
-.ol li::before{content:counter(ol);flex:none;width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:11px;font-weight:600;color:var(--accent);background:var(--accent-soft);margin-top:1px}
-.ol b,.tip b,.callout b{color:var(--fg);font-weight:600}
-.ol code,.tip code,.callout code{font-family:var(--mono);font-size:12.5px;color:var(--accent);background:var(--accent-soft);border:1px solid transparent;padding:0 6px;border-radius:5px;white-space:nowrap}
+.ol li{counter-increment:ol;display:flex;gap:10px;align-items:flex-start;background:var(--evg-panel);border:1px solid var(--evg-border);border-radius:var(--evg-radius);padding:11px 13px;color:var(--evg-fg-2);font-size:13.5px;line-height:1.6}
+.ol li::before{content:counter(ol);flex:none;width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:var(--evg-mono);font-size:11px;font-weight:600;color:var(--evg-accent);background:var(--evg-accent-soft);margin-top:1px}
+.ol b,.tip b{color:var(--evg-fg);font-weight:600}
+.ol code,.tip code,.evg-callout code{font-family:var(--evg-mono);font-size:12.5px;color:var(--evg-accent);background:var(--evg-accent-soft);border:1px solid transparent;padding:0 6px;border-radius:5px;white-space:nowrap}
 
 /* command block */
-.cmd{display:flex;align-items:center;gap:10px;background:var(--bg-2);border:1px solid var(--border-strong);border-radius:var(--radius);padding:11px 13px;margin:12px 0;font-family:var(--mono);font-size:13.5px;cursor:pointer;transition:border-color .18s ease,box-shadow .18s ease}
-.cmd:hover{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
-.cmd .pr{color:var(--accent);font-weight:600;flex-shrink:0}
-.cmd code{color:var(--fg);word-break:break-all}
-.cmd .copy{margin-left:auto;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;height:26px;padding:0 9px;border:1px solid var(--border);border-radius:6px;background:var(--panel);color:var(--muted);transition:background .15s ease,color .15s ease,border-color .15s ease;font-family:var(--mono);font-size:11px}
-.cmd .copy:hover{background:var(--panel-2);color:var(--fg);border-color:var(--border-strong)}
-.cmd .copy.copied{background:var(--success-soft);border-color:transparent;color:var(--success)}
-
-/* callout */
-.callout{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--border);border-left:2px solid var(--accent);border-radius:0 var(--radius) var(--radius) 0;background:var(--bg-2);padding:11px 13px;margin-top:14px;font-size:13px;color:var(--fg-2);line-height:1.6}
-.callout .ic{flex-shrink:0;line-height:1.5}
+.cmd{display:flex;align-items:center;gap:10px;background:var(--evg-bg-2);border:1px solid var(--evg-border-strong);border-radius:var(--evg-radius);padding:11px 13px;margin:12px 0;font-family:var(--evg-mono);font-size:13.5px;cursor:pointer;transition:border-color .18s ease,box-shadow .18s ease}
+.cmd:hover{border-color:var(--evg-accent);box-shadow:0 0 0 2px var(--evg-accent-soft)}
+.cmd .pr{color:var(--evg-accent);font-weight:600;flex-shrink:0}
+.cmd code{color:var(--evg-fg);word-break:break-all}
+.cmd .copy{margin-left:auto;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;height:26px;padding:0 9px;border:1px solid var(--evg-border);border-radius:6px;background:var(--evg-panel);color:var(--evg-muted);transition:background .15s ease,color .15s ease,border-color .15s ease;font-family:var(--evg-mono);font-size:11px}
+.cmd .copy:hover{background:var(--evg-panel-2);color:var(--evg-fg);border-color:var(--evg-border-strong)}
+.cmd .copy.copied{background:var(--evg-success-soft);border-color:transparent;color:var(--evg-success)}
 
 /* table */
-.tbl-wrap{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--bg-2);margin:14px 0}
+.tbl-wrap{border:1px solid var(--evg-border);border-radius:var(--evg-radius);overflow:hidden;background:var(--evg-bg-2);margin:14px 0}
 .tbl{width:100%;border-collapse:collapse;font-size:13px}
-.tbl th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;padding:9px 14px;border-bottom:1px solid var(--border);font-family:var(--mono);background:var(--panel)}
-.tbl td{padding:9px 14px;border-bottom:1px solid var(--border);color:var(--fg-2);vertical-align:top;line-height:1.55}
+.tbl th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--evg-muted);font-weight:600;padding:9px 14px;border-bottom:1px solid var(--evg-border);font-family:var(--evg-mono);background:var(--evg-panel)}
+.tbl td{padding:9px 14px;border-bottom:1px solid var(--evg-border);color:var(--evg-fg-2);vertical-align:top;line-height:1.55}
 .tbl tr:last-child td{border-bottom:none}
-.tbl tr:hover td{background:var(--panel)}
-.tbl td b{color:var(--fg);font-weight:600}
-.tbl td code{font-family:var(--mono);font-size:12px;color:var(--accent);background:var(--accent-soft);padding:0 6px;border-radius:5px;white-space:nowrap;cursor:pointer;transition:opacity .15s}
+.tbl tr:hover td{background:var(--evg-panel)}
+.tbl td b{color:var(--evg-fg);font-weight:600}
+.tbl td code{font-family:var(--evg-mono);font-size:12px;color:var(--evg-accent);background:var(--evg-accent-soft);padding:0 6px;border-radius:5px;white-space:nowrap;cursor:pointer;transition:opacity .15s}
 .tbl td code:hover{opacity:.85}
-kbd{font-family:var(--mono);font-size:11px;background:var(--panel-2);border:1px solid var(--border);border-bottom-width:2px;border-radius:4px;padding:1px 7px;color:var(--fg-2)}
 
 /* tips */
 .tips{display:grid;gap:8px}
-.tip{display:flex;gap:12px;align-items:flex-start;background:var(--panel);border:1px solid var(--border);border-left-width:3px;border-radius:var(--radius);padding:11px 13px}
-.tip.green{border-left-color:var(--success)}
-.tip.amber{border-left-color:var(--warning)}
-.tip.rose{border-left-color:var(--danger)}
-.tip.cyan{border-left-color:var(--violet)}
+.tip{display:flex;gap:12px;align-items:flex-start;background:var(--evg-panel);border:1px solid var(--evg-border);border-left-width:3px;border-radius:var(--evg-radius);padding:11px 13px}
+.tip.green{border-left-color:var(--evg-success)}
+.tip.amber{border-left-color:var(--evg-warning)}
+.tip.rose{border-left-color:var(--evg-danger)}
+.tip.cyan{border-left-color:var(--evg-violet)}
 .tip .t-ic{flex-shrink:0;font-size:15px;line-height:1.6}
-.tip h3{font-size:13.5px;font-weight:600;color:var(--fg);margin-bottom:1px}
-.tip p{font-size:12.5px;color:var(--muted);line-height:1.6}
-.tip p b{color:var(--fg-2)}
+.tip h3{font-size:13.5px;font-weight:600;color:var(--evg-fg);margin-bottom:1px}
+.tip p{font-size:12.5px;color:var(--evg-muted);line-height:1.6}
+.tip p b{color:var(--evg-fg-2)}
 .tip p code{white-space:normal;word-break:break-all}
 
 /* footer bar */
-.toolbar{display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .toolbar__spacer{flex:1}
-.status{font-family:var(--mono);font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px}
-.status__dot{width:5px;height:5px;border-radius:50%;background:var(--success);flex-shrink:0}
-.status__dot--busy{background:var(--accent);animation:pulse 1.2s ease-in-out infinite}
-@keyframes pulse{50%{opacity:.35}}
-.mode-chip{font-family:var(--mono);font-size:10px;letter-spacing:.05em;color:var(--muted);border:1px solid var(--border);border-radius:99px;padding:1px 8px;line-height:16px;transition:all .2s ease}
-.mode-chip--wizard{color:var(--accent);border-color:var(--accent-soft);background:var(--accent-soft)}
-.composer{display:flex;gap:7px;align-items:center;background:var(--card);border:1px solid var(--border-strong);border-radius:14px;padding:4px 4px 4px 12px;box-shadow:var(--shadow-md);transition:border-color .18s ease,box-shadow .18s ease}
-.composer:focus-within{border-color:var(--accent);box-shadow:var(--shadow-md),0 0 0 3px var(--accent-soft)}
-.composer__caret{color:var(--accent);font-family:var(--mono);font-weight:600;font-size:16px;flex-shrink:0}
-.composer__hint{flex:1;font-size:13px;color:var(--muted);padding:8px 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mode-chip{font-family:var(--evg-mono);font-size:10px;letter-spacing:.05em;color:var(--evg-muted);border:1px solid var(--evg-border);border-radius:99px;padding:1px 8px;line-height:16px;transition:all .2s ease}
+.mode-chip--wizard{color:var(--evg-accent);border-color:var(--evg-accent-soft);background:var(--evg-accent-soft)}
+.composer{display:flex;gap:7px;align-items:center;background:var(--evg-card);border:1px solid var(--evg-border-strong);border-radius:14px;padding:4px 4px 4px 12px;box-shadow:var(--evg-shadow-md);transition:border-color .18s ease,box-shadow .18s ease}
+.composer:focus-within{border-color:var(--evg-accent);box-shadow:var(--evg-shadow-md),0 0 0 3px var(--evg-accent-soft)}
+.composer__caret{color:var(--evg-accent);font-family:var(--evg-mono);font-weight:600;font-size:16px;flex-shrink:0}
+.composer__hint{flex:1;font-size:13px;color:var(--evg-muted);padding:8px 6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .composer__btn{display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:9px;flex-shrink:0;transition:background .18s ease,transform .15s ease,opacity .18s}
 .composer__btn svg{width:16px;height:16px}
-.composer__btn--send{background:var(--accent);color:oklch(99% 0 0)}
+.composer__btn--send{background:var(--evg-accent);color:var(--evg-on-accent)}
 .composer__btn--send:hover{transform:scale(1.05)}
-.composer__btn--send:disabled{background:var(--panel-2);color:var(--muted);cursor:default;transform:none}
-.composer__btn--back{background:var(--panel-2);color:var(--fg-2)}
-.composer__btn--back:hover{background:var(--card-hover);color:var(--fg)}
+.composer__btn--send:disabled{background:var(--evg-panel-2);color:var(--evg-muted);cursor:default;transform:none}
+.composer__btn--back{background:var(--evg-panel-2);color:var(--evg-fg-2)}
+.composer__btn--back:hover{background:var(--evg-card-hover);color:var(--evg-fg)}
 .composer__btn--back:disabled{opacity:.4;cursor:default;transform:none}
 
+/* 完成图标 */
+.welcome__finish-ic{width:64px;height:64px;border-radius:16px;background:var(--evg-success-soft);border:1px solid transparent;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;position:relative;color:var(--evg-success)}
+.welcome__finish-ic svg{width:28px;height:28px}
+
+/* 响应式：窄屏侧栏抽屉 */
 @media (max-width:768px){
   .app{grid-template-columns:1fr}
-  .sidebar{position:fixed;inset:0 auto 0 0;width:248px;z-index:100;transform:translateX(-100%);transition:transform .25s ease;box-shadow:var(--shadow-lg)}
+  .sidebar{position:fixed;inset:0 auto 0 0;width:248px;z-index:100;transform:translateX(-100%);transition:transform .25s ease;box-shadow:var(--evg-shadow-lg)}
   .sidebar--open{transform:translateX(0)}
-  .sidebar-overlay{position:fixed;inset:0;background:oklch(0% 0 0/.45);z-index:99;opacity:0;pointer-events:none;transition:opacity .25s ease}
+  .sidebar-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:99;opacity:0;pointer-events:none;transition:opacity .25s ease}
   .sidebar-overlay--visible{opacity:1;pointer-events:auto}
-  .menu-btn{display:flex;align-items:center;justify-content:center;position:fixed;top:10px;left:10px;z-index:98;width:34px;height:34px;border-radius:var(--radius);background:var(--panel);border:1px solid var(--border);color:var(--fg-2);transition:background .15s}
-  .menu-btn:hover{background:var(--card-hover);color:var(--fg)}
+  .menu-btn{display:flex;align-items:center;justify-content:center;position:fixed;top:10px;left:10px;z-index:98;width:34px;height:34px;border-radius:var(--evg-radius);background:var(--evg-panel);border:1px solid var(--evg-border);color:var(--evg-fg-2);transition:background .15s}
+  .menu-btn:hover{background:var(--evg-card-hover);color:var(--evg-fg)}
   .menu-btn svg{width:16px;height:16px}
   .transcript{padding:16px}
   .footer{padding:10px 16px 12px}
@@ -231,15 +194,12 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--panel-2);border:1px 
 @media (min-width:769px){
   .menu-btn,.sidebar-overlay{display:none}
 }
-@media (prefers-reduced-motion:reduce){
-  *,*::before,*::after{animation:none!important;transition:none!important}
-}
 </style>
 </head>
 <body>
 
 <button class="menu-btn" id="menu-btn" aria-label="打开侧边栏">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
 </button>
 <div class="sidebar-overlay" id="sidebar-overlay"></div>
 
@@ -276,7 +236,7 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--panel-2);border:1px 
         <button class="tree-node tree-node--leaf" data-page="data-backend" type="button">数据源后端</button>
         <div class="tree-group-label">路径二 · Dart 插件</div>
         <button class="tree-node tree-node--leaf" data-page="dart-template" type="button">模板与 v4</button>
-        <button class="tree-node tree-node--leaf" data-page="dart-process" type="button">.exe 进程</button>
+        <button class="tree-node tree-node--leaf" data-page="dart-process" type="button">进程（.py/.exe）</button>
         <button class="tree-node tree-node--leaf" data-page="dart-port" type="button">端口发现</button>
         <div class="tree-group-label">参考</div>
         <button class="tree-node tree-node--leaf" data-page="faq" type="button">常见问题</button>
@@ -285,7 +245,7 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--panel-2);border:1px 
     </nav>
     <div class="sidebar__section">
       <div class="sidebar__ctx">
-        <div class="ctx-bar"><div class="ctx-bar__fill" id="ctx-fill" style="width:0%"></div></div>
+        <div class="evg-progress"><div class="evg-progress__fill" id="ctx-fill" style="width:0%"></div></div>
         <div class="ctx-label"><span id="ctx-used">未开始</span><span id="ctx-window">0 已读</span></div>
       </div>
       <div class="status-metrics">
@@ -294,7 +254,7 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--panel-2);border:1px 
         <div class="sm-item"><span class="sm-val acc" id="sm-cur">—</span><span>当前</span></div>
       </div>
       <div style="padding:4px 10px">
-        <div class="status"><span class="status__dot" id="status-dot"></span><span id="status-model">Evergreen 插件指南</span></div>
+        <span class="evg-status"><span class="evg-status__dot" id="status-dot"></span><span id="status-model">Evergreen 插件指南</span></span>
       </div>
     </div>
   </aside>
@@ -304,29 +264,26 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--panel-2);border:1px 
     <!-- ═══ 概览 hero ═══ -->
     <div class="doc-hero" id="overview-hero" data-page="overview">
       <div class="doc-hero__brand">
-        <span class="doc-hero__logo"><svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Evergreen"><path d="M120 40 a80 80 0 1 1 -56.6 23.4" fill="none" stroke="currentColor" stroke-width="14" stroke-linecap="round"/><path d="M120 40 l-14 -2 l5 14 z" fill="currentColor"/><g transform="translate(120 138)"><path d="M0 -62 C 40 -44, 52 4, 8 52 C -4 60, -4 60, -8 52 C -48 4, -36 -40, 0 -62 Z" fill="currentColor"/></g></svg></span>
+        <span class="doc-hero__logo"><img class="evg-reel evg-reel--auto" src="architecture/_shared/branding/logo.svg" alt="Evergreen" width="28" height="28" /></span>
       </div>
       <div class="doc-hero__title">Evergreen 插件开发指南</div>
-      <div class="doc-hero__tag">一个文件夹 + 一个 manifest.json，就能给平台加一个插件 —— 左侧目录浏览全部，或从快速开始起步。</div>
-      <div class="doc-hero__meta">
-        <div class="welcome__pill"><strong>文档</strong><span>14 个页面 · 4 大模块</span></div>
-        <div class="welcome__pill"><strong>上手</strong><span>快速开始 3 步</span></div>
-        <div class="welcome__pill"><strong>门槛</strong><span>无需改框架源码</span></div>
+      <div class="doc-hero__tag evg-reveal" data-delay="40">一个文件夹 + 一个 manifest.json，就能给平台加一个插件 —— 左侧目录浏览全部，或从快速开始起步。</div>
+      <div class="doc-hero__meta evg-reveal" data-delay="100">
+        <div class="evg-pill"><strong>文档</strong><span>14 个页面 · 4 大模块</span></div>
+        <div class="evg-pill"><strong>上手</strong><span>快速开始 3 步</span></div>
+        <div class="evg-pill"><strong>门槛</strong><span>无需改框架源码</span></div>
       </div>
-      <div class="doc-hero__hints">
+      <div class="doc-hero__hints evg-reveal" data-delay="160">
         <span><kbd>←</kbd><kbd>→</kbd> 方向键翻页</span>
         <span><kbd>左侧目录树</kbd> 任意跳转</span>
         <span class="hero-pet" title="绿意不息 · 叶灵猫">
-          <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="叶灵猫">
-            <g fill="currentColor"><ellipse cx="100" cy="118" rx="52" ry="46"/><path d="M62 88l-24-30 8-2 20 22z"/><path d="M138 88l24-30-8-2-20 22z"/></g>
-            <ellipse cx="100" cy="126" rx="16" ry="10" fill="var(--bg)"/><circle cx="92" cy="112" r="4" fill="var(--bg)"/><circle cx="108" cy="112" r="4" fill="var(--bg)"/>
-          </svg>
+          <img class="evg-pet evg-pet--md" src="architecture/_shared/branding/pet_leafcat.svg" alt="绿意不息 · 叶灵猫" />
         </span>
       </div>
-      <div class="doc-hero__cta">
-        <button class="welcome__ex welcome__ex--primary" id="btn-quickstart-2" type="button">⚡ 快速开始<span class="w-arrow">→</span></button>
-        <button class="welcome__ex" data-go="html-basic" type="button">直接看「HTML 插件」教程<span class="w-arrow">→</span></button>
-        <button class="welcome__ex" data-go="examples" type="button">查看示例与规范<span class="w-arrow">→</span></button>
+      <div class="doc-hero__cta evg-reveal" data-delay="220">
+        <button class="evg-btn evg-btn--primary cta-btn" id="btn-quickstart-2" type="button">⚡ 快速开始<span class="evg-arrow">→</span></button>
+        <button class="evg-btn cta-btn" data-go="html-basic" type="button">直接看「HTML 插件」教程<span class="evg-arrow evg-arrow--accent">→</span></button>
+        <button class="evg-btn cta-btn" data-go="examples" type="button">查看示例与规范<span class="evg-arrow evg-arrow--accent">→</span></button>
       </div>
     </div>
 
@@ -341,14 +298,14 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--panel-2);border:1px 
     └── module/
         └── manifest.json     ← 插件的「身份证」</pre>
         <p>平台扫到 <code>module/manifest.json</code>，就知道「有这个插件、它叫什么、长什么样、点开去哪里」。</p>
-        <div class="callout"><span class="ic">💡</span><span><b>当前最重要的事实：</b> 用户侧插件创作已切换为 <strong>HTML 为主</strong>。你写 HTML / CSS / JS，平台内置的「HTML 插件创作中心」（html-creator）帮你实时预览、AI 辅助生成、一键导出。</span></div>
+        <div class="evg-callout"><span class="evg-callout__ic">💡</span><span><b>当前最重要的事实：</b> 用户侧插件创作已切换为 <strong>HTML 为主</strong>。你写 HTML / CSS / JS，平台内置的「HTML 插件创作中心」（html-creator）帮你实时预览、AI 辅助生成、一键导出。</span></div>
         <h2>两条创作路径</h2>
         <div class="tbl-wrap">
           <table class="tbl">
             <thead><tr><th>路径</th><th>你写什么</th><th>定位</th></tr></thead>
             <tbody>
               <tr><td><b>路径一：HTML 插件</b></td><td>网页（.html/.css/.js）+ manifest</td><td><b>用户侧主路径</b>，普通用户入口</td></tr>
-              <tr><td><b>路径二：Dart 插件</b></td><td>Dart/JSON 声明（+ 可选 .exe）</td><td><b>开发者模式 / 高级能力</b></td></tr>
+              <tr><td><b>路径二：Dart 插件</b></td><td>Dart/JSON 声明（+ 可选 .py / .exe 进程）</td><td><b>开发者模式 / 高级能力</b></td></tr>
             </tbody>
           </table>
         </div>
@@ -358,24 +315,25 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--panel-2);border:1px 
 
     <!-- ═══ 文档页 2：目录结构 ═══ -->
     <section class="panel doc-page" data-page="structure">
-      <div class="panel-head"><span class="panel-ico">2</span><span class="panel-title">目录结构 · 六维模型</span><span class="panel-badge">3 / 14</span></div>
+      <div class="panel-head"><span class="panel-ico">2</span><span class="panel-title">目录结构 · 插件子目录</span><span class="panel-badge">3 / 14</span></div>
       <div class="panel-body">
         <div class="dp-crumb"><b>入门</b> · 目录结构</div>
-        <p class="sp-desc">无论哪条路径，你的插件都是一个文件夹。Evergreen 采用「<strong>六维插件模型</strong>」——一个插件目录可同时装 6 种子目录，互不冲突，平台按子目录自动发现：</p>
+        <p class="sp-desc">无论哪条路径，你的插件都是一个文件夹。Evergreen 采用「<strong>插件子目录模型</strong>」——一个插件目录可同时装多个子目录，互不冲突，平台按子目录自动发现。<code>theme/</code>、<code>module/</code>、<code>data/</code>、<code>agent/</code>、<code>skin/</code> 对应<strong>五类插件形态</strong>（theme / module / data-source / agent / skin），<code>config/</code> 与 <code>skill/</code> 为辅助目录：</p>
         <div class="tbl-wrap">
           <table class="tbl">
             <thead><tr><th>子目录</th><th>里面放</th><th>被谁加载</th><th>作用</th></tr></thead>
             <tbody>
               <tr><td><code>module/</code></td><td><code>manifest.json</code>（HTML 插件还要 <code>index.html</code>）</td><td>ModuleLoader → ModuleRegistry</td><td>一个「页面/模块」，最重要</td></tr>
-              <tr><td><code>agent/</code></td><td><code>manifest.json</code> + <code>.exe</code></td><td>PluginBridge → toolRegistry</td><td>给 AI 加一个可调用的工具</td></tr>
-              <tr><td><code>data/</code></td><td><code>manifest.json</code> + <code>.exe</code></td><td>DataSourceLoader → DataOrchestrator</td><td>自带一个数据源</td></tr>
+              <tr><td><code>agent/</code></td><td><code>manifest.json</code> + <code>.py</code>（<code>tool.py</code>；<code>.exe</code> 仅存量 legacy）</td><td>PluginBridge → toolRegistry</td><td>给 AI 加一个可调用的工具</td></tr>
+              <tr><td><code>data/</code></td><td><code>manifest.json</code> + 适配壳（<code>fetch.py</code> / <code>scraper.py</code>）</td><td>DataSourceLoader → DataOrchestrator</td><td>自带一个数据源</td></tr>
               <tr><td><code>config/</code></td><td><code>config.json</code></td><td>SettingsLoader → SharedPreferences</td><td>声明设置项</td></tr>
               <tr><td><code>theme/</code></td><td><code>theme.json</code></td><td>ThemeLoader → ThemeStore</td><td>一套主题配色</td></tr>
               <tr><td><code>skill/</code></td><td><code>*.md</code></td><td>SkillLoader → SkillIndex</td><td>给 AI 的技能包</td></tr>
+              <tr><td><code>skin/</code></td><td><code>manifest.json</code>（<code>type:"skin"</code>）+ 资源</td><td>SkinLoader</td><td>AI 视图皮肤包（DIY 外观）</td></tr>
             </tbody>
           </table>
         </div>
-        <div class="callout"><span class="ic">⚠️</span><span><b>身份证规则：</b> 正式 id 是 manifest 里的 <code>"id"</code> 字段。强烈建议让<strong>文件夹名与 id 一致</strong>（文件夹 <code>my-tool</code>，id 也用 <code>"my-tool"</code>）。id 一旦定下别乱改，改了等于换新插件。</span></div>
+        <div class="evg-callout"><span class="evg-callout__ic">⚠️</span><span><b>身份证规则：</b> 正式 id 是 manifest 里的 <code>"id"</code> 字段。强烈建议让<strong>文件夹名与 id 一致</strong>（文件夹 <code>my-tool</code>，id 也用 <code>"my-tool"</code>）。id 一旦定下别乱改，改了等于换新插件。</span></div>
         <h2>平台怎么发现你的插件</h2>
         <p>扫描规则来自 <code>evg-base/lib/core/module/module_loader.dart</code>：</p>
         <ul>
@@ -404,7 +362,7 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--panel-2);border:1px 
             </tbody>
           </table>
         </div>
-        <div class="callout"><span class="ic">🔧</span><span><b>开发者模式（/dev-hub）里有 5 个创作中心：</b>主题创作（theme-creator）· <b>插件制作（html-creator）</b> · 数据爬取（scraper）· DSH · Skill 创作（skill-creator）。深链可直接进入 <code>/dev-hub?plugin=html-creator</code>。</span></div>
+        <div class="evg-callout"><span class="evg-callout__ic">🔧</span><span><b>开发者模式（/dev-hub）里有 5 个创作中心：</b>主题创作（theme-creator）· <b>插件制作（html-creator）</b> · 数据爬取（scraper）· DSH · Skill 创作（skill-creator）。深链可直接进入 <code>/dev-hub?plugin=html-creator</code>。</span></div>
         <h2>AI 插件创作中心 = html-creator</h2>
         <p><code>html-creator</code> 本身也是一个插件（<code>template:"html"</code>，路由 <code>/html-creator</code>），它是<strong>三栏 IDE</strong>：</p>
         <ul>
@@ -414,7 +372,7 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--panel-2);border:1px 
           <li><strong>AI 面板</strong>：用自然语言让 AI 生成 / 改稿整个插件。</li>
           <li><strong>一键导出</strong>：把工程写到 <code>plugins/&lt;id&gt;/module/</code>，同时同步到内置资产目录 <code>assets/plugins_bundle/</code>。</li>
         </ul>
-        <div class="callout"><span class="ic">✅</span><span><b>对新手最重要的结论：</b> 想加插件 → 切到 <strong>开发者模式 → 插件制作（html-creator）</strong> → 写网页或让 AI 生成 → 导出，完事。根本不需要懂 Dart。</span></div>
+        <div class="evg-callout"><span class="evg-callout__ic">✅</span><span><b>对新手最重要的结论：</b> 想加插件 → 切到 <strong>开发者模式 → 插件制作（html-creator）</strong> → 写网页或让 AI 生成 → 导出，完事。根本不需要懂 Dart。</span></div>
       </div>
     </section>
 
@@ -453,7 +411,7 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--panel-2);border:1px 
   &lt;/script&gt;
 &lt;/body&gt;
 &lt;/html&gt;</pre>
-        <div class="callout"><span class="ic">💡</span><span>主题色会自动注入为 CSS 变量 <code>--evg-*</code>（<code>--evg-background</code>、<code>--evg-text</code>、<code>--evg-accent</code> 等），CSS 里直接用，主题切换时实时更新。</span></div>
+        <div class="evg-callout"><span class="evg-callout__ic">💡</span><span>主题色会自动注入为 CSS 变量 <code>--evg-*</code>（<code>--evg-background</code>、<code>--evg-text</code>、<code>--evg-accent</code> 等），CSS 里直接用，主题切换时实时更新。</span></div>
       </div>
     </section>
 
@@ -476,7 +434,7 @@ kbd{font-family:var(--mono);font-size:11px;background:var(--panel-2);border:1px 
             </tbody>
           </table>
         </div>
-        <h2>调 AI · 调接口 · 读写设置 · 主题 · 事件</h2>
+        <h2>调 AI · 调接口 · 设置 · 存储 · 主题 · 事件</h2>
         <pre>const reply = await platform.ai.chat('帮我总结这段数据');
 // 可选风格：explanatory / learning / concise / socratic
 
@@ -491,9 +449,14 @@ const colors = await platform.theme.getColors();
 platform.emit('my-event', { value: 1 });
 platform.on('my-event', (payload) =&gt; console.log(payload));
 
-// 运行本插件 manifest `process` 里声明的 exe（白名单内才允许）
-const res = await platform.process.run('my-tool', { args: ['-u', 'alice'] });</pre>
-        <div class="callout"><span class="ic">🔑</span><span><b>最关键的一行：</b> <code>const data = await platform.data.get('数据源名字');</code> —— 这就是插件「有数据」的起点。</span></div>
+// 模块私有键值存储（storage.json），同时注册为数据源 &lt;id&gt;_storage
+await platform.storage.set('pref', 'warm');
+const pv = await platform.storage.get('pref');
+
+// 运行本插件 manifest `process` 里声明的进程（.py / .exe，白名单 fail-closed）
+const res = await platform.process.run('my-tool', { args: ['-u', 'alice'] });
+// 常驻进程（scope:"long"）另有 start / write / stop / read / onOutput / onExit</pre>
+        <div class="evg-callout"><span class="evg-callout__ic">🔑</span><span><b>最关键的一行：</b> <code>const data = await platform.data.get('数据源名字');</code> —— 这就是插件「有数据」的起点。</span></div>
       </div>
     </section>
 
@@ -512,21 +475,21 @@ const res = await platform.process.run('my-tool', { args: ['-u', 'alice'] });</p
   "type": "data-source",
   "id": "my-first-tool",
   "name": "我的数据源",
-  "process": "fetcher.py",
-  "preferredPort": 0,
+  "script": "fetch.py",          ← 适配壳（模型 A：CLI 一次性脚本，推荐）
+  "runtime": "python",
   "dataTypes": [
     {
       "name": "my_source",        ← 全局唯一，platform.data.get('my_source') 用它
+      "typeArg": "my_source",     ← 传给适配壳的 --type 值
       "category": "自定义",
       "displayName": "我的数据",
       "ttl": "5m",
-      "persistentKey": "my_source_cache",
-      "endpoint": "/api/data"
+      "persistentKey": "my_source_cache"
     }
   ]
 }</pre>
-        <p>放在 <code>plugins/my-first-tool/data/manifest.json</code>，后端程序（<code>fetcher.py</code> 或 <code>fetcher.exe</code>）放同目录。</p>
-        <div class="callout"><span class="ic">📌</span><span>数据源生命周期：平台启动程序 → 读 <code>PORT:</code> → 探活 <code>/health</code> → 注册到数据中枢 → 之后 <code>get</code> 就走 HTTP。平台 10 秒没探测到端口就终止进程。</span></div>
+        <p>放在 <code>plugins/my-first-tool/data/manifest.json</code>，适配壳（<code>fetch.py</code> / <code>scraper.py</code>，纯标准库优先）放同目录。</p>
+        <div class="evg-callout"><span class="evg-callout__ic">📌</span><span>数据源两种模型：<b>模型 A（推荐）</b>每次拉取执行一次适配壳，stdout 输出顶层 JSON → 注册进数据中枢缓存，<code>get</code> 读缓存 / 过期重拉；<b>模型 B（legacy）</b>为 HTTP 常驻进程（<code>PORT:</code> 发现 + <code>/health</code> 探活 + <code>endpoint</code>）。</span></div>
       </div>
     </section>
 
@@ -535,7 +498,7 @@ const res = await platform.process.run('my-tool', { args: ['-u', 'alice'] });</p
       <div class="panel-head"><span class="panel-ico">7</span><span class="panel-title">数据源后端契约</span><span class="panel-badge">8 / 14</span></div>
       <div class="panel-body">
         <div class="dp-crumb"><b>路径一</b> · 数据源后端</div>
-        <p class="sp-desc">后端程序要满足的契约（开发者模式能力）：</p>
+        <p class="sp-desc">数据源的 <strong>HTTP 常驻后端（模型 B · legacy）</strong>要满足的契约（模块 <code>process</code> 常驻进程同样适用）；数据源推荐主路径是上页的模型 A 适配壳（fetch.py / scraper.py），无需常驻服务：</p>
         <ol class="ol">
           <li>监听 <code>127.0.0.1</code> 上的某个端口。</li>
           <li>启动后往<strong>标准输出</strong>打印一行 <code>PORT:12345</code>（必须 flush）。</li>
@@ -565,7 +528,7 @@ srv = HTTPServer(("127.0.0.1", 0), H)
 port = srv.server_address[1]
 print(f"PORT:{port}", flush=True)   ← 端口上报，平台靠它发现你
 srv.serve_forever()</pre>
-        <div class="callout"><span class="ic">🌐</span><span>任何能起 HTTP Server + 打印端口号的语言都能写插件：Python stdlib 零依赖，Go <code>net/http</code>、Node.js <code>http</code> 同样可以。</span></div>
+        <div class="evg-callout"><span class="evg-callout__ic">🌐</span><span>任何能起 HTTP Server + 打印端口号的语言都能写插件：Python stdlib 零依赖，Go <code>net/http</code>、Node.js <code>http</code> 同样可以。<b>模型 A 适配壳更简单</b>：<code>--type &lt;typeArg&gt;</code> 拉取一次 → stdout 纯 JSON + exit 0，参考 <code>docs/plugin-registry/examples/example-data-zju_grades/</code>。</span></div>
       </div>
     </section>
 
@@ -575,7 +538,7 @@ srv.serve_forever()</pre>
       <div class="panel-body">
         <div class="dp-crumb"><b>路径二</b> · 模板与 v4</div>
         <p class="sp-desc">这条路径用 Dart/JSON「声明」界面。核心认知：</p>
-        <div class="callout"><span class="ic">🧭</span><span>平台靠 manifest 里的 <strong><code>template</code> 字段</strong>决定用哪个渲染器（默认 <code>'v4'</code>），<strong>不是</strong>靠 <code>renderMode</code> 字段。</span></div>
+        <div class="evg-callout"><span class="evg-callout__ic">🧭</span><span>平台靠 manifest 里的 <strong><code>template</code> 字段</strong>决定用哪个渲染器（默认 <code>'v4'</code>），<strong>不是</strong>靠 <code>renderMode</code> 字段。</span></div>
         <h2>平台内置的模板渲染器</h2>
         <p>清单见 <code>evg-base/lib/renderer/templates/templates_index.json</code>：</p>
         <div class="tbl-wrap">
@@ -587,7 +550,6 @@ srv.serve_forever()</pre>
               <tr><td><code>scraper</code></td><td>ScraperTemplate</td><td>所见即所得爬虫</td></tr>
               <tr><td><code>theme-creator</code> / <code>skill-creator</code></td><td>对应创作中心模板</td><td>主题 / Skill 创作</td></tr>
               <tr><td><code>dsh</code></td><td>DshModleTemplate</td><td>DeepSeek Harness</td></tr>
-              <tr><td><code>paper_reading</code></td><td>PaperReadingModleTemplate</td><td>论文阅读</td></tr>
               <tr><td><code>zju</code> / <code>classroom</code> / <code>zdbk</code></td><td>ZjuModleTemplate</td><td>浙大校园场景</td></tr>
             </tbody>
           </table>
@@ -616,12 +578,12 @@ srv.serve_forever()</pre>
       </div>
     </section>
 
-    <!-- ═══ 文档页 9：.exe 进程 ═══ -->
+    <!-- ═══ 文档页 9：进程（.py/.exe） ═══ -->
     <section class="panel doc-page" data-page="dart-process">
-      <div class="panel-head"><span class="panel-ico">9</span><span class="panel-title">Dart 插件 · .exe 进程</span><span class="panel-badge">10 / 14</span></div>
+      <div class="panel-head"><span class="panel-ico">9</span><span class="panel-title">Dart 插件 · 进程（.py / .exe）</span><span class="panel-badge">10 / 14</span></div>
       <div class="panel-body">
-        <div class="dp-crumb"><b>路径二</b> · .exe 进程</div>
-        <p class="sp-desc">除了 <code>pages</code> 纯声明，Dart 插件还能给<strong>不同层级</strong>挂独立的 .exe 进程跑业务逻辑：</p>
+        <div class="dp-crumb"><b>路径二</b> · 进程（.py/.exe）</div>
+        <p class="sp-desc">除了 <code>pages</code> 纯声明，Dart 插件还能给<strong>不同层级</strong>挂独立的进程（<code>.py</code> 推荐 / <code>.exe</code> legacy）跑业务逻辑：</p>
         <div class="tbl-wrap">
           <table class="tbl">
             <thead><tr><th>层级</th><th>manifest 路径</th><th>生命周期</th></tr></thead>
@@ -633,15 +595,15 @@ srv.serve_forever()</pre>
             </tbody>
           </table>
         </div>
-        <p>每个进程声明 <code>exe</code>（可执行文件路径）和 <code>protocol</code>（目前统一 <code>"http"</code>）。</p>
-        <h2>标准 .exe 契约（不限于 Python）</h2>
+        <p>每个进程声明入口（<code>.py</code> + <code>runtime:"python"</code>，或 <code>.exe</code> + <code>runtime:"native"</code>）和 <code>protocol</code>（<code>"http"</code>：首行 <code>PORT:</code> + <code>/health</code>；<code>"stdio"</code>：标准流通信）。</p>
+        <h2>常驻进程契约（http 协议 · PORT 发现）</h2>
         <ol class="ol">
           <li>启动 HTTP 服务，监听 <code>127.0.0.1</code> 随机端口。</li>
           <li>stdout 首行打印 <code>PORT:&lt;端口&gt;</code>（<code>flush=True</code>），平台捕获后知道端口。</li>
           <li>之后全部 HTTP + JSON 通信，支持 GET/POST。</li>
           <li>组件可见时启动、隐藏时终止，平台统一管理生命周期。</li>
         </ol>
-        <div class="callout"><span class="ic">🔌</span><span>任何能起 HTTP Server + 打印端口号的语言都能写插件：Python stdlib 零依赖，Go <code>net/http</code>、Node.js <code>http</code> 同样可以。</span></div>
+        <div class="evg-callout"><span class="evg-callout__ic">🔌</span><span>任何能起 HTTP Server + 打印端口号的语言都能写插件：Python stdlib 零依赖，Go <code>net/http</code>、Node.js <code>http</code> 同样可以。</span></div>
       </div>
     </section>
 
@@ -650,7 +612,7 @@ srv.serve_forever()</pre>
       <div class="panel-head"><span class="panel-ico">10</span><span class="panel-title">端口发现 · 文件系统即注册中心</span><span class="panel-badge">11 / 14</span></div>
       <div class="panel-body">
         <div class="dp-crumb"><b>路径二</b> · 端口发现</div>
-        <p class="sp-desc">平台启动 6 个微服务，每个绑定 <code>127.0.0.1</code> 随机端口，并把端口写进文件。你的 .exe 读这些文件就能发现所有上游服务——不需要 consul / etcd / 环境变量：</p>
+        <p class="sp-desc">平台启动 6 个微服务，每个绑定 <code>127.0.0.1</code> 随机端口，并把端口写进文件。你的进程（.py / .exe）读这些文件就能发现所有上游服务——不需要 consul / etcd / 环境变量：</p>
         <div class="tbl-wrap">
           <table class="tbl">
             <thead><tr><th>端口文件</th><th>服务</th><th>职责</th></tr></thead>
@@ -664,10 +626,10 @@ srv.serve_forever()</pre>
             </tbody>
           </table>
         </div>
-        <p>模块级 .exe 常充当<strong>聚合代理</strong>：读这些端口文件发现上游服务，转发/聚合数据请求，成为整个模块的 API 中枢。</p>
+        <p>模块级进程（.py / .exe）常充当<strong>聚合代理</strong>：读这些端口文件发现上游服务，转发/聚合数据请求，成为整个模块的 API 中枢。</p>
         <h2>模块生命周期：register → seal</h2>
         <pre>manifest.json → ModuleDescriptor.fromJson() → registry.register()
-→ scanAndLoadModules() 启动所有 .exe 进程
+→ scanAndLoadModules() 启动所有声明的 .py / .exe 进程
 → discoverCapabilities() → registry.setCapabilities()
 → registry.seal()          ← 锁定后只读，写入抛 StateError
 → ModuleHttpServer 启动（仅在 seal 后）</pre>
@@ -680,7 +642,7 @@ srv.serve_forever()</pre>
       <div class="panel-head"><span class="panel-ico">F</span><span class="panel-title">常见问题</span><span class="panel-badge">12 / 14</span></div>
       <div class="panel-body">
         <div class="dp-crumb"><b>参考</b> · 常见问题</div>
-        <div class="tips">
+        <div class="tips evg-reveal">
           <div class="tip amber"><span class="t-ic">🔄</span><div><h3>改了 manifest，界面没变？</h3><p>平台是「扫描式」加载，一般重启应用生效。<code>template:"html"</code> 的插件改 <code>index.html</code> 通常热刷新可见；Dart 声明改动多数也要重启/重载。</p></div></div>
           <div class="tip amber"><span class="t-ic">🧭</span><div><h3>route 填什么？</h3><p>以 <code>/</code> 开头、全局唯一，如 <code>/my-first-tool</code>。别和已占用路由撞（<code>/ai-assistant</code>、<code>/data-dashboard</code>、<code>/html-creator</code>、<code>/dev-hub</code> 等）。</p></div></div>
           <div class="tip cyan"><span class="t-ic">🗂️</span><div><h3>左侧栏分组怎么选？</h3><p><code>nav.sidebar.section</code> 填 <code>"base主功能"</code>、<code>"base系统"</code> 或 <code>"自定义"</code>。新插件建议先用 <code>"自定义"</code>。</p></div></div>
@@ -697,44 +659,47 @@ srv.serve_forever()</pre>
       <div class="panel-head"><span class="panel-ico">12</span><span class="panel-title">示例与规范</span><span class="panel-badge">13 / 14</span></div>
       <div class="panel-body">
         <div class="dp-crumb"><b>参考</b> · 示例与规范</div>
-        <p class="sp-desc">平台内置了<strong>上架协议规范</strong>和<strong>三类示例插件</strong>，可作为起手模板：</p>
-        <div class="tips">
+        <p class="sp-desc">平台内置了<strong>上架协议规范</strong>和<strong>五类示例插件</strong>（theme / module / data-source / agent / skin），可作为起手模板：</p>
+        <div class="tips evg-reveal">
           <div class="tip green"><span class="t-ic">📜</span><div><h3>上架协议规范</h3><p><code>evg-base/docs/plugin-registry/plugin-registry-spec-v1.md</code> —— 定义外部插件如何被市场发现、下载、加载。</p></div></div>
           <div class="tip cyan"><span class="t-ic">🎨</span><div><h3>主题示例</h3><p><code>examples/example-theme-warm_study/</code> —— <code>theme/theme.json</code> 声明一套配色。</p></div></div>
           <div class="tip cyan"><span class="t-ic">📄</span><div><h3>HTML 模块示例</h3><p><code>examples/example-html-view/</code> —— <code>module/index.html</code> + <code>manifest.json</code>。</p></div></div>
           <div class="tip cyan"><span class="t-ic">🗃️</span><div><h3>数据源示例</h3><p><code>examples/example-data-zju_grades/</code> —— <code>data/manifest.json</code> + <code>scraper.py</code> + <code>config/config.json</code>。</p></div></div>
+          <div class="tip cyan"><span class="t-ic">🤖</span><div><h3>Agent 工具示例</h3><p><code>examples/example-agent-current_time/</code> —— <code>agent/manifest.json</code> + <code>tool.py</code>（.py 统一主路径）。</p></div></div>
+          <div class="tip cyan"><span class="t-ic">🎭</span><div><h3>皮肤示例</h3><p><code>examples/example-skin-evergreen-logo/</code> —— <code>skin/manifest.json</code>（<code>type:"skin"</code>）+ SVG 资源。</p></div></div>
         </div>
         <h2>分层红线（复述项目约定）</h2>
-        <div class="callout"><span class="ic">⚠️</span><span><code>core/</code> 不引用 Flutter Widget；<code>renderer/</code> 只消费 core 的 barrel 公共 API、不写业务逻辑；插件不能反向依赖 renderer 内部实现。</span></div>
+        <div class="evg-callout"><span class="evg-callout__ic">⚠️</span><span><code>core/</code> 不引用 Flutter Widget；<code>renderer/</code> 只消费 core 的 barrel 公共 API、不写业务逻辑；插件不能反向依赖 renderer 内部实现。</span></div>
       </div>
     </section>
 
     <!-- ═══ 快速开始 · 欢迎 ═══ -->
     <div class="doc-hero wizard-step" data-state="-1">
-      <div class="doc-hero__brand"><span class="doc-hero__logo"><svg viewBox="0 0 240 240" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Evergreen"><path d="M120 40 a80 80 0 1 1 -56.6 23.4" fill="none" stroke="currentColor" stroke-width="14" stroke-linecap="round"/><path d="M120 40 l-14 -2 l5 14 z" fill="currentColor"/><g transform="translate(120 138)"><path d="M0 -62 C 40 -44, 52 4, 8 52 C -4 60, -4 60, -8 52 C -48 4, -36 -40, 0 -62 Z" fill="currentColor"/></g></svg></span></div>
+      <div class="doc-hero__brand"><span class="doc-hero__logo"><img class="evg-reel evg-reel--auto" src="architecture/_shared/branding/logo.svg" alt="Evergreen" width="28" height="28" /></span></div>
       <div class="doc-hero__title">快速开始</div>
       <div class="doc-hero__tag">3 步做出你的第一个 HTML 插件，几分钟内跑起来。</div>
       <div class="doc-hero__meta">
-        <div class="welcome__pill"><strong>步骤</strong><span>共 3 步</span></div>
-        <div class="welcome__pill"><strong>耗时</strong><span>约 5 分钟</span></div>
-        <div class="welcome__pill"><strong>门槛</strong><span>无需懂 Dart</span></div>
+        <div class="evg-pill"><strong>步骤</strong><span>共 3 步</span></div>
+        <div class="evg-pill"><strong>耗时</strong><span>约 5 分钟</span></div>
+        <div class="evg-pill"><strong>门槛</strong><span>无需懂 Dart</span></div>
       </div>
       <div class="doc-hero__cta">
-        <button class="welcome__ex welcome__ex--primary" id="wiz-begin" type="button">开始快速上手<span class="w-arrow">→</span></button>
-        <button class="welcome__ex" id="wiz-exit-0" type="button">浏览完整文档<span class="w-arrow">→</span></button>
+        <button class="evg-btn evg-btn--primary cta-btn" id="wiz-begin" type="button">开始快速上手<span class="evg-arrow">→</span></button>
+        <button class="evg-btn cta-btn" id="wiz-exit-0" type="button">浏览完整文档<span class="evg-arrow evg-arrow--accent">→</span></button>
       </div>
     </div>
 
     <!-- ═══ 快速开始 · 步骤 1 ═══ -->
     <section class="panel wizard-step" data-state="0">
       <div class="panel-head"><span class="panel-ico">⚡</span><span class="panel-title">建文件夹 + manifest</span><span class="panel-badge">Step 01 / 03</span><button class="wiz-exit" type="button" title="退出快速开始">✕</button></div>
-      <div class="wiz-prog"><div class="wiz-prog__fill" style="width:33.3%"></div></div>
+      <div class="evg-progress" style="margin:0 20px 16px"><div class="evg-progress__fill" style="width:33.3%"></div></div>
       <div class="panel-body">
         <p class="sp-desc">在 <code>evg-base/plugins/</code> 下建一个文件夹，写一个 manifest：</p>
         <pre>evg-base/plugins/my-first-tool/
     └── module/
         └── manifest.json</pre>
         <pre>{
+  "schemaVersion": "2.0",    ← HTML 模块必需（缺失则不渲染）
   "type": "module",
   "id": "my-first-tool",
   "name": "我的第一个插件",
@@ -742,33 +707,33 @@ srv.serve_forever()</pre>
   "route": "/my-first-tool",
   "nav": { "sidebar": { "section": "自定义" } }
 }</pre>
-        <div class="callout"><span class="ic">💡</span><span>文件夹名 <code>my-first-tool</code> 和 <code>id</code> 保持一致，别乱改 id。</span></div>
+        <div class="evg-callout"><span class="evg-callout__ic">💡</span><span>文件夹名 <code>my-first-tool</code> 和 <code>id</code> 保持一致，别乱改 id。</span></div>
       </div>
     </section>
 
     <!-- ═══ 快速开始 · 步骤 2 ═══ -->
     <section class="panel wizard-step" data-state="1">
       <div class="panel-head"><span class="panel-ico">⚡</span><span class="panel-title">写 index.html</span><span class="panel-badge">Step 02 / 03</span><button class="wiz-exit" type="button" title="退出快速开始">✕</button></div>
-      <div class="wiz-prog"><div class="wiz-prog__fill" style="width:66.6%"></div></div>
+      <div class="evg-progress" style="margin:0 20px 16px"><div class="evg-progress__fill" style="width:66.6%"></div></div>
       <div class="panel-body">
         <p class="sp-desc">在 <code>module/</code> 里放一个网页，用 <code>platform.data.get()</code> 读数据：</p>
         <pre>&lt;h1&gt;你好，Evergreen&lt;/h1&gt;
-&lt;button onclick="load()"&gt;加载数据&lt;/button&gt;
+&lt;button onclick="loadData()"&gt;加载数据&lt;/button&gt;
 &lt;pre id="out"&gt;&lt;/pre&gt;
 &lt;script&gt;
-  async function load() {
+  async function loadData() {
     const d = await platform.data.get('my_source');
     document.getElementById('out').textContent = JSON.stringify(d);
   }
 &lt;/script&gt;</pre>
-        <div class="callout"><span class="ic">💡</span><span>主题色自动注入为 <code>--evg-*</code> CSS 变量，CSS 里直接用。</span></div>
+        <div class="evg-callout"><span class="evg-callout__ic">💡</span><span>主题色自动注入为 <code>--evg-*</code> CSS 变量，CSS 里直接用。</span></div>
       </div>
     </section>
 
     <!-- ═══ 快速开始 · 步骤 3 ═══ -->
     <section class="panel wizard-step" data-state="2">
       <div class="panel-head"><span class="panel-ico">⚡</span><span class="panel-title">重启 · 用起来</span><span class="panel-badge">Step 03 / 03</span><button class="wiz-exit" type="button" title="退出快速开始">✕</button></div>
-      <div class="wiz-prog"><div class="wiz-prog__fill" style="width:100%"></div></div>
+      <div class="evg-progress" style="margin:0 20px 16px"><div class="evg-progress__fill" style="width:100%"></div></div>
       <div class="panel-body">
         <p class="sp-desc">重启应用，左侧栏「自定义」分组里就能看到你的插件，点开即是你的网页。</p>
         <div class="tips">
@@ -784,24 +749,30 @@ srv.serve_forever()</pre>
       <div class="doc-hero__title">全部完成！</div>
       <div class="doc-hero__tag">你已经掌握了「文件夹 + manifest + index.html」的完整闭环。</div>
       <div class="doc-hero__meta" style="margin-top:18px">
-        <div class="welcome__pill">✓ 建文件夹</div>
-        <div class="welcome__pill">✓ 写 index.html</div>
-        <div class="welcome__pill">✓ 重启使用</div>
+        <div class="evg-pill">✓ 建文件夹</div>
+        <div class="evg-pill">✓ 写 index.html</div>
+        <div class="evg-pill">✓ 重启使用</div>
       </div>
       <div class="doc-hero__cta" style="margin-top:22px">
-        <button class="welcome__ex welcome__ex--primary" id="wiz-restart" type="button">↺ 重新来一遍<span class="w-arrow">→</span></button>
-        <button class="welcome__ex" id="wiz-exit-finish" type="button">进入完整文档<span class="w-arrow">→</span></button>
+        <button class="evg-btn evg-btn--primary cta-btn" id="wiz-restart" type="button">↺ 重新来一遍<span class="evg-arrow">→</span></button>
+        <button class="evg-btn cta-btn" id="wiz-exit-finish" type="button">进入完整文档<span class="evg-arrow evg-arrow--accent">→</span></button>
       </div>
     </div>
 
   </section>
 
   <footer class="footer">
+    <div class="pets-row">
+      <img class="evg-pet evg-pet--sm" src="architecture/_shared/branding/pet.svg" alt="" aria-hidden="true" />
+      <img class="evg-pet evg-pet--sm" src="architecture/_shared/branding/pet_leafcat.svg" alt="" aria-hidden="true" />
+      <img class="evg-pet evg-pet--sm" src="architecture/_shared/branding/pet_sleep.svg" alt="" aria-hidden="true" />
+    </div>
     <div class="toolbar">
-      <span class="status"><span class="status__dot" id="status-dot-footer"></span><span id="status-text">就绪</span></span>
+      <span class="evg-status"><span class="evg-status__dot" id="status-dot-footer"></span><span id="status-text">就绪</span></span>
       <span class="mode-chip" id="mode-chip">文档</span>
+      <button type="button" class="evg-toggle" data-evg-theme-toggle aria-label="切换明暗主题"><span class="evg-toggle__dot"></span><span data-evg-theme-label>墨</span></button>
       <div class="toolbar__spacer"></div>
-      <div class="status" id="turn-info"></div>
+      <div class="evg-status" id="turn-info"></div>
     </div>
     <div class="composer">
       <span class="composer__caret">›</span>
@@ -816,6 +787,7 @@ srv.serve_forever()</pre>
   </footer>
 </div>
 
+<script src="architecture/_shared/evg-common.js"></script>
 <script>
 (function(){
   "use strict";
@@ -834,7 +806,7 @@ srv.serve_forever()</pre>
     {id:"data-hub",     title:"数据中枢",     group:"路径一"},
     {id:"data-backend", title:"数据源后端",   group:"路径一"},
     {id:"dart-template",title:"模板与 v4",    group:"路径二"},
-    {id:"dart-process", title:".exe 进程",    group:"路径二"},
+    {id:"dart-process", title:"进程（.py/.exe）", group:"路径二"},
     {id:"dart-port",    title:"端口发现",     group:"路径二"},
     {id:"faq",          title:"常见问题",     group:"参考"},
     {id:"examples",     title:"示例与规范",   group:"参考"}

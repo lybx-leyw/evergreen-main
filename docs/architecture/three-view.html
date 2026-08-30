@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>平台三视图 · 架构演示</title>
+<link rel="stylesheet" href="_shared/evg-style.css" />
+<style>
+  /* ── 页面专用排版（不进入共享基座） ─────────────────────────────── */
+  .page-head {
+    position: relative;
+    text-align: center;
+    padding: 44px 16px 22px;
+    border-bottom: 1px solid var(--evg-border);
+  }
+  .page-head h1 { margin-top: 14px; }
+  .page-head .evg-toggle { position: absolute; top: 16px; right: 16px; }
+  .head-pills { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
+
+  .section { margin-top: 44px; }
+  .section-title {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .section-title h2 { font-size: 1.35rem; }
+
+  .stage {
+    width: 100%;
+    border: 1px solid var(--evg-border);
+    border-radius: var(--evg-radius-lg);
+    background: var(--evg-bg-2);
+    overflow: hidden;
+  }
+  .stage-caption {
+    margin-top: 10px;
+    font-family: var(--evg-mono);
+    font-size: 11.5px;
+    color: var(--evg-muted);
+    text-align: center;
+  }
+
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-top: 16px; }
+
+  /* ── SVG 专用类（墨白风变量） ──────────────────────────────────── */
+  .caption { fill: var(--evg-muted); font-family: var(--evg-mono); font-size: 10.5px; }
+  .caption-strong { fill: var(--evg-fg); font-family: var(--evg-sans); font-size: 12px; font-weight: 700; }
+
+  .pulse-dot { fill: var(--evg-accent); animation: evg-pulse var(--evg-pulse) ease-in-out infinite; }
+  .pulse-dot--on { fill: var(--evg-on-accent); animation: evg-pulse var(--evg-pulse) ease-in-out infinite; }
+
+  .res-band { fill: var(--evg-bg-2); stroke: var(--evg-border); stroke-width: 1.2; }
+  .res-chip-rect { fill: var(--evg-card); stroke: var(--evg-border); }
+  .res-chip-text { fill: var(--evg-fg-2); font-family: var(--evg-mono); font-size: 10.5px; }
+
+  .reflux-dot { fill: var(--evg-accent); }
+  .route-dot { fill: var(--evg-fg); }
+
+  .page-foot {
+    text-align: center;
+    padding: 40px 16px;
+    margin-top: 48px;
+    border-top: 1px solid var(--evg-border);
+    color: var(--evg-muted);
+    font-size: 0.8rem;
+  }
+  .page-foot .pets-row { display: flex; justify-content: center; gap: 16px; margin-bottom: 12px; }
+  .page-foot a { color: var(--evg-muted); text-decoration: none; border-bottom: 1px solid var(--evg-border); }
+  .page-foot a:hover { color: var(--evg-accent); border-bottom-color: var(--evg-accent); }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <marker id="evg-arrowhead" class="evg-arrowhead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z"/>
+    </marker>
+  </defs>
+</svg>
+
+<header class="page-head">
+  <button type="button" class="evg-toggle" data-evg-theme-toggle aria-label="切换明暗主题">
+    <span class="evg-toggle__dot"></span><span data-evg-theme-label>白</span>
+  </button>
+  <div class="evg-brand-disc evg-float">
+    <img class="evg-reel evg-reel--auto" src="_shared/branding/logo.svg" alt="Evergreen Logo" width="84" height="84" />
+  </div>
+  <h1 class="evg-title evg-h1">平台三视图 · 插件资源分发</h1>
+  <p class="evg-sub">插件资源到前端兵分三路：AI 助手视图 · 插件视图 · 开发者模式视图 —— 创作产物回流底层资源</p>
+  <div class="head-pills">
+    <span class="evg-pill"><strong>三路</strong><span>AI 调度 / 用户体验 / 审查创作</span></span>
+    <span class="evg-pill"><strong>双向</strong><span>开发者模式 ⇄ 底层资源</span></span>
+    <span class="evg-pill"><strong>动图</strong><span>三路流动 / 回流闭环</span></span>
+  </div>
+</header>
+
+<main class="evg-container">
+
+  <!-- ── 三视图总览 ──────────────────────────────────────────────── -->
+  <section class="section evg-reveal">
+    <div class="section-title">
+      <span class="evg-dot evg-dot--accent"></span>
+      <h2 class="evg-title">三路分发 + 底层资源回流</h2>
+      <span class="evg-badge evg-badge--soft">动图演示</span>
+    </div>
+
+    <svg class="stage" viewBox="0 0 1200 640" role="img" aria-label="平台三视图：插件资源到前端后兵分三路（AI 助手视图、插件视图、开发者模式视图），开发者模式与底层资源双向箭头回流">
+      <!-- 三路连线（前端 → 三个视图） -->
+      <path class="evg-edge evg-edge--flow" d="M 520 280 C 380 280 250 170 200 130" marker-end="url(#evg-arrowhead)"/>
+      <path class="evg-edge evg-edge--flow" d="M 600 280 L 600 130" marker-end="url(#evg-arrowhead)"/>
+      <path class="evg-edge evg-edge--flow" d="M 680 280 C 820 280 950 170 1000 130" marker-end="url(#evg-arrowhead)"/>
+
+      <!-- 底层资源 → 前端 -->
+      <path class="evg-edge evg-edge--flow" d="M 600 520 L 600 364" marker-end="url(#evg-arrowhead)"/>
+
+      <!-- 开发者模式 ⇄ 底层资源（双向箭头） -->
+      <path class="evg-edge evg-edge--flow" d="M 1080 130 L 1080 520" marker-end="url(#evg-arrowhead)"/>
+      <path class="evg-edge evg-edge--flow-slow" d="M 1140 520 L 1140 130" marker-end="url(#evg-arrowhead)"/>
+
+      <!-- 三路移动光点（SMIL） -->
+      <circle class="route-dot" r="4">
+        <animateMotion dur="3s" repeatCount="indefinite" path="M 520 280 C 380 280 250 170 200 130"/>
+      </circle>
+      <circle class="route-dot" r="4">
+        <animateMotion dur="2.6s" repeatCount="indefinite" path="M 600 280 L 600 130"/>
+      </circle>
+      <circle class="route-dot" r="4">
+        <animateMotion dur="3.2s" repeatCount="indefinite" path="M 680 280 C 820 280 950 170 1000 130"/>
+      </circle>
+      <!-- 回流光点（创作产物 → 底层资源） -->
+      <circle class="reflux-dot" r="4">
+        <animateMotion dur="3s" repeatCount="indefinite" path="M 1080 130 L 1080 520"/>
+      </circle>
+
+      <!-- 视图 ①：AI 助手视图 -->
+      <g class="evg-node evg-node--active" transform="translate(30 26)">
+        <rect width="340" height="104"/>
+        <text x="170" y="42" text-anchor="middle" class="evg-node__title">AI 助手视图</text>
+        <text x="170" y="64" text-anchor="middle" class="evg-node__sub">AI 统一调度</text>
+      </g>
+      <text x="200" y="152" text-anchor="middle" class="caption">对话 / 思考 · agent tool · skill · 记忆 · 数据</text>
+
+      <!-- 视图 ②：插件视图 -->
+      <g class="evg-node" transform="translate(430 26)">
+        <rect width="340" height="104"/>
+        <text x="170" y="42" text-anchor="middle" class="evg-node__title">插件视图</text>
+        <text x="170" y="64" text-anchor="middle" class="evg-node__sub">用户切身体验</text>
+      </g>
+      <text x="600" y="152" text-anchor="middle" class="caption">市场安装 · HTML module · 主题 / skin</text>
+
+      <!-- 视图 ③：开发者模式视图 -->
+      <g class="evg-node evg-node--accent" transform="translate(830 26)">
+        <rect width="340" height="104"/>
+        <circle class="pulse-dot" cx="326" cy="18" r="4"/>
+        <text x="170" y="42" text-anchor="middle" class="evg-node__title">开发者模式视图</text>
+        <text x="170" y="64" text-anchor="middle" class="evg-node__sub">AI 与用户审查创作</text>
+      </g>
+      <text x="1000" y="152" text-anchor="middle" class="caption">审查 · 工坊创作 · 导出上架</text>
+
+      <!-- 节点：前端运行时（核心） -->
+      <g class="evg-node evg-node--core" transform="translate(470 280)">
+        <rect width="260" height="84"/>
+        <circle class="pulse-dot--on" cx="244" cy="16" r="4"/>
+        <text x="130" y="34" text-anchor="middle" class="evg-node__title">前端 · 运行时</text>
+        <text x="130" y="54" text-anchor="middle" class="evg-node__sub">ModuleDispatch · html_modle</text>
+      </g>
+
+      <!-- 底层资源层（仓库） -->
+      <g>
+        <rect class="res-band" x="40" y="520" width="1120" height="100" rx="14"/>
+        <text x="70" y="548" class="caption-strong">底层资源层 · 插件仓库</text>
+        <g><rect class="res-chip-rect" x="250" y="548" width="130" height="30" rx="15"/><text class="res-chip-text" x="315" y="567" text-anchor="middle">plugins/&lt;id&gt;/</text></g>
+        <g><rect class="res-chip-rect" x="398" y="548" width="130" height="30" rx="15"/><text class="res-chip-text" x="463" y="567" text-anchor="middle">manifest.json</text></g>
+        <g><rect class="res-chip-rect" x="546" y="548" width="130" height="30" rx="15"/><text class="res-chip-text" x="611" y="567" text-anchor="middle">适配壳 .py</text></g>
+        <g><rect class="res-chip-rect" x="694" y="548" width="180" height="30" rx="15"/><text class="res-chip-text" x="784" y="567" text-anchor="middle">registry plugins.json</text></g>
+        <g><rect class="res-chip-rect" x="892" y="548" width="150" height="30" rx="15"/><text class="res-chip-text" x="967" y="567" text-anchor="middle">theme / skin 资源</text></g>
+      </g>
+
+      <!-- 标签 -->
+      <text x="170" y="225" text-anchor="middle" class="caption">路① · AI 统一调度</text>
+      <text x="600" y="225" text-anchor="middle" class="caption">路② · 用户切身体验</text>
+      <text x="1030" y="225" text-anchor="middle" class="caption">路③ · 审查与创作</text>
+      <text x="612" y="450" text-anchor="middle" class="caption">资源供给前端</text>
+      <text x="1072" y="320" text-anchor="end" class="caption">创作产物回流</text>
+      <text x="1148" y="320" text-anchor="start" class="caption">供给创作</text>
+    </svg>
+
+    <div class="stage-caption">三路 = 同一份插件资源的三种消费视角；开发者模式与底层资源之间的双向箭头 = 创作产物回流到底层资源，平台再次发现并分发</div>
+
+    <div class="card-grid">
+      <div class="evg-card evg-card--hover evg-reveal" data-delay="40">
+        <div class="evg-card__title">AI 助手视图</div>
+        <div class="evg-card__sub">AI 统一调度</div>
+        <div class="evg-card__body">对话 / 深度思考、agent tool 调用、skill 加载、五维记忆、数据中枢取数——AI 统一编排资源完成用户任务。</div>
+      </div>
+      <div class="evg-card evg-card--hover evg-reveal" data-delay="120">
+        <div class="evg-card__title">插件视图</div>
+        <div class="evg-card__sub">用户切身体验</div>
+        <div class="evg-card__body">市场发现与安装、HTML 模块渲染（template:"html"）、主题与皮肤一键切换——用户直接消费插件能力。</div>
+      </div>
+      <div class="evg-card evg-card--hover evg-reveal" data-delay="200">
+        <div class="evg-card__title">开发者模式视图</div>
+        <div class="evg-card__sub">AI 与用户审查创作</div>
+        <div class="evg-card__body">审查既有插件、用工坊（scraper / html-creator / skill-creator / theme-creator）创作新插件、导出上架——产物回流到底层资源。</div>
+      </div>
+    </div>
+
+    <div class="evg-callout evg-callout--success" style="margin-top:16px">
+      <span class="evg-callout__ic">🔁</span>
+      <span><b>回流闭环：</b>开发者模式创作产物（manifest + 适配壳 + 插件包）写入底层资源层（plugins/、registry）→ 平台自动发现 → 再经前端分发到三路。双向箭头 = 资源供审查创作，创作产物反哺资源。</span>
+    </div>
+  </section>
+
+</main>
+
+<footer class="page-foot">
+  <div class="pets-row" aria-hidden="true">
+    <img class="evg-pet evg-pet--md" src="_shared/branding/pet.svg" alt="" />
+    <img class="evg-pet evg-pet--md" src="_shared/branding/pet_leafcat.svg" alt="" />
+    <img class="evg-pet evg-pet--md" src="_shared/branding/pet_sleep.svg" alt="" />
+  </div>
+  <div>docs/architecture/three-view.html · 墨白风 · 明暗双色 · 无外部依赖 · <a href="index.html">统一入口</a></div>
+</footer>
+
+<script src="_shared/evg-common.js"></script>
+<script>
+  /* 动图降级：prefers-reduced-motion 时移除 SMIL 动画（基座已关 CSS 动画） */
+  EVG.onReady(function () {
+    var reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) {
+      document.querySelectorAll("animateMotion").forEach(function (a) { a.remove(); });
+    }
+  });
+</script>
+</body>
+</html>

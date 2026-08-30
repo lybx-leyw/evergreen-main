@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>墨白风风格基座 · 预览与自查</title>
+<link rel="stylesheet" href="evg-style.css" />
+<style>
+  /* 本页演示专用排版（不进入共享基座） */
+  .demo-head {
+    text-align: center;
+    padding: 44px 16px 20px;
+    border-bottom: 1px solid var(--evg-border);
+  }
+  .demo-head h1 { margin-top: 14px; }
+  .demo-head .evg-toggle { position: absolute; top: 16px; right: 16px; }
+  .demo-section { padding: 34px 0 6px; border-top: 1px dashed var(--evg-border); margin-top: 30px; }
+  .demo-section:first-of-type { border-top: none; margin-top: 0; }
+  .demo-section > h2 { margin-bottom: 16px; }
+  .demo-grid { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .swatch { border: 1px solid var(--evg-border); border-radius: var(--evg-radius); overflow: hidden; background: var(--evg-card); }
+  .swatch__chip { height: 44px; }
+  .swatch__meta { padding: 6px 8px; font-family: var(--evg-mono); font-size: 10.5px; color: var(--evg-muted); }
+  .swatch__meta b { display: block; color: var(--evg-fg); font-size: 11px; }
+  .svg-stage { width: 100%; border: 1px dashed var(--evg-border); border-radius: var(--evg-radius-lg); background: var(--evg-bg-2); }
+  .pets-row { display: flex; gap: 18px; align-items: center; }
+  .demo-foot { text-align: center; padding: 40px 16px; color: var(--evg-muted); font-size: 0.8rem; }
+  .demo-foot .pets-row { justify-content: center; margin-bottom: 14px; }
+</style>
+</head>
+<body>
+
+<header class="demo-head" style="position:relative">
+  <button type="button" class="evg-toggle" data-evg-theme-toggle aria-label="切换明暗主题">
+    <span class="evg-toggle__dot"></span><span data-evg-theme-label>白</span>
+  </button>
+  <div class="evg-brand-disc evg-float">
+    <img class="evg-reel evg-reel--auto" src="branding/logo.svg" alt="Evergreen 绿意不息 Logo" width="84" height="84" />
+  </div>
+  <h1 class="evg-title evg-h1">墨白风风格基座</h1>
+  <p class="evg-sub">docs/architecture/_shared · 明暗双主题 · 组件自查页（非架构图）</p>
+  <div class="demo-grid" style="justify-content:center;margin-top:12px">
+    <span class="evg-pill"><strong>Token</strong><span>双主题变量</span></span>
+    <span class="evg-pill"><strong>组件</strong><span>卡片 / 徽章 / 节点 / 连线 / 泳道 / 导图</span></span>
+    <span class="evg-pill"><strong>动效</strong><span>放映 / 悬浮 / 流动 / 入场</span></span>
+  </div>
+</header>
+
+<main class="evg-container">
+
+  <!-- 1. 色彩 token -->
+  <section class="demo-section evg-reveal">
+    <h2 class="evg-title evg-h2">① 色彩 Token（明暗自动切换）</h2>
+    <div class="swatches" id="swatches"></div>
+  </section>
+
+  <!-- 2. 卡片 -->
+  <section class="demo-section evg-reveal" data-delay="60">
+    <h2 class="evg-title evg-h2">② 卡片</h2>
+    <div class="demo-grid">
+      <div class="evg-card evg-card--hover" style="max-width:260px">
+        <div class="evg-card__title">模块注册表</div>
+        <div class="evg-card__sub">ModuleRegistry · seal 后只读</div>
+        <div class="evg-card__body">hover 描边加深 + 阴影升级。</div>
+      </div>
+      <div class="evg-card evg-card--flat" style="max-width:240px">
+        <div class="evg-card__title">分组卡片</div>
+        <div class="evg-card__sub">--flat（bg-2 底）</div>
+      </div>
+      <div class="evg-card evg-card--accent" style="max-width:240px">
+        <div class="evg-card__title">强调卡片</div>
+        <div class="evg-card__sub">--accent 左 3px 绿边</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. 徽章 -->
+  <section class="demo-section evg-reveal" data-delay="60">
+    <h2 class="evg-title evg-h2">③ 徽章 / 标签</h2>
+    <div class="demo-grid">
+      <span class="evg-badge evg-badge--stable">正式版</span>
+      <span class="evg-badge evg-badge--pre">预发布</span>
+      <span class="evg-badge evg-badge--draft">草稿</span>
+      <span class="evg-badge evg-badge--accent">核心</span>
+      <span class="evg-badge evg-badge--soft">HTML 插件</span>
+      <span class="evg-badge evg-badge--success">已注册</span>
+      <span class="evg-badge evg-badge--warning">待重试</span>
+      <span class="evg-badge evg-badge--danger">失败</span>
+      <span class="evg-badge evg-badge--violet">技能包</span>
+      <span class="evg-badge evg-badge--dot">运行中</span>
+      <span class="evg-kbd">←</span><span class="evg-kbd">→</span>
+      <code class="evg-code">platform.data.get()</code>
+    </div>
+  </section>
+
+  <!-- 4. 按钮 -->
+  <section class="demo-section evg-reveal" data-delay="60">
+    <h2 class="evg-title evg-h2">④ 按钮</h2>
+    <div class="demo-grid">
+      <a class="evg-btn" href="#"><span>下载安装包</span><span class="evg-btn__tag">正式</span><span class="evg-arrow">↓</span></a>
+      <a class="evg-btn" href="#"><span>调试包</span><span class="evg-btn__tag">调试</span><span class="evg-arrow">↓</span></a>
+      <a class="evg-btn evg-btn--primary" href="#">开始使用<span class="evg-arrow">→</span></a>
+      <span class="evg-arrow evg-arrow--accent evg-arrow--big">→</span>
+      <span class="evg-arrow evg-arrow--flow">→</span>
+    </div>
+  </section>
+
+  <!-- 5. 节点 -->
+  <section class="demo-section evg-reveal" data-delay="60">
+    <h2 class="evg-title evg-h2">⑤ 节点（HTML / SVG 同款类）</h2>
+    <div class="demo-grid">
+      <div class="evg-node evg-node--core"><span class="evg-node__title">数据中枢</span><span class="evg-node__sub">DataOrchestrator</span></div>
+      <div class="evg-node evg-node--active"><span class="evg-node__title">HTML 插件</span><span class="evg-node__sub">template:"html"</span></div>
+      <div class="evg-node"><span class="evg-node__title">默认节点</span><span class="evg-node__sub">ModuleLoader</span></div>
+      <div class="evg-node evg-node--accent evg-node--clickable"><span class="evg-node__title">可点击</span><span class="evg-node__sub">--clickable</span></div>
+      <div class="evg-node evg-node--dim"><span class="evg-node__title">待机</span><span class="evg-node__sub">--dim</span></div>
+      <div class="evg-node evg-node--focus"><span class="evg-node__title">执行中</span><span class="evg-node__sub">--focus</span></div>
+    </div>
+    <svg class="svg-stage" viewBox="0 0 900 130" style="margin-top:16px" role="img" aria-label="SVG 节点示例">
+      <g class="evg-node evg-node--core" transform="translate(60 30)">
+        <rect width="170" height="70" rx="12" />
+        <text x="85" y="38" text-anchor="middle" class="evg-node__title">Agent 运行时</text>
+        <text x="85" y="56" text-anchor="middle" class="evg-node__sub">core/agent</text>
+      </g>
+      <g class="evg-node evg-node--active" transform="translate(360 30)">
+        <rect width="170" height="70" rx="12" />
+        <text x="85" y="38" text-anchor="middle" class="evg-node__title">数据中枢</text>
+        <text x="85" y="56" text-anchor="middle" class="evg-node__sub">DataOrchestrator</text>
+      </g>
+      <g class="evg-node" transform="translate(660 30)">
+        <rect width="170" height="70" rx="12" />
+        <text x="85" y="38" text-anchor="middle" class="evg-node__title">主题系统</text>
+        <text x="85" y="56" text-anchor="middle" class="evg-node__sub">core/theme</text>
+      </g>
+    </svg>
+  </section>
+
+  <!-- 6. 箭头与连线 -->
+  <section class="demo-section evg-reveal" data-delay="60">
+    <h2 class="evg-title evg-h2">⑥ 箭头与连线（SVG）</h2>
+    <svg class="svg-stage" viewBox="0 0 900 190" role="img" aria-label="SVG 连线示例">
+      <path class="evg-edge" d="M60 40 L840 40" />
+      <text x="450" y="28" text-anchor="middle" class="evg-mono" style="font-size:11px;fill:var(--evg-muted)">evg-edge 实线（默认连线）</text>
+      <path class="evg-edge evg-edge--flow" d="M60 90 L840 90" marker-end="url(#evg-arrowhead)" />
+      <text x="450" y="78" text-anchor="middle" class="evg-mono" style="font-size:11px;fill:var(--evg-muted)">evg-edge--flow 绿色流动 + arrowhead（数据流）</text>
+      <path class="evg-edge evg-edge--ghost" d="M60 140 L840 140" />
+      <text x="450" y="128" text-anchor="middle" class="evg-mono" style="font-size:11px;fill:var(--evg-muted)">evg-edge--ghost 灰虚线（可选/待接入）</text>
+      <path class="evg-edge evg-edge--active evg-edge--thick" d="M60 170 L840 170" />
+      <text x="450" y="162" text-anchor="middle" class="evg-mono" style="font-size:11px;fill:var(--evg-muted)">evg-edge--active --thick 当前高亮</text>
+      <defs>
+        <marker id="evg-arrowhead" class="evg-arrowhead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" />
+        </marker>
+      </defs>
+    </svg>
+  </section>
+
+  <!-- 7. 泳道 -->
+  <section class="demo-section evg-reveal" data-delay="60">
+    <h2 class="evg-title evg-h2">⑦ 泳道</h2>
+    <div class="evg-lanes">
+      <div class="evg-lane">
+        <div class="evg-lane__head"><span class="evg-dot evg-dot--accent"></span>数据层<span class="evg-badge evg-badge--soft evg-lane__tag">4 数据源</span></div>
+        <div class="evg-lane__body">
+          <div class="evg-node"><span class="evg-node__title">课表</span><span class="evg-node__sub">zju_timetable</span></div>
+          <span class="evg-arrow evg-arrow--accent">→</span>
+          <div class="evg-node evg-node--active"><span class="evg-node__title">数据中枢</span><span class="evg-node__sub">get/refresh/subscribe</span></div>
+        </div>
+      </div>
+      <div class="evg-lane evg-lane--accent">
+        <div class="evg-lane__head"><span class="evg-dot evg-dot--fg"></span>呈现层<span class="evg-badge evg-badge--accent evg-lane__tag">HTML</span></div>
+        <div class="evg-lane__body">
+          <div class="evg-node"><span class="evg-node__title">页面</span><span class="evg-node__sub">index.html</span></div>
+          <span class="evg-arrow evg-arrow--accent">→</span>
+          <div class="evg-node evg-node--core"><span class="evg-node__title">WebView</span><span class="evg-node__sub">html_modle</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8. 思维导图骨架 -->
+  <section class="demo-section evg-reveal" data-delay="60">
+    <h2 class="evg-title evg-h2">⑧ 思维导图连线（EVG.curvePath）</h2>
+    <div class="evg-card" style="position:relative">
+      <div class="evg-mind">
+        <svg class="evg-mind__lines" id="mind-lines" aria-hidden="true"></svg>
+        <div class="evg-mind__branch">
+          <div class="evg-node evg-mind__node evg-node--active"><span class="evg-node__title">记忆</span><span class="evg-node__sub">Memory</span></div>
+          <div class="evg-node evg-mind__node"><span class="evg-node__title">工具</span><span class="evg-node__sub">Tool</span></div>
+        </div>
+        <div class="evg-node evg-mind__center evg-node--core"><span class="evg-node__title">Agent 核心</span><span class="evg-node__sub">Runtime</span></div>
+        <div class="evg-mind__branch">
+          <div class="evg-node evg-mind__node evg-node--active"><span class="evg-node__title">技能</span><span class="evg-node__sub">Skill</span></div>
+          <div class="evg-node evg-mind__node"><span class="evg-node__title">守护</span><span class="evg-node__sub">Guardian</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9. 品牌资产 -->
+  <section class="demo-section evg-reveal" data-delay="60">
+    <h2 class="evg-title evg-h2">⑨ 品牌资产（_shared/branding/）</h2>
+    <div class="demo-grid" style="align-items:flex-end">
+      <div style="text-align:center">
+        <img class="evg-reel evg-reel--auto" src="branding/logo.svg" alt="Evergreen 彩色 Logo" width="64" height="64" />
+        <div class="evg-mono" style="font-size:10.5px;margin-top:4px">logo.svg · 放映</div>
+      </div>
+      <div style="text-align:center">
+        <img class="evg-reel" src="branding/logo-ink.svg" alt="Evergreen 墨白 Logo" width="64" height="64" />
+        <div class="evg-mono" style="font-size:10.5px;margin-top:4px">logo-ink.svg · 墨白</div>
+      </div>
+      <div class="pets-row">
+        <img class="evg-pet" src="branding/pet.svg" alt="绿芽精灵" />
+        <img class="evg-pet" src="branding/pet_leafcat.svg" alt="叶灵猫" />
+        <img class="evg-pet" src="branding/pet_sleep.svg" alt="睡眠款" />
+      </div>
+      <div class="evg-mono" style="font-size:10.5px;color:var(--evg-muted)">pet ×3 · 灰阶待机，hover 彩色</div>
+    </div>
+  </section>
+
+  <!-- 10. 动效与状态 -->
+  <section class="demo-section evg-reveal" data-delay="60">
+    <h2 class="evg-title evg-h2">⑩ 动效与状态</h2>
+    <div class="demo-grid">
+      <span class="evg-status"><span class="evg-status__dot"></span>就绪</span>
+      <span class="evg-status"><span class="evg-status__dot evg-status__dot--busy"></span>忙碌中</span>
+      <span class="evg-badge evg-badge--soft evg-pulse">同步中…</span>
+      <div class="evg-progress" style="width:200px"><div class="evg-progress__fill" id="prog" style="width:12%"></div></div>
+      <span class="evg-mono" id="counter" style="font-size:1.2rem;font-weight:700;color:var(--evg-accent)">0</span>
+      <span class="evg-muted">EVG.countUp 演示</span>
+    </div>
+    <div class="evg-callout" style="margin-top:16px"><span class="evg-callout__ic">💡</span><span><b>滚动入场：</b>本页各区块已用 <code class="evg-code">.evg-reveal</code> + <code class="evg-code">data-delay</code> 错峰入场，滚动可复现。</span></div>
+  </section>
+
+</main>
+
+<footer class="demo-foot">
+  <div class="pets-row">
+    <img class="evg-pet" src="branding/pet.svg" alt="" aria-hidden="true" />
+    <img class="evg-pet" src="branding/pet_leafcat.svg" alt="" aria-hidden="true" />
+    <img class="evg-pet" src="branding/pet_sleep.svg" alt="" aria-hidden="true" />
+  </div>
+  墨白风风格基座 · evg-style.css + evg-common.js · 明暗双主题
+</footer>
+
+<script src="evg-common.js"></script>
+<script>
+  /* 色彩 token 自查表（读实际计算值，保证与主题同步） */
+  (function () {
+    var map = {
+      "--evg-bg": "背景 bg", "--evg-bg-2": "次级背景", "--evg-card": "卡片", "--evg-panel": "面板",
+      "--evg-border": "边框", "--evg-border-strong": "强边框",
+      "--evg-fg": "主文字", "--evg-fg-2": "次级文字", "--evg-muted": "弱文字",
+      "--evg-accent": "强调绿", "--evg-accent-soft": "强调弱底",
+      "--evg-success": "成功", "--evg-warning": "警告", "--evg-danger": "危险", "--evg-violet": "紫"
+    };
+    var wrap = document.getElementById("swatches");
+    var host = document.documentElement;
+    Object.keys(map).forEach(function (v) {
+      var val = getComputedStyle(host).getPropertyValue(v).trim();
+      var d = document.createElement("div");
+      d.className = "swatch";
+      d.innerHTML = '<div class="swatch__chip" style="background:' + val + '"></div>' +
+        '<div class="swatch__meta"><b>' + v + '</b>' + map[v] + '<br/>' + val + '</div>';
+      wrap.appendChild(d);
+    });
+  })();
+
+  /* 思维导图分支连线（EVG.curvePath 用法示例）
+     中心节点 168×72（中点在 H/2），两侧子节点列 54px 高（子节点中点在 H/2 ± 33），
+     从中心节点左/右边缘中点曲连到每个子节点边缘。 */
+  (function () {
+    var svg = document.getElementById("mind-lines");
+    var box = svg.parentElement.getBoundingClientRect();
+    var W = box.width, H = box.height;
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+    var cx = W / 2, cy = H / 2;
+    var offY = 33;          // 子节点中心相对中线偏移
+    var xEdge = 84;         // 中心节点半宽
+    var xChild = 108;       // 子节点边缘距中心距离（+24 gap）
+    function add(d, cls) {
+      var p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      p.setAttribute("d", d);
+      p.setAttribute("class", cls);
+      svg.appendChild(p);
+    }
+    /* 左支（2 个子节点，第一支 active 流动） */
+    add(EVG.curvePath(cx - xEdge, cy, cx - xChild, cy - offY, 0.6), "evg-mind__branch-line--active");
+    add(EVG.curvePath(cx - xEdge, cy, cx - xChild, cy + offY, 0.6), "evg-mind__branch-line");
+    /* 右支（2 个子节点） */
+    add(EVG.curvePath(cx + xEdge, cy, cx + xChild, cy - offY, 0.6), "evg-mind__branch-line");
+    add(EVG.curvePath(cx + xEdge, cy, cx + xChild, cy + offY, 0.6), "evg-mind__branch-line");
+  })();
+
+  /* 动效演示：进度 + 数字 */
+  (function () {
+    var prog = document.getElementById("prog");
+    var counter = document.getElementById("counter");
+    setTimeout(function () { prog.style.width = "72%"; }, 600);
+    setTimeout(function () {
+      EVG.countUp(counter, 128, 900, { suffix: "" });
+    }, 900);
+  })();
+</script>
+</body>
+</html>
