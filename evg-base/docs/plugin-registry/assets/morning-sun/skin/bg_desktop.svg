@@ -1,1 +1,69 @@
-<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="晨光背景（横屏）"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#FFF7EC"/><stop offset="100%" stop-color="#8A735822"/></linearGradient></defs><rect width="1600" height="900" fill="url(#g)"/><circle cx="253" cy="767" r="80" fill="#FF9E45" opacity="0.05"/><circle cx="680" cy="433" r="25" fill="#FF9E45" opacity="0.05"/><circle cx="434" cy="369" r="38" fill="#FF9E45" opacity="0.05"/><circle cx="551" cy="211" r="76" fill="#FF9E45" opacity="0.05"/><circle cx="1462" cy="551" r="62" fill="#FF9E45" opacity="0.05"/><circle cx="988" cy="882" r="60" fill="#FF9E45" opacity="0.05"/><circle cx="411" cy="363" r="56" fill="#FF9E45" opacity="0.05"/><circle cx="159" cy="182" r="22" fill="#FF9E45" opacity="0.05"/><circle cx="948" cy="71" r="69" fill="#FF9E45" opacity="0.05"/><circle cx="108" cy="702" r="48" fill="#FF9E45" opacity="0.05"/><circle cx="699" cy="594" r="30" fill="#FF9E45" opacity="0.05"/><circle cx="1272" cy="748" r="52" fill="#FF9E45" opacity="0.05"/><path d="M0 675.0 q400.0 -70 800.0 0 q400.0 70 800.0 0" fill="none" stroke="#FF9E45" stroke-width="3" opacity="0.18"/></svg>
+<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="晨光对话背景（横屏）">
+  <!-- 晨光主题横屏背景：暖橙渐变 + 朝阳光芒 + 云层 + 飞鸟 + 远丘，
+       低对比度，叠加渲染层 35% 白遮罩后消息文字清晰可读。 -->
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FEF9EF"/>
+      <stop offset="55%" stop-color="#FCEDDA"/>
+      <stop offset="100%" stop-color="#F8E0C2"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="sunGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FF9E45" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#FF9E45" stop-opacity="0"/>
+    </radialGradient>
+    <g id="cloud">
+      <ellipse cx="0" cy="0" rx="70" ry="22" fill="#ffffff" fill-opacity="0.65"/>
+      <ellipse cx="-40" cy="-8" rx="40" ry="16" fill="#ffffff" fill-opacity="0.6"/>
+      <ellipse cx="42" cy="-6" rx="36" ry="15" fill="#ffffff" fill-opacity="0.6"/>
+    </g>
+    <g id="bird">
+      <path d="M0 0 Q 8 -8 16 -1 Q 24 -8 32 0" fill="none" stroke="#3D2E1C" stroke-opacity="0.3" stroke-width="3" stroke-linecap="round"/>
+    </g>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bgGrad)"/>
+
+  <!-- 柔和光斑 -->
+  <circle cx="800" cy="440" r="430" fill="url(#glow)"/>
+
+  <!-- 朝阳（右上） -->
+  <circle cx="1220" cy="250" r="210" fill="url(#sunGlow)"/>
+  <circle cx="1220" cy="250" r="58" fill="#FF9E45" fill-opacity="0.55"/>
+  <g stroke="#FF9E45" stroke-opacity="0.35" stroke-width="5" stroke-linecap="round">
+    <path d="M1220 156 L1220 130"/>
+    <path d="M1220 344 L1220 370"/>
+    <path d="M1126 250 L1100 250"/>
+    <path d="M1314 250 L1340 250"/>
+    <path d="M1153 183 L1135 165"/>
+    <path d="M1287 317 L1305 335"/>
+    <path d="M1153 317 L1135 335"/>
+    <path d="M1287 183 L1305 165"/>
+  </g>
+
+  <!-- 云层 -->
+  <use href="#cloud" transform="translate(360 220) scale(1.1)"/>
+  <use href="#cloud" transform="translate(820 320) scale(1.4)"/>
+  <use href="#cloud" transform="translate(1180 470) scale(1.0)"/>
+  <use href="#cloud" transform="translate(240 480) scale(0.85)"/>
+  <use href="#cloud" transform="translate(1500 380) scale(0.8)"/>
+
+  <!-- 飞鸟 -->
+  <use href="#bird" transform="translate(560 380)"/>
+  <use href="#bird" transform="translate(680 420) scale(0.75)"/>
+  <use href="#bird" transform="translate(960 260) scale(0.9)"/>
+  <use href="#bird" transform="translate(1060 300) scale(0.6)"/>
+
+  <!-- 远丘 -->
+  <path d="M0 840 Q 300 760 620 830 Q 900 750 1220 830 Q 1400 780 1600 830 L 1600 900 L 0 900 Z" fill="#FF9E45" fill-opacity="0.10"/>
+  <path d="M0 870 Q 400 810 800 860 Q 1200 810 1600 860 L 1600 900 L 0 900 Z" fill="#AB5200" fill-opacity="0.08"/>
+
+  <!-- 点缀圆点 -->
+  <circle cx="420" cy="640" r="6" fill="#FF9E45" fill-opacity="0.16"/>
+  <circle cx="1160" cy="620" r="5" fill="#AB5200" fill-opacity="0.14"/>
+  <circle cx="700" cy="830" r="6" fill="#FF9E45" fill-opacity="0.12"/>
+  <circle cx="900" cy="150" r="5" fill="#FF9E45" fill-opacity="0.15"/>
+</svg>

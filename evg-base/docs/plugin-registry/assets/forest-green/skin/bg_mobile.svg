@@ -1,1 +1,73 @@
-<svg width="900" height="1600" viewBox="0 0 900 1600" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="森林背景（竖屏）"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#F0F5EF"/><stop offset="100%" stop-color="#5F735B" stop-opacity="0.13"/></linearGradient></defs><rect width="900" height="1600" fill="url(#g)"/><circle cx="210" cy="1459" r="51" fill="#3A764C" opacity="0.05"/><circle cx="13" cy="1537" r="23" fill="#3A764C" opacity="0.05"/><circle cx="794" cy="599" r="70" fill="#3A764C" opacity="0.05"/><circle cx="249" cy="623" r="90" fill="#3A764C" opacity="0.05"/><circle cx="622" cy="563" r="63" fill="#3A764C" opacity="0.05"/><circle cx="80" cy="135" r="58" fill="#3A764C" opacity="0.05"/><circle cx="179" cy="430" r="76" fill="#3A764C" opacity="0.05"/><circle cx="302" cy="1250" r="78" fill="#3A764C" opacity="0.05"/><circle cx="354" cy="1214" r="68" fill="#3A764C" opacity="0.05"/><circle cx="725" cy="1015" r="61" fill="#3A764C" opacity="0.05"/><circle cx="35" cy="1236" r="80" fill="#3A764C" opacity="0.05"/><circle cx="563" cy="423" r="82" fill="#3A764C" opacity="0.05"/><path d="M0 1200.0 q225.0 -70 450.0 0 q225.0 70 450.0 0" fill="none" stroke="#3A764C" stroke-width="3" opacity="0.18"/></svg>
+<svg width="900" height="1600" viewBox="0 0 900 1600" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="森林绿意对话背景（竖屏）">
+  <!-- 森林绿意主题竖屏背景：浅绿纵向渐变 + 松树剪影 + 暖阳 + 飞鸟 + 柔光，
+       低对比度，叠加渲染层 35% 白遮罩后消息文字清晰可读。 -->
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F6FAF4"/>
+      <stop offset="60%" stop-color="#E9F2E5"/>
+      <stop offset="100%" stop-color="#D4E4CD"/>
+    </linearGradient>
+    <linearGradient id="treeG" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#3A764C" stop-opacity="0.32"/>
+      <stop offset="100%" stop-color="#1F442C" stop-opacity="0.16"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="sunGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FBE3A8" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#FBE3A8" stop-opacity="0"/>
+    </radialGradient>
+    <g id="pine">
+      <rect x="-6" y="-18" width="12" height="18" fill="#6B4A2F" fill-opacity="0.28"/>
+      <path d="M0 -128 L 46 -36 L -46 -36 Z" fill="url(#treeG)"/>
+      <path d="M0 -92 L 54 -14 L -54 -14 Z" fill="url(#treeG)"/>
+      <path d="M0 -56 L 62 12 L -62 12 Z" fill="url(#treeG)"/>
+    </g>
+    <g id="bird">
+      <path d="M0 0 Q 9 -9 18 -1 Q 27 -9 36 0" fill="none" stroke="#23311F" stroke-opacity="0.32" stroke-width="3" stroke-linecap="round"/>
+    </g>
+  </defs>
+
+  <rect width="900" height="1600" fill="url(#bgGrad)"/>
+
+  <!-- 柔和光斑（中心偏上） -->
+  <circle cx="450" cy="620" r="430" fill="url(#glow)"/>
+  <circle cx="160" cy="1430" r="300" fill="url(#glow)"/>
+  <circle cx="770" cy="200" r="260" fill="url(#glow)"/>
+
+  <!-- 暖阳（右上） -->
+  <circle cx="690" cy="260" r="170" fill="url(#sunGlow)"/>
+  <circle cx="690" cy="260" r="50" fill="#FBE3A8" fill-opacity="0.5"/>
+  <circle cx="690" cy="260" r="50" fill="none" stroke="#FBE3A8" stroke-opacity="0.4" stroke-width="3"/>
+
+  <!-- 松树（右下） -->
+  <g transform="translate(700 1520)">
+    <use href="#pine" transform="translate(0 0) scale(1.7)"/>
+    <use href="#pine" transform="translate(-120 40) scale(1.3)"/>
+    <use href="#pine" transform="translate(-230 80) scale(0.95)"/>
+  </g>
+
+  <!-- 松树（左下） -->
+  <g transform="translate(190 1500)">
+    <use href="#pine" transform="translate(0 0) scale(1.15)"/>
+    <use href="#pine" transform="translate(100 30) scale(0.85)"/>
+  </g>
+
+  <!-- 中部小树 -->
+  <use href="#pine" transform="translate(430 1020) scale(0.6)"/>
+  <use href="#pine" transform="translate(530 1060) scale(0.5)"/>
+
+  <!-- 飞鸟 -->
+  <use href="#bird" transform="translate(330 380) scale(1.3)"/>
+  <use href="#bird" transform="translate(480 440) scale(0.9)"/>
+  <use href="#bird" transform="translate(560 340) scale(0.7)"/>
+
+  <!-- 点缀圆点 -->
+  <circle cx="230" cy="560" r="6" fill="#3A764C" fill-opacity="0.11"/>
+  <circle cx="660" cy="1180" r="7" fill="#5A9A6C" fill-opacity="0.13"/>
+  <circle cx="430" cy="1520" r="5" fill="#3A764C" fill-opacity="0.10"/>
+  <circle cx="130" cy="900" r="5" fill="#5A9A6C" fill-opacity="0.12"/>
+  <circle cx="820" cy="760" r="5" fill="#1F442C" fill-opacity="0.10"/>
+</svg>

@@ -1,12 +1,29 @@
-<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="荧光跑道头像">
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="荧光夜跑用户头像 - 闪电">
+  <!-- 荧光夜跑用户头像：深紫圆底 + 荧光闪电 + 光环，夜跑动感，
+       28px 圆头像裁切下依然清晰。 -->
   <defs>
-    <linearGradient id="ag" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#4DF3B8"/>
-      <stop offset="100%" stop-color="#F2F0FA"/>
-    </linearGradient>
+    <radialGradient id="auBg" cx="50%" cy="40%" r="65%">
+      <stop offset="0%" stop-color="#2E2658"/>
+      <stop offset="60%" stop-color="#1E1838"/>
+      <stop offset="100%" stop-color="#14101F"/>
+    </radialGradient>
   </defs>
-  <circle cx="128" cy="128" r="118" fill="url(#ag)"/>
-  <circle cx="128" cy="128" r="118" fill="none" stroke="#14101F" stroke-width="6" opacity="0.35"/>
-  <circle cx="128" cy="108" r="42" fill="#14101F" opacity="0.92"/>
-  <path d="M66 190 q62 -72 124 0 q-20 42 -62 42 q-42 0 -62 -42z" fill="#14101F" opacity="0.92"/>
+
+  <!-- 圆底 -->
+  <circle cx="64" cy="64" r="60" fill="url(#auBg)"/>
+  <circle cx="64" cy="64" r="60" fill="none" stroke="#4DF3B8" stroke-opacity="0.25" stroke-width="2"/>
+
+  <!-- 荧光光环 -->
+  <circle cx="64" cy="64" r="38" fill="none" stroke="#4DF3B8" stroke-opacity="0.15" stroke-width="9"/>
+  <circle cx="64" cy="64" r="38" fill="none" stroke="#4DF3B8" stroke-opacity="0.5" stroke-width="2"/>
+
+  <!-- 闪电 -->
+  <path d="M 72 26 L 48 66 L 62 66 L 52 102 L 86 54 L 70 54 Z" fill="#4DF3B8"/>
+  <path d="M 66 34 L 54 60 L 64 60 L 58 84 L 78 58 L 68 58 Z" fill="#2A2150" fill-opacity="0.35"/>
+
+  <!-- 光点 -->
+  <circle cx="36" cy="40" r="3" fill="#7B61FF" opacity="0.8"/>
+  <circle cx="36" cy="40" r="7" fill="#7B61FF" opacity="0.15"/>
+  <circle cx="92" cy="92" r="2.5" fill="#4DF3B8" opacity="0.8"/>
+  <circle cx="92" cy="92" r="6" fill="#4DF3B8" opacity="0.14"/>
 </svg>

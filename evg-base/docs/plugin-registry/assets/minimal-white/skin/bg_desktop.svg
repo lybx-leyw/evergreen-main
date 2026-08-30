@@ -1,1 +1,38 @@
-<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="极简背景（横屏）"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#FAFAFA"/><stop offset="100%" stop-color="#6E6E6E22"/></linearGradient></defs><rect width="1600" height="900" fill="url(#g)"/><circle cx="297" cy="546" r="26" fill="#1C1C1C" opacity="0.05"/><circle cx="696" cy="227" r="89" fill="#1C1C1C" opacity="0.05"/><circle cx="843" cy="717" r="31" fill="#1C1C1C" opacity="0.05"/><circle cx="1570" cy="593" r="51" fill="#1C1C1C" opacity="0.05"/><circle cx="1578" cy="53" r="29" fill="#1C1C1C" opacity="0.05"/><circle cx="662" cy="656" r="24" fill="#1C1C1C" opacity="0.05"/><circle cx="1070" cy="109" r="85" fill="#1C1C1C" opacity="0.05"/><circle cx="515" cy="475" r="45" fill="#1C1C1C" opacity="0.05"/><circle cx="158" cy="835" r="85" fill="#1C1C1C" opacity="0.05"/><circle cx="840" cy="462" r="35" fill="#1C1C1C" opacity="0.05"/><circle cx="728" cy="140" r="29" fill="#1C1C1C" opacity="0.05"/><circle cx="243" cy="564" r="87" fill="#1C1C1C" opacity="0.05"/><path d="M0 675.0 q400.0 -70 800.0 0 q400.0 70 800.0 0" fill="none" stroke="#1C1C1C" stroke-width="3" opacity="0.18"/></svg>
+<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="极简白对话背景（横屏）">
+  <!-- 极简白主题横屏背景：纯白渐变 + 极简几何线条（圆环/弧线/点），
+       低对比度，叠加渲染层 35% 白遮罩后消息文字清晰可读。 -->
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="55%" stop-color="#F8F8F8"/>
+      <stop offset="100%" stop-color="#EFEFEF"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bgGrad)"/>
+
+  <!-- 大圆环（右上） -->
+  <circle cx="1330" cy="200" r="185" fill="none" stroke="#1C1C1C" stroke-opacity="0.06" stroke-width="2.5"/>
+  <circle cx="1330" cy="200" r="150" fill="none" stroke="#1C1C1C" stroke-opacity="0.04" stroke-width="2"/>
+
+  <!-- 同心圆环（左下） -->
+  <circle cx="250" cy="720" r="70" fill="none" stroke="#1C1C1C" stroke-opacity="0.05" stroke-width="2"/>
+  <circle cx="250" cy="720" r="95" fill="none" stroke="#1C1C1C" stroke-opacity="0.04" stroke-width="2"/>
+
+  <!-- 弧线（中下） -->
+  <path d="M 620 780 A 240 240 0 0 1 1020 660" fill="none" stroke="#6E6E6E" stroke-opacity="0.10" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- 细线 -->
+  <path d="M 700 140 L 960 140" fill="none" stroke="#1C1C1C" stroke-opacity="0.10" stroke-width="2"/>
+  <path d="M 1080 420 L 1240 420" fill="none" stroke="#6E6E6E" stroke-opacity="0.08" stroke-width="2"/>
+
+  <!-- 点缀点 -->
+  <circle cx="300" cy="280" r="6" fill="#1C1C1C" fill-opacity="0.5"/>
+  <circle cx="1440" cy="640" r="5" fill="#1C1C1C" fill-opacity="0.35"/>
+  <circle cx="520" cy="420" r="2.5" fill="#6E6E6E" fill-opacity="0.35"/>
+  <circle cx="900" cy="300" r="2" fill="#6E6E6E" fill-opacity="0.3"/>
+  <circle cx="1150" cy="760" r="2.5" fill="#6E6E6E" fill-opacity="0.3"/>
+  <circle cx="150" cy="480" r="2" fill="#6E6E6E" fill-opacity="0.28"/>
+  <circle cx="1380" cy="500" r="2" fill="#6E6E6E" fill-opacity="0.28"/>
+  <circle cx="640" cy="620" r="2" fill="#6E6E6E" fill-opacity="0.25"/>
+</svg>

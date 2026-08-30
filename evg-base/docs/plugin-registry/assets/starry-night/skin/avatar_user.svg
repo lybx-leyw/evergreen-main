@@ -1,12 +1,33 @@
-<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="星空头像">
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="星空用户头像 - 弯月">
+  <!-- 星空用户头像：深蓝圆底 + 弯月 + 星芒 + 星点，
+       28px 圆头像裁切下依然清晰。 -->
   <defs>
-    <linearGradient id="ag" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#5FA8FF"/>
-      <stop offset="100%" stop-color="#E9ECF6"/>
-    </linearGradient>
+    <radialGradient id="auBg" cx="50%" cy="40%" r="65%">
+      <stop offset="0%" stop-color="#26365C"/>
+      <stop offset="60%" stop-color="#1A243E"/>
+      <stop offset="100%" stop-color="#101524"/>
+    </radialGradient>
+    <g id="auSpark">
+      <path d="M0 -7 L1.6 -1.6 L7 0 L1.6 1.6 L0 7 L-1.6 1.6 L-7 0 L-1.6 -1.6 Z" fill="#E9ECF6" fill-opacity="0.8"/>
+    </g>
   </defs>
-  <circle cx="128" cy="128" r="118" fill="url(#ag)"/>
-  <circle cx="128" cy="128" r="118" fill="none" stroke="#101524" stroke-width="6" opacity="0.35"/>
-  <circle cx="128" cy="108" r="42" fill="#101524" opacity="0.92"/>
-  <path d="M66 210 q62 -106 124 0 q-20 22 -62 22 q-42 0 -62 -22z" fill="#101524" opacity="0.92"/>
+
+  <!-- 圆底 -->
+  <circle cx="64" cy="64" r="60" fill="url(#auBg)"/>
+  <circle cx="64" cy="64" r="60" fill="none" stroke="#5FA8FF" stroke-opacity="0.22" stroke-width="2"/>
+
+  <!-- 弯月（中心 64,62） -->
+  <g transform="translate(64 62)">
+    <circle cx="0" cy="0" r="40" fill="#5FA8FF" fill-opacity="0.10"/>
+    <circle cx="0" cy="0" r="26" fill="#E9ECF6"/>
+    <circle cx="10" cy="-8" r="22.5" fill="url(#auBg)"/>
+  </g>
+
+  <!-- 星芒与星点 -->
+  <use href="#auSpark" transform="translate(100 36)"/>
+  <use href="#auSpark" transform="translate(36 44) scale(0.7)"/>
+  <circle cx="44" cy="96" r="2" fill="#E9ECF6" opacity="0.7"/>
+  <circle cx="96" cy="88" r="1.8" fill="#F6C96E" opacity="0.8"/>
+  <circle cx="84" cy="104" r="1.4" fill="#E9ECF6" opacity="0.55"/>
+  <circle cx="28" cy="72" r="1.5" fill="#E9ECF6" opacity="0.5"/>
 </svg>

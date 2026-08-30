@@ -1,1 +1,68 @@
-<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="霓虹网格背景（横屏）"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#0E0B1E"/><stop offset="100%" stop-color="#9F96D822"/></linearGradient></defs><rect width="1600" height="900" fill="url(#g)"/><circle cx="1010" cy="552" r="26" fill="#00E5FF" opacity="0.05"/><circle cx="509" cy="105" r="77" fill="#00E5FF" opacity="0.05"/><circle cx="676" cy="785" r="84" fill="#00E5FF" opacity="0.05"/><circle cx="198" cy="358" r="32" fill="#00E5FF" opacity="0.05"/><circle cx="282" cy="533" r="74" fill="#00E5FF" opacity="0.05"/><circle cx="1121" cy="159" r="52" fill="#00E5FF" opacity="0.05"/><circle cx="1588" cy="414" r="65" fill="#00E5FF" opacity="0.05"/><circle cx="953" cy="177" r="40" fill="#00E5FF" opacity="0.05"/><circle cx="917" cy="281" r="39" fill="#00E5FF" opacity="0.05"/><circle cx="1489" cy="410" r="84" fill="#00E5FF" opacity="0.05"/><circle cx="555" cy="592" r="86" fill="#00E5FF" opacity="0.05"/><circle cx="90" cy="882" r="47" fill="#00E5FF" opacity="0.05"/><path d="M0 675.0 q400.0 -70 800.0 0 q400.0 70 800.0 0" fill="none" stroke="#00E5FF" stroke-width="3" opacity="0.18"/></svg>
+<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="赛博霓虹对话背景（横屏）">
+  <!-- 赛博霓虹主题横屏背景：深紫渐变 + 透视网格 + 霓虹光环/六边形 + 光点，
+       低对比度，叠加渲染层 35% 白遮罩后消息文字清晰可读。 -->
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0E0B1E"/>
+      <stop offset="55%" stop-color="#16112A"/>
+      <stop offset="100%" stop-color="#221B48"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="neonGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#00E5FF" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#00E5FF" stop-opacity="0"/>
+    </radialGradient>
+    <g id="ring">
+      <circle cx="0" cy="0" r="120" fill="none" stroke="#00E5FF" stroke-opacity="0.08" stroke-width="14"/>
+      <circle cx="0" cy="0" r="120" fill="none" stroke="#00E5FF" stroke-opacity="0.30" stroke-width="3"/>
+    </g>
+    <g id="hex">
+      <path d="M0 -26 L22.5 -13 L22.5 13 L0 26 L-22.5 13 L-22.5 -13 Z" fill="#FF6EC7" fill-opacity="0.05"/>
+      <path d="M0 -26 L22.5 -13 L22.5 13 L0 26 L-22.5 13 L-22.5 -13 Z" fill="none" stroke="#FF6EC7" stroke-opacity="0.38" stroke-width="2.5"/>
+    </g>
+    <g id="dot">
+      <circle cx="0" cy="0" r="13" fill="#00E5FF" fill-opacity="0.15"/>
+      <circle cx="0" cy="0" r="5" fill="#00E5FF" fill-opacity="0.7"/>
+    </g>
+    <g id="dotM">
+      <circle cx="0" cy="0" r="12" fill="#FF6EC7" fill-opacity="0.12"/>
+      <circle cx="0" cy="0" r="4.5" fill="#FF6EC7" fill-opacity="0.6"/>
+    </g>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bgGrad)"/>
+
+  <!-- 柔和光斑 + 霓虹氛围 -->
+  <circle cx="800" cy="440" r="430" fill="url(#glow)"/>
+  <circle cx="250" cy="760" r="280" fill="url(#neonGlow)"/>
+  <circle cx="1400" cy="180" r="240" fill="url(#neonGlow)"/>
+
+  <!-- 透视网格（灭点 800,500） -->
+  <g stroke="#00E5FF" stroke-opacity="0.06" stroke-width="2">
+    <path d="M60 900 L800 500 M260 900 L800 500 M460 900 L800 500 M660 900 L800 500"/>
+    <path d="M860 900 L800 500 M1060 900 L800 500 M1260 900 L800 500 M1460 900 L800 500 M1540 900 L800 500"/>
+    <path d="M0 530 L1600 530 M0 600 L1600 600 M0 680 L1600 680 M0 770 L1600 770 M0 870 L1600 870"/>
+  </g>
+
+  <!-- 霓虹光环 -->
+  <use href="#ring" transform="translate(240 250)"/>
+  <use href="#ring" transform="translate(1360 640) scale(1.15)"/>
+  <use href="#ring" transform="translate(1080 160) scale(0.6)"/>
+  <use href="#ring" transform="translate(520 770) scale(0.45)"/>
+
+  <!-- 六边形 -->
+  <use href="#hex" transform="translate(480 300)"/>
+  <use href="#hex" transform="translate(1460 380) scale(0.8)"/>
+  <use href="#hex" transform="translate(740 690) scale(0.55)"/>
+
+  <!-- 光点 -->
+  <use href="#dot" transform="translate(180 560)"/>
+  <use href="#dot" transform="translate(1200 420)"/>
+  <use href="#dot" transform="translate(960 780)"/>
+  <use href="#dotM" transform="translate(360 130)"/>
+  <use href="#dotM" transform="translate(1500 780)"/>
+  <use href="#dotM" transform="translate(820 320)"/>
+</svg>

@@ -1,12 +1,33 @@
-<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="霓虹网格头像">
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="赛博霓虹用户头像 - 霓虹环">
+  <!-- 赛博霓虹用户头像：深紫圆底 + 霓虹光环 + 六边形 + 光点，
+       28px 圆头像裁切下依然清晰。 -->
   <defs>
-    <linearGradient id="ag" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#00E5FF"/>
-      <stop offset="100%" stop-color="#EDEAFD"/>
-    </linearGradient>
+    <radialGradient id="auBg" cx="50%" cy="40%" r="65%">
+      <stop offset="0%" stop-color="#241C4A"/>
+      <stop offset="60%" stop-color="#171233"/>
+      <stop offset="100%" stop-color="#0E0B1E"/>
+    </radialGradient>
   </defs>
-  <circle cx="128" cy="128" r="118" fill="url(#ag)"/>
-  <circle cx="128" cy="128" r="118" fill="none" stroke="#0E0B1E" stroke-width="6" opacity="0.35"/>
-  <circle cx="128" cy="108" r="42" fill="#0E0B1E" opacity="0.92"/>
-  <path d="M66 210 q62 -58 124 0 q-20 22 -62 22 q-42 0 -62 -22z" fill="#0E0B1E" opacity="0.92"/>
+
+  <!-- 圆底 -->
+  <circle cx="64" cy="64" r="60" fill="url(#auBg)"/>
+  <circle cx="64" cy="64" r="60" fill="none" stroke="#00E5FF" stroke-opacity="0.22" stroke-width="2"/>
+
+  <!-- 霓虹环（中心 64,64） -->
+  <g transform="translate(64 64)">
+    <circle cx="0" cy="0" r="36" fill="#00E5FF" fill-opacity="0.06"/>
+    <circle cx="0" cy="0" r="36" fill="none" stroke="#00E5FF" stroke-opacity="0.3" stroke-width="10"/>
+    <circle cx="0" cy="0" r="36" fill="none" stroke="#00E5FF" stroke-opacity="0.85" stroke-width="2.5"/>
+    <path d="M0 -22 L19.1 -11 L19.1 11 L0 22 L-19.1 11 L-19.1 -11 Z" fill="none" stroke="#FF6EC7" stroke-opacity="0.85" stroke-width="2.5"/>
+    <circle cx="0" cy="0" r="5" fill="#00E5FF"/>
+    <circle cx="0" cy="0" r="10" fill="#00E5FF" fill-opacity="0.2"/>
+  </g>
+
+  <!-- 角落光点 -->
+  <circle cx="36" cy="40" r="3" fill="#00E5FF" opacity="0.75"/>
+  <circle cx="36" cy="40" r="7" fill="#00E5FF" opacity="0.15"/>
+  <circle cx="90" cy="92" r="2.5" fill="#FF6EC7" opacity="0.8"/>
+  <circle cx="90" cy="92" r="6" fill="#FF6EC7" opacity="0.15"/>
+  <path d="M30 104 L52 104 M30 101 L52 101" stroke="#00E5FF" stroke-opacity="0.25" stroke-width="1.5"/>
+  <path d="M76 30 L98 30 M76 27 L98 27" stroke="#FF6EC7" stroke-opacity="0.25" stroke-width="1.5"/>
 </svg>

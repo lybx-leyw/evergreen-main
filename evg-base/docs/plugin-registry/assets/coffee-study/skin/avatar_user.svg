@@ -1,12 +1,37 @@
-<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="咖啡杯头像">
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="咖啡店自习用户头像 - 咖啡杯">
+  <!-- 咖啡店自习用户头像：暖咖圆底 + 咖啡杯（拉花 + 蒸汽），
+       28px 圆头像裁切下依然清晰。 -->
   <defs>
-    <linearGradient id="ag" x1="0%" y1="0%" x2="100%" y2="100%">
+    <radialGradient id="auBg" cx="50%" cy="40%" r="65%">
+      <stop offset="0%" stop-color="#FCF4E9"/>
+      <stop offset="60%" stop-color="#EFD9BA"/>
+      <stop offset="100%" stop-color="#E0BF97"/>
+    </radialGradient>
+    <linearGradient id="auCup" x1="0%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%" stop-color="#C08552"/>
-      <stop offset="100%" stop-color="#3E2E22"/>
+      <stop offset="100%" stop-color="#8A5A33"/>
     </linearGradient>
   </defs>
-  <circle cx="128" cy="128" r="118" fill="url(#ag)"/>
-  <circle cx="128" cy="128" r="118" fill="none" stroke="#F6EFE7" stroke-width="6" opacity="0.35"/>
-  <circle cx="128" cy="108" r="42" fill="#F6EFE7" opacity="0.92"/>
-  <path d="M66 210 q62 -58 124 0 q-20 22 -62 22 q-42 0 -62 -22z" fill="#F6EFE7" opacity="0.92"/>
+
+  <!-- 圆底 -->
+  <circle cx="64" cy="64" r="60" fill="url(#auBg)"/>
+  <circle cx="64" cy="64" r="60" fill="none" stroke="#C08552" stroke-opacity="0.18" stroke-width="2"/>
+
+  <!-- 咖啡杯（中心 64,84） -->
+  <g transform="translate(64 84) scale(0.8)">
+    <ellipse cx="0" cy="14" rx="62" ry="13" fill="#8A5A33" fill-opacity="0.35"/>
+    <path d="M-36 0 L36 0 C 38 22 29 38 6 42 C 2 43 -2 43 -6 42 C -29 38 -38 22 -36 0 Z" fill="url(#auCup)"/>
+    <ellipse cx="0" cy="0" rx="36" ry="10" fill="#FCF4E9" fill-opacity="0.85"/>
+    <path d="M 35 -4 C 58 -8 64 14 41 18" fill="none" stroke="#C08552" stroke-width="7" stroke-linecap="round"/>
+    <path d="M0 17 C -3 13 -9 13 -10 18 C -11 23 -5 26 0 29 C 5 26 11 23 10 18 C 9 13 3 13 0 17 Z" fill="#8A5A33" fill-opacity="0.55"/>
+    <path d="M-11 -16 C -18 -28 -6 -36 -13 -48" fill="none" stroke="#C08552" stroke-opacity="0.6" stroke-width="4" stroke-linecap="round"/>
+    <path d="M3 -17 C -4 -29 8 -37 1 -49" fill="none" stroke="#C08552" stroke-opacity="0.5" stroke-width="4" stroke-linecap="round"/>
+    <path d="M17 -13 C 10 -25 22 -33 15 -45" fill="none" stroke="#C08552" stroke-opacity="0.42" stroke-width="4" stroke-linecap="round"/>
+  </g>
+
+  <!-- 咖啡豆点缀 -->
+  <ellipse cx="36" cy="40" rx="6.5" ry="4.5" fill="#7F5228" opacity="0.5" transform="rotate(-24 36 40)"/>
+  <path d="M32.5 40.5 Q 36 44 39 39.5" fill="none" stroke="#FCF4E9" stroke-opacity="0.7" stroke-width="1.2"/>
+  <ellipse cx="94" cy="98" rx="6.5" ry="4.5" fill="#7F5228" opacity="0.5" transform="rotate(30 94 98)"/>
+  <path d="M90.5 98.5 Q 94 102 97 97.5" fill="none" stroke="#FCF4E9" stroke-opacity="0.7" stroke-width="1.2"/>
 </svg>

@@ -1,1 +1,67 @@
-<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="荧光跑道背景（横屏）"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#14101F"/><stop offset="100%" stop-color="#A99FD022"/></linearGradient></defs><rect width="1600" height="900" fill="url(#g)"/><circle cx="1168" cy="768" r="58" fill="#4DF3B8" opacity="0.10"/><circle cx="993" cy="234" r="85" fill="#4DF3B8" opacity="0.10"/><circle cx="1384" cy="378" r="46" fill="#4DF3B8" opacity="0.10"/><circle cx="828" cy="188" r="43" fill="#4DF3B8" opacity="0.10"/><circle cx="563" cy="880" r="23" fill="#4DF3B8" opacity="0.10"/><circle cx="25" cy="667" r="26" fill="#4DF3B8" opacity="0.10"/><circle cx="1211" cy="512" r="70" fill="#4DF3B8" opacity="0.10"/><circle cx="120" cy="791" r="60" fill="#4DF3B8" opacity="0.10"/><circle cx="1380" cy="272" r="46" fill="#4DF3B8" opacity="0.10"/><circle cx="761" cy="45" r="62" fill="#4DF3B8" opacity="0.10"/><circle cx="1407" cy="341" r="34" fill="#4DF3B8" opacity="0.10"/><path d="M0 675.0 q400.0 -70 800.0 0 q400.0 70 800.0 0" fill="none" stroke="#4DF3B8" stroke-width="3" opacity="0.24"/></svg>
+<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="荧光夜跑对话背景（横屏）">
+  <!-- 荧光夜跑主题横屏背景：深紫渐变 + 荧光跑道 + 夜跑者光轨 + 霓虹光斑，
+       低对比度，叠加渲染层 35% 白遮罩后消息文字清晰可读。 -->
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#14101F"/>
+      <stop offset="55%" stop-color="#1C1730"/>
+      <stop offset="100%" stop-color="#2A2150"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="mintGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#4DF3B8" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#4DF3B8" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="purpleGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#7B61FF" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#7B61FF" stop-opacity="0"/>
+    </radialGradient>
+    <g id="dotM">
+      <circle cx="0" cy="0" r="11" fill="#4DF3B8" fill-opacity="0.14"/>
+      <circle cx="0" cy="0" r="4.5" fill="#4DF3B8" fill-opacity="0.8"/>
+    </g>
+    <g id="dotP">
+      <circle cx="0" cy="0" r="11" fill="#7B61FF" fill-opacity="0.13"/>
+      <circle cx="0" cy="0" r="4.5" fill="#7B61FF" fill-opacity="0.75"/>
+    </g>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bgGrad)"/>
+
+  <!-- 柔和光斑 + 霓虹氛围 -->
+  <circle cx="800" cy="440" r="430" fill="url(#glow)"/>
+  <circle cx="240" cy="740" r="300" fill="url(#mintGlow)"/>
+  <circle cx="1400" cy="180" r="260" fill="url(#purpleGlow)"/>
+
+  <!-- 荧光跑道（透视弯道） -->
+  <g fill="none" stroke-linecap="round">
+    <path d="M-80 640 Q 800 590 1680 640" stroke="#4DF3B8" stroke-opacity="0.10" stroke-width="4"/>
+    <path d="M-80 700 Q 800 650 1680 700" stroke="#4DF3B8" stroke-opacity="0.09" stroke-width="4"/>
+    <path d="M-80 760 Q 800 710 1680 760" stroke="#4DF3B8" stroke-opacity="0.08" stroke-width="4"/>
+    <path d="M-80 820 Q 800 770 1680 820" stroke="#4DF3B8" stroke-opacity="0.07" stroke-width="4"/>
+    <path d="M-80 880 Q 800 830 1680 880" stroke="#4DF3B8" stroke-opacity="0.06" stroke-width="4"/>
+  </g>
+  <!-- 跑道中线 -->
+  <path d="M-80 790 Q 800 740 1680 790" fill="none" stroke="#FFFFFF" stroke-opacity="0.05" stroke-width="2" stroke-dasharray="18 14"/>
+
+  <!-- 夜跑者（荧光光轨） -->
+  <g transform="translate(820 700)">
+    <path d="M-110 0 C -70 -14 -30 -6 0 0" fill="none" stroke="#4DF3B8" stroke-opacity="0.5" stroke-width="6" stroke-linecap="round"/>
+    <path d="M-70 0 C -45 -8 -20 -4 0 0" fill="none" stroke="#4DF3B8" stroke-opacity="0.8" stroke-width="5" stroke-linecap="round"/>
+    <circle cx="0" cy="-24" r="8.5" fill="#4DF3B8" fill-opacity="0.9"/>
+    <path d="M0 -15 L 2 4 M 2 4 L -5 17 M 2 4 L 10 13 M -2 10 L -12 15" fill="none" stroke="#4DF3B8" stroke-opacity="0.85" stroke-width="4.5" stroke-linecap="round"/>
+    <circle cx="-4" cy="-26" r="13" fill="#4DF3B8" fill-opacity="0.15"/>
+  </g>
+
+  <!-- 光点 -->
+  <use href="#dotM" transform="translate(240 420)"/>
+  <use href="#dotM" transform="translate(1180 560)"/>
+  <use href="#dotM" transform="translate(1500 620)"/>
+  <use href="#dotP" transform="translate(400 180)"/>
+  <use href="#dotP" transform="translate(980 800)"/>
+  <use href="#dotP" transform="translate(140 640)"/>
+  <use href="#dotP" transform="translate(1350 320)"/>
+</svg>

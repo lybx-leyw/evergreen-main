@@ -1,1 +1,83 @@
-<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="星空背景（横屏）"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#101524"/><stop offset="100%" stop-color="#98A2C022"/></linearGradient></defs><rect width="1600" height="900" fill="url(#g)"/><circle cx="841" cy="633" r="61" fill="#5FA8FF" opacity="0.05"/><circle cx="135" cy="395" r="27" fill="#5FA8FF" opacity="0.05"/><circle cx="694" cy="90" r="79" fill="#5FA8FF" opacity="0.05"/><circle cx="1332" cy="894" r="49" fill="#5FA8FF" opacity="0.05"/><circle cx="729" cy="166" r="23" fill="#5FA8FF" opacity="0.05"/><circle cx="210" cy="271" r="83" fill="#5FA8FF" opacity="0.05"/><circle cx="441" cy="163" r="65" fill="#5FA8FF" opacity="0.05"/><circle cx="1008" cy="254" r="39" fill="#5FA8FF" opacity="0.05"/><circle cx="428" cy="317" r="60" fill="#5FA8FF" opacity="0.05"/><circle cx="1134" cy="488" r="58" fill="#5FA8FF" opacity="0.05"/><circle cx="1482" cy="825" r="76" fill="#5FA8FF" opacity="0.05"/><circle cx="247" cy="53" r="59" fill="#5FA8FF" opacity="0.05"/><path d="M0 675.0 q400.0 -70 800.0 0 q400.0 70 800.0 0" fill="none" stroke="#5FA8FF" stroke-width="3" opacity="0.18"/></svg>
+<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="星空对话背景（横屏）">
+  <!-- 星空主题横屏背景：深蓝渐变 + 星河星点 + 弯月 + 星座连线 + 流星 + 山影，
+       低对比度，叠加渲染层 35% 白遮罩后消息文字清晰可读。 -->
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#101524"/>
+      <stop offset="55%" stop-color="#182238"/>
+      <stop offset="100%" stop-color="#202D4C"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="moonGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#E9ECF6" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#E9ECF6" stop-opacity="0"/>
+    </radialGradient>
+    <g id="sparkle">
+      <path d="M0 -8 L2 -2 L8 0 L2 2 L0 8 L-2 2 L-8 0 L-2 -2 Z" fill="#E9ECF6" fill-opacity="0.75"/>
+    </g>
+    <g id="starD">
+      <circle cx="0" cy="0" r="1.8" fill="#E9ECF6" fill-opacity="0.6"/>
+    </g>
+    <g id="starW">
+      <circle cx="0" cy="0" r="1.8" fill="#F6C96E" fill-opacity="0.7"/>
+    </g>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bgGrad)"/>
+
+  <!-- 柔和光斑 -->
+  <circle cx="800" cy="400" r="430" fill="url(#glow)"/>
+  <circle cx="1250" cy="200" r="260" fill="url(#moonGlow)"/>
+
+  <!-- 弯月（右上） -->
+  <path d="M 1288 138 A 46 46 0 1 1 1240 236 A 37 37 0 1 0 1288 138 Z" fill="#E9ECF6" fill-opacity="0.9"/>
+
+  <!-- 流星 -->
+  <path d="M 1430 120 L 1540 180" stroke="#E9ECF6" stroke-opacity="0.55" stroke-width="2.5" stroke-linecap="round"/>
+  <path d="M 1450 132 L 1490 154" stroke="#E9ECF6" stroke-opacity="0.3" stroke-width="1.5" stroke-linecap="round"/>
+  <circle cx="1540" cy="180" r="2.5" fill="#E9ECF6" fill-opacity="0.9"/>
+
+  <!-- 星点 -->
+  <use href="#starD" transform="translate(120 160)"/>
+  <use href="#starD" transform="translate(280 420)"/>
+  <use href="#starD" transform="translate(360 240)"/>
+  <use href="#starD" transform="translate(470 140)"/>
+  <use href="#starD" transform="translate(540 380)"/>
+  <use href="#starD" transform="translate(660 300)"/>
+  <use href="#starD" transform="translate(700 160)"/>
+  <use href="#starD" transform="translate(860 260)"/>
+  <use href="#starD" transform="translate(940 120)"/>
+  <use href="#starD" transform="translate(1050 340)"/>
+  <use href="#starD" transform="translate(1150 460)"/>
+  <use href="#starD" transform="translate(1260 380)"/>
+  <use href="#starD" transform="translate(1460 320)"/>
+  <use href="#starD" transform="translate(1520 500)"/>
+  <use href="#starW" transform="translate(200 300)"/>
+  <use href="#starW" transform="translate(620 480)"/>
+  <use href="#starW" transform="translate(1020 210)"/>
+  <use href="#starW" transform="translate(1380 300)"/>
+
+  <!-- 星芒 -->
+  <use href="#sparkle" transform="translate(320 180) scale(1.2)"/>
+  <use href="#sparkle" transform="translate(760 420)"/>
+  <use href="#sparkle" transform="translate(1180 260) scale(0.8)"/>
+
+  <!-- 星座连线 -->
+  <path d="M 200 560 L 300 480 L 420 520 L 500 440" fill="none" stroke="#5FA8FF" stroke-opacity="0.30" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M 1000 600 L 1120 540 L 1240 590 L 1360 520" fill="none" stroke="#5FA8FF" stroke-opacity="0.28" stroke-width="1.6" stroke-linecap="round"/>
+  <circle cx="200" cy="560" r="2.5" fill="#E9ECF6" fill-opacity="0.8"/>
+  <circle cx="300" cy="480" r="2.5" fill="#E9ECF6" fill-opacity="0.8"/>
+  <circle cx="420" cy="520" r="2.5" fill="#E9ECF6" fill-opacity="0.8"/>
+  <circle cx="500" cy="440" r="2.5" fill="#E9ECF6" fill-opacity="0.8"/>
+  <circle cx="1000" cy="600" r="2.5" fill="#E9ECF6" fill-opacity="0.8"/>
+  <circle cx="1120" cy="540" r="2.5" fill="#E9ECF6" fill-opacity="0.8"/>
+  <circle cx="1240" cy="590" r="2.5" fill="#E9ECF6" fill-opacity="0.8"/>
+  <circle cx="1360" cy="520" r="2.5" fill="#E9ECF6" fill-opacity="0.8"/>
+
+  <!-- 山影 -->
+  <path d="M0 780 L 280 640 L 560 790 L 860 650 L 1180 800 L 1440 680 L 1600 760 L 1600 900 L 0 900 Z" fill="#151C31" fill-opacity="0.8"/>
+  <path d="M0 850 L 200 760 L 420 860 L 680 760 L 940 870 L 1220 770 L 1500 880 L 1600 830 L 1600 900 L 0 900 Z" fill="#11172A" fill-opacity="0.9"/>
+</svg>

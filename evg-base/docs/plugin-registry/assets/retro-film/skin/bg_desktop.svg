@@ -1,1 +1,91 @@
-<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="胶片背景（横屏）"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#EFE7DA"/><stop offset="100%" stop-color="#7A6A52" stop-opacity="0.13"/></linearGradient></defs><rect width="1600" height="900" fill="url(#g)"/><circle cx="558" cy="676" r="33" fill="#7F5228" opacity="0.05"/><circle cx="731" cy="869" r="65" fill="#7F5228" opacity="0.05"/><circle cx="1247" cy="526" r="55" fill="#7F5228" opacity="0.05"/><circle cx="945" cy="389" r="43" fill="#7F5228" opacity="0.05"/><circle cx="549" cy="845" r="26" fill="#7F5228" opacity="0.05"/><circle cx="1459" cy="746" r="58" fill="#7F5228" opacity="0.05"/><circle cx="1179" cy="865" r="36" fill="#7F5228" opacity="0.05"/><circle cx="235" cy="438" r="43" fill="#7F5228" opacity="0.05"/><circle cx="164" cy="538" r="37" fill="#7F5228" opacity="0.05"/><circle cx="835" cy="382" r="35" fill="#7F5228" opacity="0.05"/><circle cx="487" cy="650" r="39" fill="#7F5228" opacity="0.05"/><circle cx="1371" cy="688" r="45" fill="#7F5228" opacity="0.05"/><path d="M0 675.0 q400.0 -70 800.0 0 q400.0 70 800.0 0" fill="none" stroke="#7F5228" stroke-width="3" opacity="0.18"/></svg>
+<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="复古胶片对话背景（横屏）">
+  <!-- 复古胶片主题横屏背景：暖米渐变 + 胶片条幅（齿孔+画格）+ 放映光束 + 胶片盘，
+       低对比度，叠加渲染层 35% 白遮罩后消息文字清晰可读。 -->
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F6F0E5"/>
+      <stop offset="55%" stop-color="#ECE1CF"/>
+      <stop offset="100%" stop-color="#DDCCB0"/>
+    </linearGradient>
+    <linearGradient id="frameG" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#7F5228" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#3D3226" stop-opacity="0.16"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="beamGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#E8B96A" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#E8B96A" stop-opacity="0"/>
+    </radialGradient>
+    <g id="frame">
+      <rect x="-40" y="-30" width="80" height="60" rx="5" fill="url(#frameG)" stroke="#3D3226" stroke-opacity="0.3" stroke-width="2"/>
+      <circle cx="-12" cy="-6" r="9" fill="#E8B96A" fill-opacity="0.55"/>
+      <path d="M-34 24 L -8 0 L 10 14 L 26 4 L 38 24 Z" fill="#3D3226" fill-opacity="0.3"/>
+    </g>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bgGrad)"/>
+
+  <!-- 柔和光斑 -->
+  <circle cx="800" cy="440" r="430" fill="url(#glow)"/>
+  <circle cx="250" cy="760" r="280" fill="url(#beamGlow)"/>
+
+  <!-- 放映光束（左上→右下） -->
+  <polygon points="180,140 1350,320 1350,560 180,240" fill="#E8B96A" fill-opacity="0.06"/>
+  <path d="M180 150 L 1350 340 M180 210 L 1350 440" stroke="#E8B96A" stroke-opacity="0.12" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- 胶片盘（左下） -->
+  <g transform="translate(220 700)">
+    <circle cx="0" cy="0" r="72" fill="none" stroke="#7F5228" stroke-opacity="0.35" stroke-width="6"/>
+    <circle cx="0" cy="0" r="56" fill="none" stroke="#7F5228" stroke-opacity="0.22" stroke-width="3"/>
+    <circle cx="0" cy="0" r="16" fill="none" stroke="#7F5228" stroke-opacity="0.4" stroke-width="5"/>
+    <circle cx="0" cy="0" r="6" fill="#7F5228" fill-opacity="0.45"/>
+    <path d="M0 -56 L 0 -72 M0 56 L 0 72 M-56 0 L -72 0 M56 0 L 72 0" stroke="#7F5228" stroke-opacity="0.3" stroke-width="3"/>
+  </g>
+
+  <!-- 胶片条幅（右侧竖向） -->
+  <g transform="translate(1480 70)">
+    <rect x="0" y="0" width="120" height="760" rx="10" fill="#3D3226" fill-opacity="0.15"/>
+    <g fill="#F6F0E5" fill-opacity="0.55">
+      <rect x="12" y="20" width="12" height="9" rx="3"/>
+      <rect x="12" y="90" width="12" height="9" rx="3"/>
+      <rect x="12" y="160" width="12" height="9" rx="3"/>
+      <rect x="12" y="230" width="12" height="9" rx="3"/>
+      <rect x="12" y="300" width="12" height="9" rx="3"/>
+      <rect x="12" y="370" width="12" height="9" rx="3"/>
+      <rect x="12" y="440" width="12" height="9" rx="3"/>
+      <rect x="12" y="510" width="12" height="9" rx="3"/>
+      <rect x="12" y="580" width="12" height="9" rx="3"/>
+      <rect x="12" y="650" width="12" height="9" rx="3"/>
+      <rect x="12" y="720" width="12" height="9" rx="3"/>
+      <rect x="96" y="20" width="12" height="9" rx="3"/>
+      <rect x="96" y="90" width="12" height="9" rx="3"/>
+      <rect x="96" y="160" width="12" height="9" rx="3"/>
+      <rect x="96" y="230" width="12" height="9" rx="3"/>
+      <rect x="96" y="300" width="12" height="9" rx="3"/>
+      <rect x="96" y="370" width="12" height="9" rx="3"/>
+      <rect x="96" y="440" width="12" height="9" rx="3"/>
+      <rect x="96" y="510" width="12" height="9" rx="3"/>
+      <rect x="96" y="580" width="12" height="9" rx="3"/>
+      <rect x="96" y="650" width="12" height="9" rx="3"/>
+      <rect x="96" y="720" width="12" height="9" rx="3"/>
+    </g>
+    <use href="#frame" transform="translate(60 130)"/>
+    <use href="#frame" transform="translate(60 320)"/>
+    <use href="#frame" transform="translate(60 510)"/>
+    <use href="#frame" transform="translate(60 690) scale(0.7)"/>
+  </g>
+
+  <!-- 散落小画格（中左） -->
+  <use href="#frame" transform="translate(560 220) rotate(-8) scale(0.8)"/>
+  <use href="#frame" transform="translate(980 640) rotate(6) scale(0.7)"/>
+  <use href="#frame" transform="translate(820 120) rotate(-4) scale(0.55)"/>
+
+  <!-- 点缀圆点 -->
+  <circle cx="420" cy="640" r="6" fill="#7F5228" fill-opacity="0.14"/>
+  <circle cx="1180" cy="560" r="5" fill="#3D3226" fill-opacity="0.16"/>
+  <circle cx="700" cy="830" r="6" fill="#7F5228" fill-opacity="0.12"/>
+  <circle cx="900" cy="150" r="5" fill="#E8B96A" fill-opacity="0.4"/>
+</svg>
