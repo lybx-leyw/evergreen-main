@@ -5,7 +5,8 @@ items（必填，非空字符串列表）+ count（默认 1，1 <= count <= len(
 抽取不重复（按索引无放回）。count 越界 / items 为空 / 含非字符串 → 结构化错误。
 """
 import sys
-sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 import json
 import random
 

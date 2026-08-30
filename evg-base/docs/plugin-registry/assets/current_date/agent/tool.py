@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 """当前日期（真实计算）：YYYY-MM-DD，可选附带星期几。纯标准库。"""
 import sys
-sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 import json
 import datetime
 

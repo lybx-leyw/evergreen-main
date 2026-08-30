@@ -2,7 +2,8 @@
 # -*- coding: utf-8 -*-
 """当前时间（真实计算）：cn=中文格式 / iso=ISO 8601。纯标准库。"""
 import sys
-sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 import json
 import datetime
 

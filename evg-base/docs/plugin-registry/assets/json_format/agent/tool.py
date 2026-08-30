@@ -4,7 +4,8 @@
 json 必填且必须为合法 JSON 字符串；indent 0-8 的整数（0 = 压缩单行）。
 """
 import sys
-sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 import json
 
 def _load_args():

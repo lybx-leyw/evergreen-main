@@ -5,7 +5,8 @@ end_date 必填，格式 YYYY-MM-DD；返回距今天数（可为负=已过期�
 非法日期格式返回结构化错误而非崩溃。
 """
 import sys
-sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 import json
 import datetime
 

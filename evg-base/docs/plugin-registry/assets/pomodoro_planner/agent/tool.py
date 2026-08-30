@@ -5,7 +5,8 @@ minutes（必填，>=1 的整数）拆分为 focus 分钟专注（默认 25）+ 
 输出块数与余数。focus 为 0/负数/非数字时返回结构化错误而非崩溃。
 """
 import sys
-sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 import json
 
 REST_MIN = 5
