@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>数据中枢 · 架构演示 — Evergreen DataHub</title>
+<link rel="stylesheet" href="_shared/evg-style.css" />
+<style>
+/* ============================================================================
+   data-hub.html — 数据中枢（DataHub）架构演示图 · 墨白风
+   风格基座：_shared/evg-style.css + _shared/evg-common.js（STYLE_GUIDE §8）
+   内容对照：evg-base/lib/core/data/orchestrator.dart（DataOrchestrator）
+   页面级样式只消费 var(--evg-*) 语义变量；组件一律用基座类。
+   ========================================================================== */
+
+/* ── 页头 ──────────────────────────────────────────────────────────────── */
+.dh-hero { padding: 38px 16px 6px; text-align: center; }
+.dh-hero__inner { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.dh-hero__title { letter-spacing: 0.02em; }
+.dh-hero__en { font-size: 1.05rem; font-weight: 600; }
+.dh-hero__actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 6px; }
+
+.dh-main { padding-bottom: 60px; display: flex; flex-direction: column; gap: 28px; }
+
+/* ── 数据条 ─────────────────────────────────────────────────────────────── */
+.dh-stats { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.dh-stats .evg-pill { height: auto; padding: 8px 14px; border-radius: var(--evg-radius-lg); }
+.dh-num { font-family: var(--evg-mono); color: var(--evg-accent); font-size: 1.05rem; }
+
+/* ── 图例 ───────────────────────────────────────────────────────────────── */
+.dh-legend { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+.dh-legend__item { display: inline-flex; align-items: center; gap: 6px; font-size: 0.72rem; color: var(--evg-muted); }
+.dh-legend__sw { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.dh-legend__sw--accent { background: var(--evg-accent); }
+.dh-legend__sw--danger { background: var(--evg-danger); }
+.dh-legend__sw--success { background: var(--evg-success); }
+.dh-legend__sw--muted { background: var(--evg-border-strong); }
+
+/* ── 堆栈（栈式分层） ───────────────────────────────────────────────────── */
+.dh-stack { padding: 18px; display: flex; flex-direction: column; gap: 6px; }
+
+.dh-band { border: 1px solid var(--evg-border); border-radius: var(--evg-radius-lg); overflow: hidden; background: var(--evg-bg-2); }
+.dh-band--core { background: var(--evg-accent-soft); border-color: var(--evg-accent); }
+.dh-band__head {
+  display: flex; align-items: center; gap: 8px; padding: 8px 14px;
+  background: var(--evg-panel); border-bottom: 1px solid var(--evg-border);
+  font-size: 0.82rem; font-weight: 700;
+}
+.dh-band--core .dh-band__head { background: var(--evg-accent-soft); border-bottom-color: var(--evg-accent-soft); color: var(--evg-accent); }
+.dh-layer {
+  font-family: var(--evg-mono); font-size: 0.66rem; color: var(--evg-muted-2);
+  border: 1px solid var(--evg-border); border-radius: 6px; padding: 0 6px; background: var(--evg-card);
+}
+.dh-band__body { padding: 12px 14px; display: flex; gap: 10px; flex-wrap: wrap; }
+.dh-band__body--3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.dh-band__corebody { display: grid; grid-template-columns: 250px 1fr; gap: 14px; align-items: stretch; }
+.dh-core { width: 100%; min-height: 92px; }
+
+.dh-subs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.dh-sub {
+  background: var(--evg-card); border: 1px solid var(--evg-border); border-radius: var(--evg-radius);
+  padding: 8px 10px; display: flex; flex-direction: column; gap: 2px;
+  transition: border-color var(--evg-dur-2) var(--evg-ease), background var(--evg-dur-2) var(--evg-ease),
+    box-shadow var(--evg-dur-2) var(--evg-ease);
+}
+.dh-sub__t { font-size: 0.78rem; font-weight: 700; }
+.dh-sub__s { font-family: var(--evg-mono); font-size: 0.62rem; color: var(--evg-muted); }
+.dh-sub.is-hot { border-color: var(--evg-accent); background: var(--evg-accent-soft); box-shadow: var(--evg-shadow-sm); }
+.dh-sub.is-hot .dh-sub__t { color: var(--evg-accent); }
+
+/* 数据源 chip */
+.dh-chip {
+  display: inline-flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  padding: 8px 12px; background: var(--evg-card); border: 1px solid var(--evg-border);
+  border-radius: var(--evg-radius); font-size: 0.8rem; min-width: 0;
+  transition: border-color var(--evg-dur-2) var(--evg-ease), background var(--evg-dur-2) var(--evg-ease),
+    opacity var(--evg-dur-2) var(--evg-ease), box-shadow var(--evg-dur-2) var(--evg-ease);
+}
+.dh-chip__name { font-weight: 700; line-height: 1.3; }
+.dh-chip__sub { font-family: var(--evg-mono); font-size: 0.62rem; color: var(--evg-muted); }
+.dh-chip--static { align-items: center; text-align: center; }
+.dh-chip.st-active { border-color: var(--evg-accent); background: var(--evg-accent-soft); animation: evg-focus-pulse 2s var(--evg-ease-out) infinite; }
+.dh-chip.st-active .dh-chip__name { color: var(--evg-accent); }
+.dh-chip.st-fail { border-color: var(--evg-danger); background: var(--evg-danger-soft); }
+.dh-chip.st-fail .dh-chip__name { color: var(--evg-danger); }
+.dh-chip.st-exhaust { border-color: var(--evg-danger); background: var(--evg-danger-soft); opacity: 0.85; }
+.dh-chip.st-exhaust .dh-chip__name { color: var(--evg-danger); }
+.dh-chip.st-success { border-color: var(--evg-success); background: var(--evg-success-soft); }
+.dh-chip.st-success .dh-chip__name { color: var(--evg-success); }
+.dh-chip.st-idle { opacity: 0.5; }
+
+/* 登录域分组 */
+.dh-group { background: var(--evg-bg-2); border: 1px solid var(--evg-border); border-radius: var(--evg-radius-lg); overflow: hidden; }
+.dh-group__head { display: flex; align-items: center; gap: 8px; padding: 7px 12px; background: var(--evg-panel); border-bottom: 1px solid var(--evg-border); }
+.dh-group__dom { font-family: var(--evg-mono); font-size: 0.7rem; font-weight: 600; }
+.dh-group__tag { margin-left: auto; }
+.dh-group__body { padding: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+.dh-group.is-hot { border-color: var(--evg-accent); box-shadow: var(--evg-shadow-md); }
+.dh-group.is-hot .dh-group__head { color: var(--evg-accent); border-bottom-color: var(--evg-accent-soft); background: var(--evg-accent-soft); }
+
+/* 层间沟槽与流动线 */
+.dh-gutter { height: 22px; display: flex; align-items: center; justify-content: center; }
+.dh-gutter--main { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); height: 26px; }
+.dh-gutter__col { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.dh-gutter--static .dh-gutter__line { width: 2px; height: 60%; border-radius: 99px; background: var(--evg-border); opacity: 0.55; }
+.dh-flow {
+  width: 3px; height: 100%; border-radius: 99px; background: var(--evg-border); opacity: 0.5;
+  transition: background var(--evg-dur-2) var(--evg-ease), opacity var(--evg-dur-2) var(--evg-ease);
+}
+.dh-flow.st-on {
+  opacity: 1; background: repeating-linear-gradient(to top, var(--evg-accent) 0 5px, transparent 5px 10px);
+  animation: dh-flow-up 1.2s linear infinite;
+}
+.dh-flow.st-fail {
+  opacity: 1; background: repeating-linear-gradient(to top, var(--evg-danger) 0 5px, transparent 5px 10px);
+  animation: dh-flow-up 2.4s linear infinite;
+}
+.dh-flow.st-success { opacity: 1; background: var(--evg-success); }
+@keyframes dh-flow-up { to { background-position-y: 10px; } }
+
+/* ── 调度控制台 ─────────────────────────────────────────────────────────── */
+.dh-console { margin-top: 12px; }
+.dh-caption {
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+  border: 1px solid var(--evg-border); border-radius: var(--evg-radius-lg);
+  background: var(--evg-card); min-height: 46px;
+}
+.dh-phase {
+  font-family: var(--evg-mono); font-size: 0.66rem; color: var(--evg-on-accent);
+  background: var(--evg-accent); border-radius: 6px; padding: 2px 8px; white-space: nowrap; flex-shrink: 0;
+}
+.dh-caption__text { font-size: 0.9rem; color: var(--evg-fg-2); }
+.dh-snap { font-family: var(--evg-mono); font-size: 0.64rem; color: var(--evg-muted-2); padding: 6px 2px 0; min-height: 18px; overflow-wrap: anywhere; }
+
+.dh-console__row { display: grid; grid-template-columns: 1fr 190px; gap: 12px; margin-top: 10px; align-items: stretch; }
+.dh-retry {
+  border: 1px solid var(--evg-border); border-radius: var(--evg-radius-lg);
+  background: var(--evg-bg-2); padding: 10px 14px; display: flex; flex-direction: column; gap: 8px;
+}
+.dh-retry__head { font-size: 0.76rem; font-weight: 700; color: var(--evg-fg-2); }
+.dh-retry__rungs { display: flex; gap: 8px; }
+.dh-rung {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+  font-size: 0.72rem; color: var(--evg-muted); border: 1px solid var(--evg-border);
+  border-radius: var(--evg-radius); padding: 6px 4px; background: var(--evg-card);
+  transition: all var(--evg-dur-2) var(--evg-ease);
+}
+.dh-rung__n {
+  font-family: var(--evg-mono); font-size: 0.66rem; background: var(--evg-panel-2);
+  border-radius: 50%; width: 18px; height: 18px; display: inline-flex; align-items: center; justify-content: center;
+}
+.dh-rung.is-on { border-color: var(--evg-accent); background: var(--evg-accent-soft); color: var(--evg-accent); animation: evg-focus-pulse 2s var(--evg-ease-out) infinite; }
+.dh-rung.is-success { border-color: var(--evg-success); background: var(--evg-success-soft); color: var(--evg-success); }
+.dh-rung.is-fail { border-color: var(--evg-danger); background: var(--evg-danger-soft); color: var(--evg-danger); }
+.dh-rung.is-exhaust { border-color: var(--evg-danger); background: var(--evg-danger-soft); color: var(--evg-danger); }
+.dh-retry__track { height: 5px; border-radius: 99px; background: var(--evg-panel-2); overflow: hidden; }
+.dh-retry__fill { height: 100%; width: 0; background: var(--evg-warning); border-radius: 99px; transition: width var(--evg-dur-3) linear; }
+.dh-retry__msg { font-family: var(--evg-mono); font-size: 0.64rem; color: var(--evg-muted); min-height: 16px; }
+
+.dh-console__side { display: flex; flex-direction: column; gap: 8px; justify-content: center; }
+.dh-console__hint { font-size: 0.7rem; line-height: 1.5; }
+.dh-demo__note { margin-top: 10px; }
+.dh-demo__loop { margin-left: auto; }
+
+/* ── 机制网格 ───────────────────────────────────────────────────────────── */
+.dh-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.dh-card { display: flex; flex-direction: column; gap: 8px; }
+.dh-card__list { list-style: none; margin-top: 2px; display: flex; flex-direction: column; gap: 5px; }
+.dh-card__list li { font-size: 0.82rem; color: var(--evg-fg-2); display: flex; gap: 8px; align-items: baseline; }
+.dh-card__list li::before {
+  content: ""; width: 5px; height: 5px; border-radius: 50%;
+  background: var(--evg-accent); flex-shrink: 0; align-self: center;
+}
+.dh-card__tag { margin-top: auto; padding-top: 4px; }
+
+/* ── 拉取阶段链 ─────────────────────────────────────────────────────────── */
+.dh-pipe { padding: 18px 22px; }
+.dh-pipe__steps { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dh-step {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 92px;
+  padding: 8px 10px; border: 1px solid var(--evg-border); border-radius: var(--evg-radius);
+  background: var(--evg-card); transition: all var(--evg-dur-2) var(--evg-ease);
+}
+.dh-step__n { font-family: var(--evg-mono); font-size: 0.58rem; color: var(--evg-muted-2); }
+.dh-step__name { font-family: var(--evg-mono); font-size: 0.76rem; font-weight: 700; }
+.dh-step.is-on { border-color: var(--evg-accent); background: var(--evg-accent-soft); box-shadow: var(--evg-shadow-sm); }
+.dh-step.is-on .dh-step__name { color: var(--evg-accent); }
+.dh-step.is-done { border-color: var(--evg-success); background: var(--evg-success-soft); }
+.dh-step.is-done .dh-step__name { color: var(--evg-success); }
+.dh-step.is-failed { border-color: var(--evg-danger); background: var(--evg-danger-soft); }
+.dh-step.is-failed .dh-step__name { color: var(--evg-danger); }
+.dh-term-sep { font-family: var(--evg-mono); font-size: 0.66rem; color: var(--evg-muted); }
+.dh-pipe__msg { margin-top: 10px; font-family: var(--evg-mono); font-size: 0.66rem; color: var(--evg-muted); min-height: 16px; }
+.dh-pipe__note { margin-top: 10px; }
+
+/* ── 页脚 ───────────────────────────────────────────────────────────────── */
+.dh-footer { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 6px 0 22px; }
+.dh-footer__pets { display: flex; gap: 10px; align-items: flex-end; }
+
+/* ── 响应式 ─────────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .dh-band__body--3 { grid-template-columns: 1fr; }
+  .dh-band__corebody { grid-template-columns: 1fr; }
+  .dh-subs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dh-console__row { grid-template-columns: 1fr; }
+  .dh-pipe__steps { justify-content: center; }
+  .dh-gutter--main { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+</style>
+</head>
+<body>
+
+<header class="dh-hero">
+  <div class="evg-container dh-hero__inner">
+    <div class="evg-brand-disc evg-float">
+      <img class="evg-reel evg-reel--auto" src="_shared/branding/logo.svg" width="84" height="84" alt="Evergreen 品牌 Logo" />
+    </div>
+    <h1 class="evg-title evg-h1 dh-hero__title">数据中枢 <span class="evg-muted dh-hero__en">DataHub</span></h1>
+    <p class="evg-sub">数据谱仪器架构演示 · 并发拉取 / 登录域调度 / 失败重试 / 订阅刷新</p>
+    <div class="dh-hero__actions">
+      <a class="evg-pill" href="index.html"><span class="evg-arrow">←</span> 架构总览</a>
+      <span class="evg-badge evg-badge--accent">核心架构</span>
+      <span class="evg-badge evg-badge--soft">T2 · data-hub</span>
+      <button type="button" class="evg-toggle" data-evg-theme-toggle aria-label="切换明暗主题"><span class="evg-toggle__dot"></span><span data-evg-theme-label>白</span></button>
+    </div>
+  </div>
+</header>
+
+<main class="evg-container dh-main">
+
+  <!-- 演示基线数据条 -->
+  <section class="dh-stats evg-reveal" aria-label="演示基线">
+    <div class="evg-pill"><strong class="dh-num" data-count="6">0</strong><span>数据源</span></div>
+    <div class="evg-pill"><strong class="dh-num" data-count="3">0</strong><span>登录域</span></div>
+    <div class="evg-pill"><strong class="dh-num" data-count="3">0</strong><span>重试次数上限</span></div>
+    <div class="evg-pill"><strong class="dh-num" data-count="2" data-suffix="s">0</strong><span>退避间隔</span></div>
+    <div class="evg-pill"><strong class="dh-num" data-count="5" data-suffix="m">0</strong><span>自动刷新刻度</span></div>
+  </section>
+
+  <!-- ================================================================
+       §1 堆栈全景 + 调度演示（主视觉流）
+       ================================================================ -->
+  <section class="dh-demo evg-reveal" id="demo" aria-label="数据中枢堆栈与调度演示">
+    <div class="evg-section-head">
+      <span class="evg-dot evg-dot--accent"></span>堆栈全景 · 调度演示
+      <span class="evg-badge evg-badge--draft dh-demo__loop">循环演示</span>
+    </div>
+
+    <div class="dh-stack evg-card">
+
+      <!-- L4 消费层 -->
+      <div class="dh-band">
+        <div class="dh-band__head"><span class="dh-layer">L4</span>消费层 · Consumers</div>
+        <div class="dh-band__body dh-band__body--3">
+          <div class="dh-chip dh-chip--static"><span class="dh-chip__name">HTML 插件</span><span class="dh-chip__sub">platform.data.get / refresh / subscribe</span></div>
+          <div class="dh-chip dh-chip--static"><span class="dh-chip__name">Renderer 看板</span><span class="dh-chip__sub">allStatuses · fetchPaths · dataChangeEvents</span></div>
+          <div class="dh-chip dh-chip--static"><span class="dh-chip__name">Agent 工具</span><span class="dh-chip__sub">getByName / streamByName</span></div>
+        </div>
+      </div>
+      <div class="dh-gutter dh-gutter--static" aria-hidden="true"><div class="dh-gutter__line"></div><div class="dh-gutter__line"></div><div class="dh-gutter__line"></div></div>
+
+      <!-- L3 数据服务层 -->
+      <div class="dh-band">
+        <div class="dh-band__head"><span class="dh-layer">L3</span>数据服务层 · DataHttpServer</div>
+        <div class="dh-band__body dh-band__body--3">
+          <div class="dh-chip dh-chip--static"><span class="dh-chip__name">REST 拉取</span><span class="dh-chip__sub">GET /data/types/:name · POST …/refresh</span></div>
+          <div class="dh-chip dh-chip--static"><span class="dh-chip__name">状态与连通</span><span class="dh-chip__sub">GET /data/status · POST /data/connectivity/test</span></div>
+          <div class="dh-chip dh-chip--static"><span class="dh-chip__name">SSE 订阅</span><span class="dh-chip__sub">GET /data/stream/:name · GET /data/events</span></div>
+        </div>
+      </div>
+      <div class="dh-gutter dh-gutter--static" aria-hidden="true"><div class="dh-gutter__line"></div><div class="dh-gutter__line"></div><div class="dh-gutter__line"></div></div>
+
+      <!-- L2 中枢核心层 -->
+      <div class="dh-band dh-band--core">
+        <div class="dh-band__head"><span class="dh-layer">L2</span>中枢核心层 · DataOrchestrator</div>
+        <div class="dh-band__body dh-band__corebody">
+          <div class="evg-node evg-node--core dh-core">
+            <span class="evg-node__title">数据中枢</span>
+            <span class="evg-node__sub">DataOrchestrator</span>
+          </div>
+          <div class="dh-subs">
+            <div class="dh-sub"><span class="dh-sub__t">注册表</span><span class="dh-sub__s">register / unregister</span></div>
+            <div class="dh-sub"><span class="dh-sub__t">两级缓存</span><span class="dh-sub__s">Cache · 磁盘 + 内存</span></div>
+            <div class="dh-sub"><span class="dh-sub__t">状态与轨迹</span><span class="dh-sub__s">status · fetchPath</span></div>
+            <div class="dh-sub" data-sub="diff"><span class="dh-sub__t">diff 变更通知</span><span class="dh-sub__s">DataChangeEvent</span></div>
+            <div class="dh-sub" data-sub="retry"><span class="dh-sub__t">同域重试调度</span><span class="dh-sub__s">domainRetry</span></div>
+            <div class="dh-sub" data-sub="session"><span class="dh-sub__t">会话中心</span><span class="dh-sub__s">SessionCoordinator</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 主流动沟槽：数据源 → 中枢（动图演示区） -->
+      <div class="dh-gutter dh-gutter--main" aria-hidden="true">
+        <div class="dh-gutter__col">
+          <div class="dh-flow" data-flow="scores"></div>
+          <div class="dh-flow" data-flow="courses"></div>
+          <div class="dh-flow" data-flow="exams"></div>
+        </div>
+        <div class="dh-gutter__col">
+          <div class="dh-flow" data-flow="stars"></div>
+          <div class="dh-flow" data-flow="releases"></div>
+        </div>
+        <div class="dh-gutter__col">
+          <div class="dh-flow" data-flow="storage"></div>
+        </div>
+      </div>
+
+      <!-- L1 数据源层（按登录域分组） -->
+      <div class="dh-band">
+        <div class="dh-band__head"><span class="dh-layer">L1</span>数据源层 · 按登录域分组</div>
+        <div class="dh-band__body dh-band__body--3">
+
+          <div class="dh-group" id="g-zju">
+            <div class="dh-group__head">
+              <span class="evg-dot evg-dot--accent"></span>
+              <span class="dh-group__dom">zju.jwxt.edu.cn</span>
+              <span class="evg-badge evg-badge--soft dh-group__tag">provider · zju</span>
+            </div>
+            <div class="dh-group__body">
+              <div class="dh-chip" data-src="scores" data-domain="zju"><span class="dh-chip__name">成绩单</span><span class="dh-chip__sub">scores</span></div>
+              <div class="dh-chip" data-src="courses" data-domain="zju"><span class="dh-chip__name">课程表</span><span class="dh-chip__sub">courses</span></div>
+              <div class="dh-chip" data-src="exams" data-domain="zju"><span class="dh-chip__name">考试安排</span><span class="dh-chip__sub">exams</span></div>
+            </div>
+          </div>
+
+          <div class="dh-group" id="g-gh">
+            <div class="dh-group__head">
+              <span class="evg-dot evg-dot--warning"></span>
+              <span class="dh-group__dom">github.com</span>
+              <span class="evg-badge evg-badge--warning dh-group__tag">未注册 provider</span>
+            </div>
+            <div class="dh-group__body">
+              <div class="dh-chip" data-src="stars" data-domain="gh"><span class="dh-chip__name">GitHub Stars</span><span class="dh-chip__sub">github_stars</span></div>
+              <div class="dh-chip" data-src="releases" data-domain="gh"><span class="dh-chip__name">Releases</span><span class="dh-chip__sub">github_releases</span></div>
+            </div>
+          </div>
+
+          <div class="dh-group" id="g-local">
+            <div class="dh-group__head">
+              <span class="evg-dot evg-dot--fg"></span>
+              <span class="dh-group__dom">本地 · 无登录域</span>
+              <span class="evg-badge evg-badge--draft dh-group__tag">不介入重试</span>
+            </div>
+            <div class="dh-group__body">
+              <div class="dh-chip" data-src="storage" data-domain="local"><span class="dh-chip__name">插件存储</span><span class="dh-chip__sub">plugin_storage</span></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <div class="dh-legend" aria-hidden="true">
+      <span class="dh-legend__item"><span class="dh-legend__sw dh-legend__sw--accent"></span>进行中 / 拉取</span>
+      <span class="dh-legend__item"><span class="dh-legend__sw dh-legend__sw--success"></span>成功 / 已恢复</span>
+      <span class="dh-legend__item"><span class="dh-legend__sw dh-legend__sw--danger"></span>失败 / 重试耗尽</span>
+      <span class="dh-legend__item"><span class="dh-legend__sw dh-legend__sw--muted"></span>待命</span>
+    </div>
+
+    <!-- 调度控制台 -->
+    <div class="dh-console">
+      <div class="dh-caption" aria-live="polite">
+        <span class="dh-phase" id="dhPhase">PHASE 01</span>
+        <span class="dh-caption__text" id="dhCaption">初始化调度演示 …</span>
+      </div>
+      <div class="dh-snap" id="dhSnap">schedulingSnapshot { … }</div>
+
+      <div class="dh-console__row">
+        <div class="dh-retry" id="dhRetry">
+          <div class="dh-retry__head">同域后台重试 · 退避 <span class="evg-mono">2s</span> · 上限 <span class="evg-mono">3</span> 次</div>
+          <div class="dh-retry__rungs">
+            <div class="dh-rung" data-rung="1"><span class="dh-rung__n">1</span>第 1 次</div>
+            <div class="dh-rung" data-rung="2"><span class="dh-rung__n">2</span>第 2 次</div>
+            <div class="dh-rung" data-rung="3"><span class="dh-rung__n">3</span>第 3 次</div>
+          </div>
+          <div class="dh-retry__track"><div class="dh-retry__fill" id="dhRetryFill"></div></div>
+          <div class="dh-retry__msg" id="dhRetryMsg">待命</div>
+        </div>
+        <div class="dh-console__side">
+          <button type="button" class="evg-btn" id="dhPause">⏸ 暂停演示</button>
+          <p class="evg-muted dh-console__hint">演示为示意循环；<span class="evg-mono">prefers-reduced-motion</span> 下自动静止为终态。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="evg-callout dh-demo__note">
+      <span class="evg-callout__ic">💡</span>
+      <span><b>机制对照：</b>本演示对应 <span class="evg-mono">evg-base/lib/core/data/orchestrator.dart</span> ——
+      <span class="evg-mono">refreshAllStale</span>（过期源并发）→ <span class="evg-mono">_scheduleDomainRetry</span>（按登录域登记）→
+      <span class="evg-mono">_runDomainRetries</span>（有 provider 的域域内并发 / 无 provider 的域域内串行）→
+      <span class="evg-mono">_retryOne</span>（退避 2s · 上限 3 次 · 达上限保留 lastError）。</span>
+    </div>
+  </section>
+
+  <!-- ================================================================
+       §2 核心机制
+       ================================================================ -->
+  <section class="dh-mech evg-reveal" aria-label="核心机制">
+    <div class="evg-section-head">
+      <span class="evg-dot evg-dot--accent"></span>核心机制
+      <span class="evg-badge evg-badge--soft">6 项</span>
+    </div>
+    <div class="dh-grid">
+
+      <div class="evg-card evg-card--hover dh-card">
+        <div class="evg-card__title">失败重试 · 退避调度</div>
+        <div class="evg-card__sub">domainRetryDelay · _scheduleDomainRetry</div>
+        <ul class="dh-card__list">
+          <li>拉取失败<span class="evg-mono">立即返回</span>，不堵塞调用方 / 启动期并行拉取</li>
+          <li>按 name 去重登记进后台队列，启动 <span class="evg-mono">2s</span> Timer</li>
+          <li>后台 Timer 中执行；单源失败只记录，不阻塞同域其他源</li>
+        </ul>
+        <div class="dh-card__tag"><span class="evg-badge evg-badge--accent">关键</span></div>
+      </div>
+
+      <div class="evg-card evg-card--hover dh-card">
+        <div class="evg-card__title">次数上限 · 防无限循环</div>
+        <div class="evg-card__sub">domainRetryMaxAttempts · _retryOne</div>
+        <ul class="dh-card__list">
+          <li>每源独立计数（<span class="evg-mono">_domainRetryAttempts</span>），默认 <span class="evg-mono">3</span> 次可配置</li>
+          <li>未达上限 → 重新入队，等待下一个周期再试；达上限 → 放弃</li>
+          <li><span class="evg-mono">≤0</span> 完全禁用后台重试；<span class="evg-mono">_domainRetryRunning</span> 防重入</li>
+        </ul>
+        <div class="dh-card__tag"><span class="evg-badge evg-badge--accent">关键</span></div>
+      </div>
+
+      <div class="evg-card evg-card--hover dh-card">
+        <div class="evg-card__title">最终状态 · 降级语义</div>
+        <div class="evg-card__sub">DataSourceStatus · 契约⑤</div>
+        <ul class="dh-card__list">
+          <li>成功 → 覆写磁盘+内存缓存 · <span class="evg-mono">connected=true</span></li>
+          <li>重试耗尽 → <span class="evg-mono">connected=false</span> · lastError 保留（真实失败）</li>
+          <li>有真实旧缓存 → 仅警告「已展示缓存数据」，永不硬报错</li>
+          <li>空数据门控：空结果视为失败，旧缓存保持可用</li>
+        </ul>
+        <div class="dh-card__tag"><span class="evg-badge evg-badge--success">状态</span></div>
+      </div>
+
+      <div class="evg-card evg-card--hover dh-card">
+        <div class="evg-card__title">订阅刷新 · 时钟对齐</div>
+        <div class="evg-card__sub">startAutoRefresh · refreshAllStale</div>
+        <ul class="dh-card__list">
+          <li>默认 <span class="evg-mono">5 分钟</span>刻度（:00/:05/:10…），首 tick 对齐不立即执行</li>
+          <li>过期源<span class="evg-mono">并发</span>刷新（Future.wait），单源失败不拖垮整批</li>
+          <li>报错 ≠ 终态：每个 tick 都会再次尝试失败源，直至成功或注销</li>
+        </ul>
+        <div class="dh-card__tag"><span class="evg-badge evg-badge--violet">周期</span></div>
+      </div>
+
+      <div class="evg-card evg-card--hover dh-card">
+        <div class="evg-card__title">变更通知 · diff</div>
+        <div class="evg-card__sub">DataChangeEvent · data_diff</div>
+        <ul class="dh-card__list">
+          <li>后台刷新覆写缓存且内容实质变化 → 广播变更事件</li>
+          <li>忽略易变字段（<span class="evg-mono">ts / timestamp / updatedAt …</span>）；首次拉取与空数据不发</li>
+          <li>消费方：addDataChangeListener / <span class="evg-mono">dataChangeEvents</span> / SSE /data/events</li>
+        </ul>
+        <div class="dh-card__tag"><span class="evg-badge evg-badge--violet">事件</span></div>
+      </div>
+
+      <div class="evg-card evg-card--hover dh-card">
+        <div class="evg-card__title">缓存与取数链</div>
+        <div class="evg-card__sub">get · fastRead · Cache · 会话重登</div>
+        <ul class="dh-card__list">
+          <li>缓存优先：磁盘 → 内存 → 拉取；过期也返回；<span class="evg-mono">fastRead</span> 零 I/O</li>
+          <li>静态兜底 <span class="evg-mono">fallback</span>：失败且无旧缓存时返回预设值</li>
+          <li>会话失效：SessionCoordinator 单点重登 → 重拉一次（登录锁分组）</li>
+        </ul>
+        <div class="dh-card__tag"><span class="evg-badge evg-badge--success">链路</span></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ================================================================
+       §3 单次拉取阶段链
+       ================================================================ -->
+  <section class="dh-pipe-sec evg-reveal" aria-label="拉取阶段链">
+    <div class="evg-section-head">
+      <span class="evg-dot evg-dot--accent"></span>单次拉取阶段链 · fetchPath
+      <span class="evg-badge evg-badge--soft">T2e 轨迹</span>
+    </div>
+    <div class="evg-card dh-pipe">
+      <div class="dh-pipe__steps" id="dhPipe">
+        <div class="dh-step" data-step="queued"><span class="dh-step__n">01</span><span class="dh-step__name">queued</span></div>
+        <span class="evg-arrow evg-arrow--accent">→</span>
+        <div class="dh-step" data-step="cacheLookup"><span class="dh-step__n">02</span><span class="dh-step__name">cacheLookup</span></div>
+        <span class="evg-arrow evg-arrow--accent">→</span>
+        <div class="dh-step" data-step="fetching"><span class="dh-step__n">03</span><span class="dh-step__name">fetching</span></div>
+        <span class="evg-arrow evg-arrow--accent">→</span>
+        <div class="dh-step" data-step="validating"><span class="dh-step__n">04</span><span class="dh-step__name">validating</span></div>
+        <span class="evg-arrow evg-arrow--accent">→</span>
+        <div class="dh-step" data-step="caching"><span class="dh-step__n">05</span><span class="dh-step__name">caching</span></div>
+        <span class="evg-arrow evg-arrow--accent">→</span>
+        <div class="dh-step" data-step="done"><span class="dh-step__n">06</span><span class="dh-step__name">done</span></div>
+        <span class="dh-term-sep">或</span>
+        <div class="dh-step" data-step="failed"><span class="dh-step__n">✕</span><span class="dh-step__name">failed</span></div>
+      </div>
+      <div class="dh-pipe__msg" id="dhPipeMsg">成功链 / 失败链循环演示 …</div>
+    </div>
+    <div class="evg-callout evg-callout--violet dh-pipe__note">
+      <span class="evg-callout__ic">🔁</span>
+      <span><b>分支路径：</b>会话失效且注册 provider → <span class="evg-mono">refreshSessionFor</span> 单点重登 → 重新进入 <span class="evg-mono">fetching</span> 重拉一次；
+      失败无缓存 → <span class="evg-mono">failed</span> 后登记同域后台重试，回到 <span class="evg-mono">fetching</span> 周期重试（轨迹 <span class="evg-mono">isActive=true · retryCount</span> 累计）。</span>
+    </div>
+  </section>
+
+  <footer class="dh-footer">
+    <div class="dh-footer__pets">
+      <img class="evg-pet" src="_shared/branding/pet_leafcat.svg" alt="" aria-hidden="true" />
+      <img class="evg-pet evg-pet--sm" src="_shared/branding/pet_sleep.svg" alt="" aria-hidden="true" />
+    </div>
+    <p class="evg-muted">墨白风 · 数据中枢架构演示 · docs/architecture/data-hub.html · <a class="evg-accent-text" href="index.html">返回架构总览 →</a></p>
+  </footer>
+</main>
+
+<script src="_shared/evg-common.js"></script>
+<script>
+/* ============================================================================
+   data-hub.html 演示脚本（零依赖）
+   1) 堆栈调度演示：13 相循环（并发 → 失败 → 域判定 → 并发重拉 / 串行重拉 → 终态）
+   2) 拉取阶段链：成功链 / 失败链交替
+   3) 数字滚动：EVG.countUp
+   prefers-reduced-motion → 静止为可读终态；暂停按钮可随时重播。
+   ========================================================================== */
+(function () {
+  "use strict";
+
+  var $  = function (s, c) { return (c || document).querySelector(s); };
+  var $$ = function (s, c) { return Array.prototype.slice.call((c || document).querySelectorAll(s)); };
+  var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ── 状态设置器 ─────────────────────────────────────────────────────── */
+  function chipState(id, st) {
+    var el = $('[data-src="' + id + '"]');
+    if (el) el.className = "dh-chip st-" + st;
+  }
+  function flowState(id, st) {
+    var el = $('[data-flow="' + id + '"]');
+    if (el) el.className = "dh-flow st-" + st;
+  }
+  function setChips(map) {
+    for (var k in map) if (Object.prototype.hasOwnProperty.call(map, k)) chipState(k, map[k]);
+  }
+  function setFlows(map) {
+    for (var k in map) if (Object.prototype.hasOwnProperty.call(map, k)) flowState(k, map[k]);
+  }
+  function setGroup(id, hot) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    if (hot) el.classList.add("is-hot"); else el.classList.remove("is-hot");
+  }
+  function setSub(name, hot) {
+    $$("[data-sub]").forEach(function (el) {
+      el.classList.toggle("is-hot", !!hot && el.getAttribute("data-sub") === name);
+    });
+  }
+  function setPhase(no, text) {
+    var p = $("#dhPhase"), c = $("#dhCaption");
+    if (p) p.textContent = "PHASE " + String(no < 10 ? "0" + no : no);
+    if (c) c.textContent = text;
+  }
+  function snapFrom(o) {
+    var el = $("#dhSnap");
+    if (el) el.textContent = "schedulingSnapshot { isRetrying: " + o.retrying +
+      " · pendingRetryNames: [" + o.pending.join(", ") + "] · domainRetryDelayMs: " + o.delay +
+      " · domainRetryMaxAttempts: " + o.max + " }";
+  }
+  function setRungs(mode) {
+    $$("#dhRetry .dh-rung").forEach(function (el) {
+      var n = el.getAttribute("data-rung");
+      var st = mode[n] || "";
+      el.className = "dh-rung" + (st ? " is-" + st : "");
+    });
+  }
+  function setBar(pct) {
+    var f = $("#dhRetryFill");
+    if (f) f.style.width = pct + "%";
+  }
+  function setRetryMsg(t) {
+    var el = $("#dhRetryMsg");
+    if (el) el.textContent = t;
+  }
+  function resetRetry() { setRungs({}); setBar(0); setRetryMsg("待命"); }
+
+  /* ── 13 相调度演示 ──────────────────────────────────────────────────── */
+  var PHASES = [
+    {
+      id: "ready", no: 1, dur: 1400,
+      run: function () {
+        setChips({ scores: "idle", courses: "idle", exams: "idle", stars: "idle", releases: "idle", storage: "idle" });
+        setFlows({ scores: "idle", courses: "idle", exams: "idle", stars: "idle", releases: "idle", storage: "idle" });
+        setGroup("g-zju", false); setGroup("g-gh", false); setGroup("g-local", false);
+        setSub(null, false);
+        resetRetry();
+        setPhase(1, "待机：数据源已注册（register），两级缓存就绪，时钟对齐自动刷新已启动");
+        snapFrom({ retrying: false, pending: [], delay: 2000, max: 3 });
+      }
+    },
+    {
+      id: "parallel", no: 2, dur: 2600,
+      run: function () {
+        setChips({ scores: "active", courses: "active", exams: "active", stars: "active", releases: "active", storage: "active" });
+        setFlows({ scores: "on", courses: "on", exams: "on", stars: "on", releases: "on", storage: "on" });
+        setSub("diff", false);
+        setPhase(2, "自动刷新 tick · refreshAllStale：全部数据源并发拉取（Future.wait · 单源失败不拖垮整批）");
+        snapFrom({ retrying: false, pending: [], delay: 2000, max: 3 });
+      }
+    },
+    {
+      id: "fail", no: 3, dur: 1600,
+      run: function () {
+        setChips({ scores: "fail", courses: "fail", exams: "fail", stars: "fail", releases: "fail", storage: "success" });
+        setFlows({ scores: "fail", courses: "fail", exams: "fail", stars: "fail", releases: "fail", storage: "success" });
+        setPhase(3, "5 个数据源拉取失败 → 失败处理：无真实缓存则登记重试；有真实缓存仅警告（契约⑤ 永不硬报错）");
+        snapFrom({ retrying: false, pending: ["scores", "courses", "exams", "stars", "releases"], delay: 2000, max: 3 });
+      }
+    },
+    {
+      id: "judge", no: 4, dur: 2400,
+      run: function () {
+        setChips({ scores: "fail", courses: "fail", exams: "fail", stars: "fail", releases: "fail", storage: "success" });
+        setFlows({ scores: "fail", courses: "fail", exams: "fail", stars: "fail", releases: "fail", storage: "success" });
+        setGroup("g-zju", true); setGroup("g-gh", true);
+        setSub("retry", true);
+        setPhase(4, "按登录域分组判定：zju.jwxt.edu.cn 已注册 provider → 域内并发重拉；github.com 未注册 provider → 域内串行重拉");
+        snapFrom({ retrying: true, pending: ["scores", "courses", "exams", "stars", "releases"], delay: 2000, max: 3 });
+      }
+    },
+    {
+      id: "retry-zju", no: 5, dur: 3400,
+      run: function () {
+        setChips({ scores: "active", courses: "active", exams: "active", stars: "fail", releases: "fail", storage: "success" });
+        setFlows({ scores: "on", courses: "on", exams: "on", stars: "fail", releases: "fail", storage: "success" });
+        setGroup("g-zju", true); setGroup("g-gh", false);
+        setSub("retry", true); setSub("session", true);
+        setRungs({ 1: "on" }); setBar(100); setRetryMsg("域内并发 · 共享登录锁，只重登一次");
+        setPhase(5, "域 zju.jwxt.edu.cn（provider 已注册）：3 个失败源并发重拉（Future.wait）→ 全部第 1 次成功");
+        snapFrom({ retrying: true, pending: ["stars", "releases"], delay: 2000, max: 3 });
+      }
+    },
+    {
+      id: "retry-g1", no: 6, dur: 1800,
+      run: function () {
+        setChips({ scores: "success", courses: "success", exams: "success", stars: "active", releases: "idle", storage: "success" });
+        setFlows({ scores: "success", courses: "success", exams: "success", stars: "on", releases: "idle", storage: "success" });
+        setGroup("g-zju", false); setGroup("g-gh", true);
+        setSub("retry", true); setSub("session", false);
+        setRungs({ 1: "on" }); setBar(20); setRetryMsg("串行轮次 1：github_stars 重拉中 …");
+        setPhase(6, "域 github.com（无 provider）：串行重试 · stars 第 1 次重拉失败");
+        snapFrom({ retrying: true, pending: ["stars", "releases"], delay: 2000, max: 3 });
+      }
+    },
+    {
+      id: "backoff1", no: 7, dur: 1400,
+      run: function () {
+        setChips({ scores: "success", courses: "success", exams: "success", stars: "fail", releases: "idle", storage: "success" });
+        setFlows({ scores: "success", courses: "success", exams: "success", stars: "fail", releases: "idle", storage: "success" });
+        setRungs({ 1: "fail" }); setBar(0);
+        requestAnimationFrame(function () { setBar(100); });
+        setRetryMsg("等待退避 domainRetryDelay = 2s …（后台 Timer · 不堵塞调用方）");
+        setPhase(7, "退避中：2 秒后再次重试（失败已立即返回，等待在后台进行）");
+        snapFrom({ retrying: true, pending: ["stars", "releases"], delay: 2000, max: 3 });
+      }
+    },
+    {
+      id: "retry-g2", no: 8, dur: 1800,
+      run: function () {
+        setChips({ scores: "success", courses: "success", exams: "success", stars: "active", releases: "idle", storage: "success" });
+        setFlows({ scores: "success", courses: "success", exams: "success", stars: "on", releases: "idle", storage: "success" });
+        setRungs({ 1: "fail", 2: "on" }); setBar(20); setRetryMsg("串行轮次 2：stars 重拉中 …");
+        setPhase(8, "stars 第 2 次重拉仍失败 → 重新入队（未达上限，等待下一周期）");
+        snapFrom({ retrying: true, pending: ["stars", "releases"], delay: 2000, max: 3 });
+      }
+    },
+    {
+      id: "backoff2", no: 9, dur: 1400,
+      run: function () {
+        setChips({ scores: "success", courses: "success", exams: "success", stars: "fail", releases: "idle", storage: "success" });
+        setFlows({ scores: "success", courses: "success", exams: "success", stars: "fail", releases: "idle", storage: "success" });
+        setRungs({ 1: "fail", 2: "fail" }); setBar(0);
+        requestAnimationFrame(function () { setBar(100); });
+        setRetryMsg("再次等待 2s（attempt 2/3 完成）…");
+        setPhase(9, "再次退避 2 秒（attempt 2/3 完成）");
+        snapFrom({ retrying: true, pending: ["stars", "releases"], delay: 2000, max: 3 });
+      }
+    },
+    {
+      id: "retry-g3", no: 10, dur: 2000,
+      run: function () {
+        setChips({ scores: "success", courses: "success", exams: "success", stars: "exhaust", releases: "idle", storage: "success" });
+        setFlows({ scores: "success", courses: "success", exams: "success", stars: "fail", releases: "idle", storage: "success" });
+        setRungs({ 1: "fail", 2: "fail", 3: "exhaust" }); setBar(100);
+        setRetryMsg("第 3 次达上限（maxAttempts = 3）→ 放弃，保留 lastError");
+        setPhase(10, "stars 第 3 次（达上限）→ 放弃：connected=false · lastError 保留 · 不再重试");
+        snapFrom({ retrying: true, pending: ["releases"], delay: 2000, max: 3 });
+      }
+    },
+    {
+      id: "retry-rel", no: 11, dur: 1800,
+      run: function () {
+        setChips({ scores: "success", courses: "success", exams: "success", stars: "exhaust", releases: "active", storage: "success" });
+        setFlows({ scores: "success", courses: "success", exams: "success", stars: "fail", releases: "on", storage: "success" });
+        setRungs({ 1: "on", 2: "fail", 3: "exhaust" }); setBar(30); setRetryMsg("串行轮到 releases：第 1 次重拉 …");
+        setPhase(11, "串行轮到 releases：第 1 次重拉成功 → 覆写缓存 · connected=true");
+        snapFrom({ retrying: true, pending: [], delay: 2000, max: 3 });
+      }
+    },
+    {
+      id: "final", no: 12, dur: 2400,
+      run: function () {
+        setChips({ scores: "success", courses: "success", exams: "success", stars: "exhaust", releases: "success", storage: "success" });
+        setFlows({ scores: "success", courses: "success", exams: "success", stars: "fail", releases: "success", storage: "success" });
+        setGroup("g-zju", false); setGroup("g-gh", false);
+        setSub("retry", false); setSub("session", false); setSub("diff", true);
+        setRungs({ 1: "success", 2: "fail", 3: "exhaust" }); setBar(0);
+        setRetryMsg("本轮终态：zju 域全部恢复 · stars 耗尽 · releases 恢复");
+        setPhase(12, "终态汇总：zju 域全部恢复（并发 + 登录锁）；stars 重试 3 次耗尽；releases 恢复（串行未受影响）");
+        snapFrom({ retrying: false, pending: [], delay: 2000, max: 3 });
+      }
+    },
+    {
+      id: "tick", no: 13, dur: 1600,
+      run: function () {
+        setChips({ scores: "success", courses: "success", exams: "success", stars: "exhaust", releases: "success", storage: "success" });
+        setFlows({ scores: "idle", courses: "idle", exams: "idle", stars: "idle", releases: "idle", storage: "idle" });
+        setSub("diff", true);
+        setRungs({}); setBar(0); setRetryMsg("等待下一刻度 …");
+        setPhase(13, "变更通知广播（DataChangeEvent · diff 摘要）→ 下一轮 5 分钟时钟对齐自动刷新（演示循环）");
+        snapFrom({ retrying: false, pending: [], delay: 2000, max: 3 });
+      }
+    }
+  ];
+
+  /* ── 循环控制器（含暂停 / reduced-motion 静止） ─────────────────────── */
+  var timer = null, idx = 0, paused = false;
+
+  function schedule() {
+    var p = PHASES[idx % PHASES.length];
+    p.run();
+    timer = setTimeout(function () {
+      idx = (idx + 1) % PHASES.length;
+      schedule();
+    }, p.dur);
+  }
+
+  function staticFinal() {
+    PHASES[11].run(); /* final 相 */
+    setPhase(12, "静态终态（prefers-reduced-motion：动画已关闭）—— 并发 / 串行调度与重试结果如上，可读可截屏");
+    var btn = $("#dhPause");
+    if (btn) { btn.disabled = true; btn.textContent = "动效已关闭"; }
+  }
+
+  function start() {
+    if (reduced) { staticFinal(); return; }
+    schedule();
+  }
+
+  var btn = $("#dhPause");
+  function setPhaseTag(txt) {
+    var p = $("#dhPhase");
+    if (p) p.textContent = txt;
+  }
+  if (btn) btn.addEventListener("click", function () {
+    if (paused) {
+      paused = false;
+      clearTimeout(timer);
+      idx = 0;
+      setPhaseTag("RESUME");
+      var c = $("#dhCaption");
+      if (c) c.textContent = "演示已继续 · 从头循环";
+      schedule();
+      btn.textContent = "⏸ 暂停演示";
+    } else {
+      paused = true;
+      clearTimeout(timer);
+      setPhaseTag("PAUSED");
+      var c2 = $("#dhCaption");
+      if (c2) c2.textContent = "演示已暂停 · 点击「继续」从头播放";
+      btn.textContent = "▶ 继续演示";
+    }
+  });
+
+  start();
+
+  /* ── 拉取阶段链：成功链 / 失败链交替 ────────────────────────────────── */
+  (function pipe() {
+    var steps = $$("#dhPipe .dh-step");
+    var msg = $("#dhPipeMsg");
+    if (!steps.length) return;
+    function reset() { steps.forEach(function (s) { s.className = "dh-step"; }); }
+    function runSeq(seq, isFail) {
+      var j = 0;
+      function step() {
+        reset();
+        for (var k = 0; k < seq.length; k++) {
+          var el = steps[seq[k]];
+          if (!el) continue;
+          var last = k === seq.length - 1;
+          var isTerm = el.getAttribute("data-step") === "done" || el.getAttribute("data-step") === "failed";
+          el.className = "dh-step " + (last
+            ? (isTerm ? (isFail ? "is-failed" : "is-done") : "is-on")
+            : "is-done");
+        }
+        if (msg) {
+          msg.textContent = isFail
+            ? "失败链：fetcher 抛异常 / 空数据门控 → … → failed（无缓存且重试耗尽）"
+            : "成功链：queued → cacheLookup → fetching → validating → caching → done";
+        }
+        j++;
+        if (j < seq.length) { timer2 = setTimeout(step, isFail ? 750 : 650); }
+        else { timer2 = setTimeout(cycle, 1500); }
+      }
+      step();
+    }
+    var timer2 = null, round = 0;
+    function cycle() {
+      round++;
+      if (round % 2 === 1) runSeq([0, 1, 2, 3, 4, 5], false);
+      else runSeq([0, 1, 2, 6], true);
+    }
+    if (reduced) {
+      reset();
+      steps.forEach(function (el) {
+        var n = el.getAttribute("data-step");
+        el.className = "dh-step " + (n === "done" ? "is-done" : n === "failed" ? "is-failed" : "");
+      });
+      if (msg) msg.textContent = "静态（reduced-motion）：queued → … → done / failed";
+      return;
+    }
+    cycle();
+  })();
+
+  /* ── 数字滚动（EVG.countUp） ─────────────────────────────────────────── */
+  $$(".dh-num").forEach(function (el) {
+    var to = parseInt(el.getAttribute("data-count") || "0", 10);
+    var suffix = el.getAttribute("data-suffix") || "";
+    if (reduced || typeof EVG === "undefined" || !EVG.countUp) {
+      el.textContent = String(to) + suffix;
+    } else {
+      EVG.countUp(el, to, 1000, { suffix: suffix });
+    }
+  });
+})();
+</script>
+</body>
+</html>

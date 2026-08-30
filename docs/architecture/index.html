@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Evergreen 架构演示 · 统一入口</title>
+<meta name="description" content="Evergreen 架构演示图统一入口：数据中枢 / Agent 架构思维导图 / 插件飞轮 / 四工坊泳道 / Agent 自动工作流 / 平台三视图 / 插件三角通讯链，全部墨白风（明暗双色）动图演示。" />
+<link rel="stylesheet" href="_shared/evg-style.css" />
+<style>
+/* ============ 统一入口页局部布局（颜色一律 var(--evg-*)） ============ */
+.idx-hero { padding: 46px 16px 10px; text-align: center; }
+.idx-hero__inner { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.idx-hero__title { letter-spacing: 0.02em; }
+.idx-hero__en { font-weight: 600; }
+.idx-hero__actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; margin-top: 8px; }
+
+.idx-lead {
+  margin-top: 18px; padding: 14px 18px;
+  border: 1px solid var(--evg-border); border-radius: var(--evg-radius-lg);
+  background: var(--evg-card); box-shadow: var(--evg-shadow-sm);
+  font-size: 0.86rem; line-height: 1.7; color: var(--evg-fg-2);
+}
+.idx-lead b { color: var(--evg-fg); }
+
+.idx-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin-top: 22px; }
+.idx-card { display: flex; flex-direction: column; gap: 8px; min-height: 236px; }
+.idx-card__no {
+  font-family: var(--evg-mono); font-size: 0.66rem; font-weight: 700;
+  color: var(--evg-on-accent); background: var(--evg-accent);
+  border-radius: var(--evg-radius-full); padding: 2px 10px; align-self: flex-start;
+}
+.idx-card__desc { font-size: 0.84rem; line-height: 1.65; color: var(--evg-fg-2); }
+.idx-card__tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: auto; }
+.idx-card__open {
+  margin-top: 10px; display: inline-flex; align-items: center; gap: 6px;
+  font-size: 0.8rem; font-weight: 600; color: var(--evg-accent);
+  text-decoration: none; border: 1px solid var(--evg-border);
+  border-radius: var(--evg-radius); padding: 7px 14px; background: var(--evg-card);
+  transition: border-color var(--evg-dur-2) var(--evg-ease), box-shadow var(--evg-dur-2) var(--evg-ease);
+}
+.idx-card__open:hover { border-color: var(--evg-accent); box-shadow: var(--evg-shadow-md); }
+.idx-card__open .evg-arrow { transition: transform var(--evg-dur-2) var(--evg-ease); }
+.idx-card__open:hover .evg-arrow { transform: translateX(3px); }
+
+.idx-base {
+  margin-top: 26px; display: flex; gap: 14px; flex-wrap: wrap; align-items: center; justify-content: center;
+  padding: 14px 18px; border: 1px dashed var(--evg-border-strong);
+  border-radius: var(--evg-radius-lg); background: var(--evg-bg-2);
+}
+.idx-base a { color: var(--evg-muted); text-decoration: none; font-size: 0.8rem; font-family: var(--evg-mono); }
+.idx-base a:hover { color: var(--evg-accent); }
+
+.idx-foot { text-align: center; padding: 34px 16px 44px; margin-top: 34px; border-top: 1px solid var(--evg-border); }
+.idx-foot__pets { display: flex; justify-content: center; gap: 12px; margin-bottom: 10px; }
+.idx-foot p { color: var(--evg-muted); font-size: 0.78rem; line-height: 1.8; }
+</style>
+</head>
+<body>
+
+<header class="idx-hero">
+  <div class="evg-container idx-hero__inner">
+    <div class="evg-brand-disc evg-float">
+      <img class="evg-reel evg-reel--auto" src="_shared/branding/logo.svg" alt="Evergreen 品牌 Logo" width="84" height="84" />
+    </div>
+    <h1 class="evg-title evg-h1 idx-hero__title">Evergreen 架构演示 <span class="evg-muted idx-hero__en">· 统一入口</span></h1>
+    <p class="evg-sub">七张架构演示图 · 全部墨白风（明暗双色）· 动图演示 · 品牌放映</p>
+    <div class="idx-hero__actions">
+      <span class="evg-pill"><strong>7</strong><span>张架构图</span></span>
+      <span class="evg-pill"><strong>明暗</strong><span>双色可切换</span></span>
+      <span class="evg-pill"><strong>动图</strong><span>流动 · 轮播 · 放映</span></span>
+      <button type="button" class="evg-toggle" data-evg-theme-toggle aria-label="切换明暗主题"><span class="evg-toggle__dot"></span><span data-evg-theme-label>白</span></button>
+    </div>
+  </div>
+</header>
+
+<main class="evg-container">
+
+  <div class="idx-lead evg-reveal">
+    <b>墨白风：</b>墨与白两极的高对比、低饱和、克制的绿色强调 —— 所有演示图统一继承
+    <code class="evg-code">_shared/evg-style.css</code> 设计 token 与组件类；右上角
+    <code class="evg-code">data-evg-theme-toggle</code> 一键切换明暗（或用 <code class="evg-code">?theme=light|dark</code> 固定截图）；
+    品牌 logo 与宠物默认灰度待机、悬停/周期放映还原彩色；动图全部遵循
+    <code class="evg-code">prefers-reduced-motion</code> 降级，静态可读。
+  </div>
+
+  <div class="idx-grid">
+
+    <a class="evg-card evg-card--hover idx-card evg-reveal" href="data-hub.html" aria-label="打开数据中枢演示">
+      <span class="idx-card__no">01</span>
+      <div class="evg-card__title">数据中枢 <span class="evg-muted">DataHub</span></div>
+      <div class="evg-card__sub">DataOrchestrator · 并发拉取 / 登录域调度 / 失败重试</div>
+      <div class="idx-card__desc">L1–L4 栈式分层全景 + 13 相循环动图：全部数据源并发拉取 → 5 源失败 → 按登录域判定（provider 域域内并发 / 无 provider 域串行）→ 2s 退避 ×3 上限 → 时钟对齐 5 分钟刷新。</div>
+      <div class="idx-card__tags"><span class="evg-badge evg-badge--soft">动图演示</span><span class="evg-badge evg-badge--draft">重试阶梯</span><span class="evg-badge evg-badge--violet">订阅刷新</span></div>
+      <span class="idx-card__open">打开演示 <span class="evg-arrow evg-arrow--accent">→</span></span>
+    </a>
+
+    <a class="evg-card evg-card--hover idx-card evg-reveal" data-delay="50" href="agent-architecture.html" aria-label="打开 Agent 架构演示">
+      <span class="idx-card__no">02</span>
+      <div class="evg-card__title">Agent 架构 <span class="evg-muted">一中心多核心</span></div>
+      <div class="evg-card__sub">AgentRuntime · Controller · 六个核心分支</div>
+      <div class="idx-card__desc">思维导图式架构总览：Skill 加载四层 scope、奥尔波特五维记忆、Agent Tool 插件原理、工作区与视觉拓展、Agent 循环与四道安全网、平台桥接；点击分支联动详情，自动演示依次点亮。</div>
+      <div class="idx-card__tags"><span class="evg-badge evg-badge--accent">交互导图</span><span class="evg-badge evg-badge--soft">点击联动</span><span class="evg-badge evg-badge--draft">hash 直达</span></div>
+      <span class="idx-card__open">打开演示 <span class="evg-arrow evg-arrow--accent">→</span></span>
+    </a>
+
+    <a class="evg-card evg-card--hover idx-card evg-reveal" data-delay="100" href="flywheel.html" aria-label="打开插件飞轮演示">
+      <span class="idx-card__no">03</span>
+      <div class="evg-card__title">插件飞轮 <span class="evg-muted">创作与发现闭环</span></div>
+      <div class="evg-card__sub">创作 → 采集 → 展示 → 安装 → 集成</div>
+      <div class="idx-card__desc">五站闭环 SVG：绿色流动环顺时针飞转、当前环节轮播高亮、中心 logo 圆盘放映；飞轮动力计数器（countUp）与五步闭环、核心原则三卡。</div>
+      <div class="idx-card__tags"><span class="evg-badge evg-badge--soft">闭环动图</span><span class="evg-badge evg-badge--draft">五站轮播</span><span class="evg-badge evg-badge--success">计数器</span></div>
+      <span class="idx-card__open">打开演示 <span class="evg-arrow evg-arrow--accent">→</span></span>
+    </a>
+
+    <a class="evg-card evg-card--hover idx-card evg-reveal" data-delay="150" href="workshops.html" aria-label="打开四工坊泳道演示">
+      <span class="idx-card__no">04</span>
+      <div class="evg-card__title">四工坊泳道 <span class="evg-muted">开发者模式 DIY</span></div>
+      <div class="evg-card__sub">scraper · module · agent · skill + 自产 theme·skin·config</div>
+      <div class="idx-card__desc">网页经 scraper 工坊变数据源包裹，沿水流带顺流而下；四工坊泳道加工出七类插件包裹，汇聚到平台组合器，归入仓库供给用户，配 7 个装配 Loader。</div>
+      <div class="idx-card__tags"><span class="evg-badge evg-badge--violet">泳道</span><span class="evg-badge evg-badge--soft">水流带</span><span class="evg-badge evg-badge--draft">装配 Loader</span></div>
+      <span class="idx-card__open">打开演示 <span class="evg-arrow evg-arrow--accent">→</span></span>
+    </a>
+
+    <a class="evg-card evg-card--hover idx-card evg-reveal" data-delay="200" href="agent-workflow.html" aria-label="打开 Agent 自动工作流演示">
+      <span class="idx-card__no">05</span>
+      <div class="evg-card__title">Agent 自动工作流 <span class="evg-muted">插件供应链</span></div>
+      <div class="evg-card__sub">skill → auto-workflow-skill → 一支笔 → AI 产线</div>
+      <div class="idx-card__desc">装配线动图：五类插件芯片沿传送带无缝右移入仓、产物回流再创作；队长 Agent 按 AGENT.md §6 向 9 个 OWNER 扇形派发任务，秩序井然。</div>
+      <div class="idx-card__tags"><span class="evg-badge evg-badge--soft">传送带动图</span><span class="evg-badge evg-badge--accent">OWNER 派发</span><span class="evg-badge evg-badge--success">飞轮闭环</span></div>
+      <span class="idx-card__open">打开演示 <span class="evg-arrow evg-arrow--accent">→</span></span>
+    </a>
+
+    <a class="evg-card evg-card--hover idx-card evg-reveal" data-delay="250" href="three-view.html" aria-label="打开平台三视图演示">
+      <span class="idx-card__no">06</span>
+      <div class="evg-card__title">平台三视图 <span class="evg-muted">插件资源分发</span></div>
+      <div class="evg-card__sub">AI 助手 · 插件 · 开发者模式</div>
+      <div class="idx-card__desc">底层资源层 → 前端运行时 → 三路分发；开发者模式与底层资源双向箭头回流闭环，SMIL 光点沿三路移动与回流。</div>
+      <div class="idx-card__tags"><span class="evg-badge evg-badge--draft">三路分发</span><span class="evg-badge evg-badge--soft">SMIL 光点</span><span class="evg-badge evg-badge--success">回流闭环</span></div>
+      <span class="idx-card__open">打开演示 <span class="evg-arrow evg-arrow--accent">→</span></span>
+    </a>
+
+    <a class="evg-card evg-card--hover idx-card evg-reveal" data-delay="300" href="plugin-architecture.html" aria-label="打开插件三角通讯链演示">
+      <span class="idx-card__no">07</span>
+      <div class="evg-card__title">三角通讯链 <span class="evg-muted">core · plugins · renderer</span></div>
+      <div class="evg-card__sub">HTML-first 主路径 · ModuleDispatch 模板路由 · AppBootstrap 25 步</div>
+      <div class="idx-card__desc">三角泳道演示动图：上游 core/ → 中游 plugins/（HTML-first 主路径）→ 下游 renderer/ 三条泳道，三条通讯链（HTTP JSON / 视图分发 / import 直调）动图流动；子模块 / 装配 25 步 / JS Bridge 能力等细节全部外置于详情卡，泳道节点点击直达。</div>
+      <div class="idx-card__tags"><span class="evg-badge evg-badge--soft">HTML 主路径</span><span class="evg-badge evg-badge--accent">泳道动图</span><span class="evg-badge evg-badge--success">25 步装配</span></div>
+      <span class="idx-card__open">打开演示 <span class="evg-arrow evg-arrow--accent">→</span></span>
+    </a>
+
+  </div>
+
+  <div class="idx-base evg-reveal" data-delay="120">
+    <span class="evg-muted" style="font-size:0.8rem;font-family:var(--evg-mono)">风格基座 ·</span>
+    <a href="STYLE_GUIDE.md">STYLE_GUIDE.md · 墨白风规范</a>
+    <span class="evg-muted" style="font-size:0.8rem;font-family:var(--evg-mono)">/</span>
+    <a href="_shared/preview.html">_shared/preview.html · 基座自查页</a>
+    <span class="evg-muted" style="font-size:0.8rem;font-family:var(--evg-mono)">/</span>
+    <a href="README.md">README.md · 图目录</a>
+  </div>
+
+</main>
+
+<footer class="idx-foot">
+  <div class="idx-foot__pets" aria-hidden="true">
+    <img class="evg-pet" src="_shared/branding/pet.svg" alt="" />
+    <img class="evg-pet" src="_shared/branding/pet_leafcat.svg" alt="" />
+    <img class="evg-pet" src="_shared/branding/pet_sleep.svg" alt="" />
+  </div>
+  <p>docs/architecture/index.html · Evergreen 架构演示统一入口<br />墨白风基座：_shared/evg-style.css + evg-common.js · 品牌资源：_shared/branding/ · 明暗切换 / 动图降级由基座内置</p>
+</footer>
+
+<script src="_shared/evg-common.js"></script>
+</body>
+</html>

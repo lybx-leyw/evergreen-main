@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Agent 架构 · 一中心多核心思维导图</title>
+  <meta name="description" content="Evergreen Agent 运行时架构演示：一中心多核心思维导图，覆盖 Skill 加载、奥尔波特五维记忆、Agent Tool 插件原理、工作区与视觉拓展、Agent 循环与平台桥接。" />
+  <link rel="stylesheet" href="_shared/evg-style.css" />
+  <style>
+    /* =====================================================================
+       页面专属样式（仅布局与联动，颜色一律 var(--evg-*)）
+       ===================================================================== */
+    .page-head {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 22px 16px 14px;
+      max-width: 1160px;
+      margin: 0 auto;
+      flex-wrap: wrap;
+    }
+    .head-disc {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: var(--evg-card);
+      border: 1px solid var(--evg-border);
+      box-shadow: var(--evg-shadow-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .head-disc img { width: 40px; height: 40px; }
+    .page-head__title { flex: 1 1 auto; min-width: 260px; }
+    .page-head__title h1 { font-family: var(--evg-heading); font-size: 1.5rem; font-weight: 700; letter-spacing: -0.01em; line-height: 1.25; }
+    .page-head__title p { color: var(--evg-muted); font-size: 0.85rem; margin-top: 2px; }
+
+    .hero-metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+      margin: 6px 0 18px;
+    }
+    .metric {
+      background: var(--evg-card);
+      border: 1px solid var(--evg-border);
+      border-radius: var(--evg-radius-lg);
+      padding: 12px 16px;
+      box-shadow: var(--evg-shadow-sm);
+    }
+    .metric__num { font-family: var(--evg-mono); font-size: 1.35rem; font-weight: 700; color: var(--evg-accent); }
+    .metric__label { font-size: 0.78rem; color: var(--evg-muted); margin-top: 2px; }
+
+    /* ── 主思维导图 ─────────────────────────────────────────────── */
+    .mind-section { margin: 10px 0 26px; }
+    .mind-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
+    .mind-head .evg-section-head { margin-bottom: 0; }
+    .mind-controls { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+    .mind-progress { width: 150px; height: 4px; border-radius: var(--evg-radius-full); background: var(--evg-panel-2); overflow: hidden; }
+    .mind-progress__fill { height: 100%; width: 0; background: var(--evg-accent); border-radius: var(--evg-radius-full); transition: width 0.5s var(--evg-ease); }
+    .mind-step { font-family: var(--evg-mono); font-size: 11px; color: var(--evg-muted); min-width: 52px; text-align: right; }
+
+    .mind {
+      position: relative;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 200px minmax(0, 1fr);
+      gap: 20px;
+      align-items: stretch;
+      padding: 8px 0;
+    }
+    .mind-lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+    .mind-line { fill: none; stroke: var(--evg-border-strong); stroke-width: 1.5; stroke-linecap: round; transition: stroke 0.3s var(--evg-ease); }
+    .mind-line--flow { stroke: var(--evg-accent); stroke-dasharray: 6 6; animation: evg-dash var(--evg-dur-5) linear infinite; }
+
+    .mind-col { display: flex; flex-direction: column; justify-content: space-between; gap: 22px; z-index: 1; }
+    .mind-center-wrap { display: flex; align-items: center; justify-content: center; z-index: 1; }
+    .mind-center { min-width: 176px; min-height: 84px; cursor: pointer; }
+
+    .mind-branch { display: flex; flex-direction: column; gap: 10px; transition: opacity 0.3s var(--evg-ease); }
+    .mind-branch.is-dim { opacity: 0.4; }
+    .mind-branch.is-dim:hover { opacity: 0.72; }
+    .mind-branch__head { min-width: 184px; min-height: 58px; cursor: pointer; }
+    .mind-branch.is-active .mind-branch__head { border-color: var(--evg-accent); background: var(--evg-accent-soft); }
+    .mind-branch.is-active .mind-branch__head .evg-node__title { color: var(--evg-accent); }
+    .mind-branch__subs { display: flex; flex-direction: column; gap: 8px; }
+    .mind-branch__subs .evg-node { min-width: 186px; min-height: 46px; padding: 8px 12px; }
+    .mind-branch__subs .evg-node__title { font-size: 0.82rem; }
+    .mind-branch.is-active .mind-branch__subs .evg-node { border-color: var(--evg-accent); }
+    .mind-branch.is-active .mind-branch__subs .evg-node__title { color: var(--evg-accent); }
+
+    .mind-tip { text-align: center; color: var(--evg-muted); font-size: 0.8rem; margin-top: 12px; }
+
+    /* ── 分支详情 ───────────────────────────────────────────────── */
+    .detail-wrap { margin: 18px 0 8px; min-height: 220px; }
+    .detail-card[hidden] { display: none; }
+    .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-top: 12px; }
+    .detail-mini { background: var(--evg-bg-2); border: 1px solid var(--evg-border); border-radius: var(--evg-radius); padding: 10px 12px; }
+    .detail-mini b { font-size: 0.82rem; color: var(--evg-fg); }
+    .detail-mini p { font-size: 0.78rem; color: var(--evg-fg-2); margin-top: 3px; line-height: 1.55; }
+    .detail-mini code { font-family: var(--evg-mono); font-size: 0.74em; color: var(--evg-accent); background: var(--evg-accent-soft); padding: 0 4px; border-radius: 4px; }
+    .detail-src { margin-top: 12px; font-family: var(--evg-mono); font-size: 0.74rem; color: var(--evg-muted-2); }
+    .detail-card .evg-card__body { font-size: 0.86rem; }
+    .detail-card .evg-card__body b { color: var(--evg-fg); }
+
+    /* ── Agent 循环原理动图 ─────────────────────────────────────── */
+    .loop-section { margin: 34px 0 8px; }
+    .loop-stage {
+      position: relative;
+      background: var(--evg-card);
+      border: 1px solid var(--evg-border);
+      border-radius: var(--evg-radius-xl);
+      box-shadow: var(--evg-shadow-sm);
+      padding: 14px;
+      margin-top: 12px;
+    }
+    .loop-svg { width: 100%; height: auto; display: block; }
+    .loop-svg .phase-rect { transition: fill 0.4s var(--evg-ease), stroke 0.4s var(--evg-ease); }
+    .loop-legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-top: 14px; }
+
+    /* ── 平台桥接流 ─────────────────────────────────────────────── */
+    .bridge-flow {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin: 14px 0 4px;
+    }
+    .bridge-step {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 9px 14px;
+      background: var(--evg-card);
+      border: 1px solid var(--evg-border);
+      border-radius: var(--evg-radius);
+      box-shadow: var(--evg-shadow-sm);
+      font-size: 0.8rem;
+      font-weight: 600;
+      min-height: 46px;
+      min-width: 120px;
+    }
+    .bridge-step small { font-family: var(--evg-mono); font-size: 0.66rem; font-weight: 500; color: var(--evg-muted); margin-top: 2px; }
+    .bridge-step--core { background: var(--evg-accent); border-color: var(--evg-accent); color: var(--evg-on-accent); }
+    .bridge-step--core small { color: var(--evg-on-accent); opacity: 0.85; }
+
+    footer.page-foot { text-align: center; color: var(--evg-muted); font-size: 0.8rem; margin-top: 48px; padding-bottom: 40px; line-height: 1.9; }
+    footer.page-foot .pets { display: flex; justify-content: center; gap: 16px; margin-bottom: 12px; }
+    footer.page-foot a { color: var(--evg-muted); text-decoration: none; border-bottom: 1px solid var(--evg-border); }
+    footer.page-foot a:hover { color: var(--evg-accent); border-bottom-color: var(--evg-accent); }
+
+    @media (max-width: 880px) {
+      .mind { grid-template-columns: 1fr; gap: 16px; }
+      .mind-center-wrap { order: -1; padding: 6px 0; }
+      .mind-lines { display: none; }
+      .mind-col { gap: 14px; }
+      .mind-controls { margin-left: 0; width: 100%; justify-content: flex-start; }
+      .mind-progress { flex: 1 1 auto; }
+      .bridge-flow { justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+  <header class="page-head">
+    <div class="head-disc evg-float">
+      <img class="evg-reel evg-reel--auto" src="_shared/branding/logo.svg" alt="Evergreen Logo" width="40" height="40" />
+    </div>
+    <div class="page-head__title">
+      <h1>Agent 架构 · 一中心多核心</h1>
+      <p>AgentRuntime 运行时总览 —— Skill · 记忆 · 工具插件 · 工作区视觉 · 循环 · 平台桥接</p>
+    </div>
+    <button type="button" class="evg-toggle" data-evg-theme-toggle aria-label="切换明暗主题">
+      <span class="evg-toggle__dot"></span><span data-evg-theme-label>白</span>
+    </button>
+  </header>
+
+  <main class="evg-container">
+    <!-- ── 概览指标 ─────────────────────────────────────────────── -->
+    <section class="hero-metrics" aria-label="架构关键数字">
+      <div class="metric evg-reveal"><div class="metric__num" data-count="6">0</div><div class="metric__label">核心分支 · 一中心</div></div>
+      <div class="metric evg-reveal" data-delay="60"><div class="metric__num" data-count="5">0</div><div class="metric__label">奥尔波特记忆五层</div></div>
+      <div class="metric evg-reveal" data-delay="120"><div class="metric__num" data-count="3">0</div><div class="metric__label">记忆 scope 路由</div></div>
+      <div class="metric evg-reveal" data-delay="180"><div class="metric__num" data-count="4">0</div><div class="metric__label">循环安全网</div></div>
+      <div class="metric evg-reveal" data-delay="240"><div class="metric__num" data-count="50">0</div><div class="metric__label">maxSteps 步数上限</div></div>
+    </section>
+
+    <!-- ── 主思维导图 ───────────────────────────────────────────── -->
+    <section class="mind-section evg-reveal" id="mindmap">
+      <div class="mind-head">
+        <div class="evg-section-head"><span class="evg-dot evg-dot--accent"></span>思维导图 · 点击分支联动详情</div>
+        <div class="mind-controls">
+          <button id="playBtn" type="button" class="evg-btn evg-btn--primary" style="padding:6px 14px;font-size:0.8rem">▶ 自动演示</button>
+          <div class="mind-progress" aria-hidden="true"><div class="mind-progress__fill" id="mindProgressFill"></div></div>
+          <span class="mind-step evg-status" id="mindStep"><span class="evg-status__dot"></span>1 / 7</span>
+        </div>
+      </div>
+
+      <div class="mind" id="mind">
+        <svg class="mind-lines" id="mindLines" aria-hidden="true"></svg>
+
+        <!-- 左列：3 分支 -->
+        <div class="mind-col">
+          <div class="mind-branch" data-branch="skill">
+            <div class="mind-branch__head evg-node" tabindex="0" role="button" aria-label="查看 Skill 加载机制详情">
+              <span class="evg-node__title">Skill 加载机制</span>
+              <span class="evg-node__sub">skill/ · SkillLoader</span>
+            </div>
+            <div class="mind-branch__subs">
+              <div class="evg-node"><span class="evg-node__title">四层 scope 优先级</span><span class="evg-node__sub">builtin · global · custom · project</span></div>
+              <div class="evg-node"><span class="evg-node__title">多路径发现</span><span class="evg-node__sub">SKILL.md · plugins/&lt;id&gt;/skill/</span></div>
+              <div class="evg-node"><span class="evg-node__title">frontmatter 契约</span><span class="evg-node__sub">run_as · allowed_tools</span></div>
+            </div>
+          </div>
+
+          <div class="mind-branch" data-branch="memory">
+            <div class="mind-branch__head evg-node" tabindex="0" role="button" aria-label="查看奥尔波特五维记忆详情">
+              <span class="evg-node__title">奥尔波特五维记忆</span>
+              <span class="evg-node__sub">memory/ · MemoryAgent</span>
+            </div>
+            <div class="mind-branch__subs">
+              <div class="evg-node"><span class="evg-node__title">三 scope 路由</span><span class="evg-node__sub">conversation · feature · global</span></div>
+              <div class="evg-node"><span class="evg-node__title">五层特质分组</span><span class="evg-node__sub">cardinal → key_fact</span></div>
+              <div class="evg-node"><span class="evg-node__title">后台 LLM 提取</span><span class="evg-node__sub">update · forget · 宁可漏记</span></div>
+            </div>
+          </div>
+
+          <div class="mind-branch" data-branch="tool">
+            <div class="mind-branch__head evg-node" tabindex="0" role="button" aria-label="查看 Agent Tool 插件原理详情">
+              <span class="evg-node__title">Agent Tool 插件原理</span>
+              <span class="evg-node__sub">PluginBridge · Registry</span>
+            </div>
+            <div class="mind-branch__subs">
+              <div class="evg-node"><span class="evg-node__title">插件形态</span><span class="evg-node__sub">agent/&lt;id&gt;.py + manifest.json</span></div>
+              <div class="evg-node"><span class="evg-node__title">自动发现注册</span><span class="evg-node__sub">discover → PluginTool → Registry</span></div>
+              <div class="evg-node"><span class="evg-node__title">进程通信</span><span class="evg-node__sub">stdin JSON → stdout 结果</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 中心 -->
+        <div class="mind-center-wrap">
+          <div class="mind-center evg-node evg-node--core" id="mindCenter" tabindex="0" role="button" aria-label="Agent 核心概览">
+            <span class="evg-node__title">Agent 核心</span>
+            <span class="evg-node__sub">AgentRuntime · Controller</span>
+          </div>
+        </div>
+
+        <!-- 右列：3 分支 -->
+        <div class="mind-col">
+          <div class="mind-branch" data-branch="workspace">
+            <div class="mind-branch__head evg-node" tabindex="0" role="button" aria-label="查看工作区与视觉拓展详情">
+              <span class="evg-node__title">工作区与视觉拓展</span>
+              <span class="evg-node__sub">tools/ · vision 插件</span>
+            </div>
+            <div class="mind-branch__subs">
+              <div class="evg-node"><span class="evg-node__title">沙箱工作区</span><span class="evg-node__sub">.greenix/workspaces · PathSandbox</span></div>
+              <div class="evg-node"><span class="evg-node__title">文件工具族</span><span class="evg-node__sub">read/write/grep/file_info</span></div>
+              <div class="evg-node"><span class="evg-node__title">多模态视觉</span><span class="evg-node__sub">ocr · describe · generate</span></div>
+            </div>
+          </div>
+
+          <div class="mind-branch" data-branch="loop">
+            <div class="mind-branch__head evg-node" tabindex="0" role="button" aria-label="查看 Agent 循环原理详情">
+              <span class="evg-node__title">Agent 循环原理</span>
+              <span class="evg-node__sub">agent/ · run() 主循环</span>
+            </div>
+            <div class="mind-branch__subs">
+              <div class="evg-node"><span class="evg-node__title">感知 → 思考 → 行动</span><span class="evg-node__sub">compose → LLM → tools</span></div>
+              <div class="evg-node"><span class="evg-node__title">四道安全网</span><span class="evg-node__sub">Gate · StormBreaker · …</span></div>
+              <div class="evg-node"><span class="evg-node__title">事件流回放</span><span class="evg-node__sub">turnStarted → turnDone</span></div>
+            </div>
+          </div>
+
+          <div class="mind-branch" data-branch="bridge">
+            <div class="mind-branch__head evg-node" tabindex="0" role="button" aria-label="查看平台桥接详情">
+              <span class="evg-node__title">平台桥接</span>
+              <span class="evg-node__sub">AgentHttpServer · platform.*</span>
+            </div>
+            <div class="mind-branch__subs">
+              <div class="evg-node"><span class="evg-node__title">端口发现</span><span class="evg-node__sub">.agent_port · REST + SSE</span></div>
+              <div class="evg-node"><span class="evg-node__title">JS Bridge 主路径</span><span class="evg-node__sub">platform.ai.chat / api.call</span></div>
+              <div class="evg-node"><span class="evg-node__title">渲染层事件流</span><span class="evg-node__sub">Stream&lt;AgentEvent&gt; → ChatMessage</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p class="mind-tip">Tip：点击任意分支（或按 Enter）查看原理细节；「自动演示」会从全景开始，依次点亮六个核心分支。</p>
+    </section>
+
+    <!-- ── 分支详情（联动） ─────────────────────────────────────── -->
+    <section class="detail-wrap" id="detail" aria-live="polite">
+      <article class="detail-card evg-card evg-card--accent" data-detail="center">
+        <div class="evg-card__title">Agent 核心 <span class="evg-badge evg-badge--accent">一中心</span></div>
+        <div class="evg-card__sub">AgentRuntime · Controller · EventSink</div>
+        <div class="evg-card__body">
+          全局唯一的 <b>AgentRuntime</b> 通过 <code class="evg-code">agentRuntimeProvider</code> 组装 Provider（LLM）、Registry（工具）、Controller（状态机）、Session、Skill 与 Memory 六类组件；
+          每个配置了 <code class="evg-code">ai-assistant</code> 的模块可用 <b>AgentAssembly</b> 获得隔离实例（Provider 共享，Registry/Session/Memory/Skill/Controller/Gate 隔离）。
+          渲染层只消费 <code class="evg-code">Stream&lt;AgentEvent&gt;</code> 事件流与 Controller 的 send / cancel / approve / reject。
+        </div>
+        <div class="detail-grid">
+          <div class="detail-mini"><b>事件流</b><p>EventKind 全集：text / reasoning / toolDispatch / toolResult / turnDone / approvalRequest …</p></div>
+          <div class="detail-mini"><b>隔离策略</b><p>LLM Provider 共享；Registry / Session / Memory / Skill / Gate 按模块隔离（命名空间 plugin:&lt;id&gt;/）</p></div>
+          <div class="detail-mini"><b>预设装配</b><p>qa-basic / research-full / code-assistant（全工具 + 64K 上下文）</p></div>
+        </div>
+        <div class="detail-src">evg-base/lib/core/agent/ agent.dart · agent_runtime.dart · agent_factory.dart · controller/controller.dart</div>
+      </article>
+
+      <article class="detail-card evg-card evg-card--accent" data-detail="skill" hidden>
+        <div class="evg-card__title">Skill 加载机制 <span class="evg-badge evg-badge--soft">skill/</span></div>
+        <div class="evg-card__sub">SkillLoader · SkillIndex · RunSkillTool / ListSkillsTool</div>
+        <div class="evg-card__body">
+          Skill 是带 YAML frontmatter 的 Markdown 指令文件（name / description / run_as / allowed_tools）。
+          <b>SkillLoader</b> 按搜索路径发现（<code class="evg-code">plugins/&lt;id&gt;/skill/*.md</code>、目录布局 <code class="evg-code">&lt;name&gt;/SKILL.md</code>、.greenix/skills/），
+          解析 frontmatter 后以 <b>四层 scope 优先级</b>（builtin &gt; global &gt; custom &gt; project，同名校高优先级覆盖）进入 <b>SkillIndex</b>；
+          索引文本随 system prompt 注入「可用技能」段，模型经 <code class="evg-code">run_skill</code> 动态执行（inline 注入或 subagent 委派，受 allowed_tools 约束）。
+          市场「停用」状态经 <code class="evg-code">.plugin_states.json</code> 过滤，无需重启即生效。
+        </div>
+        <div class="detail-grid">
+          <div class="detail-mini"><b>frontmatter</b><p>name · description · mode · allowed_tools · run_as（inline | subagent）</p></div>
+          <div class="detail-mini"><b>索引注入</b><p>SkillIndex.indexText() → system prompt「## 可用技能」</p></div>
+          <div class="detail-mini"><b>创作闭环</b><p>skill-creator 经 skill_generator / skill_rewriter 生成与改写 Skill</p></div>
+        </div>
+        <div class="detail-src">evg-base/lib/core/agent/skill/skill.dart · tools/run_skill.dart</div>
+      </article>
+
+      <article class="detail-card evg-card evg-card--accent" data-detail="memory" hidden>
+        <div class="evg-card__title">奥尔波特五维记忆架构 <span class="evg-badge evg-badge--violet">memory/</span></div>
+        <div class="evg-card__sub">MemoryFacade · MemoryRouter · MemoryAgent（以源码为准：五层特质 + 三 scope）</div>
+        <div class="evg-card__body">
+          记忆按 <b>奥尔波特特质理论</b> 分五层（groupMemoriesByAllport）：<b>首要特质</b>（一个支配性形容词）· <b>中心特质</b>（5–10 个核心形容词）·
+          <b>次要特质</b>（情境性偏好「在[情境]下，用户…」）· <b>用户需求</b>（工作方式指导，含 why + how-to-apply）· <b>关键事实</b>（时间锚定的客观事实）。
+          写入经 <b>MemoryRouter</b> 按 scope 路由：conversation / feature（内存）与 global（持久到 .greenix/memories/）；
+          <b>MemoryAgent</b> 在后台用 LLM 提取特质与事实，支持矛盾 update、否定 forget，遵循「宁可漏记，不可错记」。
+        </div>
+        <div class="detail-grid">
+          <div class="detail-mini"><b>五层样例</b><p>「实干家」·「勤奋、严谨」·「写代码偏好简洁」·「用户希望中文回答」·「[2026年6月] 大三学生」</p></div>
+          <div class="detail-mini"><b>三 scope 注入</b><p>MemoryFacade.buildContext() 合并对话/功能/项目记忆 → system prompt</p></div>
+          <div class="detail-mini"><b>同步中心</b><p>mergeMemories 直接拼接，同 name 跳过；索引 MEMORY.md 重建</p></div>
+        </div>
+        <div class="detail-src">evg-base/lib/core/agent/memory/ memory.dart · facade.dart · router.dart · memory_agent.dart</div>
+      </article>
+
+      <article class="detail-card evg-card evg-card--accent" data-detail="tool" hidden>
+        <div class="evg-card__title">Agent Tool 插件原理 <span class="evg-badge evg-badge--pre">开发者模式</span></div>
+        <div class="evg-card__sub">PluginBridge · PluginTool · PluginRunner</div>
+        <div class="evg-card__body">
+          插件形态为 <code class="evg-code">plugins/&lt;id&gt;/agent/&lt;id&gt;.py</code>（<b>.py 统一主路径</b>，.exe 为 legacy 回退）+ 必写 <code class="evg-code">manifest.json</code>。
+          <b>PluginBridge</b> 启动时扫描发现，包装为 <b>PluginTool</b> 注册进 Registry（只读可并行、写工具串行）。
+          调用时参数经三种 arg 风格（stdin JSON / args+flag / args+positional）交给 <b>PluginRunner</b>（桌面子进程 / 安卓 Chaquopy 进程内），stdout 返回结果，非零退出码携带 stderr 回传。
+          manifest 还支持 runtime（python|native）、lifetime（once | resident 常驻后台）、preprocess（pdf_split）等字段。
+        </div>
+        <div class="detail-grid">
+          <div class="detail-mini"><b>manifest 必写</b><p>name · description · schema（JSON Schema）· readOnly · argMode · argSpec</p></div>
+          <div class="detail-mini"><b>内置工具</b><p>workspace / read_file / write_file / grep / web_search / data_query / python_runner / run_skill …</p></div>
+          <div class="detail-mini"><b>Registry 调度</b><p>enable/disable 按名控制 · Gateway 四级权限 · 重复注册抛异常</p></div>
+        </div>
+        <div class="detail-src">evg-base/lib/core/agent/tools/plugin_bridge.dart · tool.dart · evg-base/plugins/&lt;id&gt;/agent/</div>
+      </article>
+
+      <article class="detail-card evg-card evg-card--accent" data-detail="workspace" hidden>
+        <div class="evg-card__title">工作区与视觉拓展 <span class="evg-badge evg-badge--success">tools/</span></div>
+        <div class="evg-card__sub">WorkspaceTool · 文件工具族 · vision 插件</div>
+        <div class="evg-card__body">
+          <b>工作区</b>：<code class="evg-code">WorkspaceTool</code> 对接 module 的 WorkspaceDescriptor，根目录通常为 .greenix/workspaces/&lt;moduleId&gt;，
+          所有路径经 <b>PathSandbox</b> 防目录穿越；文件工具族覆盖 read_file（offset/limit/hex）、write_file（write / append / insert / replace_lines / delete_lines / replace_text）、grep、file_info、read_head/tail。
+          system prompt 注入「## 工作区」段告知绝对路径。<b>视觉拓展</b>：vision 插件提供 ocr（提取文字）/ describe（读图描述）/ generate（生图占位）；
+          PDF/PPT 支持桌面 pymupdf，安卓经系统 PdfRenderer 预拆分为 pages_dir（preprocess: pdf_split）；API 配置三级降级（config.json → CWD/PROJECT_ROOT → 环境变量）。
+        </div>
+        <div class="detail-grid">
+          <div class="detail-mini"><b>工作区声明</b><p>module manifest「workspace: { enabled: true }」开启后才可访问</p></div>
+          <div class="detail-mini"><b>六种写动作</b><p>write / append / insert / replace_lines / delete_lines / replace_text</p></div>
+          <div class="detail-mini"><b>视觉文件协议</b><p>file_path 必须绝对路径（工作区绝对路径 + 相对子路径拼接）</p></div>
+        </div>
+        <div class="detail-src">evg-base/lib/core/agent/tools/ workspace_tool.dart · write_file.dart · read_file.dart · vision_pdf_preprocess.dart · evg-base/plugins/vision/</div>
+      </article>
+
+      <article class="detail-card evg-card evg-card--accent" data-detail="loop" hidden>
+        <div class="evg-card__title">Agent 循环原理 <span class="evg-badge evg-badge--dot">感知 · 思考 · 行动 · 回写</span></div>
+        <div class="evg-card__sub">Agent.run() 主循环 · maxSteps 上限 · 事件流</div>
+        <div class="evg-card__body">
+          每轮对话进入 <b>Agent.run()</b>：⓪ <b>Compactor</b> 检查上下文压实（soft 0.5 / compact 0.8 / force 0.95）→
+          ① <b>compose</b> 构造 system prompt + 工具列表 + 记忆 + 会话历史 → ② <b>Provider.chat</b> 流式 LLM（reasoning / text / tool_calls）→
+          ③ 记录 assistant 消息 → ④ 有工具调用则经 <b>Gate</b>（四级权限）→ <b>StormBreaker</b>（同一写工具连续失败 ≥3 压制）→ ToolHooks → Registry.call 执行并回写结果，
+          有工具调用则继续循环；无工具调用时 ⑤ <b>FinalReadiness</b> 校验必须产生可见回答（最多重试 3 次），通过后 turnDone。
+          全过程经 EventSink 发射 EventKind 全集事件流。
+        </div>
+        <div class="detail-grid">
+          <div class="detail-mini"><b>四道安全网</b><p>Compactor（上下文）· Gate（权限）· StormBreaker（风暴抑制）· FinalReadiness（输出完整）</p></div>
+          <div class="detail-mini"><b>事件顺序</b><p>turnStarted → reasoning → text/toolDispatch/toolResult → message → turnDone</p></div>
+          <div class="detail-mini"><b>记忆回写</b><p>MemoryAgent 后台异步分析对话 → 特质 update/forget → 下轮 compose 时注入</p></div>
+        </div>
+        <div class="detail-src">evg-base/lib/core/agent/agent/agent.dart · compose.dart · gate.dart · compact/compact.dart</div>
+      </article>
+
+      <article class="detail-card evg-card evg-card--accent" data-detail="bridge" hidden>
+        <div class="evg-card__title">平台桥接 <span class="evg-badge evg-badge--stable">platform.*</span></div>
+        <div class="evg-card__sub">AgentHttpServer · JS Bridge · 渲染层事件流</div>
+        <div class="evg-card__body">
+          <b>AgentHttpServer</b> 以 REST + SSE 提供对话/会话/工具/记忆/技能端点，启动时写入 <code class="evg-code">.agent_port</code> 端口文件供插件与 Bridge 发现。
+          用户侧主路径为 <b>HTML 插件</b>：html-creator 创作 → module/index.html 由 html_modle WebView 加载 → 经 <code class="evg-code">platform.ai.chat</code> / <code class="evg-code">platform.api.call</code> 转发到 Agent 会话。
+          渲染层订阅 <code class="evg-code">Stream&lt;AgentEvent&gt;</code> 驱动 ChatMessage 流式 UI，Controller 提供 send / cancel / approve / reject；
+          Provider 为 DeepSeek 流式 API，AiUnavailableException 区分可恢复（自动退避重试）与需人工（无效 Key / 余额不足）。
+        </div>
+        <div class="detail-grid">
+          <div class="detail-mini"><b>端点速查</b><p>/agent/chat/stream（SSE）· /agent/sessions · /agent/tools · /agent/memory · /agent/skills</p></div>
+          <div class="detail-mini"><b>JS Bridge</b><p>platform.ai.chat(prompt, style) · platform.api.call(service, path, opts)</p></div>
+          <div class="detail-mini"><b>能力开关</b><p>webSearchEnabledProvider · reasoningEffortProvider（off/low/medium/high/max）</p></div>
+        </div>
+        <div class="detail-src">evg-base/lib/core/agent/tools/agent_http_server.dart · event_serializers.dart · docs/agent-http-api.md</div>
+      </article>
+    </section>
+
+    <!-- ── Agent 循环原理动图 ───────────────────────────────────── -->
+    <section class="loop-section evg-reveal">
+      <div class="evg-section-head"><span class="evg-dot evg-dot--accent evg-pulse"></span>Agent 循环原理 · 感知 → 思考 → 行动 → 记忆回写（自动循环演示）</div>
+      <div class="loop-stage">
+        <svg class="loop-svg" id="loopSvg" viewBox="0 0 1000 400" role="img" aria-label="Agent 循环原理图：感知、思考、行动、记忆回写四阶段循环">
+          <defs>
+            <marker id="evg-arrowhead-loop" class="evg-arrowhead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z"/>
+            </marker>
+          </defs>
+          <!-- 四条阶段连线（绿色流动动效） -->
+          <path class="evg-edge evg-edge--flow evg-edge--thick" d="M 205 190 C 285 190, 340 120, 418 106" marker-end="url(#evg-arrowhead-loop)"/>
+          <path class="evg-edge evg-edge--flow evg-edge--thick" d="M 582 106 C 660 120, 715 190, 795 190" marker-end="url(#evg-arrowhead-loop)"/>
+          <path class="evg-edge evg-edge--flow evg-edge--thick" d="M 795 217 C 715 217, 660 287, 582 301" marker-end="url(#evg-arrowhead-loop)"/>
+          <path class="evg-edge evg-edge--flow evg-edge--thick" d="M 418 301 C 340 287, 285 217, 205 217" marker-end="url(#evg-arrowhead-loop)"/>
+
+          <!-- 中心：主循环 -->
+          <g class="evg-node evg-node--core" transform="translate(440 166)">
+            <rect width="120" height="52" rx="12"/>
+            <text x="60" y="24" text-anchor="middle" class="evg-node__title">Agent.run</text>
+            <text x="60" y="40" text-anchor="middle" class="evg-node__sub">for step in 0..maxSteps</text>
+          </g>
+
+          <!-- 四阶段节点（JS 依次点亮） -->
+          <g class="evg-node phase" data-phase="1" transform="translate(55 163)">
+            <rect class="phase-rect" width="150" height="54" rx="12"/>
+            <text x="75" y="24" text-anchor="middle" class="evg-node__title">感知 · compose</text>
+            <text x="75" y="40" text-anchor="middle" class="evg-node__sub">prompt+工具+记忆+历史</text>
+          </g>
+          <g class="evg-node phase" data-phase="2" transform="translate(418 79)">
+            <rect class="phase-rect" width="164" height="54" rx="12"/>
+            <text x="82" y="24" text-anchor="middle" class="evg-node__title">思考 · LLM 流式</text>
+            <text x="82" y="40" text-anchor="middle" class="evg-node__sub">reasoning → text → tool_calls</text>
+          </g>
+          <g class="evg-node phase" data-phase="3" transform="translate(795 163)">
+            <rect class="phase-rect" width="150" height="54" rx="12"/>
+            <text x="75" y="24" text-anchor="middle" class="evg-node__title">行动 · 工具执行</text>
+            <text x="75" y="40" text-anchor="middle" class="evg-node__sub">Gate → Registry.call</text>
+          </g>
+          <g class="evg-node phase" data-phase="4" transform="translate(418 289)">
+            <rect class="phase-rect" width="164" height="54" rx="12"/>
+            <text x="82" y="24" text-anchor="middle" class="evg-node__title">记忆回写</text>
+            <text x="82" y="40" text-anchor="middle" class="evg-node__sub">Session + MemoryAgent</text>
+          </g>
+        </svg>
+        <div class="loop-legend">
+          <div class="detail-mini"><b>Compactor · 上下文压实</b><p>soft 0.5 / compact 0.8 / force 0.95 三级阈值，保留 head + tail + LLM 摘要</p></div>
+          <div class="detail-mini"><b>Gate · 四级权限</b><p>always &gt; confirm &gt; approve &gt; deny，按工具名 + 规则表裁决</p></div>
+          <div class="detail-mini"><b>StormBreaker · 风暴抑制</b><p>同一写工具连续失败 ≥3 次自动压制，成功立即重置</p></div>
+          <div class="detail-mini"><b>FinalReadiness · 输出检查</b><p>工具调用后必须产生可见回答，最多重试 3 次</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── 平台桥接 / 用户路径 ──────────────────────────────────── -->
+    <section class="evg-reveal" style="margin-top:30px">
+      <div class="evg-section-head"><span class="evg-dot evg-dot--fg"></span>HTML-first 用户路径 · platform 桥接</div>
+      <div class="bridge-flow">
+        <span class="bridge-step">html-creator<small>三栏创作 IDE</small></span>
+        <span class="evg-arrow evg-arrow--accent evg-arrow--flow">→</span>
+        <span class="bridge-step">HTML 插件<small>module/index.html + manifest</small></span>
+        <span class="evg-arrow evg-arrow--accent evg-arrow--flow">→</span>
+        <span class="bridge-step">JS Bridge<small>platform.ai.chat · api.call</small></span>
+        <span class="evg-arrow evg-arrow--accent evg-arrow--flow">→</span>
+        <span class="bridge-step bridge-step--core">AgentRuntime<small>Controller · EventSink</small></span>
+      </div>
+      <div class="evg-callout" style="margin-top:12px">
+        <span class="evg-callout__ic">💡</span>
+        <span><b>主路径提示：</b>面向用户侧，Agent 能力经 <code class="evg-code">platform.ai.chat</code> / <code class="evg-code">platform.api.call</code> 暴露给 HTML 插件；
+        手写 <code class="evg-code">.exe</code>/<code class="evg-code">.py</code> Agent 工具属开发者模式 / 高级能力。</span>
+      </div>
+    </section>
+  </main>
+
+  <footer class="page-foot">
+    <div class="pets">
+      <img class="evg-pet" src="_shared/branding/pet.svg" alt="绿芽精灵宠物" aria-hidden="true" width="34" height="34" />
+      <img class="evg-pet" src="_shared/branding/pet_leafcat.svg" alt="叶灵猫宠物（Agent 守护语境）" aria-hidden="true" width="34" height="34" />
+      <img class="evg-pet" src="_shared/branding/pet_sleep.svg" alt="睡眠款宠物" aria-hidden="true" width="34" height="34" />
+    </div>
+    源码依据：evg-base/lib/core/agent/ · evg-base/plugins/ · docs/agent-http-api.md<br />
+    墨白风基座：docs/architecture/_shared/ · 明暗双色可切换 · 自动演示支持 reduced-motion 降级 · <a href="index.html">统一入口</a>
+  </footer>
+
+  <script src="_shared/evg-common.js"></script>
+  <script>
+    (function () {
+      "use strict";
+      var doc = document;
+      var mind = doc.getElementById("mind");
+      var linesSvg = doc.getElementById("mindLines");
+      var centerEl = doc.getElementById("mindCenter");
+      var branches = Array.prototype.slice.call(doc.querySelectorAll(".mind-branch"));
+      var playBtn = doc.getElementById("playBtn");
+      var progressFill = doc.getElementById("mindProgressFill");
+      var stepEl = doc.getElementById("mindStep");
+      var reduced = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+      var ORDER = ["center", "skill", "memory", "tool", "workspace", "loop", "bridge"];
+      var lineByBranch = {};
+      var state = { playing: false, idx: 0, timer: null, current: null };
+      var DWELL = 2600;
+
+      /* ── 思维导图连线（借鉴 data-hub 的节点连线绘制手法） ── */
+      function drawMindLines() {
+        if (!mind || !linesSvg) return;
+        // 无 viewBox：user unit = CSS px，与容器像素坐标 1:1 对齐
+        var rect = mind.getBoundingClientRect();
+        if (rect.width < 60 || rect.height < 60) return;
+        var cr = centerEl.getBoundingClientRect();
+        var cx1 = cr.right - rect.left, cx2 = cr.left - rect.left;
+        var cy = cr.top + cr.height / 2 - rect.top;
+        lineByBranch = {};
+        linesSvg.textContent = "";
+        branches.forEach(function (branch) {
+          var key = branch.getAttribute("data-branch");
+          var head = branch.querySelector(".mind-branch__head");
+          if (!head) return;
+          var hr = head.getBoundingClientRect();
+          var left = branch.closest(".mind-col--left") !== null ||
+            (branch.parentElement && branch.parentElement.classList.contains("mind-col") &&
+             branch.parentElement === mind.querySelector(".mind-col:first-child"));
+          var colIndex = Array.prototype.indexOf.call(mind.querySelectorAll(".mind-col"), branch.parentElement);
+          var isLeft = colIndex === 0;
+          var x1 = isLeft ? cx1 : cx2;
+          var y1 = cy;
+          var x2 = isLeft ? hr.left - rect.left : hr.right - rect.left;
+          var y2 = hr.top + hr.height / 2 - rect.top;
+          var headLine = EVG.svgEl("path", {
+            "class": "mind-line", "d": EVG.curvePath(x1, y1, x2, y2, 0.42), "data-branch": key
+          });
+          linesSvg.appendChild(headLine);
+          var group = [headLine];
+          var subs = branch.querySelectorAll(".mind-branch__subs .evg-node");
+          Array.prototype.forEach.call(subs, function (sub) {
+            var sr = sub.getBoundingClientRect();
+            var sx = isLeft ? hr.left - rect.left : hr.right - rect.left;
+            var sy = hr.top + hr.height / 2 - rect.top;
+            var ex = isLeft ? sr.left - rect.left : sr.right - rect.left;
+            var ey = sr.top + sr.height / 2 - rect.top;
+            var l = EVG.svgEl("path", {
+              "class": "mind-line", "d": EVG.curvePath(sx, sy, ex, ey, 0.5), "data-branch": key
+            });
+            linesSvg.appendChild(l);
+            group.push(l);
+          });
+          lineByBranch[key] = group;
+        });
+      }
+
+      /* ── 全景状态（初始 / 点击中心）：全部分支可见 + 概览卡片 ── */
+      function showAll() {
+        state.current = null;
+        branches.forEach(function (b) {
+          b.classList.remove("is-active", "is-dim");
+        });
+        if (centerEl) centerEl.classList.remove("is-dim", "evg-node--focus");
+        Object.keys(lineByBranch).forEach(function (k) {
+          (lineByBranch[k] || []).forEach(function (p) { p.classList.remove("mind-line--flow"); });
+        });
+        Array.prototype.forEach.call(doc.querySelectorAll(".detail-card"), function (c) {
+          c.hidden = c.getAttribute("data-detail") !== "center";
+        });
+        if (progressFill) progressFill.style.width = "0%";
+        if (stepEl) stepEl.innerHTML = '<span class="evg-status__dot"></span>待播放';
+        try { history.replaceState(null, "", "#"); } catch (e) {}
+      }
+
+      /* ── 分支聚焦（借鉴 data-hub focusNode 思路：点亮 + 邻居变暗） ── */
+      function focusBranch(key, opts) {
+        opts = opts || {};
+        if (key === "center") { showAll(); return; }
+        state.current = key;
+        branches.forEach(function (b) {
+          var on = b.getAttribute("data-branch") === key;
+          b.classList.toggle("is-active", on);
+          b.classList.toggle("is-dim", !on);
+        });
+        if (centerEl) {
+          centerEl.classList.toggle("is-dim", key !== "center");
+          centerEl.classList.remove("evg-node--focus");
+        }
+        // 连线点亮
+        Object.keys(lineByBranch).forEach(function (k) {
+          (lineByBranch[k] || []).forEach(function (p) {
+            p.classList.toggle("mind-line--flow", k === key);
+          });
+        });
+        // 详情联动
+        var cards = doc.querySelectorAll(".detail-card");
+        Array.prototype.forEach.call(cards, function (c) {
+          c.hidden = c.getAttribute("data-detail") !== key;
+        });
+        var step = ORDER.indexOf(key);
+        if (step >= 0) {
+          state.idx = step;
+          progressFill.style.width = ((step + 1) / ORDER.length * 100).toFixed(1) + "%";
+          if (stepEl) stepEl.innerHTML = '<span class="evg-status__dot"></span>' + (step + 1) + " / " + ORDER.length;
+        }
+        try { history.replaceState(null, "", "#" + key); } catch (e) {}
+        if (opts.scroll) {
+          var target = doc.getElementById("detail");
+          if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+        if (opts.stopAuto) pause();
+      }
+
+      /* ── 自动演示（story-beat 式顺序播放） ── */
+      function nextBeat() {
+        if (!state.playing) return;
+        var i = (state.idx + 1) % ORDER.length;
+        focusBranch(ORDER[i], {});
+        state.timer = setTimeout(nextBeat, DWELL);
+      }
+      function play() {
+        if (reduced) { focusBranch("center", {}); return; }
+        if (state.playing) return;
+        state.playing = true;
+        playBtn.textContent = "⏸ 暂停";
+        playBtn.classList.add("evg-btn--primary");
+        if (state.current === null) focusBranch("center", {});
+        state.timer = setTimeout(nextBeat, DWELL);
+      }
+      function pause() {
+        state.playing = false;
+        if (state.timer) { clearTimeout(state.timer); state.timer = null; }
+        if (playBtn) playBtn.textContent = "▶ 自动演示";
+      }
+
+      /* ── 循环图四阶段点亮 ── */
+      var phases = Array.prototype.slice.call(doc.querySelectorAll("#loopSvg .phase"));
+      var loopTimer = null, loopIdx = 0;
+      function stepLoop() {
+        if (!phases.length) return;
+        phases.forEach(function (p, i) {
+          p.classList.toggle("evg-node--active", i === loopIdx);
+          p.classList.toggle("evg-node--dim", i !== loopIdx);
+        });
+        loopIdx = (loopIdx + 1) % phases.length;
+        loopTimer = setTimeout(stepLoop, 1600);
+      }
+
+      /* ── 事件绑定 ── */
+      branches.forEach(function (b) {
+        var head = b.querySelector(".mind-branch__head");
+        if (!head) return;
+        head.addEventListener("click", function () { focusBranch(b.getAttribute("data-branch"), { scroll: true, stopAuto: true }); });
+        head.addEventListener("keydown", function (e) {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            focusBranch(b.getAttribute("data-branch"), { scroll: true, stopAuto: true });
+          }
+        });
+      });
+      if (centerEl) {
+        centerEl.addEventListener("click", function () { focusBranch("center", { scroll: true, stopAuto: true }); });
+        centerEl.addEventListener("keydown", function (e) {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); focusBranch("center", { scroll: true, stopAuto: true }); }
+        });
+      }
+      if (playBtn) playBtn.addEventListener("click", function () { state.playing ? pause() : play(); });
+
+      /* ── 数字滚动 ── */
+      function initCounters() {
+        var els = doc.querySelectorAll("[data-count]");
+        function run(el) {
+          if (el.dataset.done) return;
+          el.dataset.done = "1";
+          EVG.countUp(el, parseInt(el.getAttribute("data-count"), 10), 800);
+        }
+        if (!("IntersectionObserver" in window)) {
+          Array.prototype.forEach.call(els, run);
+          return;
+        }
+        var io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (en) {
+            if (!en.isIntersecting) return;
+            run(en.target);
+            io.unobserve(en.target);
+          });
+        }, { threshold: 0.5 });
+        Array.prototype.forEach.call(els, function (el) {
+          // 已在视口内则立即滚动，不依赖 IO 回调时序
+          var r = el.getBoundingClientRect();
+          if (r.top < window.innerHeight && r.bottom > 0) run(el);
+          else io.observe(el);
+        });
+      }
+
+      /* ── 初始化 ── */
+      function init() {
+        drawMindLines();
+        if (!reduced) {
+          stepLoop();
+        } else {
+          phases.forEach(function (p, i) { p.classList.toggle("evg-node--active", i === 0); });
+        }
+        // hash 直达（#skill 等）
+        var h = (location.hash || "").replace("#", "");
+        if (ORDER.indexOf(h) >= 0) focusBranch(h, {});
+        else showAll();
+        initCounters();
+        window.addEventListener("resize", EVG.debounce(drawMindLines, 180));
+      }
+
+      EVG.onReady(init);
+    })();
+  </script>
+</body>
+</html>

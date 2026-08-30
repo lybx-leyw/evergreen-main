@@ -1,0 +1,65 @@
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="绿意不息宠物 - 叶灵猫">
+  <defs>
+    <radialGradient id="catBody" cx="40%" cy="32%" r="75%">
+      <stop offset="0%" stop-color="#eafff4"/>
+      <stop offset="55%" stop-color="#c2f3da"/>
+      <stop offset="100%" stop-color="#8fe9b6"/>
+    </radialGradient>
+    <linearGradient id="catLeaf" x1="15%" y1="0%" x2="85%" y2="100%">
+      <stop offset="0%" stop-color="#86ebb0"/>
+      <stop offset="100%" stop-color="#12b15f"/>
+    </linearGradient>
+    <radialGradient id="catCheek" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ff9bb3" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#ff9bb3" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="catShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="5" stdDeviation="6" flood-color="#0a6b48" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#catShadow)">
+    <!-- 身体 -->
+    <path d="M100 60
+             C 146 60, 162 100, 162 126
+             C 162 158, 138 174, 100 174
+             C 62 174, 38 158, 38 126
+             C 38 100, 54 60, 100 60 Z"
+          fill="url(#catBody)" stroke="#12b15f" stroke-opacity="0.25" stroke-width="2"/>
+
+    <!-- 猫耳 -->
+    <path d="M58 70 L 50 40 L 80 58 Z" fill="url(#catBody)" stroke="#12b15f" stroke-opacity="0.25" stroke-width="1.5"/>
+    <path d="M142 70 L 150 40 L 120 58 Z" fill="url(#catBody)" stroke="#12b15f" stroke-opacity="0.25" stroke-width="1.5"/>
+    <path d="M60 64 L 56 48 L 72 58 Z" fill="#ff9bb3" fill-opacity="0.5"/>
+    <path d="M140 64 L 144 48 L 128 58 Z" fill="#ff9bb3" fill-opacity="0.5"/>
+
+    <!-- 抱着的叶子 -->
+    <g transform="translate(100 132)">
+      <path d="M0 -26 C 26 -18, 34 14, 4 34 C -4 38, -4 38, -6 34 C -34 12, -26 -18, 0 -26 Z" fill="url(#catLeaf)"/>
+      <path d="M0 -22 C 1 -8, 1 12, -2 28" fill="none" stroke="#eafff3" stroke-opacity="0.85" stroke-width="2.2" stroke-linecap="round"/>
+      <path d="M-1 -10 C -10 -4, -18 4, -24 12" fill="none" stroke="#eafff3" stroke-opacity="0.6" stroke-width="1.6" stroke-linecap="round"/>
+      <path d="M1 -10 C 10 -4, 18 4, 24 12" fill="none" stroke="#eafff3" stroke-opacity="0.6" stroke-width="1.6" stroke-linecap="round"/>
+    </g>
+
+    <!-- 腮红 -->
+    <circle cx="62" cy="124" r="12" fill="url(#catCheek)"/>
+    <circle cx="138" cy="124" r="12" fill="url(#catCheek)"/>
+
+    <!-- 眼睛（眯眼笑） -->
+    <path d="M66 110 C 72 104, 82 104, 88 110" fill="none" stroke="#22332b" stroke-width="3" stroke-linecap="round"/>
+    <path d="M112 110 C 118 104, 128 104, 134 110" fill="none" stroke="#22332b" stroke-width="3" stroke-linecap="round"/>
+
+    <!-- 鼻 -->
+    <path d="M97 122 l6 0 l-3 4 z" fill="#ff7a98"/>
+
+    <!-- 胡须 -->
+    <path d="M40 120 l-16 -4 M40 128 l-16 2 M160 120 l16 -4 M160 128 l16 2"
+          fill="none" stroke="#22332b" stroke-opacity="0.4" stroke-width="1.6" stroke-linecap="round"/>
+
+    <!-- 尾（叶状） -->
+    <path d="M160 150 C 184 148, 190 124, 178 110 C 184 128, 172 142, 158 142 Z" fill="url(#catLeaf)"/>
+
+    <!-- 高光 -->
+    <path d="M66 76 C 92 64, 126 68, 140 90 C 116 78, 88 78, 66 92 Z" fill="#ffffff" fill-opacity="0.3"/>
+  </g>
+</svg>

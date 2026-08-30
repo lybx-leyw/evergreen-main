@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>插件飞轮 · 创作与发现闭环 — Evergreen 架构演示</title>
+<meta name="description" content="Evergreen 插件飞轮模型：创作 → 采集 → 展示 → 安装 → 发现集成 → 再创作的闭环动图。" />
+<link rel="stylesheet" href="_shared/evg-style.css" />
+<style>
+/* ============ 页面局部布局（颜色一律 var(--evg-*)） ============ */
+.fw-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 24px 0 6px;
+}
+.fw-header__logo { flex: none; width: 48px; height: 48px; }
+.fw-header__logo img { width: 48px; height: 48px; display: block; }
+.fw-head { flex: 1; min-width: 0; }
+.fw-head h1 { font-size: 1.55rem; }
+.fw-head p { color: var(--evg-muted); font-size: 0.88rem; margin-top: 2px; }
+
+.fw-legend {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+  padding: 10px 0 2px;
+}
+.fw-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.76rem;
+  color: var(--evg-muted-2);
+  font-family: var(--evg-mono);
+}
+.fw-legend i { width: 8px; height: 8px; border-radius: 50%; background: var(--evg-accent); }
+.fw-legend i.l1 { background: var(--evg-accent); }
+.fw-legend i.l2 { background: var(--evg-border); }
+.fw-legend i.l3 { background: var(--evg-accent-soft); border: 1px solid var(--evg-accent); }
+.fw-legend i.l4 { background: var(--evg-fg); }
+
+.fw-wheel-wrap { position: relative; margin: 8px 0 2px; }
+.fw-wheel { width: 100%; height: auto; display: block; }
+
+/* 中心 logo 圆盘（浮动动画与居中 transform 分层，避免互相覆盖） */
+.fw-hub-anchor { position: absolute; left: 50%; top: 50%; width: 0; height: 0; }
+.fw-hub {
+  width: 116px;
+  height: 116px;
+  border-radius: 50%;
+  background: var(--evg-card);
+  border: 1px solid var(--evg-border);
+  box-shadow: var(--evg-shadow-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate(-50%, -50%);
+}
+.fw-hub img { width: 88px; height: 88px; display: block; }
+
+/* 飞轮 SVG 内部装饰 */
+.fw-spoke { stroke: var(--evg-border); stroke-width: 1; stroke-dasharray: 2 5; opacity: 0.7; }
+.fw-arc-label {
+  fill: var(--evg-accent);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  font-family: var(--evg-mono);
+}
+.fw-caption {
+  fill: var(--evg-muted);
+  font-size: 12px;
+  font-family: var(--evg-mono);
+  letter-spacing: 0.08em;
+}
+/* 站节点：额外 meta 行 + 序号章 + 聚焦高亮 */
+g.evg-node text.fw-node__meta {
+  font-size: 10px;
+  font-weight: 500;
+  fill: var(--evg-muted-2);
+  font-family: var(--evg-mono);
+}
+g.evg-node .fw-chip__bg { fill: var(--evg-accent); transition: fill var(--evg-dur-2) var(--evg-ease); }
+g.evg-node .fw-chip__n {
+  fill: var(--evg-on-accent);
+  font-size: 12px;
+  font-weight: 700;
+  font-family: var(--evg-mono);
+}
+.fw-station-glow { fill: var(--evg-accent-soft); opacity: 0; transition: opacity var(--evg-dur-3) var(--evg-ease); }
+g.evg-node.fw-active rect { stroke: var(--evg-accent); stroke-width: 2.5; }
+g.evg-node.fw-active .fw-station-glow { opacity: 1; animation: evg-pulse var(--evg-pulse) ease-in-out infinite; }
+g.evg-node.fw-active .fw-chip__bg { fill: var(--evg-accent-strong); }
+g.evg-node.fw-active .fw-node__meta { fill: var(--evg-accent); }
+
+.fw-stage {
+  text-align: center;
+  font-family: var(--evg-mono);
+  font-size: 0.8rem;
+  color: var(--evg-muted);
+  margin: 4px 0 6px;
+  min-height: 1.6em;
+}
+.fw-stage b { color: var(--evg-accent); font-weight: 600; }
+
+.fw-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+  margin-top: 18px;
+}
+.fw-counters {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.fw-counter b {
+  font-family: var(--evg-mono);
+  font-size: 1.9rem;
+  font-weight: 700;
+  color: var(--evg-accent);
+  line-height: 1.1;
+}
+.fw-counter b.fw-inf { color: var(--evg-fg); }
+.fw-counter span { display: block; font-size: 0.72rem; color: var(--evg-muted); margin-top: 2px; }
+.fw-progress-label {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--evg-mono);
+  font-size: 0.72rem;
+  color: var(--evg-muted);
+  margin: 14px 0 6px;
+}
+.fw-loop { list-style: none; margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.fw-loop li { display: flex; align-items: baseline; gap: 10px; font-size: 0.86rem; }
+.fw-loop b { font-weight: 600; min-width: 76px; color: var(--evg-fg); }
+.fw-loop code { font-size: 0.72em; }
+.fw-body p { color: var(--evg-fg-2); font-size: 0.86rem; margin-top: 10px; }
+
+.fw-footer {
+  margin-top: 52px;
+  padding: 26px 0 42px;
+  border-top: 1px solid var(--evg-border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.fw-pets { display: flex; gap: 12px; }
+.fw-footer__meta {
+  font-family: var(--evg-mono);
+  font-size: 0.72rem;
+  color: var(--evg-muted-2);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.fw-footer__meta a { color: var(--evg-muted); text-decoration: none; }
+.fw-footer__meta a:hover { color: var(--evg-accent); }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <marker id="evg-arrowhead" class="evg-arrowhead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z"/>
+    </marker>
+    <marker id="evg-arrowhead-muted" class="evg-arrowhead--muted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z"/>
+    </marker>
+  </defs>
+</svg>
+
+<header class="evg-container fw-header">
+  <div class="fw-header__logo">
+    <img class="evg-reel evg-reel--auto" src="_shared/branding/logo.svg" alt="Evergreen" width="48" height="48" />
+  </div>
+  <div class="fw-head">
+    <h1 class="evg-title">插件飞轮 <span class="evg-accent-text">·</span> 创作与发现闭环</h1>
+    <p>插件被创作 → greenix 采集 → 市场展示 → 安装落盘 → 按类型采择集成 → 再次促进创作 —— 飞轮自转，生态自增。</p>
+  </div>
+  <button type="button" class="evg-toggle" data-evg-theme-toggle aria-label="切换明暗主题">
+    <span class="evg-toggle__dot"></span><span data-evg-theme-label>白</span>
+  </button>
+</header>
+
+<main class="evg-container">
+  <div class="fw-legend" aria-hidden="true">
+    <span><i class="l1"></i>飞轮流动</span>
+    <span><i class="l2"></i>待命虚线</span>
+    <span><i class="l3"></i>当前环节</span>
+    <span><i class="l4"></i>再创作反馈</span>
+  </div>
+
+  <div class="fw-wheel-wrap evg-reveal" data-delay="60">
+    <svg class="fw-wheel" viewBox="0 0 1200 780" role="img"
+         aria-label="插件飞轮五站闭环：创作、飞轮采集、市场展示、安装到插件目录、按类型发现集成，再回到创作">
+      <!-- 外圈待命 + 飞轮流 + 内圈 -->
+      <circle class="evg-edge evg-edge--ghost" cx="600" cy="400" r="300" />
+      <circle class="evg-edge evg-edge--flow evg-edge--thick" cx="600" cy="400" r="235" />
+      <circle class="evg-edge" cx="600" cy="400" r="190" opacity="0.55" />
+      <!-- 辐条（JS 生成） -->
+      <g id="fw-spokes"></g>
+      <!-- 站间方向弧（JS 生成） -->
+      <g id="fw-gaps"></g>
+      <!-- 再创作反馈弧（⑤ → ①） -->
+      <path class="evg-edge evg-edge--flow" d="M305.2 304.2 A310 310 0 0 1 578.4 90.7" marker-end="url(#evg-arrowhead)" />
+      <text x="397" y="138" text-anchor="middle" class="fw-arc-label">促进再创作</text>
+
+      <!-- ① 创作 -->
+      <g class="evg-node fw-station" transform="translate(515 115)">
+        <circle class="fw-station-glow" cx="85" cy="50" r="112" />
+        <rect width="170" height="100" rx="14" />
+        <text x="85" y="34" text-anchor="middle" class="evg-node__title">创作</text>
+        <text x="85" y="52" text-anchor="middle" class="evg-node__sub">html-creator</text>
+        <text x="85" y="70" text-anchor="middle" class="fw-node__meta">创作中心 · 三栏 IDE</text>
+        <text x="85" y="86" text-anchor="middle" class="fw-node__meta">一键导出插件</text>
+        <g class="fw-chip"><circle cx="17" cy="17" r="13" class="fw-chip__bg" /><text x="17" y="21.5" text-anchor="middle" class="fw-chip__n">1</text></g>
+      </g>
+      <!-- ② 飞轮采集 -->
+      <g class="evg-node fw-station" transform="translate(738.5 277.4)">
+        <circle class="fw-station-glow" cx="85" cy="50" r="112" />
+        <rect width="170" height="100" rx="14" />
+        <text x="85" y="34" text-anchor="middle" class="evg-node__title">飞轮采集</text>
+        <text x="85" y="52" text-anchor="middle" class="evg-node__sub">greenix 采集器</text>
+        <text x="85" y="70" text-anchor="middle" class="fw-node__meta">registry PR · 本地导出</text>
+        <text x="85" y="86" text-anchor="middle" class="fw-node__meta">收拢进飞轮</text>
+        <g class="fw-chip"><circle cx="17" cy="17" r="13" class="fw-chip__bg" /><text x="17" y="21.5" text-anchor="middle" class="fw-chip__n">2</text></g>
+      </g>
+      <!-- ③ 展示 -->
+      <g class="evg-node fw-station" transform="translate(653.1 540.1)">
+        <circle class="fw-station-glow" cx="85" cy="50" r="112" />
+        <rect width="170" height="100" rx="14" />
+        <text x="85" y="34" text-anchor="middle" class="evg-node__title">展示</text>
+        <text x="85" y="52" text-anchor="middle" class="evg-node__sub">市场列表 /discover</text>
+        <text x="85" y="70" text-anchor="middle" class="fw-node__meta">作者 + star + 能力维度</text>
+        <text x="85" y="86" text-anchor="middle" class="fw-node__meta">可浏览 · 可安装</text>
+        <g class="fw-chip"><circle cx="17" cy="17" r="13" class="fw-chip__bg" /><text x="17" y="21.5" text-anchor="middle" class="fw-chip__n">3</text></g>
+      </g>
+      <!-- ④ 安装 -->
+      <g class="evg-node fw-station" transform="translate(376.9 540.1)">
+        <circle class="fw-station-glow" cx="85" cy="50" r="112" />
+        <rect width="170" height="100" rx="14" />
+        <text x="85" y="34" text-anchor="middle" class="evg-node__title">安装</text>
+        <text x="85" y="52" text-anchor="middle" class="evg-node__sub">plugins/&lt;id&gt;/</text>
+        <text x="85" y="70" text-anchor="middle" class="fw-node__meta">install + manifest 声明</text>
+        <text x="85" y="86" text-anchor="middle" class="fw-node__meta">下载 · 校验 · 原子落盘</text>
+        <g class="fw-chip"><circle cx="17" cy="17" r="13" class="fw-chip__bg" /><text x="17" y="21.5" text-anchor="middle" class="fw-chip__n">4</text></g>
+      </g>
+      <!-- ⑤ 发现·集成 -->
+      <g class="evg-node fw-station" transform="translate(291.5 277.4)">
+        <circle class="fw-station-glow" cx="85" cy="50" r="112" />
+        <rect width="170" height="100" rx="14" />
+        <text x="85" y="34" text-anchor="middle" class="evg-node__title">发现 · 集成</text>
+        <text x="85" y="52" text-anchor="middle" class="evg-node__sub">按类型采择</text>
+        <text x="85" y="70" text-anchor="middle" class="fw-node__meta">module / agent / theme</text>
+        <text x="85" y="86" text-anchor="middle" class="fw-node__meta">config / data / skill</text>
+        <g class="fw-chip"><circle cx="17" cy="17" r="13" class="fw-chip__bg" /><text x="17" y="21.5" text-anchor="middle" class="fw-chip__n">5</text></g>
+      </g>
+
+      <text x="600" y="742" text-anchor="middle" class="fw-caption">五站闭环 · 顺时针飞转 —— 每站亮起表示当前环节</text>
+    </svg>
+
+    <div class="fw-hub-anchor" aria-hidden="true">
+      <div class="evg-float">
+        <div class="fw-hub">
+          <img class="evg-reel evg-reel--auto" src="_shared/branding/logo.svg" alt="Evergreen" width="88" height="88" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="fw-stage" id="fw-stage">当前：<b>① 创作</b> — html / theme / skill / scraper 创作中心产出插件</div>
+
+  <div class="fw-grid">
+    <div class="evg-card evg-card--hover evg-reveal" data-delay="40">
+      <div class="evg-card__title">飞轮动力</div>
+      <div class="evg-card__sub">counters · 生态基数</div>
+      <div class="fw-counters">
+        <div class="fw-counter"><b data-count="4">0</b><span>创作中心</span></div>
+        <div class="fw-counter"><b data-count="7">0</b><span>类插件资源</span></div>
+        <div class="fw-counter"><b data-count="14">0</b><span>内置插件</span></div>
+        <div class="fw-counter"><b class="fw-inf">∞</b><span>再创作循环</span></div>
+      </div>
+      <div class="fw-progress-label"><span>生态转速</span><span>自转中</span></div>
+      <div class="evg-progress"><div class="evg-progress__fill" style="width:72%"></div></div>
+      <div class="fw-body"><p>html / theme / skill / scraper 四创作中心持续供给；每转一圈，市场与本地插件又多一轮反馈燃料。</p></div>
+    </div>
+
+    <div class="evg-card evg-card--hover evg-reveal" data-delay="120">
+      <div class="evg-card__title">五步闭环</div>
+      <div class="evg-card__sub">flywheel loop</div>
+      <ol class="fw-loop">
+        <li><b>创作</b><code class="evg-code">html-creator · theme-creator · skill-creator</code></li>
+        <li><b>采集</b><code class="evg-code">greenix 采集器 · registry plugins.json</code></li>
+        <li><b>展示</b><code class="evg-code">市场列表 · /discover 发现插件</code></li>
+        <li><b>安装</b><code class="evg-code">PluginInstaller → plugins/&lt;id&gt;/</code></li>
+        <li><b>发现·集成</b><code class="evg-code">ModuleLoader · PluginBridge · ThemeLoader · SettingsLoader · 数据中枢 · SkillRegistry</code></li>
+      </ol>
+      <div class="fw-body"><p>安装完成后 greenix 扫描 plugin 目录，按类型采择并集成进对应子系统 —— 能力即刻可用，反哺新一轮创作。</p></div>
+    </div>
+
+    <div class="evg-card evg-card--accent evg-reveal" data-delay="200">
+      <div class="evg-card__title">核心原则</div>
+      <div class="evg-card__sub">registry = 协议声明，不是代码</div>
+      <div class="fw-body">
+        <p>作者只需声明「插件从哪下载、manifest 从哪来」，Evergreen 自动完成下载与加载；条目经飞轮采集、展示、安装后，greenix 按 <code class="evg-code">module / agent / theme / config / data / skill</code> 采择集成。</p>
+        <p>用户侧创作以 HTML 为主 —— 创作中心一键导出 <code class="evg-code">module/index.html + manifest.json</code>，立即进入飞轮。</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="evg-container fw-footer">
+  <div class="fw-pets" aria-hidden="true">
+    <img class="evg-pet" src="_shared/branding/pet.svg" alt="" />
+    <img class="evg-pet" src="_shared/branding/pet_leafcat.svg" alt="" />
+    <img class="evg-pet" src="_shared/branding/pet_sleep.svg" alt="" />
+  </div>
+  <div class="fw-footer__meta">
+    <span>Evergreen · 架构演示</span><span>·</span>
+    <a href="index.html">统一入口</a><span>·</span>
+    <a href="STYLE_GUIDE.md">墨白风基座</a>
+  </div>
+</footer>
+
+<script src="_shared/evg-common.js"></script>
+<script>
+(function () {
+  "use strict";
+  /* ── 飞轮 SVG 几何（辐条 + 站间方向弧） ── */
+  EVG.onReady(function () {
+    var svg = document.querySelector(".fw-wheel");
+    var spokes = document.getElementById("fw-spokes");
+    var gaps = document.getElementById("fw-gaps");
+    if (!svg || !spokes || !gaps) return;
+    var CX = 600, CY = 400, R = 262;
+    var angles = [-90, -18, 54, 126, 198];
+    function polar(r, deg) {
+      var rad = deg * Math.PI / 180;
+      return [CX + r * Math.cos(rad), CY + r * Math.sin(rad)];
+    }
+    angles.forEach(function (a) {
+      var p = polar(190, a);
+      spokes.appendChild(EVG.svgEl("line", {
+        x1: CX, y1: CY, x2: p[0].toFixed(1), y2: p[1].toFixed(1), class: "fw-spoke"
+      }));
+      var p1 = polar(R, a + 16), p2 = polar(R, a + 56);
+      var d = "M " + p1[0].toFixed(1) + " " + p1[1].toFixed(1) +
+        " A " + R + " " + R + " 0 0 1 " + p2[0].toFixed(1) + " " + p2[1].toFixed(1);
+      gaps.appendChild(EVG.svgEl("path", {
+        d: d,
+        class: "evg-edge evg-edge--ghost",
+        "marker-end": "url(#evg-arrowhead-muted)"
+      }));
+    });
+  });
+
+  /* ── 五站轮播（当前环节高亮 + 状态行） ── */
+  var stations = Array.prototype.slice.call(document.querySelectorAll(".fw-station"));
+  var stageEl = document.getElementById("fw-stage");
+  var texts = [
+    "当前：<b>① 创作</b> — html / theme / skill / scraper 创作中心产出插件，一键导出",
+    "当前：<b>② 飞轮采集</b> — greenix 采集器收拢 registry PR 与本地导出插件",
+    "当前：<b>③ 展示</b> — 市场列表 / 发现插件页展示作者、star 与能力维度",
+    "当前：<b>④ 安装</b> — 按 install / manifest 声明下载校验，原子落盘 plugins/&lt;id&gt;/",
+    "当前：<b>⑤ 发现·集成</b> — greenix 按类型采择：ModuleLoader / PluginBridge / ThemeLoader / SettingsLoader / 数据中枢 → 促进再创作"
+  ];
+  var idx = 0, timer = null;
+  function apply(i) {
+    stations.forEach(function (s, k) {
+      s.classList.toggle("fw-active", k === i);
+    });
+    if (stageEl && texts[i]) {
+      stageEl.classList.remove("evg-msg-in");
+      void stageEl.offsetWidth;
+      stageEl.innerHTML = texts[i];
+      stageEl.classList.add("evg-msg-in");
+    }
+  }
+  function start() {
+    if (timer || !stations.length) return;
+    apply(0);
+    timer = setInterval(function () {
+      idx = (idx + 1) % stations.length;
+      apply(idx);
+    }, 2000);
+  }
+  var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduced) {
+    if (stageEl && texts[0]) stageEl.innerHTML = texts[0];
+  } else {
+    EVG.onReady(function () {
+      start();
+      document.addEventListener("visibilitychange", function () {
+        if (document.hidden) { clearInterval(timer); timer = null; }
+        else if (!timer) start();
+      });
+    });
+  }
+
+  /* ── 数字滚动（进入视口后启动） ── */
+  EVG.onReady(function () {
+    var nums = Array.prototype.slice.call(document.querySelectorAll("[data-count]"));
+    if (!nums.length) return;
+    function run(el) {
+      EVG.countUp(el, parseInt(el.getAttribute("data-count"), 10), 900, { suffix: el.getAttribute("data-suffix") || "" });
+    }
+    if (!("IntersectionObserver" in window)) {
+      nums.forEach(run);
+      return;
+    }
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        run(en.target);
+        io.unobserve(en.target);
+      });
+    }, { threshold: 0.4 });
+    nums.forEach(function (n) { io.observe(n); });
+  });
+})();
+</script>
+</body>
+</html>

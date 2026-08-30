@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>四工坊泳道 · 开发者模式 DIY 流水线 — Evergreen 架构演示</title>
+<meta name="description" content="Evergreen 四工坊泳道图：网页经 scraper 工坊变数据源包裹，沿水流进入 module / agent / skill 工坊与 theme·skin·config 自产泳道，汇聚到平台组合器，归入仓库输出给用户。" />
+<link rel="stylesheet" href="_shared/evg-style.css" />
+<style>
+/* ============ 页面局部布局（颜色一律 var(--evg-*)） ============ */
+.ws-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 24px 0 6px;
+}
+.ws-header__logo { flex: none; width: 48px; height: 48px; }
+.ws-header__logo img { width: 48px; height: 48px; display: block; }
+.ws-head { flex: 1; min-width: 0; }
+.ws-head h1 { font-size: 1.55rem; }
+.ws-head p { color: var(--evg-muted); font-size: 0.88rem; margin-top: 2px; }
+
+.ws-sub { text-align: center; color: var(--evg-muted); font-size: 0.86rem; margin: 14px 0 4px; }
+.ws-sub b { color: var(--evg-accent); font-weight: 600; }
+
+.ws-stats {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin: 10px 0 14px;
+}
+.ws-stats .evg-pill strong { font-family: var(--evg-mono); }
+
+.ws-legend {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: center;
+  padding: 4px 0 14px;
+}
+.ws-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.76rem;
+  color: var(--evg-muted-2);
+  font-family: var(--evg-mono);
+}
+.ws-legend i { width: 9px; height: 9px; border-radius: 50%; }
+.ws-legend i.p-data { background: var(--evg-accent); }
+.ws-legend i.p-module { background: var(--evg-violet); }
+.ws-legend i.p-agent { background: var(--evg-warning); }
+.ws-legend i.p-theme { background: var(--evg-success); }
+.ws-legend i.p-skill { background: var(--evg-fg); }
+
+/* 泳道堆叠 */
+.ws-lanes { display: grid; gap: 10px; }
+.ws-lane--scraper { border-color: var(--evg-accent); }
+.ws-lane--scraper .evg-lane__head { color: var(--evg-accent); border-bottom-color: var(--evg-accent-soft); }
+
+/* 水流带（泳道之间） */
+.ws-stream { height: 58px; margin: 2px 0; }
+.ws-stream svg { width: 100%; height: 58px; display: block; }
+.ws-stream__label {
+  fill: var(--evg-muted);
+  font-size: 11px;
+  font-family: var(--evg-mono);
+  letter-spacing: 0.06em;
+}
+.ws-bubble { fill: var(--evg-accent-soft); stroke: var(--evg-accent); stroke-width: 1; }
+
+/* 中游四工坊分组 */
+.ws-mid {
+  border: 1px dashed var(--evg-border-strong);
+  border-radius: var(--evg-radius-xl);
+  padding: 14px;
+  margin-top: 2px;
+}
+.ws-mid__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 0.92rem;
+  margin-bottom: 12px;
+}
+.ws-mid__head .evg-badge { margin-left: auto; }
+
+/* 加工台 / 包裹 */
+.ws-stage {
+  padding: 9px 13px;
+  border: 1px solid var(--evg-border);
+  border-radius: var(--evg-radius);
+  background: var(--evg-card);
+  box-shadow: var(--evg-shadow-sm);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-align: center;
+  white-space: nowrap;
+}
+.ws-stage__sub, .ws-pkg__sub {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 500;
+  opacity: 0.85;
+  font-family: var(--evg-mono);
+  margin-top: 2px;
+  white-space: nowrap;
+}
+.ws-pkg {
+  padding: 9px 13px;
+  border-radius: var(--evg-radius);
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: center;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.ws-pkg--data  { background: var(--evg-accent-soft);  border-color: var(--evg-accent);  color: var(--evg-accent); }
+.ws-pkg--module{ background: var(--evg-violet-soft);  border-color: var(--evg-violet);  color: var(--evg-violet); }
+.ws-pkg--agent { background: var(--evg-warning-soft); border-color: var(--evg-warning); color: var(--evg-warning); }
+.ws-pkg--theme { background: var(--evg-success-soft); border-color: var(--evg-success); color: var(--evg-success); }
+.ws-pkg--skill { background: var(--evg-panel-2);     border-color: var(--evg-border-strong); color: var(--evg-fg); }
+.ws-tools { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* 下游：组合器 → 仓库 → 用户 */
+.ws-down {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.ws-composer { min-width: 190px; min-height: 72px; }
+.ws-wh { min-width: 260px; max-width: 340px; }
+.ws-wh__dirs { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.ws-user { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 120px; }
+.ws-user__out { font-size: 0.72rem; color: var(--evg-muted); font-family: var(--evg-mono); text-align: center; }
+.ws-loaders {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  padding-top: 12px;
+  border-top: 1px dashed var(--evg-border);
+  font-size: 0.74rem;
+  color: var(--evg-muted);
+}
+
+.ws-callouts { display: grid; gap: 10px; margin-top: 18px; }
+
+.ws-footer {
+  margin-top: 48px;
+  padding: 26px 0 42px;
+  border-top: 1px solid var(--evg-border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.ws-pets { display: flex; gap: 12px; }
+.ws-footer__meta {
+  font-family: var(--evg-mono);
+  font-size: 0.72rem;
+  color: var(--evg-muted-2);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.ws-footer__meta a { color: var(--evg-muted); text-decoration: none; }
+.ws-footer__meta a:hover { color: var(--evg-accent); }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <marker id="evg-arrowhead" class="evg-arrowhead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z"/>
+    </marker>
+  </defs>
+</svg>
+
+<header class="evg-container ws-header">
+  <div class="ws-header__logo">
+    <img class="evg-reel evg-reel--auto" src="_shared/branding/logo.svg" alt="Evergreen" width="48" height="48" />
+  </div>
+  <div class="ws-head">
+    <h1 class="evg-title">四工坊泳道 <span class="evg-accent-text">·</span> 开发者模式 DIY 流水线</h1>
+    <p>网页 → scraper 工坊 → 数据源包裹 → 中游泳道 → 平台组合器 → 仓库 → 用户：每条流水线都是开发者 DIY 的一种可能。</p>
+  </div>
+  <button type="button" class="evg-toggle" data-evg-theme-toggle aria-label="切换明暗主题">
+    <span class="evg-toggle__dot"></span><span data-evg-theme-label>白</span>
+  </button>
+</header>
+
+<main class="evg-container">
+  <p class="ws-sub">水流主线：<b>网页</b> ⇢ <b>scraper 工坊</b> ⇢ <b>数据源包裹</b> ⇢ <b>module / agent / skill 工坊 + theme·skin·config 自产</b> ⇢ <b>平台组合器</b> ⇢ <b>仓库</b> ⇢ <b>用户</b></p>
+
+  <div class="ws-stats" aria-label="生态数据">
+    <span class="evg-pill"><strong data-count="4">0</strong><span>工坊</span></span>
+    <span class="evg-pill"><strong data-count="7">0</strong><span>类插件资源</span></span>
+    <span class="evg-pill"><strong data-count="14">0</strong><span>内置插件</span></span>
+    <span class="evg-pill"><strong>∞</strong><span>web 源 · 取之不尽</span></span>
+  </div>
+
+  <div class="ws-legend" aria-hidden="true">
+    <span><i class="p-data"></i>数据源包裹</span>
+    <span><i class="p-module"></i>模块包裹</span>
+    <span><i class="p-agent"></i>工具包裹</span>
+    <span><i class="p-theme"></i>主题/皮肤/配置</span>
+    <span><i class="p-skill"></i>技能包裹</span>
+  </div>
+
+  <div class="ws-lanes">
+
+    <!-- ── 上游：网页 ── -->
+    <div class="evg-lane ws-lane evg-reveal">
+      <div class="evg-lane__head">
+        <span class="evg-dot evg-dot--accent"></span>上游 · 网页 Web 资源
+        <span class="evg-badge evg-badge--soft evg-lane__tag">无数源 · 抓取对象</span>
+      </div>
+      <div class="evg-lane__body">
+        <span class="evg-pill">浙大课程</span>
+        <span class="evg-pill">视频流</span>
+        <span class="evg-pill">校园天气</span>
+        <span class="evg-pill">公开 API</span>
+        <span class="evg-pill">论文 PDF</span>
+        <span class="evg-pill">榜单/评论</span>
+        <span class="evg-arrow evg-arrow--accent">→ 抓取</span>
+      </div>
+    </div>
+
+    <!-- 水流带 A：网页 → scraper -->
+    <div class="ws-stream evg-reveal" data-delay="60" aria-hidden="true">
+      <svg viewBox="0 0 1080 58" preserveAspectRatio="xMidYMid meet">
+        <path class="evg-edge evg-edge--flow evg-edge--thick" d="M540 0 L540 48" marker-end="url(#evg-arrowhead)" />
+        <circle class="ws-bubble evg-float" cx="540" cy="14" r="4" />
+        <circle class="ws-bubble evg-float" cx="540" cy="30" r="3" style="animation-delay:.7s" />
+        <text x="566" y="24" class="ws-stream__label">所见即所得 · 网页抓包</text>
+      </svg>
+    </div>
+
+    <!-- ── 上游工坊：scraper ── -->
+    <div class="evg-lane ws-lane ws-lane--scraper evg-reveal" data-delay="100">
+      <div class="evg-lane__head">
+        <span class="evg-dot evg-dot--accent"></span>scraper 工坊 · 所见即所得爬虫
+        <span class="evg-badge evg-badge--accent evg-lane__tag">工坊 ① · 数据源引擎</span>
+      </div>
+      <div class="evg-lane__body">
+        <div class="ws-stage">抓包 Capture<span class="ws-stage__sub">选择网页区域</span></div>
+        <span class="evg-arrow evg-arrow--accent">→</span>
+        <div class="ws-stage">AI 生成爬虫<span class="ws-stage__sub">Python 纯标准库</span></div>
+        <span class="evg-arrow evg-arrow--accent">→</span>
+        <div class="ws-stage">校验 · 输出<span class="ws-stage__sub">stdout JSON 契约</span></div>
+        <span class="evg-arrow evg-arrow--accent">→</span>
+        <div class="ws-pkg ws-pkg--data evg-float">数据源包裹<span class="ws-pkg__sub">data/manifest.json + fetch.py</span></div>
+        <span class="evg-badge evg-badge--soft">注册进数据中枢</span>
+      </div>
+    </div>
+
+    <!-- 水流带 B：数据源包裹分流 -->
+    <div class="ws-stream evg-reveal" data-delay="140" aria-hidden="true">
+      <svg viewBox="0 0 1080 58" preserveAspectRatio="xMidYMid meet">
+        <path class="evg-edge evg-edge--flow" d="M300 0 C300 24 272 30 262 54" marker-end="url(#evg-arrowhead)" />
+        <path class="evg-edge evg-edge--flow" d="M520 0 C520 24 532 30 545 54" marker-end="url(#evg-arrowhead)" />
+        <circle class="ws-bubble evg-float" cx="296" cy="24" r="4" />
+        <circle class="ws-bubble evg-float" cx="524" cy="38" r="3" style="animation-delay:.7s" />
+        <text x="540" y="18" class="ws-stream__label" text-anchor="middle">数据源包裹 · 顺流而下</text>
+      </svg>
+    </div>
+
+    <!-- ── 中游 · 四工坊 ── -->
+    <div class="ws-mid evg-reveal" data-delay="160">
+      <div class="ws-mid__head">
+        <span class="evg-dot evg-dot--fg"></span>中游 · 泳道
+        <span class="evg-badge evg-badge--draft">开发者模式 · DIY 无限可能</span>
+      </div>
+      <div class="evg-lanes">
+
+        <!-- module 泳道 -->
+        <div class="evg-lane ws-lane evg-reveal" data-delay="180">
+          <div class="evg-lane__head">
+            <span class="evg-dot evg-dot--violet"></span>module 泳道 · HTML 主路径
+            <span class="evg-badge evg-badge--violet evg-lane__tag">工坊 ② · html-creator</span>
+          </div>
+          <div class="evg-lane__body">
+            <div class="ws-pkg ws-pkg--data evg-float">数据源包裹<span class="ws-pkg__sub">课程 / 成绩 / 视频流</span></div>
+            <span class="evg-arrow evg-arrow--accent">→</span>
+            <div class="ws-stage">模块创作台<span class="ws-stage__sub">三栏 IDE · AI 辅助 · 一键导出</span></div>
+            <span class="evg-arrow evg-arrow--accent">→</span>
+            <div class="ws-pkg ws-pkg--module">模块插件<span class="ws-pkg__sub">module/index.html + manifest.json</span></div>
+            <span class="evg-badge evg-badge--draft">JSON 声明 · 开发者模式</span>
+          </div>
+        </div>
+
+        <!-- agent tool 泳道 -->
+        <div class="evg-lane ws-lane evg-reveal" data-delay="220">
+          <div class="evg-lane__head">
+            <span class="evg-dot evg-dot--warning"></span>agent tool 泳道 · 开发者模式
+            <span class="evg-badge evg-badge--warning evg-lane__tag">工坊 ③ · .py 主路径</span>
+          </div>
+          <div class="evg-lane__body">
+            <div class="ws-pkg ws-pkg--data evg-float">数据源包裹<span class="ws-pkg__sub">取数即用</span></div>
+            <span class="evg-arrow evg-arrow--accent">→</span>
+            <div class="ws-stage">工具工坊<span class="ws-stage__sub">manifest + .py · 纯标准库</span></div>
+            <span class="evg-arrow evg-arrow--accent">→</span>
+            <div class="ws-pkg ws-pkg--agent">工具包裹<span class="ws-pkg__sub">PluginBridge → Agent 工具箱</span></div>
+            <div class="ws-tools"><code class="evg-code">python-runner</code><code class="evg-code">vision</code></div>
+          </div>
+        </div>
+
+        <!-- theme · skin · config 泳道（中游自产） -->
+        <div class="evg-lane ws-lane evg-reveal" data-delay="260">
+          <div class="evg-lane__head">
+            <span class="evg-dot evg-dot--success"></span>theme · skin · config 泳道 · 自产即插件
+            <span class="evg-badge evg-badge--success evg-lane__tag">theme-creator</span>
+          </div>
+          <div class="evg-lane__body">
+            <div class="ws-stage">主题创作台<span class="ws-stage__sub">8 色语义色板可视化编辑</span></div>
+            <span class="evg-arrow evg-arrow--accent">→</span>
+            <div class="ws-pkg ws-pkg--theme">主题插件<span class="ws-pkg__sub">theme/theme.json</span></div>
+            <div class="ws-pkg ws-pkg--theme">皮肤插件<span class="ws-pkg__sub">skin/manifest.json · DIY 外观</span></div>
+            <div class="ws-pkg ws-pkg--theme">配置插件<span class="ws-pkg__sub">config/config.json · 设置注册</span></div>
+          </div>
+        </div>
+
+        <!-- skill 泳道 -->
+        <div class="evg-lane ws-lane evg-reveal" data-delay="300">
+          <div class="evg-lane__head">
+            <span class="evg-dot evg-dot--fg"></span>skill 泳道 · 直拉 web 资源
+            <span class="evg-badge evg-badge--soft evg-lane__tag">工坊 ④ · skill-creator</span>
+          </div>
+          <div class="evg-lane__body">
+            <div class="ws-pkg ws-pkg--skill evg-float">web 文档 / 教程<span class="ws-pkg__sub">直拉 · 不经 scraper</span></div>
+            <span class="evg-arrow evg-arrow--accent">→</span>
+            <div class="ws-stage">技能流水线<span class="ws-stage__sub">多 Agent 生成 · 校验导出</span></div>
+            <span class="evg-arrow evg-arrow--accent">→</span>
+            <div class="ws-pkg ws-pkg--skill">技能包裹<span class="ws-pkg__sub">plugins/&lt;id&gt;/skill/&lt;id&gt;.md</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 水流带 C：包裹汇聚 -->
+    <div class="ws-stream evg-reveal" data-delay="340" aria-hidden="true">
+      <svg viewBox="0 0 1080 58" preserveAspectRatio="xMidYMid meet">
+        <path class="evg-edge evg-edge--flow" d="M240 0 C240 26 400 30 505 54" marker-end="url(#evg-arrowhead)" />
+        <path class="evg-edge evg-edge--flow" d="M470 0 C470 26 450 30 520 54" marker-end="url(#evg-arrowhead)" />
+        <path class="evg-edge evg-edge--flow" d="M690 0 C690 26 620 30 548 54" marker-end="url(#evg-arrowhead)" />
+        <path class="evg-edge evg-edge--flow" d="M890 0 C890 26 720 30 572 54" marker-end="url(#evg-arrowhead)" />
+        <circle class="ws-bubble evg-float" cx="330" cy="30" r="4" />
+        <circle class="ws-bubble evg-float" cx="600" cy="20" r="3" style="animation-delay:.6s" />
+        <circle class="ws-bubble evg-float" cx="760" cy="34" r="4" style="animation-delay:1.1s" />
+        <text x="540" y="18" class="ws-stream__label" text-anchor="middle">包裹汇聚 · 平台发现</text>
+      </svg>
+    </div>
+
+    <!-- ── 下游：组合器 → 仓库 → 用户 ── -->
+    <div class="evg-lane ws-lane evg-reveal" data-delay="380">
+      <div class="evg-lane__head">
+        <span class="evg-dot evg-dot--fg"></span>下游 · 组合 · 仓库 · 供给
+        <span class="evg-badge evg-badge--stable evg-lane__tag">统一装配来源</span>
+      </div>
+      <div class="evg-lane__body ws-down">
+        <div class="evg-node evg-node--core ws-composer">
+          <span class="evg-node__title">平台组合器</span>
+          <span class="evg-node__sub">发现 · 校验 · 装配</span>
+        </div>
+        <span class="evg-arrow evg-arrow--accent evg-arrow--big evg-arrow--flow">→</span>
+        <div class="evg-card evg-card--hover ws-wh">
+          <div class="evg-card__title">仓库 · plugins/&lt;id&gt;/</div>
+          <div class="evg-card__sub">shore warehouse · 岸上仓库</div>
+          <div class="ws-wh__dirs">
+            <code class="evg-code">module/</code><code class="evg-code">agent/</code>
+            <code class="evg-code">theme/</code><code class="evg-code">skin/</code>
+            <code class="evg-code">config/</code><code class="evg-code">data/</code>
+            <code class="evg-code">skill/</code>
+          </div>
+          <div class="evg-card__body">平台发现插件后按类型归入仓库；仓库是唯一装配来源，随取随装、即装即用。</div>
+        </div>
+        <span class="evg-arrow evg-arrow--accent evg-arrow--big evg-arrow--flow">→</span>
+        <div class="ws-user">
+          <img class="evg-pet evg-pet--md" src="_shared/branding/pet_leafcat.svg" alt="Evergreen 用户" />
+          <span class="evg-node__title">用户</span>
+          <span class="ws-user__out">模块 · 工具 · 主题 · 技能 · 数据</span>
+        </div>
+      </div>
+      <div class="evg-lane__body">
+        <div class="ws-loaders">
+          <span>平台发现装配：</span>
+          <code class="evg-code">ModuleLoader</code>
+          <code class="evg-code">PluginBridge</code>
+          <code class="evg-code">ThemeLoader</code>
+          <code class="evg-code">SettingsLoader</code>
+          <code class="evg-code">DataSourceLoader</code>
+          <code class="evg-code">SkillRegistry</code>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ws-callouts">
+    <div class="evg-callout evg-reveal" data-delay="420">
+      <span class="evg-callout__ic">🛠️</span>
+      <span><b>开发者模式 · DIY 无限可能：</b>四工坊（scraper / module / agent / skill）加自产（theme · skin · config）产出七类插件包裹，任意包裹都能被平台组合器发现、按类型归仓、再组装成新能力——每位用户都能造自己的工具。</span>
+    </div>
+    <div class="evg-callout evg-callout--success evg-reveal" data-delay="460">
+      <span class="evg-callout__ic">💧</span>
+      <span><b>scraper 为平台供数据源：</b>网页经 scraper 工坊加工成数据源包裹，注册进数据中枢；数据源包裹顺水流进入 module 与 agent 泳道，随取随用，一条数据源养活整条流水线。</span>
+    </div>
+  </div>
+</main>
+
+<footer class="evg-container ws-footer">
+  <div class="ws-pets" aria-hidden="true">
+    <img class="evg-pet" src="_shared/branding/pet.svg" alt="" />
+    <img class="evg-pet" src="_shared/branding/pet_leafcat.svg" alt="" />
+    <img class="evg-pet" src="_shared/branding/pet_sleep.svg" alt="" />
+  </div>
+  <div class="ws-footer__meta">
+    <span>Evergreen · 架构演示</span><span>·</span>
+    <a href="index.html">统一入口</a><span>·</span>
+    <a href="STYLE_GUIDE.md">墨白风基座</a>
+  </div>
+</footer>
+
+<script src="_shared/evg-common.js"></script>
+<script>
+(function () {
+  "use strict";
+  /* ── 数字滚动（进入视口后启动） ── */
+  EVG.onReady(function () {
+    var nums = Array.prototype.slice.call(document.querySelectorAll("[data-count]"));
+    if (!nums.length) return;
+    function run(el) {
+      EVG.countUp(el, parseInt(el.getAttribute("data-count"), 10), 900, { suffix: el.getAttribute("data-suffix") || "" });
+    }
+    if (!("IntersectionObserver" in window)) {
+      nums.forEach(run);
+      return;
+    }
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        run(en.target);
+        io.unobserve(en.target);
+      });
+    }, { threshold: 0.4 });
+    nums.forEach(function (n) { io.observe(n); });
+  });
+})();
+</script>
+</body>
+</html>

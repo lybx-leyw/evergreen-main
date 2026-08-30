@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<!--
+  ═══════════════════════════════════════════════════════════════════════════
+  Evergreen 三角通讯链架构图 · 三角泳道演示动图（HTML-first 修正版）
+  （t7 纠错改造 → t9 动图增强 + 迁入统一目录 → t9-修订 按队长设计泳道化重构）
+
+  【文件迁移记录】
+  - t7：就地覆盖 D:\evg-workplace\架构示意图.html（纠错 + 墨白风风格化）
+  - t9：重命名迁入 docs/architecture/plugin-architecture.html（英文 kebab-case），
+    页内相对基座路径改为 "_shared/..."，补充动图特效
+  - t9-修订（队长设计调整）：三角图改造为【三角泳道演示动图】——上中下游
+    （上游 core/ → 中游 plugins/ → 下游 renderer/）三条泳道纵向排布，三条
+    通讯链（HTTP JSON / 视图分发 / import 直调）用 evg-edge--flow / --flow-slow
+    流动连线 + 数据点下落演示；节点内只保留名称 + 一句最简描述；全部细节
+    （子模块 / HTTP 端口体系 / 开发者模式 / ModuleDispatch 规则 / 模板注册表 /
+    AppBootstrap 25 步 / JS Bridge 能力表）外置到示意图下方的详情卡区，
+    泳道节点可点击跳转对应详情。
+
+  【修正点清单】（对照 D:\evg-workplace\CLAUDE.md 当前事实 + evg-base 源码）
+  ① 插件形态：用户侧创作入口已切换为 HTML 为主：plugins/<id>/module/index.html +
+     manifest.json（"template":"html"），由 html-creator 创作导出，运行时由
+     html_modle（本地 HTTP + WebView + platform.* JS Bridge）加载；Dart/JSON
+     模块声明（ModuleLoader）、.exe 数据源/Agent 工具保留为开发者模式/高级能力
+     （Agent 工具统一主路径为 .py，.exe 仅存量 legacy）；另含 theme/config/data/skin。
+  ② 渲染机制：ModuleDispatch 按 template / pages / workspace 自动选视图（弃用
+     descriptor.ui），经模板注册表路由 v4 / html / scraper / theme-creator /
+     skill-creator / dsh / zju 等（templates_index.json）；html_modle = 本地
+     HTTP（127.0.0.1 随机端口）+ WebView + JS Bridge。
+  ③ main.dart 装配流程：main() → AppBootstrap 25 步启动（app_bootstrap.dart）：
+     窗口 → Greenix 路径 → 资产释放 → 7×HTTP Server（.xxx_port 端口文件）→
+     Agent 运行时/工具 → 插件扫描（v2 / data / themes / skins）→ 模块注册中心
+     （registry.seal）→ runApp(ProviderScope overrides) → EvergreenApp。
+  ④ 保留仍正确的核心：core/ 纯 Dart 服务层不画像素、renderer/ 只消费 core
+     barrel API、HTTP Server 端口体系、HTML 插件 JS Bridge 能力表。
+
+  【风格】墨白风基座：_shared/evg-style.css + evg-common.js（相对路径，颜色
+  一律 var(--evg-*)，零硬编码色值）；明暗双色（data-evg-theme-toggle +
+  ?theme= 固定 + prefers-color-scheme 跟随）；品牌资产 _shared/branding/
+  （logo.svg 灰度放映 + pet 灰阶待机）；动图用基座 token（evg-reel-ink /
+  evg-float / evg-dash / evg-pulse），prefers-reduced-motion 由基座 + 脚本双重降级。
+  ═══════════════════════════════════════════════════════════════════════════
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Evergreen 三角通讯链架构图 · 三角泳道演示</title>
+  <meta name="description" content="Evergreen 平台三角通讯链泳道演示：上游 core/ 纯 Dart 服务层 → 中游 plugins/ HTML 插件主路径 → 下游 renderer/ 模板路由，三条通讯链（HTTP JSON / 视图分发 / import 直调）动图流动；细节外置于详情卡（子模块 / AppBootstrap 25 步 / JS Bridge 能力表）。墨白风明暗双色。" />
+  <link rel="stylesheet" href="_shared/evg-style.css" />
+  <style>
+    /* ═══════════════════════════════════════════════════════════════════
+       页面专属样式（仅布局与语义类，颜色一律 var(--evg-*)）
+       ═══════════════════════════════════════════════════════════════════ */
+
+    /* ── 页头（与其他 6 图同构） ─────────────────────────────────── */
+    .page-head {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 22px 16px 14px;
+      max-width: 1160px;
+      margin: 0 auto;
+      flex-wrap: wrap;
+    }
+    .head-disc {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      background: var(--evg-card);
+      border: 1px solid var(--evg-border);
+      box-shadow: var(--evg-shadow-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .head-disc img { width: 40px; height: 40px; }
+    .page-head__title { flex: 1 1 auto; min-width: 260px; }
+    .page-head__title h1 {
+      font-family: var(--evg-heading);
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      line-height: 1.25;
+    }
+    .page-head__title p { color: var(--evg-muted); font-size: 0.85rem; margin-top: 2px; }
+
+    /* ── 主线 / 统计 / 图例 ─────────────────────────────────────── */
+    .tri-sub {
+      text-align: center;
+      color: var(--evg-muted);
+      font-size: 0.86rem;
+      margin: 16px 0 10px;
+    }
+    .tri-sub b { color: var(--evg-accent); font-weight: 600; }
+    .tri-stats {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin: 8px 0 12px;
+    }
+    .tri-stats .evg-pill strong { font-family: var(--evg-mono); }
+    .tri-legend {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      justify-content: center;
+      padding: 2px 0 12px;
+    }
+    .tri-legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 0.76rem;
+      color: var(--evg-muted-2);
+      font-family: var(--evg-mono);
+    }
+    .lg-line { width: 34px; height: 0; border-top: 2px solid var(--evg-border-strong); display: inline-block; }
+    .lg-line--flow { border-color: var(--evg-accent); border-top-style: dashed; }
+    .lg-line--slow { border-color: var(--evg-accent); border-top-style: dashed; opacity: 0.6; }
+
+    /* ── 三角泳道舞台 ───────────────────────────────────────────── */
+    .tri-wrap {
+      position: relative;
+      background: var(--evg-card);
+      border: 1px solid var(--evg-border);
+      border-radius: var(--evg-radius-xl);
+      box-shadow: var(--evg-shadow-sm);
+      padding: 16px 14px 14px;
+    }
+    .tri-lanes { display: grid; gap: 8px; padding-right: 148px; }
+    .tri-lane .evg-lane__body { padding: 12px 16px; }
+    .tri-node { min-width: 300px; min-height: 62px; padding: 10px 18px; cursor: pointer; }
+    .tri-node .evg-node__title { font-size: 1.02rem; }
+    .tri-node .evg-node__sub { font-size: 0.74rem; }
+    .tri-hint { font-size: 0.72rem; color: var(--evg-muted); }
+
+    /* 泳道间通讯链（流动连线 + 数据点下落） */
+    .tri-stream { height: 62px; margin: 0; }
+    .tri-stream svg { width: 100%; height: 62px; display: block; }
+    .tri-stream__label {
+      fill: var(--evg-muted);
+      font-size: 11px;
+      font-family: var(--evg-mono);
+      letter-spacing: 0.04em;
+    }
+    .tri-bubble { fill: var(--evg-accent); opacity: 0.85; }
+    @keyframes evg-tri-drop {
+      from { transform: translateY(2px); opacity: 0; }
+      15%, 85% { opacity: 0.9; }
+      to { transform: translateY(46px); opacity: 0; }
+    }
+    .tri-drop { animation: evg-tri-drop var(--evg-dur-5) linear infinite; }
+    .tri-drop--slow { animation-duration: 2.4s; }
+
+    /* 直调回流轨（core → renderer，右侧） */
+    .tri-direct {
+      position: absolute;
+      top: 12px;
+      right: 10px;
+      height: calc(100% - 24px);
+      width: 136px;
+      pointer-events: none;
+    }
+    .tri-direct__label {
+      fill: var(--evg-muted);
+      font-family: var(--evg-mono);
+      font-size: 10px;
+      letter-spacing: 0.05em;
+    }
+
+    /* ── 详情区（示意图之外） ────────────────────────────────────── */
+    .sec-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 26px 0 10px;
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+    .dl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 12px; }
+    .dl-card { padding: 16px 18px; }
+    .dl-card__title { font-size: 0.95rem; font-weight: 700; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .dl-card__title .evg-mono { font-size: 0.78em; color: var(--evg-muted); font-weight: 500; }
+    .dl-card__body { margin-top: 12px; display: grid; gap: 12px; }
+    .dl-block {
+      background: var(--evg-bg-2);
+      border: 1px solid var(--evg-border);
+      border-radius: var(--evg-radius);
+      padding: 11px 13px;
+    }
+    .dl-block--accent { border-color: var(--evg-accent); background: var(--evg-accent-soft); }
+    .dl-block h4 {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.82rem;
+      color: var(--evg-fg);
+      margin-bottom: 8px;
+    }
+    .dl-block p, .dl-block li { font-size: 0.78rem; color: var(--evg-fg-2); line-height: 1.7; }
+    .dl-block code {
+      font-family: var(--evg-mono);
+      font-size: 0.86em;
+      color: var(--evg-accent);
+      background: var(--evg-accent-soft);
+      padding: 0 4px;
+      border-radius: 4px;
+    }
+    .dl-block ul { list-style: none; display: grid; gap: 4px; }
+    .dl-block ul li::before { content: "·"; color: var(--evg-accent); font-weight: 700; margin-right: 6px; }
+    .dl-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .dl-chip {
+      font-family: var(--evg-mono);
+      font-size: 0.72rem;
+      color: var(--evg-fg-2);
+      background: var(--evg-panel);
+      border: 1px solid var(--evg-border);
+      border-radius: var(--evg-radius-full);
+      padding: 3px 10px;
+      white-space: nowrap;
+    }
+    .detail-flash { animation: evg-focus-pulse 2s var(--evg-ease-out); }
+
+    /* ── 装配流程 25 步（详情区） ───────────────────────────────── */
+    .boot-card { padding: 16px 18px; }
+    .boot-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .boot-head .evg-section-head { margin-bottom: 0; }
+    .boot-label {
+      margin-left: auto;
+      font-family: var(--evg-mono);
+      font-size: 11px;
+      color: var(--evg-accent);
+      letter-spacing: 0.04em;
+    }
+    .boot-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .boot-step {
+      font-family: var(--evg-mono);
+      font-size: 11px;
+      color: var(--evg-muted);
+      background: var(--evg-card);
+      border: 1px solid var(--evg-border);
+      border-radius: var(--evg-radius-full);
+      padding: 4px 11px;
+      transition: background var(--evg-dur-2) var(--evg-ease),
+        color var(--evg-dur-2) var(--evg-ease),
+        border-color var(--evg-dur-2) var(--evg-ease);
+    }
+    .boot-step.is-active {
+      color: var(--evg-on-accent);
+      background: var(--evg-accent);
+      border-color: var(--evg-accent);
+    }
+    .boot-note { margin-top: 12px; font-size: 0.78rem; color: var(--evg-muted); }
+    .boot-note code { font-family: var(--evg-mono); color: var(--evg-accent); background: var(--evg-accent-soft); padding: 0 4px; border-radius: 4px; }
+
+    /* ── JS Bridge 能力表 ───────────────────────────────────────── */
+    .bridge-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 12px;
+      margin-top: 10px;
+    }
+    .bridge-card {
+      background: var(--evg-card);
+      border: 1px solid var(--evg-border);
+      border-radius: var(--evg-radius-lg);
+      padding: 12px 14px;
+      box-shadow: var(--evg-shadow-sm);
+      transition: border-color var(--evg-dur-2) var(--evg-ease),
+        box-shadow var(--evg-dur-2) var(--evg-ease);
+    }
+    .bridge-card:hover { border-color: var(--evg-fg); box-shadow: var(--evg-shadow-md); }
+    .bridge-card b { font-family: var(--evg-mono); font-size: 0.84rem; color: var(--evg-accent); }
+    .bridge-card p { font-size: 0.8rem; color: var(--evg-fg-2); margin-top: 5px; line-height: 1.55; }
+    .bridge-card code {
+      font-family: var(--evg-mono);
+      font-size: 0.76em;
+      color: var(--evg-fg);
+      background: var(--evg-panel-2);
+      padding: 0 4px;
+      border-radius: 4px;
+    }
+
+    .page-foot {
+      text-align: center;
+      padding: 36px 16px 30px;
+      color: var(--evg-muted);
+      font-size: 0.78rem;
+      line-height: 1.9;
+    }
+    .pets { display: flex; justify-content: center; gap: 18px; margin-bottom: 12px; }
+
+    @media (max-width: 860px) {
+      .tri-lanes { padding-right: 0; }
+      .tri-direct { display: none; }
+      .tri-node { min-width: 220px; }
+    }
+    @media (max-width: 768px) {
+      .page-head__title h1 { font-size: 1.2rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 箭头标记（全页共用，基座类自动随主题上色） -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <marker id="evg-arrowhead" class="evg-arrowhead" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0 0 L10 5 L0 10 z" />
+      </marker>
+    </defs>
+  </svg>
+
+  <header class="page-head">
+    <div class="head-disc evg-float">
+      <img class="evg-reel evg-reel--auto" src="_shared/branding/logo.svg" alt="Evergreen Logo" width="40" height="40" />
+    </div>
+    <div class="page-head__title">
+      <h1>Evergreen 三角通讯链架构图</h1>
+      <p>三角泳道演示 · 上游 core/ ⇢ 中游 plugins/ ⇢ 下游 renderer/ · HTML-first 主路径</p>
+    </div>
+    <span class="evg-pill"><strong>泳道动图</strong><span>通讯链流动</span></span>
+    <span class="evg-pill"><strong>详情外置</strong><span>节点点击直达</span></span>
+    <button type="button" class="evg-toggle" data-evg-theme-toggle aria-label="切换明暗主题">
+      <span class="evg-toggle__dot"></span><span data-evg-theme-label>白</span>
+    </button>
+  </header>
+
+  <main class="evg-container">
+
+    <p class="tri-sub">三角主线：<b>上游 core/</b> ⇢(HTTP JSON) <b>中游 plugins/</b> ⇢(视图分发) <b>下游 renderer/</b>，<b>core → renderer</b> import 直调构成闭环</p>
+
+    <div class="tri-stats" aria-label="架构关键数字">
+      <span class="evg-pill"><strong>3</strong><span>层泳道</span></span>
+      <span class="evg-pill"><strong>25</strong><span>步装配</span></span>
+      <span class="evg-pill"><strong>8</strong><span>项 JS Bridge</span></span>
+      <span class="evg-pill"><strong>7</strong><span>×HTTP Server</span></span>
+    </div>
+
+    <div class="tri-legend" aria-hidden="true">
+      <span><i class="lg-line lg-line--flow"></i>视图分发 · 主视觉流</span>
+      <span><i class="lg-line lg-line--slow"></i>HTTP JSON / import 直调 · 次级流</span>
+      <span><span class="evg-dot evg-dot--accent"></span>泳道节点可点击 → 跳转详情</span>
+    </div>
+
+    <!-- ═══════════════ 三角泳道演示动图 ═══════════════ -->
+    <div class="tri-wrap evg-reveal" aria-label="三角泳道演示动图：上中下游三条泳道与三条通讯链流动">
+      <div class="tri-lanes">
+
+        <!-- ── 上游 · core/ ── -->
+        <div class="evg-lane tri-lane evg-lane--accent">
+          <div class="evg-lane__head">
+            <span class="evg-dot evg-dot--accent"></span>上游 · core/
+            <span class="evg-badge evg-badge--soft evg-lane__tag">纯 Dart 服务层</span>
+          </div>
+          <div class="evg-lane__body">
+            <div class="evg-node evg-node--core tri-node" data-target="detail-core" role="button" tabindex="0" aria-label="查看 core 层详情">
+              <span class="evg-node__title">core/ 服务层</span>
+              <span class="evg-node__sub">7×HTTP Server · 端口文件 · 原子能力</span>
+            </div>
+            <span class="evg-badge evg-badge--dot">运行中</span>
+            <span class="tri-hint">点击节点看详情 ↓</span>
+          </div>
+        </div>
+
+        <!-- 通讯链 A：core → plugins（HTTP JSON · 慢流动） -->
+        <div class="tri-stream evg-reveal" data-delay="40" aria-hidden="true">
+          <svg viewBox="0 0 1080 62" preserveAspectRatio="xMidYMid meet">
+            <path class="evg-edge evg-edge--flow-slow" d="M420 0 L420 50" marker-end="url(#evg-arrowhead)" />
+            <circle class="tri-bubble tri-drop--slow" cx="420" cy="8" r="4" />
+            <text x="448" y="24" class="tri-stream__label">HTTP JSON · .xxx_port 端口发现</text>
+          </svg>
+        </div>
+
+        <!-- ── 中游 · plugins/ ── -->
+        <div class="evg-lane tri-lane evg-lane--accent">
+          <div class="evg-lane__head">
+            <span class="evg-dot evg-dot--accent"></span>中游 · plugins/
+            <span class="evg-badge evg-badge--accent evg-lane__tag">HTML-first 主路径</span>
+          </div>
+          <div class="evg-lane__body">
+            <div class="evg-node evg-node--active tri-node" data-target="detail-plugins" role="button" tabindex="0" aria-label="查看 plugins 层详情">
+              <span class="evg-node__title">plugins/ 插件目录</span>
+              <span class="evg-node__sub">index.html + manifest.json → html_modle WebView + Bridge</span>
+            </div>
+            <span class="evg-badge evg-badge--soft">HTML 主路径</span>
+            <span class="tri-hint">点击节点看详情 ↓</span>
+          </div>
+        </div>
+
+        <!-- 通讯链 B：plugins → renderer（视图分发 · 主视觉流） -->
+        <div class="tri-stream evg-reveal" data-delay="80" aria-hidden="true">
+          <svg viewBox="0 0 1080 62" preserveAspectRatio="xMidYMid meet">
+            <path class="evg-edge evg-edge--flow evg-edge--thick" d="M420 0 L420 50" marker-end="url(#evg-arrowhead)" />
+            <circle class="tri-bubble tri-drop" cx="420" cy="8" r="4" />
+            <text x="448" y="24" class="tri-stream__label">视图分发 · template 路由 + WebView 加载</text>
+          </svg>
+        </div>
+
+        <!-- ── 下游 · renderer/ ── -->
+        <div class="evg-lane tri-lane">
+          <div class="evg-lane__head">
+            <span class="evg-dot evg-dot--fg"></span>下游 · renderer/
+            <span class="evg-badge evg-badge--draft evg-lane__tag">Flutter UI 层</span>
+          </div>
+          <div class="evg-lane__body">
+            <div class="evg-node tri-node" data-target="detail-renderer" role="button" tabindex="0" aria-label="查看 renderer 层详情">
+              <span class="evg-node__title">renderer/ 渲染层</span>
+              <span class="evg-node__sub">ModuleDispatch 模板路由 · html_modle</span>
+            </div>
+            <span class="tri-hint">点击节点看详情 ↓</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 通讯链 C：core → renderer（import 直调 · 慢流动 · 右侧回流轨） -->
+      <svg class="tri-direct" viewBox="0 0 136 460" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+        <path class="evg-edge evg-edge--flow-slow" d="M56 8 C 100 40, 100 250, 56 448" marker-end="url(#evg-arrowhead)" />
+        <circle class="tri-bubble tri-drop--slow" cx="84" cy="120" r="4" />
+        <text x="98" y="228" text-anchor="middle" class="tri-direct__label" transform="rotate(90 98 228)">import 直调 · 零序列化</text>
+      </svg>
+    </div>
+
+    <!-- ═══════════════ 详情区：三层细节（示意图之外） ═══════════════ -->
+    <section class="sec-head evg-reveal" aria-label="三层详情">
+      <span class="evg-dot evg-dot--accent"></span>详情 · 三层子模块 / 装配流程 / 平台能力（泳道内只留名称，细节全在这里）
+    </section>
+
+    <div class="dl-grid">
+
+      <!-- 上游 core/ 详情 -->
+      <div class="evg-card dl-card evg-reveal" id="detail-core">
+        <div class="dl-card__title"><span class="evg-dot evg-dot--accent"></span>上游 · core/ <span class="evg-mono">纯 Dart 服务层 · 不画像素</span></div>
+        <div class="dl-card__body">
+          <div class="dl-block">
+            <h4>核心子模块</h4>
+            <div class="dl-chips">
+              <span class="dl-chip">core/agent · Agent 运行时 · Tool 注册表</span>
+              <span class="dl-chip">core/data · 数据中枢 DataOrchestrator</span>
+              <span class="dl-chip">core/module · 模块注册中心 ModuleRegistry</span>
+              <span class="dl-chip">core/theme · 主题引擎</span>
+              <span class="dl-chip">core/skin · 皮肤包</span>
+              <span class="dl-chip">core/config · 配置引擎 · 权限</span>
+              <span class="dl-chip">core/plugin · 插件运行器 PluginRunner</span>
+              <span class="dl-chip">core/services · OCR / 更新 / 安装</span>
+            </div>
+          </div>
+          <div class="dl-block">
+            <h4>HTTP Server 端口体系</h4>
+            <ul>
+              <li><code>AgentHttpServer</code> · <code>ConfigHttpServer</code> · <code>DataHttpServer</code> · <code>ModuleHttpServer</code> · <code>ThemeHttpServer</code> · <code>CoreHttpServer</code>（+ ScraperBridgeServer）</li>
+              <li>端口文件：<code>.agent_port</code> · <code>.config_port</code> · <code>.data_port</code> · <code>.module_port</code> · <code>.theme_port</code> · <code>.core_port</code></li>
+              <li>renderer 与 HTML 插件 bridge 均经端口文件发现端口</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- 中游 plugins/ 详情 -->
+      <div class="evg-card dl-card evg-reveal" data-delay="60" id="detail-plugins">
+        <div class="dl-card__title"><span class="evg-dot evg-dot--accent"></span>中游 · plugins/ <span class="evg-mono">一个目录可含多类子目录</span></div>
+        <div class="dl-card__body">
+          <div class="dl-block dl-block--accent">
+            <h4>HTML 插件 · 用户侧主路径</h4>
+            <ul>
+              <li>产物：<code>module/index.html + manifest.json</code>（manifest <code>"template":"html"</code>）</li>
+              <li>创作：<code>html-creator</code> 三栏 IDE · AI 生成 · 一键导出</li>
+              <li>运行：<code>html_modle</code> 本地 HTTP + WebView + <code>platform.*</code> JS Bridge</li>
+              <li>主题：<code>--evg-*</code> CSS 变量实时注入；进程：manifest <code>process</code> 白名单（fail-closed）</li>
+            </ul>
+          </div>
+          <div class="dl-block">
+            <h4>开发者模式 · 高级能力</h4>
+            <div class="dl-chips">
+              <span class="dl-chip">module/ JSON 模块 → ModuleLoader</span>
+              <span class="dl-chip">agent/ manifest+.py → PluginBridge（.exe 仅存量）</span>
+              <span class="dl-chip">theme/ theme.json → ThemeLoader</span>
+              <span class="dl-chip">config/ config.json → SettingsLoader</span>
+              <span class="dl-chip">data/ manifest+fetch.py → 数据中枢</span>
+              <span class="dl-chip">skin/ 皮肤包（AI 视图热切换）</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 下游 renderer/ 详情 -->
+      <div class="evg-card dl-card evg-reveal" data-delay="120" id="detail-renderer">
+        <div class="dl-card__title"><span class="evg-dot evg-dot--fg"></span>下游 · renderer/ <span class="evg-mono">Flutter UI 层 · 只消费 core barrel API</span></div>
+        <div class="dl-card__body">
+          <div class="dl-block">
+            <h4>ModuleDispatch 自动选视图（弃用 descriptor.ui）</h4>
+            <ul>
+              <li><code>template</code> 非空且非 v4 → TemplateRegistry.render（html / scraper / theme-creator / skill-creator / dsh / zju）</li>
+              <li><code>pages</code> 非空 → TemplateRegistry.render（v4 composite）</li>
+              <li><code>workspace.enabled</code> → EditorView；ai-assistant → ChatControllerView；其他 → DefaultView 兜底</li>
+            </ul>
+          </div>
+          <div class="dl-block">
+            <h4>模板注册表</h4>
+            <div class="dl-chips">
+              <span class="dl-chip">v4</span><span class="dl-chip">html</span><span class="dl-chip">scraper</span>
+              <span class="dl-chip">theme-creator</span><span class="dl-chip">skill-creator</span><span class="dl-chip">dsh</span>
+              <span class="dl-chip">zju / classroom / zdbk</span>
+            </div>
+            <p style="margin-top:8px">templates_index.json 生成 · release profile tree-shake 裁剪 · 未知配置静默回退</p>
+          </div>
+          <div class="dl-block">
+            <h4>html_modle 机制</h4>
+            <ul>
+              <li>本地 HTTP（127.0.0.1 随机端口）+ WebView（Windows webview_windows / Android webview_flutter）+ JS Bridge 双通道</li>
+              <li>特例：html-creator 走 Dart 原生 HtmlCreatorView（不启 WebView）</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════ 装配流程：AppBootstrap 25 步 ═══════════════ -->
+    <div class="evg-card boot-card evg-reveal" id="detail-boot" style="margin-top:12px">
+      <div class="boot-head">
+        <span class="evg-section-head"><span class="evg-dot evg-dot--accent evg-pulse"></span>main.dart → AppBootstrap · 25 个启动步骤</span>
+        <span class="evg-badge evg-badge--draft">失败可降级 · greenix-paths 致命</span>
+        <span class="boot-label" id="bootStepLabel">启动 00/25</span>
+      </div>
+      <div class="boot-grid">
+        <span class="boot-step" data-i="1">① window-init</span>
+        <span class="boot-step" data-i="2">② greenix-paths</span>
+        <span class="boot-step" data-i="3">③ release-assets</span>
+        <span class="boot-step" data-i="4">④ media-kit</span>
+        <span class="boot-step" data-i="5">⑤ webview2</span>
+        <span class="boot-step" data-i="6">⑥ prefs</span>
+        <span class="boot-step" data-i="7">⑦ settings</span>
+        <span class="boot-step" data-i="8">⑧ data-orchestrator</span>
+        <span class="boot-step" data-i="9">⑨ themes</span>
+        <span class="boot-step" data-i="10">⑩ skins</span>
+        <span class="boot-step" data-i="11">⑪ http-services</span>
+        <span class="boot-step" data-i="12">⑫ zju-safety</span>
+        <span class="boot-step" data-i="13">⑬ agent-runtime</span>
+        <span class="boot-step" data-i="14">⑭ agent-tools</span>
+        <span class="boot-step" data-i="15">⑮ tool-disabled</span>
+        <span class="boot-step" data-i="16">⑯ agent-controller</span>
+        <span class="boot-step" data-i="17">⑰ servers-start（7×HTTP · .xxx_port）</span>
+        <span class="boot-step" data-i="18">⑱ v2-scan</span>
+        <span class="boot-step" data-i="19">⑲ data-sources</span>
+        <span class="boot-step" data-i="20">⑳ modules（registry.seal）</span>
+        <span class="boot-step" data-i="21">㉑ module-server</span>
+        <span class="boot-step" data-i="22">㉒ default-theme</span>
+        <span class="boot-step" data-i="23">㉓ default-skin</span>
+        <span class="boot-step" data-i="24">㉔ ui-launch</span>
+        <span class="boot-step" data-i="25">㉕ window-show</span>
+      </div>
+      <p class="boot-note"><code>runApp(ProviderScope overrides) → EvergreenApp</code> —— 注入 registry / orchestrator / servers / agent / theme / skin / v2Manifests</p>
+    </div>
+
+    <!-- ═══════════════ JS Bridge 能力表 ═══════════════ -->
+    <section class="sec-head evg-reveal" aria-label="JS Bridge 能力表">
+      <span class="evg-dot evg-dot--accent"></span>HTML 插件 JS Bridge 能力表（platform.* · 用户侧主路径）
+    </section>
+    <div class="bridge-grid">
+      <div class="bridge-card evg-reveal">
+        <b>platform.data</b>
+        <p><code>get(name)</code> 缓存优先读取 · <code>list()</code> 数据源清单 · <code>refresh(name)</code> 读缓存 · <code>subscribe(name, fn)</code> 订阅变化（data:changed）· <code>testConnectivity()</code> 连通性测试</p>
+      </div>
+      <div class="bridge-card evg-reveal" data-delay="60">
+        <b>platform.ai</b>
+        <p><code>chat(prompt, style)</code> → POST /agent/chat（AgentHttpServer）；style 可选 explanatory / learning / concise / socratic</p>
+      </div>
+      <div class="bridge-card evg-reveal" data-delay="120">
+        <b>platform.api</b>
+        <p><code>call(service, path, {method, body})</code> → agent / config / data / module / theme / core 六组服务通用转发，端口来自 .xxx_port 端口文件</p>
+      </div>
+      <div class="bridge-card evg-reveal" data-delay="180">
+        <b>platform.settings</b>
+        <p><code>get(key)</code> 读取 · <code>set(key, value)</code> 写 ConfigHttpServer 并同步 .greenix/config.json</p>
+      </div>
+      <div class="bridge-card evg-reveal" data-delay="240">
+        <b>platform.storage</b>
+        <p><code>get / set / remove / clear / list</code> → 模块私有 storage.json；同时注册为数据源 <code>&lt;id&gt;_storage</code></p>
+      </div>
+      <div class="bridge-card evg-reveal" data-delay="300">
+        <b>platform.theme</b>
+        <p><code>getColors()</code> 返回 8 语义色；--evg-* CSS 变量注入，主题切换实时推送（theme:changed）</p>
+      </div>
+      <div class="bridge-card evg-reveal" data-delay="360">
+        <b>platform.process</b>
+        <p><code>run / start / write / stop / read / onOutput / onExit</code> → manifest process 白名单 fail-closed；scope:"long" 常驻</p>
+      </div>
+      <div class="bridge-card evg-reveal" data-delay="420">
+        <b>platform.emit / platform.on</b>
+        <p>页级事件：PageEventBus 广播与订阅，同页跨栏 / 模块联动</p>
+      </div>
+    </div>
+
+    <!-- ═══════════════ 修正点说明 ═══════════════ -->
+    <div class="evg-callout evg-reveal" style="margin-top:16px">
+      <span class="evg-callout__ic">💡</span>
+      <span><b>HTML-first 修正（对照 CLAUDE.md + evg-base 源码）：</b>
+      ① 插件形态 —— 用户侧主路径为 <code class="evg-code">plugins/&lt;id&gt;/module/index.html + manifest.json</code>（<code class="evg-code">"template":"html"</code>），由 <code class="evg-code">html-creator</code> 创作、<code class="evg-code">html_modle</code>（本地 HTTP + WebView + JS Bridge）运行；「JSON 声明 + .exe」已降级为开发者模式 / 高级能力。<br/>
+      ② 渲染机制 —— 弃用 renderMode 双渲染表述：ModuleDispatch 按 template / pages / workspace 自动选视图（不再使用 descriptor.ui），经模板注册表路由 v4 / html / scraper / theme-creator / skill-creator / dsh / zju 等。<br/>
+      ③ 装配流程 —— main.dart 经 AppBootstrap 25 步启动（详见上方详情卡逐站点亮）。<br/>
+      ④ 保留仍正确的核心 —— core/ 纯 Dart 服务层不画像素、renderer/ 只消费 core barrel API、HTTP 端口体系与 JS Bridge 能力表。</span>
+    </div>
+
+  </main>
+
+  <footer class="page-foot">
+    <div class="pets">
+      <img class="evg-pet" src="_shared/branding/pet.svg" alt="绿芽精灵宠物" aria-hidden="true" width="34" height="34" />
+      <img class="evg-pet" src="_shared/branding/pet_leafcat.svg" alt="叶灵猫宠物（Agent 守护语境）" aria-hidden="true" width="34" height="34" />
+      <img class="evg-pet" src="_shared/branding/pet_sleep.svg" alt="睡眠款宠物" aria-hidden="true" width="34" height="34" />
+    </div>
+    源码依据：evg-base/lib/main.dart · app_bootstrap.dart · renderer/module/module_dispatch.dart · renderer/templates/html_modle/ · templates_index.json · evg-base/plugins/README.md · docs/plugin-registry/plugin-registry-spec-v1.md<br />
+    墨白风基座：_shared/ · 明暗双色可切换（?theme=dark 可固定） · reduced-motion 自动降级
+  </footer>
+
+  <script src="_shared/evg-common.js"></script>
+  <script>
+    (function () {
+      "use strict";
+      var doc = document;
+      var reduce = window.matchMedia &&
+        matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+      /* ── ① 装配条 25 步逐站点亮（reduced-motion 下静态） ── */
+      (function () {
+        var steps = Array.prototype.slice.call(doc.querySelectorAll(".boot-step"));
+        var label = doc.getElementById("bootStepLabel");
+        if (!steps.length) return;
+        if (reduce) {
+          if (label) label.textContent = "静态模式";
+          return;
+        }
+        var i = 0;
+        var total = steps.length;
+        function tick() {
+          for (var k = 0; k < total; k++) steps[k].classList.remove("is-active");
+          steps[i].classList.add("is-active");
+          if (label) {
+            var n = i + 1;
+            label.textContent = "启动 " + (n < 10 ? "0" : "") + n + "/" + total;
+          }
+          i = (i + 1) % total;
+        }
+        tick();
+        setInterval(tick, 600);
+      })();
+
+      /* ── ② 泳道节点点击 → 跳转详情并短暂高亮 ── */
+      (function () {
+        var nodes = Array.prototype.slice.call(doc.querySelectorAll("[data-target]"));
+        nodes.forEach(function (el) {
+          function go() {
+            var sec = doc.getElementById(el.getAttribute("data-target"));
+            if (!sec) return;
+            try {
+              sec.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+            } catch (e) {
+              sec.scrollIntoView();
+            }
+            sec.classList.remove("detail-flash");
+            void sec.offsetWidth; /* 重启动画 */
+            sec.classList.add("detail-flash");
+            setTimeout(function () { sec.classList.remove("detail-flash"); }, 2200);
+          }
+          el.addEventListener("click", go);
+          el.addEventListener("keydown", function (e) {
+            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); }
+          });
+        });
+      })();
+    })();
+  </script>
+</body>
+</html>
