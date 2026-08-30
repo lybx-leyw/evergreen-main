@@ -52,7 +52,8 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 
-sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding="utf-8")
 
 CALENDAR_URL = "https://api.bgm.tv/calendar"
 USER_AGENT = "evergreen-anime-calendar/1.0 (data-source plugin)"

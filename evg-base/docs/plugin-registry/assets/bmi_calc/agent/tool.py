@@ -4,7 +4,8 @@
 非法输入（缺失 / 非数字 / 非正数）返回结构化错误而非崩溃。纯标准库。
 """
 import sys
-sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 import json
 
 def _load_args():

@@ -6,7 +6,8 @@
 value 必填且为数字；from/to 必填；未知单位 / 跨类别 → 结构化错误。
 """
 import sys
-sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 import json
 
 UNITS = {

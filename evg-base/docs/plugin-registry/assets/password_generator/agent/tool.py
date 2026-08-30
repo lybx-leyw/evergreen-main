@@ -5,7 +5,8 @@
 熵计算。symbols / readable 必须为布尔。一次性工具。
 """
 import sys
-sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 import json
 import random
 import string

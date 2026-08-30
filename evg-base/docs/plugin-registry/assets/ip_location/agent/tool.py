@@ -8,7 +8,8 @@
 网络不可达 / 超时 / API 返回失败 → 结构化 {"error": ...} + 非零退出（不伪造数据）。
 """
 import sys
-sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 import json
 import ipaddress
 import urllib.request

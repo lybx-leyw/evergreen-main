@@ -4,7 +4,8 @@
 用于数据源增量判断 / 缓存指纹。text 缺失返回结构化错误。
 """
 import sys
-sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 import json
 import hashlib
 

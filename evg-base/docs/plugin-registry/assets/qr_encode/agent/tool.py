@@ -8,7 +8,8 @@
 限制：v1-M 字节模式最多 14 字节（超过返回结构化错误）。
 """
 import sys, json
-sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 
 # --- GF(256) 域运算（本原多项式 0x11D，生成元 2）---
 _EXP = [0] * 512

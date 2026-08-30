@@ -5,7 +5,8 @@ text 必填；mode=encode（默认，urllib.parse.quote）或 decode（unquote�
 mode 非法 / text 缺失 → 结构化错误。
 """
 import sys
-sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 import json
 import urllib.parse
 

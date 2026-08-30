@@ -4,7 +4,8 @@
 匹配 ATX 标题（# 到 ######），返回 {level, title} 列表。markdown 缺失返回结构化错误。
 """
 import sys
-sys.stdout.reconfigure(encoding='utf-8')
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 import json
 import re
 
