@@ -125,6 +125,9 @@ void main() {
     late _MockEnv env;
 
     setUp(() {
+      // 重置跨测试存活的全局流分发器：否则残留订阅会让本测试新装的
+      // mock stream handler 收不到 onListen，emit 的事件滞留缓存丢失。
+      ChaquopyLongProcess.resetStreamHubForTesting();
       env = _MockEnv();
     });
 
@@ -331,6 +334,8 @@ void main() {
     late _MockEnv env;
 
     setUp(() {
+      // 重置全局流分发器，避免残留订阅干扰本组 mock（见上组注释）。
+      ChaquopyLongProcess.resetStreamHubForTesting();
       env = _MockEnv();
     });
 
@@ -426,6 +431,8 @@ void main() {
     late _MockEnv env;
 
     setUp(() {
+      // startLong 会构造 ChaquopyLongProcess 注册进 hub，同样需要先重置。
+      ChaquopyLongProcess.resetStreamHubForTesting();
       env = _MockEnv();
     });
 
