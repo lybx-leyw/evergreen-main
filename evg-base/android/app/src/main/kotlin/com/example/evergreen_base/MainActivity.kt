@@ -66,6 +66,10 @@ class MainActivity : FlutterActivity() {
     // 使 Python 脚本的 `for line in sys.stdin` 阻塞读到。单实例（当前只支持
     // 一个常驻进程）。跨线程访问由 Chaquopy GIL 串行化，线程安全。
     private var stdinQueue: com.chaquo.python.PyObject? = null
+    /// 当前长驻进程的入口脚本路径（事件路由字段）。Dart 侧 EventChannel
+    /// 为单监听，事件带 `entry` 后由 Dart 端共享分发器按 entry 路由到
+    /// 对应 ChaquopyLongProcess，修复多实例串流/顶掉问题。
+    private var currentEntry: String? = null
 
     // ── Chaquopy 资源路径缓存（避免每次递归遍历文件系统）──
     private val assetPathCache = mutableMapOf<String, String?>()
@@ -119,11 +123,18 @@ class MainActivity : FlutterActivity() {
                     // 请求停止长驻 server：置标志 + 中断后台线程（尽力而为）。
                     // 同时向 stdin 队列 put 哨兵（None），触发 Python 侧
                     // `for line in sys.stdin` 收到 EOFError 而结束，避免阻塞残留。
+                    // ⚠️ HTTP server 型（serve_forever）无法被 Chaquopy 强制终止，
+                    //    Thread.interrupt() 对执行中 Python 无效——属平台能力边界，
+                    //    重启时建议随机端口规避旧实例占用。
                     stdinQueue?.callAttr("put", null)
                     stdinQueue = null
                     longRunning.set(false)
                     longThread?.interrupt()
                     longThread = null
+                    // 补发 exit 事件：Dart 侧会话（_LongProcessSession）据此完成
+                    // exitCode future 并清理注册表，避免挂死/泄漏（修复前 stop
+                    // 后无 exit 事件，输出/退出回调全部静默丢失）。
+                    emitExit(0)
                     result.success(null)
                 } else if (call.method == "writeStdin") {
                     // stdin 双向流：把 Dart 侧写入的数据送入 Python 常驻进程的
@@ -468,11 +479,11 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun emit(stream: String, line: String) {
-        emitRaw(mapOf("type" to stream, "line" to line))
+        emitRaw(mapOf("type" to stream, "line" to line, "entry" to (currentEntry ?: "")))
     }
 
     private fun emitExit(code: Int) {
-        emitRaw(mapOf("type" to "exit", "code" to code))
+        emitRaw(mapOf("type" to "exit", "code" to code, "entry" to (currentEntry ?: "")))
     }
 
     /**
@@ -493,6 +504,19 @@ class MainActivity : FlutterActivity() {
         }
         val py = Python.getInstance()
         Log.d("P3NATIVE", "startLongServer: Python instance obtained; entry=$entry args=$args")
+
+        // 启动前清场：若上一实例的 stdin 队列/线程引用仍残留（僵尸线程可能
+        // 继续占用旧端口），先发哨兵 + 补 exit 事件，避免 writeStdin 串台到
+        // 旧队列、Dart 侧会话状态残留。
+        if (stdinQueue != null || longThread != null) {
+            Log.w("P3NATIVE", "startLongServer: 上一实例引用残留，先清场")
+            stdinQueue?.callAttr("put", null)
+            stdinQueue = null
+            longThread?.interrupt()
+            longThread = null
+            emitExit(0)
+        }
+        currentEntry = entry
 
         // ⚠️ Android Chaquopy 进程 CWD=/，必须把 PROJECT_ROOT + GREENIX_CONFIG_PATH
         // 注入到 bootstrap 中。与脚本在同一个 exec 内执行，确保已就绪。
