@@ -1,1 +1,74 @@
-<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="糖果背景（横屏）"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#FDF2F7"/><stop offset="100%" stop-color="#92627D22"/></linearGradient></defs><rect width="1600" height="900" fill="url(#g)"/><circle cx="336" cy="431" r="52" fill="#BA1567" opacity="0.05"/><circle cx="413" cy="258" r="58" fill="#BA1567" opacity="0.05"/><circle cx="894" cy="800" r="64" fill="#BA1567" opacity="0.05"/><circle cx="894" cy="627" r="48" fill="#BA1567" opacity="0.05"/><circle cx="465" cy="675" r="49" fill="#BA1567" opacity="0.05"/><circle cx="932" cy="590" r="85" fill="#BA1567" opacity="0.05"/><circle cx="388" cy="270" r="34" fill="#BA1567" opacity="0.05"/><circle cx="848" cy="829" r="41" fill="#BA1567" opacity="0.05"/><circle cx="73" cy="193" r="21" fill="#BA1567" opacity="0.05"/><circle cx="653" cy="739" r="53" fill="#BA1567" opacity="0.05"/><circle cx="1546" cy="57" r="20" fill="#BA1567" opacity="0.05"/><circle cx="1564" cy="320" r="78" fill="#BA1567" opacity="0.05"/><path d="M0 675.0 q400.0 -70 800.0 0 q400.0 70 800.0 0" fill="none" stroke="#BA1567" stroke-width="3" opacity="0.18"/></svg>
+<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="糖果粉对话背景（横屏）">
+  <!-- 糖果粉主题横屏背景：浅粉渐变 + 螺旋棒棒糖 + 彩针糖粒 + 柔光，
+       低对比度，叠加渲染层 35% 白遮罩后消息文字清晰可读。 -->
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FEF7FB"/>
+      <stop offset="55%" stop-color="#FBE8F1"/>
+      <stop offset="100%" stop-color="#F5CFE3"/>
+    </linearGradient>
+    <linearGradient id="candyA" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E8609C" stop-opacity="0.78"/>
+      <stop offset="100%" stop-color="#BA1567" stop-opacity="0.62"/>
+    </linearGradient>
+    <linearGradient id="candyB" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FCD3E4" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#F5A9C8" stop-opacity="0.85"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <g id="pinwheel">
+      <path d="M0 0 L40 0 A40 40 0 0 1 28.284 28.284 Z" fill="url(#candyA)"/>
+      <path d="M0 0 L40 0 A40 40 0 0 1 28.284 28.284 Z" fill="url(#candyB)" transform="rotate(45)"/>
+      <path d="M0 0 L40 0 A40 40 0 0 1 28.284 28.284 Z" fill="url(#candyA)" transform="rotate(90)"/>
+      <path d="M0 0 L40 0 A40 40 0 0 1 28.284 28.284 Z" fill="url(#candyB)" transform="rotate(135)"/>
+      <path d="M0 0 L40 0 A40 40 0 0 1 28.284 28.284 Z" fill="url(#candyA)" transform="rotate(180)"/>
+      <path d="M0 0 L40 0 A40 40 0 0 1 28.284 28.284 Z" fill="url(#candyB)" transform="rotate(225)"/>
+      <path d="M0 0 L40 0 A40 40 0 0 1 28.284 28.284 Z" fill="url(#candyA)" transform="rotate(270)"/>
+      <path d="M0 0 L40 0 A40 40 0 0 1 28.284 28.284 Z" fill="url(#candyB)" transform="rotate(315)"/>
+      <circle cx="0" cy="0" r="8" fill="#ffffff" opacity="0.9"/>
+      <ellipse cx="-13" cy="-15" rx="9" ry="13" fill="#ffffff" opacity="0.55" transform="rotate(-32 -13 -15)"/>
+    </g>
+    <g id="lollipop">
+      <rect x="-5" y="36" width="10" height="112" rx="5" fill="#ffffff" opacity="0.72"/>
+      <use href="#pinwheel"/>
+      <circle cx="0" cy="0" r="41" fill="none" stroke="#ffffff" stroke-opacity="0.55" stroke-width="2.5"/>
+    </g>
+    <g id="sprinkle">
+      <rect x="-7" y="-2" width="14" height="4" rx="2" fill="#BA1567" opacity="0.6"/>
+    </g>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bgGrad)"/>
+
+  <!-- 柔和光斑 -->
+  <circle cx="800" cy="440" r="430" fill="url(#glow)"/>
+  <circle cx="200" cy="770" r="250" fill="url(#glow)"/>
+  <circle cx="1430" cy="150" r="230" fill="url(#glow)"/>
+
+  <!-- 棒棒糖 -->
+  <use href="#lollipop" transform="translate(1330 730) rotate(8) scale(1.35)"/>
+  <use href="#lollipop" transform="translate(300 640) rotate(-12) scale(0.92)"/>
+  <use href="#lollipop" transform="translate(1440 210) rotate(16) scale(0.68)"/>
+  <use href="#lollipop" transform="translate(220 250) rotate(-20) scale(0.55)"/>
+
+  <!-- 彩针糖粒 -->
+  <use href="#sprinkle" transform="translate(430 640) rotate(30)"/>
+  <use href="#sprinkle" transform="translate(1160 600) rotate(-45)"/>
+  <use href="#sprinkle" transform="translate(690 830) rotate(75)"/>
+  <use href="#sprinkle" transform="translate(905 150) rotate(-20)"/>
+  <use href="#sprinkle" transform="translate(1460 470) rotate(50)"/>
+  <use href="#sprinkle" transform="translate(180 470) rotate(-70)"/>
+  <use href="#sprinkle" transform="translate(620 200) rotate(15)"/>
+  <use href="#sprinkle" transform="translate(1050 810) rotate(-35)"/>
+  <use href="#sprinkle" transform="translate(760 470) rotate(60)"/>
+
+  <!-- 糖粒圆点 -->
+  <circle cx="340" cy="520" r="6" fill="#BA1567" fill-opacity="0.14"/>
+  <circle cx="1250" cy="640" r="5" fill="#E8609C" fill-opacity="0.18"/>
+  <circle cx="500" cy="790" r="7" fill="#BA1567" fill-opacity="0.12"/>
+  <circle cx="1350" cy="420" r="5" fill="#F5A9C8" fill-opacity="0.35"/>
+  <circle cx="820" cy="140" r="6" fill="#E8609C" fill-opacity="0.15"/>
+</svg>

@@ -1,1 +1,69 @@
-<svg width="900" height="1600" viewBox="0 0 900 1600" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="水墨山背景（竖屏）"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#F5F4F0"/><stop offset="100%" stop-color="#6B6A63" stop-opacity="0.13"/></linearGradient></defs><rect width="900" height="1600" fill="url(#g)"/><circle cx="15" cy="1487" r="44" fill="#4C4A45" opacity="0.05"/><circle cx="529" cy="359" r="54" fill="#4C4A45" opacity="0.05"/><circle cx="491" cy="830" r="23" fill="#4C4A45" opacity="0.05"/><circle cx="147" cy="458" r="38" fill="#4C4A45" opacity="0.05"/><circle cx="78" cy="690" r="51" fill="#4C4A45" opacity="0.05"/><circle cx="570" cy="288" r="29" fill="#4C4A45" opacity="0.05"/><circle cx="680" cy="1574" r="55" fill="#4C4A45" opacity="0.05"/><circle cx="142" cy="1241" r="70" fill="#4C4A45" opacity="0.05"/><circle cx="620" cy="1043" r="53" fill="#4C4A45" opacity="0.05"/><circle cx="27" cy="1049" r="59" fill="#4C4A45" opacity="0.05"/><circle cx="867" cy="40" r="80" fill="#4C4A45" opacity="0.05"/><circle cx="727" cy="160" r="56" fill="#4C4A45" opacity="0.05"/><path d="M0 1200.0 q225.0 -70 450.0 0 q225.0 70 450.0 0" fill="none" stroke="#4C4A45" stroke-width="3" opacity="0.18"/></svg>
+<svg width="900" height="1600" viewBox="0 0 900 1600" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="水墨丹青对话背景（竖屏）">
+  <!-- 水墨丹青主题竖屏背景：宣纸纵向渐变 + 层峦远山 + 云雾 + 朱砂日 + 孤舟，
+       低对比度，叠加渲染层 35% 白遮罩后消息文字清晰可读。 -->
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F9F7F2"/>
+      <stop offset="60%" stop-color="#EFECE4"/>
+      <stop offset="100%" stop-color="#E1DDD2"/>
+    </linearGradient>
+    <linearGradient id="farG" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#A6A296" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#8F8B80" stop-opacity="0.18"/>
+    </linearGradient>
+    <linearGradient id="midG" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#8F8B80" stop-opacity="0.14"/>
+      <stop offset="100%" stop-color="#6E6B62" stop-opacity="0.22"/>
+    </linearGradient>
+    <linearGradient id="nearG" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#6E6B62" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#4C4A45" stop-opacity="0.26"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <g id="bird">
+      <path d="M0 0 Q 7 -7 14 -1 Q 21 -7 28 0" fill="none" stroke="#4C4A45" stroke-opacity="0.4" stroke-width="2.5" stroke-linecap="round"/>
+    </g>
+  </defs>
+
+  <rect width="900" height="1600" fill="url(#bgGrad)"/>
+
+  <!-- 柔和光斑（中心偏上） -->
+  <circle cx="450" cy="560" r="430" fill="url(#glow)"/>
+
+  <!-- 远山 -->
+  <path d="M0 900 L 210 640 L 440 920 L 640 700 L 900 940 L 900 1120 L 0 1120 Z" fill="url(#farG)"/>
+  <!-- 中景山 -->
+  <path d="M0 1040 L 260 780 L 560 1060 L 760 860 L 900 1000 L 900 1240 L 0 1240 Z" fill="url(#midG)"/>
+  <!-- 近山 -->
+  <path d="M0 1220 L 200 980 L 460 1240 L 700 1040 L 900 1220 L 900 1480 L 0 1480 Z" fill="url(#nearG)"/>
+
+  <!-- 云雾 -->
+  <ellipse cx="300" cy="880" rx="260" ry="20" fill="#ffffff" opacity="0.5"/>
+  <ellipse cx="640" cy="1080" rx="240" ry="18" fill="#ffffff" opacity="0.45"/>
+  <ellipse cx="450" cy="1300" rx="320" ry="22" fill="#ffffff" opacity="0.4"/>
+
+  <!-- 朱砂日 -->
+  <circle cx="480" cy="520" r="44" fill="#C0573F" fill-opacity="0.30"/>
+  <circle cx="480" cy="520" r="60" fill="#C0573F" fill-opacity="0.10"/>
+
+  <!-- 飞鸟 -->
+  <use href="#bird" transform="translate(280 470)"/>
+  <use href="#bird" transform="translate(360 500) scale(0.7)"/>
+  <use href="#bird" transform="translate(640 700)"/>
+
+  <!-- 水波与孤舟 -->
+  <path d="M0 1500 q110 -10 220 0 q110 10 220 0 q110 -10 220 0 q110 10 220 0" fill="none" stroke="#4C4A45" stroke-opacity="0.12" stroke-width="2"/>
+  <g transform="translate(560 1450)">
+    <path d="M-20 0 C -12 7 12 7 20 0 C 12 -2 12 -2 -20 0 Z" fill="#4C4A45" fill-opacity="0.4"/>
+    <circle cx="0" cy="-6" r="3" fill="#4C4A45" fill-opacity="0.4"/>
+    <path d="M0 -8 L 0 -22" stroke="#4C4A45" stroke-opacity="0.3" stroke-width="1.6"/>
+  </g>
+
+  <!-- 点缀 -->
+  <circle cx="140" cy="400" r="5" fill="#6E6B62" fill-opacity="0.15"/>
+  <circle cx="770" cy="420" r="6" fill="#6E6B62" fill-opacity="0.14"/>
+  <circle cx="200" cy="720" r="5" fill="#8F8B80" fill-opacity="0.2"/>
+</svg>

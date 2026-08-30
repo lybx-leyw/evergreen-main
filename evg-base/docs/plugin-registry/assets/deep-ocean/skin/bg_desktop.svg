@@ -1,1 +1,76 @@
-<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="深海背景（横屏）"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#0A1A2F"/><stop offset="100%" stop-color="#8FAAC8" stop-opacity="0.13"/></linearGradient></defs><rect width="1600" height="900" fill="url(#g)"/><circle cx="1511" cy="56" r="78" fill="#48A1EA" opacity="0.05"/><circle cx="1360" cy="329" r="40" fill="#48A1EA" opacity="0.05"/><circle cx="628" cy="618" r="50" fill="#48A1EA" opacity="0.05"/><circle cx="361" cy="111" r="74" fill="#48A1EA" opacity="0.05"/><circle cx="1437" cy="425" r="55" fill="#48A1EA" opacity="0.05"/><circle cx="1597" cy="79" r="32" fill="#48A1EA" opacity="0.05"/><circle cx="552" cy="496" r="83" fill="#48A1EA" opacity="0.05"/><circle cx="380" cy="419" r="41" fill="#48A1EA" opacity="0.05"/><circle cx="1149" cy="464" r="29" fill="#48A1EA" opacity="0.05"/><circle cx="215" cy="166" r="47" fill="#48A1EA" opacity="0.05"/><circle cx="960" cy="507" r="79" fill="#48A1EA" opacity="0.05"/><circle cx="860" cy="504" r="57" fill="#48A1EA" opacity="0.05"/><path d="M0 675.0 q400.0 -70 800.0 0 q400.0 70 800.0 0" fill="none" stroke="#48A1EA" stroke-width="3" opacity="0.18"/></svg>
+<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="深海对话背景（横屏）">
+  <!-- 深海主题横屏背景：深海蓝渐变 + 天光射线 + 层浪 + 水母气泡 + 鱼群，
+       低对比度，叠加渲染层 35% 白遮罩后消息文字清晰可读。 -->
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0A1A2F"/>
+      <stop offset="55%" stop-color="#0D2442"/>
+      <stop offset="100%" stop-color="#14345C"/>
+    </linearGradient>
+    <linearGradient id="jellyG" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#48A1EA" stop-opacity="0.34"/>
+      <stop offset="100%" stop-color="#2C6CA8" stop-opacity="0.14"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="surfaceGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#A8D4F5" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#A8D4F5" stop-opacity="0"/>
+    </radialGradient>
+    <g id="bubble">
+      <circle cx="0" cy="0" r="13" fill="none" stroke="#E4EEF8" stroke-opacity="0.4" stroke-width="2"/>
+      <circle cx="-4" cy="-4" r="3.5" fill="#ffffff" fill-opacity="0.55"/>
+    </g>
+    <g id="fish">
+      <path d="M-20 0 C -20 -12 12 -16 26 -7 C 34 -3 34 3 26 7 C 12 16 -20 12 -20 0 Z" fill="#E4EEF8" fill-opacity="0.16"/>
+      <path d="M-20 0 L -32 -10 L -30 10 Z" fill="#E4EEF8" fill-opacity="0.16"/>
+      <circle cx="16" cy="-2" r="2.2" fill="#E4EEF8" fill-opacity="0.35"/>
+    </g>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bgGrad)"/>
+
+  <!-- 水面柔光 -->
+  <circle cx="800" cy="180" r="520" fill="url(#surfaceGlow)"/>
+  <circle cx="800" cy="450" r="430" fill="url(#glow)"/>
+
+  <!-- 天光射线（自顶部透入） -->
+  <g fill="#ffffff" fill-opacity="0.045">
+    <polygon points="90,0 250,0 430,520 0,520"/>
+    <polygon points="420,0 540,0 760,560 380,560"/>
+    <polygon points="880,0 1010,0 1260,540 800,540"/>
+    <polygon points="1360,0 1520,0 1600,470 1280,470"/>
+  </g>
+
+  <!-- 层浪 -->
+  <path d="M0 620 q200 -42 400 0 q200 42 400 0 q200 -42 400 0 q200 42 400 0" fill="none" stroke="#48A1EA" stroke-opacity="0.12" stroke-width="3"/>
+  <path d="M0 690 q200 -38 400 0 q200 38 400 0 q200 -38 400 0 q200 38 400 0" fill="none" stroke="#48A1EA" stroke-opacity="0.09" stroke-width="3"/>
+  <path d="M0 770 q200 -34 400 0 q200 34 400 0 q200 -34 400 0 q200 34 400 0" fill="none" stroke="#48A1EA" stroke-opacity="0.07" stroke-width="3"/>
+
+  <!-- 水母（右上） -->
+  <g transform="translate(1290 330) rotate(-6)">
+    <path d="M-42 0 C -42 -52 42 -52 42 0 C 32 12 10 16 0 16 C -10 16 -32 12 -42 0 Z" fill="url(#jellyG)"/>
+    <ellipse cx="0" cy="-6" rx="26" ry="10" fill="#ffffff" fill-opacity="0.14"/>
+    <path d="M-22 14 C -28 42 -16 60 -24 86" fill="none" stroke="#48A1EA" stroke-opacity="0.28" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M-8 15 C -12 44 0 62 -6 90" fill="none" stroke="#48A1EA" stroke-opacity="0.24" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M8 15 C 4 44 16 62 10 90" fill="none" stroke="#48A1EA" stroke-opacity="0.24" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M22 14 C 16 42 28 60 20 86" fill="none" stroke="#48A1EA" stroke-opacity="0.28" stroke-width="2.5" stroke-linecap="round"/>
+  </g>
+
+  <!-- 鱼群（中左） -->
+  <use href="#fish" transform="translate(430 500) rotate(-8)"/>
+  <use href="#fish" transform="translate(520 470) rotate(-14) scale(0.8)"/>
+  <use href="#fish" transform="translate(480 560) rotate(4) scale(0.7)"/>
+  <use href="#fish" transform="translate(1450 640) rotate(-4) scale(0.85)"/>
+  <use href="#fish" transform="translate(1550 690) rotate(-10) scale(0.65)"/>
+
+  <!-- 气泡 -->
+  <use href="#bubble" transform="translate(200 760)"/>
+  <use href="#bubble" transform="translate(960 720) scale(1.2)"/>
+  <use href="#bubble" transform="translate(1180 560) scale(0.7)"/>
+  <use href="#bubble" transform="translate(700 420) scale(0.6)"/>
+  <use href="#bubble" transform="translate(1500 260) scale(0.8)"/>
+  <use href="#bubble" transform="translate(320 300) scale(0.55)"/>
+</svg>

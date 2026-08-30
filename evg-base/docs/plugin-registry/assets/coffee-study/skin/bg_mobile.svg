@@ -1,1 +1,70 @@
-<svg width="900" height="1600" viewBox="0 0 900 1600" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="咖啡杯背景（竖屏）"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#F6EFE7"/><stop offset="100%" stop-color="#7A655322"/></linearGradient></defs><rect width="900" height="1600" fill="url(#g)"/><circle cx="268" cy="1304" r="27" fill="#C08552" opacity="0.05"/><circle cx="544" cy="893" r="58" fill="#C08552" opacity="0.05"/><circle cx="893" cy="26" r="54" fill="#C08552" opacity="0.05"/><circle cx="620" cy="687" r="77" fill="#C08552" opacity="0.05"/><circle cx="201" cy="416" r="28" fill="#C08552" opacity="0.05"/><circle cx="175" cy="473" r="75" fill="#C08552" opacity="0.05"/><circle cx="802" cy="843" r="61" fill="#C08552" opacity="0.05"/><circle cx="339" cy="737" r="81" fill="#C08552" opacity="0.05"/><circle cx="843" cy="1486" r="39" fill="#C08552" opacity="0.05"/><circle cx="892" cy="44" r="40" fill="#C08552" opacity="0.05"/><circle cx="791" cy="1579" r="43" fill="#C08552" opacity="0.05"/><circle cx="561" cy="735" r="63" fill="#C08552" opacity="0.05"/><path d="M0 1200.0 q225.0 -70 450.0 0 q225.0 70 450.0 0" fill="none" stroke="#C08552" stroke-width="3" opacity="0.18"/></svg>
+<svg width="900" height="1600" viewBox="0 0 900 1600" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="咖啡店自习对话背景（竖屏）">
+  <!-- 咖啡店自习主题竖屏背景：暖咖纵向渐变 + 咖啡杯蒸汽 + 书堆 + 咖啡豆，
+       低对比度，叠加渲染层 35% 白遮罩后消息文字清晰可读。 -->
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FBF6ED"/>
+      <stop offset="60%" stop-color="#F4E9DA"/>
+      <stop offset="100%" stop-color="#E8D4BE"/>
+    </linearGradient>
+    <linearGradient id="cupG" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#C08552" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#7F5228" stop-opacity="0.15"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <g id="cup">
+      <ellipse cx="0" cy="16" rx="96" ry="20" fill="#C08552" fill-opacity="0.13"/>
+      <ellipse cx="0" cy="16" rx="96" ry="20" fill="none" stroke="#C08552" stroke-opacity="0.20" stroke-width="3"/>
+      <path d="M-52 0 L52 0 C 54 30 42 52 8 58 C 4 59 -4 59 -8 58 C -42 52 -54 30 -52 0 Z" fill="url(#cupG)" stroke="#C08552" stroke-opacity="0.15" stroke-width="2"/>
+      <ellipse cx="0" cy="0" rx="52" ry="14" fill="#7F5228" fill-opacity="0.17"/>
+      <ellipse cx="0" cy="0" rx="38" ry="9" fill="#3E2E22" fill-opacity="0.15"/>
+      <path d="M 50 -6 C 84 -12 92 20 58 26" fill="none" stroke="#C08552" stroke-opacity="0.30" stroke-width="10" stroke-linecap="round"/>
+      <path d="M0 26 C -4 20 -13 20 -14 27 C -15 34 -7 38 0 42 C 7 38 15 34 14 27 C 13 20 4 20 0 26 Z" fill="#FBF6ED" fill-opacity="0.7"/>
+      <path d="M-16 -20 C -26 -38 -8 -52 -18 -68" fill="none" stroke="#C08552" stroke-opacity="0.30" stroke-width="6" stroke-linecap="round"/>
+      <path d="M4 -22 C -6 -40 12 -54 2 -70" fill="none" stroke="#C08552" stroke-opacity="0.26" stroke-width="6" stroke-linecap="round"/>
+      <path d="M24 -18 C 14 -36 32 -50 22 -66" fill="none" stroke="#C08552" stroke-opacity="0.22" stroke-width="6" stroke-linecap="round"/>
+    </g>
+    <g id="books">
+      <rect x="-100" y="0" width="200" height="26" rx="8" fill="#8A5A33" fill-opacity="0.20"/>
+      <rect x="-100" y="0" width="200" height="4" rx="2" fill="#ffffff" fill-opacity="0.45"/>
+      <rect x="-84" y="-24" width="168" height="24" rx="8" fill="#C08552" fill-opacity="0.26"/>
+      <rect x="-84" y="-24" width="168" height="4" rx="2" fill="#ffffff" fill-opacity="0.45"/>
+      <rect x="-68" y="-46" width="136" height="22" rx="8" fill="#3E2E22" fill-opacity="0.15"/>
+      <rect x="-68" y="-46" width="136" height="4" rx="2" fill="#ffffff" fill-opacity="0.4"/>
+      <path d="M-6 -46 L 1 -66 L 8 -46 Z" fill="#C08552" fill-opacity="0.32"/>
+    </g>
+    <g id="bean">
+      <ellipse cx="0" cy="0" rx="10" ry="7" fill="#7F5228" fill-opacity="0.45"/>
+      <path d="M-5 -2 Q 0 3 5 -1" fill="none" stroke="#FBF6ED" stroke-opacity="0.65" stroke-width="1.6"/>
+    </g>
+  </defs>
+
+  <rect width="900" height="1600" fill="url(#bgGrad)"/>
+
+  <!-- 柔和光斑（中心偏上） -->
+  <circle cx="450" cy="620" r="430" fill="url(#glow)"/>
+  <circle cx="160" cy="1430" r="300" fill="url(#glow)"/>
+  <circle cx="770" cy="200" r="260" fill="url(#glow)"/>
+
+  <!-- 咖啡杯（右上，蒸汽上扬） -->
+  <use href="#cup" transform="translate(600 420) rotate(6) scale(1.3)"/>
+  <!-- 书堆（左下） -->
+  <use href="#books" transform="translate(240 1460) rotate(-4) scale(1.2)"/>
+
+  <!-- 咖啡豆 -->
+  <use href="#bean" transform="translate(150 280) rotate(30) scale(0.9)"/>
+  <use href="#bean" transform="translate(720 940) rotate(-25)"/>
+  <use href="#bean" transform="translate(420 1520) rotate(15) scale(0.9)"/>
+  <use href="#bean" transform="translate(160 900) rotate(-42)"/>
+  <use href="#bean" transform="translate(800 320) rotate(55) scale(0.8)"/>
+
+  <!-- 点缀圆点 -->
+  <circle cx="230" cy="560" r="6" fill="#C08552" fill-opacity="0.13"/>
+  <circle cx="660" cy="1180" r="5" fill="#8A5A33" fill-opacity="0.16"/>
+  <circle cx="430" cy="1100" r="6" fill="#C08552" fill-opacity="0.12"/>
+  <circle cx="720" cy="620" r="5" fill="#7F5228" fill-opacity="0.13"/>
+  <circle cx="110" cy="1320" r="5" fill="#C08552" fill-opacity="0.12"/>
+</svg>

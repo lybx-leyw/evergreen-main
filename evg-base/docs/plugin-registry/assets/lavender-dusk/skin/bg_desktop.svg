@@ -1,1 +1,71 @@
-<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="薰衣草背景（横屏）"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#F3EFFB"/><stop offset="100%" stop-color="#75649C22"/></linearGradient></defs><rect width="1600" height="900" fill="url(#g)"/><circle cx="246" cy="34" r="26" fill="#6C54A4" opacity="0.05"/><circle cx="1374" cy="78" r="77" fill="#6C54A4" opacity="0.05"/><circle cx="1332" cy="778" r="57" fill="#6C54A4" opacity="0.05"/><circle cx="1540" cy="391" r="23" fill="#6C54A4" opacity="0.05"/><circle cx="403" cy="37" r="65" fill="#6C54A4" opacity="0.05"/><circle cx="1018" cy="6" r="45" fill="#6C54A4" opacity="0.05"/><circle cx="1484" cy="518" r="58" fill="#6C54A4" opacity="0.05"/><circle cx="589" cy="387" r="75" fill="#6C54A4" opacity="0.05"/><circle cx="1130" cy="146" r="71" fill="#6C54A4" opacity="0.05"/><circle cx="284" cy="223" r="72" fill="#6C54A4" opacity="0.05"/><circle cx="1011" cy="859" r="72" fill="#6C54A4" opacity="0.05"/><circle cx="1269" cy="345" r="70" fill="#6C54A4" opacity="0.05"/><path d="M0 675.0 q400.0 -70 800.0 0 q400.0 70 800.0 0" fill="none" stroke="#6C54A4" stroke-width="3" opacity="0.18"/></svg>
+<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="薰衣草暮色对话背景（横屏）">
+  <!-- 薰衣草暮色主题横屏背景：浅紫渐变 + 薰衣草花穗 + 暮光 + 柔光，
+       低对比度，叠加渲染层 35% 白遮罩后消息文字清晰可读。 -->
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FAF7FE"/>
+      <stop offset="55%" stop-color="#F1EAFB"/>
+      <stop offset="100%" stop-color="#E2D6F6"/>
+    </linearGradient>
+    <linearGradient id="blossomG" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#A58CD8" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#6C54A4" stop-opacity="0.32"/>
+    </linearGradient>
+    <linearGradient id="stemG" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8A7BB0" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#6C54A4" stop-opacity="0.28"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <g id="sprig">
+      <path d="M0 0 C 3 -46 0 -92 10 -138" fill="none" stroke="url(#stemG)" stroke-width="4" stroke-linecap="round"/>
+      <g fill="url(#blossomG)">
+        <ellipse cx="4" cy="-26" rx="8" ry="10"/>
+        <ellipse cx="-3" cy="-38" rx="8" ry="10"/>
+        <ellipse cx="6" cy="-50" rx="7.5" ry="9.5"/>
+        <ellipse cx="-2" cy="-62" rx="7" ry="9"/>
+        <ellipse cx="5" cy="-74" rx="6.5" ry="8.5"/>
+        <ellipse cx="0" cy="-86" rx="6" ry="8"/>
+        <ellipse cx="4" cy="-98" rx="5" ry="7"/>
+        <ellipse cx="0" cy="-110" rx="4.5" ry="6"/>
+        <ellipse cx="2" cy="-122" rx="4" ry="5"/>
+      </g>
+      <ellipse cx="-8" cy="-8" rx="9" ry="4" fill="#6C54A4" fill-opacity="0.4" transform="rotate(-30 -8 -8)"/>
+      <ellipse cx="8" cy="-12" rx="9" ry="4" fill="#6C54A4" fill-opacity="0.4" transform="rotate(28 8 -12)"/>
+    </g>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bgGrad)"/>
+
+  <!-- 柔和光斑 -->
+  <circle cx="800" cy="440" r="430" fill="url(#glow)"/>
+  <circle cx="200" cy="770" r="250" fill="url(#glow)"/>
+  <circle cx="1430" cy="150" r="230" fill="url(#glow)"/>
+
+  <!-- 薰衣草花丛（左下） -->
+  <g transform="translate(240 830)">
+    <use href="#sprig" transform="translate(0 0) rotate(-6) scale(1.5)"/>
+    <use href="#sprig" transform="translate(90 40) rotate(4) scale(1.2)"/>
+    <use href="#sprig" transform="translate(170 60) rotate(-10) scale(0.9)"/>
+  </g>
+
+  <!-- 薰衣草花丛（右下） -->
+  <g transform="translate(1330 840)">
+    <use href="#sprig" transform="translate(0 0) rotate(7) scale(1.4)"/>
+    <use href="#sprig" transform="translate(-85 30) rotate(-5) scale(1.1)"/>
+  </g>
+
+  <!-- 顶部花枝（右上） -->
+  <g transform="translate(1420 220) rotate(-20)">
+    <use href="#sprig" transform="translate(0 0) scale(0.7)"/>
+  </g>
+
+  <!-- 点缀圆点 -->
+  <circle cx="420" cy="640" r="6" fill="#6C54A4" fill-opacity="0.12"/>
+  <circle cx="1180" cy="620" r="8" fill="#A58CD8" fill-opacity="0.16"/>
+  <circle cx="700" cy="830" r="5" fill="#6C54A4" fill-opacity="0.10"/>
+  <circle cx="900" cy="150" r="5" fill="#A58CD8" fill-opacity="0.14"/>
+  <circle cx="1460" cy="480" r="6" fill="#8A7BB0" fill-opacity="0.13"/>
+</svg>

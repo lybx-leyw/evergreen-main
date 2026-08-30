@@ -1,12 +1,33 @@
-<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="原木头像">
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="温暖原木用户头像 - 木纹">
+  <!-- 温暖原木用户头像：暖米圆底 + 原木年轮切片 + 小叶，
+       28px 圆头像裁切下依然清晰。 -->
   <defs>
-    <linearGradient id="ag" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#B07C4F"/>
-      <stop offset="100%" stop-color="#3C2F22"/>
-    </linearGradient>
+    <radialGradient id="auBg" cx="50%" cy="40%" r="65%">
+      <stop offset="0%" stop-color="#FDF6EC"/>
+      <stop offset="60%" stop-color="#EDD8B8"/>
+      <stop offset="100%" stop-color="#E0C39A"/>
+    </radialGradient>
   </defs>
-  <circle cx="128" cy="128" r="118" fill="url(#ag)"/>
-  <circle cx="128" cy="128" r="118" fill="none" stroke="#F4ECE2" stroke-width="6" opacity="0.35"/>
-  <circle cx="128" cy="108" r="42" fill="#F4ECE2" opacity="0.92"/>
-  <path d="M66 200 q62 -98 124 0 q-20 32 -62 32 q-42 0 -62 -32z" fill="#F4ECE2" opacity="0.92"/>
+
+  <!-- 圆底 -->
+  <circle cx="64" cy="64" r="60" fill="url(#auBg)"/>
+  <circle cx="64" cy="64" r="60" fill="none" stroke="#B07C4F" stroke-opacity="0.18" stroke-width="2"/>
+
+  <!-- 原木切片（中心 64,66） -->
+  <g transform="translate(64 66)">
+    <circle cx="0" cy="0" r="42" fill="#C99A6B" fill-opacity="0.35"/>
+    <circle cx="0" cy="0" r="42" fill="none" stroke="#8A5A2E" stroke-opacity="0.5" stroke-width="3"/>
+    <circle cx="0" cy="0" r="33" fill="none" stroke="#B07C4F" stroke-opacity="0.55" stroke-width="2.5"/>
+    <circle cx="0" cy="0" r="24" fill="none" stroke="#B07C4F" stroke-opacity="0.5" stroke-width="2.5"/>
+    <circle cx="0" cy="0" r="15" fill="none" stroke="#B07C4F" stroke-opacity="0.45" stroke-width="2.5"/>
+    <circle cx="0" cy="0" r="6" fill="#8A5A2E" fill-opacity="0.6"/>
+  </g>
+
+  <!-- 小叶 -->
+  <ellipse cx="96" cy="38" rx="11" ry="5" fill="#B07C4F" fill-opacity="0.6" transform="rotate(28 96 38)"/>
+  <path d="M 90 42 L 102 34" stroke="#8A5A2E" stroke-opacity="0.5" stroke-width="1.5"/>
+
+  <!-- 点缀 -->
+  <circle cx="36" cy="40" r="2.5" fill="#8A5A2E" opacity="0.4"/>
+  <circle cx="92" cy="94" r="2" fill="#8A5A2E" opacity="0.35"/>
 </svg>

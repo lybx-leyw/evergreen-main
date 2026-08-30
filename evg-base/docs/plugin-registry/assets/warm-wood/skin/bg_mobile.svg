@@ -1,1 +1,61 @@
-<svg width="900" height="1600" viewBox="0 0 900 1600" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="原木背景（竖屏）"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#F4ECE2"/><stop offset="100%" stop-color="#7C6A5522"/></linearGradient></defs><rect width="900" height="1600" fill="url(#g)"/><circle cx="435" cy="1188" r="53" fill="#B07C4F" opacity="0.05"/><circle cx="899" cy="118" r="88" fill="#B07C4F" opacity="0.05"/><circle cx="627" cy="184" r="65" fill="#B07C4F" opacity="0.05"/><circle cx="527" cy="1239" r="47" fill="#B07C4F" opacity="0.05"/><circle cx="383" cy="433" r="48" fill="#B07C4F" opacity="0.05"/><circle cx="723" cy="1275" r="85" fill="#B07C4F" opacity="0.05"/><circle cx="187" cy="106" r="30" fill="#B07C4F" opacity="0.05"/><circle cx="526" cy="1364" r="82" fill="#B07C4F" opacity="0.05"/><circle cx="407" cy="607" r="69" fill="#B07C4F" opacity="0.05"/><circle cx="579" cy="904" r="85" fill="#B07C4F" opacity="0.05"/><circle cx="368" cy="203" r="21" fill="#B07C4F" opacity="0.05"/><circle cx="887" cy="1525" r="43" fill="#B07C4F" opacity="0.05"/><path d="M0 1200.0 q225.0 -70 450.0 0 q225.0 70 450.0 0" fill="none" stroke="#B07C4F" stroke-width="3" opacity="0.18"/></svg>
+<svg width="900" height="1600" viewBox="0 0 900 1600" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="温暖原木对话背景（竖屏）">
+  <!-- 温暖原木主题竖屏背景：暖米纵向渐变 + 原木年轮切片 + 木纹弧线 + 暖灯柔光，
+       低对比度，叠加渲染层 35% 白遮罩后消息文字清晰可读。 -->
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FBF5EC"/>
+      <stop offset="60%" stop-color="#F3E7D6"/>
+      <stop offset="100%" stop-color="#E7D4B9"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="lampGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#F0B97E" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#F0B97E" stop-opacity="0"/>
+    </radialGradient>
+    <g id="ring">
+      <circle cx="0" cy="0" r="120" fill="none" stroke="#B07C4F" stroke-opacity="0.12" stroke-width="3"/>
+      <circle cx="0" cy="0" r="98" fill="none" stroke="#B07C4F" stroke-opacity="0.10" stroke-width="3"/>
+      <circle cx="0" cy="0" r="76" fill="none" stroke="#B07C4F" stroke-opacity="0.09" stroke-width="3"/>
+      <circle cx="0" cy="0" r="54" fill="none" stroke="#B07C4F" stroke-opacity="0.08" stroke-width="3"/>
+      <circle cx="0" cy="0" r="32" fill="none" stroke="#B07C4F" stroke-opacity="0.07" stroke-width="3"/>
+      <circle cx="0" cy="0" r="10" fill="#B07C4F" fill-opacity="0.20"/>
+      <circle cx="0" cy="0" r="122" fill="#C99A6B" fill-opacity="0.10"/>
+      <circle cx="0" cy="0" r="122" fill="none" stroke="#8A5A2E" stroke-opacity="0.25" stroke-width="6"/>
+    </g>
+  </defs>
+
+  <rect width="900" height="1600" fill="url(#bgGrad)"/>
+
+  <!-- 柔和光斑（中心偏上）+ 暖灯（右上） -->
+  <circle cx="450" cy="620" r="430" fill="url(#glow)"/>
+  <circle cx="720" cy="300" r="320" fill="url(#lampGlow)"/>
+
+  <!-- 木纹弧线 -->
+  <path d="M -40 1480 C 240 1400 500 1460 760 1390 C 840 1368 880 1400 940 1380" fill="none" stroke="#B07C4F" stroke-opacity="0.10" stroke-width="5" stroke-linecap="round"/>
+  <path d="M -40 1540 C 260 1460 540 1520 800 1450" fill="none" stroke="#B07C4F" stroke-opacity="0.08" stroke-width="4" stroke-linecap="round"/>
+  <path d="M 160 200 C 400 170 640 210 860 170" fill="none" stroke="#B07C4F" stroke-opacity="0.07" stroke-width="4" stroke-linecap="round"/>
+
+  <!-- 原木切片（左下） -->
+  <use href="#ring" transform="translate(200 1380) scale(1.25)"/>
+  <!-- 原木切片（右下，小） -->
+  <use href="#ring" transform="translate(760 1520) scale(0.7)"/>
+  <!-- 半片（右上，小） -->
+  <use href="#ring" transform="translate(620 420) scale(0.45)"/>
+
+  <!-- 小叶点缀 -->
+  <g fill="#B07C4F" fill-opacity="0.35">
+    <ellipse cx="80" cy="760" rx="16" ry="7" transform="rotate(24 80 760)"/>
+    <ellipse cx="820" cy="980" rx="14" ry="6" transform="rotate(-30 820 980)"/>
+    <ellipse cx="700" cy="1180" rx="15" ry="6.5" transform="rotate(18 700 1180)"/>
+  </g>
+
+  <!-- 点缀圆点 -->
+  <circle cx="230" cy="560" r="6" fill="#B07C4F" fill-opacity="0.13"/>
+  <circle cx="660" cy="1080" r="5" fill="#8A5A2E" fill-opacity="0.15"/>
+  <circle cx="430" cy="1560" r="6" fill="#B07C4F" fill-opacity="0.11"/>
+  <circle cx="130" cy="1100" r="5" fill="#C99A6B" fill-opacity="0.2"/>
+  <circle cx="800" cy="640" r="5" fill="#B07C4F" fill-opacity="0.12"/>
+</svg>

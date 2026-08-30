@@ -1,12 +1,30 @@
-<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="落日头像">
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="落日余晖用户头像 - 落日">
+  <!-- 落日余晖用户头像：暖橙圆底 + 云带落日 + 飞鸟，
+       28px 圆头像裁切下依然清晰。 -->
   <defs>
-    <linearGradient id="ag" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#A74C35"/>
-      <stop offset="100%" stop-color="#45261E"/>
-    </linearGradient>
+    <radialGradient id="auBg" cx="50%" cy="40%" r="65%">
+      <stop offset="0%" stop-color="#FEF1E7"/>
+      <stop offset="60%" stop-color="#F6C9AC"/>
+      <stop offset="100%" stop-color="#EFA98A"/>
+    </radialGradient>
   </defs>
-  <circle cx="128" cy="128" r="118" fill="url(#ag)"/>
-  <circle cx="128" cy="128" r="118" fill="none" stroke="#FDF1EC" stroke-width="6" opacity="0.35"/>
-  <circle cx="128" cy="108" r="42" fill="#FDF1EC" opacity="0.92"/>
-  <path d="M66 210 q62 -126 124 0 q-20 22 -62 22 q-42 0 -62 -22z" fill="#FDF1EC" opacity="0.92"/>
+
+  <!-- 圆底 -->
+  <circle cx="64" cy="64" r="60" fill="url(#auBg)"/>
+  <circle cx="64" cy="64" r="60" fill="none" stroke="#A74C35" stroke-opacity="0.18" stroke-width="2"/>
+
+  <!-- 落日（中心 64,66） -->
+  <circle cx="64" cy="66" r="34" fill="#E8744F" fill-opacity="0.85"/>
+  <circle cx="64" cy="66" r="34" fill="none" stroke="#E8744F" stroke-opacity="0.4" stroke-width="2"/>
+  <!-- 云带 -->
+  <rect x="38" y="56" width="52" height="7" rx="3.5" fill="#FBE5D8" fill-opacity="0.9"/>
+  <rect x="42" y="70" width="60" height="8" rx="4" fill="#F9DCCB" fill-opacity="0.85"/>
+  <rect x="44" y="84" width="40" height="6" rx="3" fill="#FBE5D8" fill-opacity="0.9"/>
+
+  <!-- 飞鸟 -->
+  <path d="M 84 40 Q 89 35 94 39 Q 99 35 104 40" fill="none" stroke="#45261E" stroke-opacity="0.55" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- 霞光 -->
+  <path d="M 30 36 L 52 36" stroke="#E8744F" stroke-opacity="0.45" stroke-width="4" stroke-linecap="round"/>
+  <path d="M 84 104 L 104 104" stroke="#E8744F" stroke-opacity="0.4" stroke-width="4" stroke-linecap="round"/>
 </svg>

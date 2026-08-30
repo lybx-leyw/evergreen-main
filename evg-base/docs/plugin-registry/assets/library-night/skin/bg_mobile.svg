@@ -1,1 +1,113 @@
-<svg width="900" height="1600" viewBox="0 0 900 1600" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="深夜书桌背景（竖屏）"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#1E2430"/><stop offset="100%" stop-color="#9AA4B822"/></linearGradient></defs><rect width="900" height="1600" fill="url(#g)"/><circle cx="431" cy="338" r="76" fill="#F0B35A" opacity="0.05"/><circle cx="375" cy="1231" r="65" fill="#F0B35A" opacity="0.05"/><circle cx="628" cy="1238" r="85" fill="#F0B35A" opacity="0.05"/><circle cx="873" cy="644" r="72" fill="#F0B35A" opacity="0.05"/><circle cx="652" cy="385" r="44" fill="#F0B35A" opacity="0.05"/><circle cx="12" cy="871" r="28" fill="#F0B35A" opacity="0.05"/><circle cx="457" cy="569" r="31" fill="#F0B35A" opacity="0.05"/><circle cx="815" cy="796" r="30" fill="#F0B35A" opacity="0.05"/><circle cx="11" cy="987" r="30" fill="#F0B35A" opacity="0.05"/><circle cx="55" cy="225" r="90" fill="#F0B35A" opacity="0.05"/><circle cx="460" cy="977" r="88" fill="#F0B35A" opacity="0.05"/><circle cx="596" cy="1099" r="44" fill="#F0B35A" opacity="0.05"/><path d="M0 1200.0 q225.0 -70 450.0 0 q225.0 70 450.0 0" fill="none" stroke="#F0B35A" stroke-width="3" opacity="0.18"/></svg>
+<svg width="900" height="1600" viewBox="0 0 900 1600" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="图书馆深夜对话背景（竖屏）">
+  <!-- 图书馆深夜主题竖屏背景：深夜蓝纵向渐变 + 书柜 + 台灯暖光 + 弯月繁星，
+       低对比度，叠加渲染层 35% 白遮罩后消息文字清晰可读。 -->
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1E2430"/>
+      <stop offset="55%" stop-color="#262E40"/>
+      <stop offset="100%" stop-color="#333D52"/>
+    </linearGradient>
+    <linearGradient id="lampG" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F0B35A" stop-opacity="0.30"/>
+      <stop offset="100%" stop-color="#F0B35A" stop-opacity="0.05"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="lampGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#F0B35A" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#F0B35A" stop-opacity="0"/>
+    </radialGradient>
+    <g id="bookSpine">
+      <rect x="0" y="0" width="16" height="52" rx="3" fill="#F0B35A" fill-opacity="0.38"/>
+      <rect x="3" y="6" width="2" height="40" fill="#E8EAF0" fill-opacity="0.3"/>
+    </g>
+    <g id="bookSpine2">
+      <rect x="0" y="0" width="13" height="46" rx="3" fill="#7B86A0" fill-opacity="0.4"/>
+      <rect x="2" y="5" width="2" height="36" fill="#E8EAF0" fill-opacity="0.28"/>
+    </g>
+    <g id="bookSpine3">
+      <rect x="0" y="0" width="18" height="58" rx="3" fill="#E8EAF0" fill-opacity="0.22"/>
+      <rect x="3" y="7" width="2" height="44" fill="#F0B35A" fill-opacity="0.3"/>
+    </g>
+    <g id="star">
+      <path d="M0 -7 L1.8 -1.8 L7 0 L1.8 1.8 L0 7 L-1.8 1.8 L-7 0 L-1.8 -1.8 Z" fill="#F0B35A" fill-opacity="0.5"/>
+    </g>
+  </defs>
+
+  <rect width="900" height="1600" fill="url(#bgGrad)"/>
+
+  <!-- 柔和光斑（中心偏上） -->
+  <circle cx="450" cy="620" r="430" fill="url(#glow)"/>
+
+  <!-- 弯月（左上） -->
+  <circle cx="200" cy="260" r="140" fill="url(#lampGlow)"/>
+  <path d="M 216 216 A 42 42 0 1 1 180 300 A 34 34 0 1 0 216 216 Z" fill="#F0B35A" fill-opacity="0.65"/>
+
+  <!-- 繁星 -->
+  <use href="#star" transform="translate(340 180)"/>
+  <use href="#star" transform="translate(110 400) scale(0.7)"/>
+  <use href="#star" transform="translate(430 330) scale(0.55)"/>
+  <circle cx="380" cy="440" r="2" fill="#E8EAF0" fill-opacity="0.5"/>
+  <circle cx="150" cy="200" r="2" fill="#E8EAF0" fill-opacity="0.45"/>
+  <circle cx="280" cy="300" r="1.6" fill="#F0B35A" fill-opacity="0.5"/>
+
+  <!-- 台灯（右上） -->
+  <g transform="translate(660 300)">
+    <circle cx="0" cy="0" r="200" fill="url(#lampGlow)"/>
+    <polygon points="0,0 -120,560 120,560" fill="url(#lampG)"/>
+    <path d="M0 0 C -52 44 -60 130 -26 176" fill="none" stroke="#B98A4A" stroke-opacity="0.6" stroke-width="5" stroke-linecap="round"/>
+    <path d="M-52 44 C -26 18 26 18 52 44 L 58 56 C 26 32 -26 32 -58 56 Z" fill="#B98A4A" fill-opacity="0.55"/>
+    <ellipse cx="-18" cy="170" rx="30" ry="8" fill="#B98A4A" fill-opacity="0.5"/>
+    <circle cx="-7" cy="-8" r="9" fill="#F0B35A" fill-opacity="0.8"/>
+  </g>
+
+  <!-- 书柜（底部） -->
+  <g>
+    <rect x="0" y="1500" width="900" height="100" fill="#161B24" fill-opacity="0.5"/>
+    <rect x="0" y="1500" width="900" height="5" fill="#E8EAF0" fill-opacity="0.12"/>
+    <g>
+      <use href="#bookSpine3" transform="translate(16 1518)"/>
+      <use href="#bookSpine" transform="translate(38 1526)"/>
+      <use href="#bookSpine2" transform="translate(58 1530)"/>
+      <use href="#bookSpine3" transform="translate(75 1516)"/>
+      <use href="#bookSpine" transform="translate(97 1524)"/>
+      <use href="#bookSpine2" transform="translate(117 1528)"/>
+      <use href="#bookSpine3" transform="translate(134 1520)"/>
+      <use href="#bookSpine" transform="translate(156 1526)"/>
+      <use href="#bookSpine2" transform="translate(176 1530)"/>
+      <use href="#bookSpine3" transform="translate(193 1518)"/>
+      <use href="#bookSpine" transform="translate(215 1526)"/>
+      <use href="#bookSpine2" transform="translate(235 1532)"/>
+    </g>
+    <g>
+      <use href="#bookSpine3" transform="translate(310 1518)"/>
+      <use href="#bookSpine" transform="translate(332 1526)"/>
+      <use href="#bookSpine2" transform="translate(352 1530)"/>
+      <use href="#bookSpine3" transform="translate(369 1516)"/>
+      <use href="#bookSpine" transform="translate(391 1524)"/>
+      <use href="#bookSpine2" transform="translate(411 1528)"/>
+      <use href="#bookSpine3" transform="translate(428 1520)"/>
+      <use href="#bookSpine" transform="translate(450 1526)"/>
+      <use href="#bookSpine2" transform="translate(470 1530)"/>
+      <use href="#bookSpine3" transform="translate(487 1518)"/>
+      <use href="#bookSpine" transform="translate(509 1526)"/>
+      <use href="#bookSpine2" transform="translate(529 1532)"/>
+    </g>
+    <g>
+      <use href="#bookSpine3" transform="translate(610 1518)"/>
+      <use href="#bookSpine" transform="translate(632 1526)"/>
+      <use href="#bookSpine2" transform="translate(652 1530)"/>
+      <use href="#bookSpine3" transform="translate(669 1516)"/>
+      <use href="#bookSpine" transform="translate(691 1524)"/>
+      <use href="#bookSpine2" transform="translate(711 1528)"/>
+      <use href="#bookSpine3" transform="translate(728 1520)"/>
+      <use href="#bookSpine" transform="translate(750 1526)"/>
+      <use href="#bookSpine2" transform="translate(770 1530)"/>
+      <use href="#bookSpine3" transform="translate(787 1518)"/>
+      <use href="#bookSpine" transform="translate(809 1526)"/>
+      <use href="#bookSpine2" transform="translate(829 1532)"/>
+    </g>
+  </g>
+</svg>

@@ -1,1 +1,77 @@
-<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="薄荷背景（横屏）"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#F0FAF6"/><stop offset="100%" stop-color="#4D7466" stop-opacity="0.13"/></linearGradient></defs><rect width="1600" height="900" fill="url(#g)"/><circle cx="1363" cy="71" r="71" fill="#106B56" opacity="0.05"/><circle cx="159" cy="220" r="47" fill="#106B56" opacity="0.05"/><circle cx="1076" cy="119" r="49" fill="#106B56" opacity="0.05"/><circle cx="421" cy="325" r="41" fill="#106B56" opacity="0.05"/><circle cx="276" cy="6" r="54" fill="#106B56" opacity="0.05"/><circle cx="13" cy="52" r="84" fill="#106B56" opacity="0.05"/><circle cx="1232" cy="190" r="29" fill="#106B56" opacity="0.05"/><circle cx="169" cy="281" r="65" fill="#106B56" opacity="0.05"/><circle cx="1212" cy="677" r="80" fill="#106B56" opacity="0.05"/><circle cx="1369" cy="812" r="64" fill="#106B56" opacity="0.05"/><circle cx="234" cy="462" r="82" fill="#106B56" opacity="0.05"/><circle cx="219" cy="293" r="37" fill="#106B56" opacity="0.05"/><path d="M0 675.0 q400.0 -70 800.0 0 q400.0 70 800.0 0" fill="none" stroke="#106B56" stroke-width="3" opacity="0.18"/></svg>
+<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="薄荷清新对话背景（横屏）">
+  <!-- 薄荷清新主题横屏背景：浅薄荷渐变 + 薄荷叶片 + 气泡 + 柔光，
+       低对比度，叠加渲染层 35% 白遮罩后消息文字清晰可读。 -->
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F3FBF7"/>
+      <stop offset="55%" stop-color="#E5F6ED"/>
+      <stop offset="100%" stop-color="#D0ECDE"/>
+    </linearGradient>
+    <linearGradient id="leafG" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4FC08F" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#106B56" stop-opacity="0.15"/>
+    </linearGradient>
+    <linearGradient id="leafG2" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#3AA97E" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#1E8A68" stop-opacity="0.12"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <g id="leaf">
+      <path d="M0 -120 C 72 -90, 94 10, 12 98 C -10 113, -10 113, -12 98 C -94 10, -72 -90, 0 -120 Z" fill="url(#leafG)"/>
+      <path d="M0 -110 C 3 -56, 3 24, -3 90" fill="none" stroke="#ffffff" stroke-opacity="0.5" stroke-width="5" stroke-linecap="round"/>
+    </g>
+    <g id="leafS">
+      <path d="M0 -80 C 48 -60, 62 8, 8 65 C -7 75, -7 75, -8 65 C -62 8, -48 -60, 0 -80 Z" fill="url(#leafG2)"/>
+      <path d="M0 -72 C 2 -36, 2 16, -2 58" fill="none" stroke="#ffffff" stroke-opacity="0.45" stroke-width="4" stroke-linecap="round"/>
+    </g>
+    <g id="bubble">
+      <circle cx="0" cy="0" r="11" fill="none" stroke="#106B56" stroke-opacity="0.22" stroke-width="2"/>
+      <circle cx="-3.5" cy="-3.5" r="3" fill="#ffffff" fill-opacity="0.6"/>
+    </g>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bgGrad)"/>
+
+  <!-- 柔和光斑 -->
+  <circle cx="800" cy="440" r="430" fill="url(#glow)"/>
+  <circle cx="190" cy="770" r="250" fill="url(#glow)"/>
+  <circle cx="1450" cy="150" r="230" fill="url(#glow)"/>
+
+  <!-- 薄荷叶 -->
+  <g transform="translate(240 210) rotate(-22)">
+    <use href="#leaf" transform="translate(0 0) scale(1.1)"/>
+  </g>
+  <g transform="translate(1370 700) rotate(28)">
+    <use href="#leaf" transform="translate(0 0) scale(1.05)"/>
+  </g>
+  <g transform="translate(1050 170) rotate(14)">
+    <use href="#leafS" transform="translate(0 0)"/>
+  </g>
+  <g transform="translate(420 720) rotate(-38)">
+    <use href="#leafS" transform="translate(0 0) scale(0.85)"/>
+  </g>
+
+  <!-- 薄荷小枝（右上） -->
+  <g transform="translate(1460 240) rotate(-30)">
+    <path d="M0 0 C 2 -40 6 -70 14 -100" fill="none" stroke="#106B56" stroke-opacity="0.25" stroke-width="3.5" stroke-linecap="round"/>
+    <use href="#leafS" transform="translate(8 -60) rotate(40) scale(0.5)"/>
+    <use href="#leafS" transform="translate(-6 -70) rotate(-140) scale(0.5)"/>
+  </g>
+
+  <!-- 气泡 -->
+  <use href="#bubble" transform="translate(180 560)"/>
+  <use href="#bubble" transform="translate(1180 620) scale(1.15)"/>
+  <use href="#bubble" transform="translate(700 830) scale(0.8)"/>
+  <use href="#bubble" transform="translate(900 150) scale(0.7)"/>
+  <use href="#bubble" transform="translate(1480 470) scale(0.9)"/>
+  <use href="#bubble" transform="translate(620 220) scale(0.6)"/>
+
+  <!-- 点缀圆点 -->
+  <circle cx="420" cy="640" r="6" fill="#106B56" fill-opacity="0.12"/>
+  <circle cx="1280" cy="560" r="7" fill="#3AA97E" fill-opacity="0.14"/>
+  <circle cx="760" cy="420" r="5" fill="#106B56" fill-opacity="0.10"/>
+  <circle cx="140" cy="300" r="5" fill="#1E8A68" fill-opacity="0.13"/>
+</svg>

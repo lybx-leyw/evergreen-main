@@ -1,1 +1,70 @@
-<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="竹林背景（横屏）"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#F2F7EF"/><stop offset="100%" stop-color="#5E785522"/></linearGradient></defs><rect width="1600" height="900" fill="url(#g)"/><circle cx="1271" cy="655" r="68" fill="#4C7C39" opacity="0.05"/><circle cx="941" cy="619" r="54" fill="#4C7C39" opacity="0.05"/><circle cx="881" cy="151" r="75" fill="#4C7C39" opacity="0.05"/><circle cx="508" cy="716" r="23" fill="#4C7C39" opacity="0.05"/><circle cx="1330" cy="813" r="55" fill="#4C7C39" opacity="0.05"/><circle cx="1573" cy="254" r="30" fill="#4C7C39" opacity="0.05"/><circle cx="748" cy="840" r="72" fill="#4C7C39" opacity="0.05"/><circle cx="124" cy="456" r="79" fill="#4C7C39" opacity="0.05"/><circle cx="272" cy="601" r="29" fill="#4C7C39" opacity="0.05"/><circle cx="194" cy="111" r="54" fill="#4C7C39" opacity="0.05"/><circle cx="417" cy="70" r="21" fill="#4C7C39" opacity="0.05"/><circle cx="708" cy="183" r="60" fill="#4C7C39" opacity="0.05"/><path d="M0 675.0 q400.0 -70 800.0 0 q400.0 70 800.0 0" fill="none" stroke="#4C7C39" stroke-width="3" opacity="0.18"/></svg>
+<svg width="1600" height="900" viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="竹林对话背景（横屏）">
+  <!-- 竹林主题横屏背景：浅绿渐变 + 左右竹丛（竹节竹叶）+ 柔光，
+       低对比度，叠加渲染层 35% 白遮罩后消息文字清晰可读。 -->
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F7FAF2"/>
+      <stop offset="55%" stop-color="#EAF3DF"/>
+      <stop offset="100%" stop-color="#D6E8C5"/>
+    </linearGradient>
+    <linearGradient id="stalkG" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#6B9652" stop-opacity="0.26"/>
+      <stop offset="45%" stop-color="#90BE70" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#4C7C39" stop-opacity="0.24"/>
+    </linearGradient>
+    <linearGradient id="leafG" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#82B562" stop-opacity="0.42"/>
+      <stop offset="100%" stop-color="#4C7C39" stop-opacity="0.18"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <g id="stalk">
+      <rect x="-13" y="-560" width="26" height="150" rx="12" fill="url(#stalkG)"/>
+      <rect x="-13" y="-398" width="26" height="150" rx="12" fill="url(#stalkG)"/>
+      <rect x="-13" y="-236" width="26" height="150" rx="12" fill="url(#stalkG)"/>
+      <rect x="-13" y="-74" width="26" height="150" rx="12" fill="url(#stalkG)"/>
+      <path d="M-13 -406 L 13 -406 M-13 -244 L 13 -244 M-13 -82 L 13 -82" stroke="#4C7C39" stroke-opacity="0.28" stroke-width="2.5"/>
+      <path d="M-4 -560 L -4 -30" fill="none" stroke="#ffffff" stroke-opacity="0.4" stroke-width="3.5" stroke-linecap="round"/>
+    </g>
+    <g id="leafPair">
+      <path d="M0 0 C 26 -14, 52 -8, 74 10 C 50 20, 24 16, 0 0 Z" fill="url(#leafG)"/>
+      <path d="M0 0 C 26 16, 50 22, 74 10 C 50 6, 24 2, 0 0 Z" fill="url(#leafG)" transform="scale(1 -1)"/>
+    </g>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bgGrad)"/>
+
+  <!-- 柔和光斑（提亮中心，衬托消息区） -->
+  <circle cx="800" cy="440" r="430" fill="url(#glow)"/>
+  <circle cx="190" cy="770" r="250" fill="url(#glow)"/>
+  <circle cx="1450" cy="150" r="230" fill="url(#glow)"/>
+
+  <!-- 左侧竹丛 -->
+  <g transform="translate(120 870)">
+    <use href="#stalk" transform="translate(0 0) rotate(-4)"/>
+    <use href="#stalk" transform="translate(72 42) rotate(3)"/>
+    <use href="#stalk" transform="translate(150 -8) rotate(-7)"/>
+    <use href="#leafPair" transform="translate(-8 -300) rotate(-30)"/>
+    <use href="#leafPair" transform="translate(62 -430) rotate(22)"/>
+    <use href="#leafPair" transform="translate(150 -190) rotate(40)"/>
+  </g>
+
+  <!-- 右侧竹丛 -->
+  <g transform="translate(1520 890)">
+    <use href="#stalk" transform="translate(0 0) rotate(5)"/>
+    <use href="#stalk" transform="translate(-70 52) rotate(-3)"/>
+    <use href="#stalk" transform="translate(-142 -18) rotate(6)"/>
+    <use href="#leafPair" transform="translate(10 -250) rotate(24)"/>
+    <use href="#leafPair" transform="translate(-58 -470) rotate(-16)"/>
+    <use href="#leafPair" transform="translate(-150 -210) rotate(-38)"/>
+  </g>
+
+  <!-- 点缀圆点（竹语义色） -->
+  <circle cx="420" cy="640" r="6" fill="#4C7C39" fill-opacity="0.12"/>
+  <circle cx="1180" cy="620" r="8" fill="#6B9652" fill-opacity="0.14"/>
+  <circle cx="700" cy="830" r="5" fill="#4C7C39" fill-opacity="0.10"/>
+  <circle cx="900" cy="150" r="5" fill="#82B562" fill-opacity="0.12"/>
+  <circle cx="1450" cy="500" r="6" fill="#90BE70" fill-opacity="0.12"/>
+</svg>

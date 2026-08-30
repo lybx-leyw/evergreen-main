@@ -1,12 +1,40 @@
-<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="晨光头像">
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="晨光用户头像 - 朝阳">
+  <!-- 晨光用户头像：暖橙圆底 + 朝阳 + 光芒 + 云朵，
+       28px 圆头像裁切下依然清晰。 -->
   <defs>
-    <linearGradient id="ag" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#FF9E45"/>
-      <stop offset="100%" stop-color="#3D2E1C"/>
-    </linearGradient>
+    <radialGradient id="auBg" cx="50%" cy="40%" r="65%">
+      <stop offset="0%" stop-color="#FFF4E2"/>
+      <stop offset="60%" stop-color="#FBD9A8"/>
+      <stop offset="100%" stop-color="#F5C07E"/>
+    </radialGradient>
   </defs>
-  <circle cx="128" cy="128" r="118" fill="url(#ag)"/>
-  <circle cx="128" cy="128" r="118" fill="none" stroke="#FFF7EC" stroke-width="6" opacity="0.35"/>
-  <circle cx="128" cy="108" r="42" fill="#FFF7EC" opacity="0.92"/>
-  <path d="M66 210 q62 -124 124 0 q-20 22 -62 22 q-42 0 -62 -22z" fill="#FFF7EC" opacity="0.92"/>
+
+  <!-- 圆底 -->
+  <circle cx="64" cy="64" r="60" fill="url(#auBg)"/>
+  <circle cx="64" cy="64" r="60" fill="none" stroke="#FF9E45" stroke-opacity="0.22" stroke-width="2"/>
+
+  <!-- 朝阳（中心 64,60） -->
+  <g transform="translate(64 60)">
+    <circle cx="0" cy="0" r="20" fill="#FF9E45" fill-opacity="0.9"/>
+    <g stroke="#FF9E45" stroke-opacity="0.6" stroke-width="3" stroke-linecap="round">
+      <path d="M0 -27 L0 -34"/>
+      <path d="M0 27 L0 34"/>
+      <path d="M-27 0 L-34 0"/>
+      <path d="M27 0 L34 0"/>
+      <path d="M-19 -19 L-24 -24"/>
+      <path d="M19 19 L24 24"/>
+      <path d="M-19 19 L-24 24"/>
+      <path d="M19 -19 L24 -24"/>
+    </g>
+  </g>
+
+  <!-- 云朵 -->
+  <ellipse cx="36" cy="88" rx="20" ry="7" fill="#ffffff" opacity="0.85"/>
+  <ellipse cx="28" cy="84" rx="11" ry="5" fill="#ffffff" opacity="0.8"/>
+  <ellipse cx="44" cy="85" rx="10" ry="4.5" fill="#ffffff" opacity="0.8"/>
+  <ellipse cx="92" cy="42" rx="15" ry="5.5" fill="#ffffff" opacity="0.7"/>
+  <ellipse cx="86" cy="39" rx="8" ry="4" fill="#ffffff" opacity="0.65"/>
+
+  <!-- 飞鸟 -->
+  <path d="M84 88 Q 89 83 94 87 Q 99 83 104 88" fill="none" stroke="#AB5200" stroke-opacity="0.5" stroke-width="2" stroke-linecap="round"/>
 </svg>

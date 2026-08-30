@@ -1,12 +1,45 @@
-<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="糖果头像">
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="糖果粉用户头像 - 棒棒糖">
+  <!-- 糖果粉用户头像：浅粉圆底 + 螺旋棒棒糖剪影，
+       28px 圆头像裁切下依然清晰。 -->
   <defs>
-    <linearGradient id="ag" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#BA1567"/>
-      <stop offset="100%" stop-color="#4E2A3E"/>
+    <radialGradient id="auBg" cx="50%" cy="40%" r="65%">
+      <stop offset="0%" stop-color="#FEF4F9"/>
+      <stop offset="60%" stop-color="#F7CFE2"/>
+      <stop offset="100%" stop-color="#EFAFCB"/>
+    </radialGradient>
+    <linearGradient id="auA" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E8609C"/>
+      <stop offset="100%" stop-color="#BA1567"/>
+    </linearGradient>
+    <linearGradient id="auB" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FDE1EE"/>
+      <stop offset="100%" stop-color="#F6B1CE"/>
     </linearGradient>
   </defs>
-  <circle cx="128" cy="128" r="118" fill="url(#ag)"/>
-  <circle cx="128" cy="128" r="118" fill="none" stroke="#FDF2F7" stroke-width="6" opacity="0.35"/>
-  <circle cx="128" cy="108" r="42" fill="#FDF2F7" opacity="0.92"/>
-  <path d="M66 210 q62 -58 124 0 q-20 22 -62 22 q-42 0 -62 -22z" fill="#FDF2F7" opacity="0.92"/>
+
+  <!-- 圆底 -->
+  <circle cx="64" cy="64" r="60" fill="url(#auBg)"/>
+  <circle cx="64" cy="64" r="60" fill="none" stroke="#BA1567" stroke-opacity="0.18" stroke-width="2"/>
+
+  <!-- 棒棒糖（中心 64,62，r=34） -->
+  <g transform="translate(64 62)">
+    <rect x="-4.5" y="30" width="9" height="62" rx="4.5" fill="#ffffff" opacity="0.85"/>
+    <path d="M0 0 L34 0 A34 34 0 0 1 24.04 24.04 Z" fill="url(#auA)"/>
+    <path d="M0 0 L34 0 A34 34 0 0 1 24.04 24.04 Z" fill="url(#auB)" transform="rotate(45)"/>
+    <path d="M0 0 L34 0 A34 34 0 0 1 24.04 24.04 Z" fill="url(#auA)" transform="rotate(90)"/>
+    <path d="M0 0 L34 0 A34 34 0 0 1 24.04 24.04 Z" fill="url(#auB)" transform="rotate(135)"/>
+    <path d="M0 0 L34 0 A34 34 0 0 1 24.04 24.04 Z" fill="url(#auA)" transform="rotate(180)"/>
+    <path d="M0 0 L34 0 A34 34 0 0 1 24.04 24.04 Z" fill="url(#auB)" transform="rotate(225)"/>
+    <path d="M0 0 L34 0 A34 34 0 0 1 24.04 24.04 Z" fill="url(#auA)" transform="rotate(270)"/>
+    <path d="M0 0 L34 0 A34 34 0 0 1 24.04 24.04 Z" fill="url(#auB)" transform="rotate(315)"/>
+    <circle cx="0" cy="0" r="6.5" fill="#ffffff" opacity="0.9"/>
+    <ellipse cx="-11" cy="-12" rx="7.5" ry="11" fill="#ffffff" opacity="0.55" transform="rotate(-32 -11 -12)"/>
+    <circle cx="0" cy="0" r="35" fill="none" stroke="#ffffff" stroke-opacity="0.6" stroke-width="2"/>
+  </g>
+
+  <!-- 小糖粒点缀 -->
+  <circle cx="38" cy="38" r="3" fill="#BA1567" opacity="0.4"/>
+  <circle cx="92" cy="94" r="2.5" fill="#E8609C" opacity="0.4"/>
+  <rect x="88" y="42" width="8" height="2.5" rx="1.2" fill="#BA1567" opacity="0.35" transform="rotate(28 92 43)"/>
+  <rect x="34" y="96" width="8" height="2.5" rx="1.2" fill="#E8609C" opacity="0.35" transform="rotate(-35 38 97)"/>
 </svg>

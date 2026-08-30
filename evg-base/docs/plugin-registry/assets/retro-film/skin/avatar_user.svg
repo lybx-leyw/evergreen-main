@@ -1,12 +1,37 @@
-<svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="胶片头像">
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="复古胶片用户头像 - 胶片画格">
+  <!-- 复古胶片用户头像：暖米圆底 + 胶片画格（齿孔 + 山日小景），
+       28px 圆头像裁切下依然清晰。 -->
   <defs>
-    <linearGradient id="ag" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#7F5228"/>
+    <radialGradient id="auBg" cx="50%" cy="40%" r="65%">
+      <stop offset="0%" stop-color="#F9F3E9"/>
+      <stop offset="60%" stop-color="#EADCC2"/>
+      <stop offset="100%" stop-color="#DAC6A4"/>
+    </radialGradient>
+    <linearGradient id="auFrame" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#8A5A2E"/>
       <stop offset="100%" stop-color="#3D3226"/>
     </linearGradient>
   </defs>
-  <circle cx="128" cy="128" r="118" fill="url(#ag)"/>
-  <circle cx="128" cy="128" r="118" fill="none" stroke="#EFE7DA" stroke-width="6" opacity="0.35"/>
-  <circle cx="128" cy="108" r="42" fill="#EFE7DA" opacity="0.92"/>
-  <path d="M66 210 q62 -120 124 0 q-20 22 -62 22 q-42 0 -62 -22z" fill="#EFE7DA" opacity="0.92"/>
+
+  <!-- 圆底 -->
+  <circle cx="64" cy="64" r="60" fill="url(#auBg)"/>
+  <circle cx="64" cy="64" r="60" fill="none" stroke="#7F5228" stroke-opacity="0.18" stroke-width="2"/>
+
+  <!-- 胶片画格（中心 64,64） -->
+  <g transform="translate(64 64)">
+    <rect x="-30" y="-22" width="60" height="44" rx="4" fill="url(#auFrame)"/>
+    <g fill="#F9F3E9" fill-opacity="0.8">
+      <rect x="-26" y="-18" width="7" height="5" rx="1.5"/>
+      <rect x="19" y="-18" width="7" height="5" rx="1.5"/>
+      <rect x="-26" y="13" width="7" height="5" rx="1.5"/>
+      <rect x="19" y="13" width="7" height="5" rx="1.5"/>
+    </g>
+    <!-- 画格内小景：山 + 日 -->
+    <path d="M-22 16 L -6 0 L 6 10 L 16 2 L 24 16 Z" fill="#E8B96A" fill-opacity="0.75"/>
+    <circle cx="-10" cy="-6" r="5.5" fill="#E8B96A" fill-opacity="0.9"/>
+  </g>
+
+  <!-- 散落圆点 -->
+  <circle cx="34" cy="38" r="2.5" fill="#7F5228" opacity="0.4"/>
+  <circle cx="94" cy="92" r="2" fill="#7F5228" opacity="0.35"/>
 </svg>
