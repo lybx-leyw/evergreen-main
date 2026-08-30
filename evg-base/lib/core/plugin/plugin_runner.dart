@@ -11,6 +11,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
@@ -344,6 +345,17 @@ class ChaquopyLongProcess implements Process {
     _completeExit(0);
     return true;
   }
+
+  /// 仅测试用：重置全局流分发器（[_ChaquopyStreamHub]）的订阅与注册表。
+  ///
+  /// flutter_test 中每个测试会重新 `setMockStreamHandler`，而 hub 是跨测试
+  /// 存活的全局单例——若残留旧订阅，后续测试注册的新 mock handler 收不到
+  /// `onListen`，事件全部滞留缓存而丢失（stdout/stderr 为空、exitCode 永不
+  /// 完成）。测试 setUp 应调用本方法后再安装 mock。
+  @visibleForTesting
+  static void resetStreamHubForTesting() {
+    _ChaquopyStreamHub().resetForTesting();
+  }
 }
 
 /// 安卓长驻进程 EventChannel 共享分发器（全局单监听）。
@@ -376,6 +388,14 @@ class _ChaquopyStreamHub {
       _sub?.cancel();
       _sub = null;
     }
+  }
+
+  /// 仅测试用：取消全局订阅并清空注册表（见 [ChaquopyLongProcess.resetStreamHubForTesting]）。
+  @visibleForTesting
+  void resetForTesting() {
+    _sub?.cancel();
+    _sub = null;
+    _registry.clear();
   }
 
   void _ensureListening() {
