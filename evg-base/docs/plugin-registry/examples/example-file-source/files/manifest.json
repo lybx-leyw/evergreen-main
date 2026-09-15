@@ -1,0 +1,21 @@
+{
+  "type": "file-source",
+  "id": "example-file-source",
+  "name": "示例：讲座资料",
+  "script": "discover.py",
+  "runtime": "python",
+  "androidSupport": true,
+  "files": [
+    {
+      "name": "lecture_materials",
+      "typeArg": "lecture_materials",
+      "title": "讲座资料",
+      "category": "文件",
+      "ttl": "24h",
+      "timeoutSeconds": 1800,
+      "persistentKey": "lecture_materials",
+      "fallbackJson": { "status": "missing", "files": [] },
+      "accept": [".pdf", ".mp4", ".pptx"]
+    }
+  ]
+}

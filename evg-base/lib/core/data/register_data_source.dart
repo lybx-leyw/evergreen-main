@@ -22,6 +22,8 @@ import 'package:path/path.dart' as p;
 import 'package:evergreen_base/core/log.dart';
 import 'package:evergreen_base/core/data/type.dart';
 import 'package:evergreen_base/core/data/orchestrator.dart';
+import 'package:evergreen_base/core/data/file_cache.dart';
+import 'package:evergreen_base/core/data/plugin/cli_source_runner.dart';
 import 'package:evergreen_base/core/data/plugin/data_source_manifest.dart';
 import 'package:evergreen_base/core/plugin/plugin_runner.dart';
 import 'package:evergreen_base/core/utils/greenix_path.dart';
@@ -100,6 +102,9 @@ List<String> registerDataSourcesFromManifest({
       final typeArg = decl.typeArg ?? name;
       final persistentKey = decl.persistentKey;
       final ttl = decl.ttl;
+      // per-type 超时（协议 file-data §10）：manifest `timeoutSeconds` 声明时生效，
+      // 缺省回落全局 kCliDataSourceTimeout。文件型数据源冷启动大文件必需。
+      final effectiveTimeout = decl.timeout ?? kCliDataSourceTimeout;
 
       final type = DataType<Map<String, dynamic>>(
         name: name,
@@ -120,118 +125,37 @@ List<String> registerDataSourcesFromManifest({
       );
 
       // CLI fetcher：与启动扫描完全一致（Process.run → stdout JSON）。
-      orch.register(type, () async {
-        final sw = Stopwatch()..start();
-        Log().info('数据源拉取开始', data: {
-          'plugin': pluginId,
-          'name': name,
-          'script': scriptPath,
-          'args': [
-            '--type',
-            typeArg,
-            '--project-root',
-            projectRoot,
-            '--greenix-config',
-            greenixConfigPath
-          ]
-        });
-        final runner = await sharedPluginRunner;
-        RunResult res;
+orch.register(type, () async {
+        // 统一 CLI 执行器（与 file-source 共用同一份实现，杜绝双实现漂移）。
+        final parsed = await runCliSource(
+          scriptPath: scriptPath,
+          typeArg: typeArg,
+          projectRoot: projectRoot,
+          workingDirectory: dataDir,
+          runtime: runtime,
+          timeout: effectiveTimeout,
+          pluginId: pluginId,
+          name: name,
+          script: script,
+          kind: 'data-source',
+        );
+        // 文件型数据源路径越界校验（协议 §7）：payload 含 path / files[].path
+        // 时必须是 file_cache/ 内的绝对路径；无 path 声明的既有数据源零行为变化。
+        // 越界抛 FormatException → 由 DataOrchestrator 落 lastError（协议 §12 T10）。
         try {
-          res = await runner.runOnce(
-            scriptPath,
-            [
-              '--type',
-              typeArg,
-              '--project-root',
-              projectRoot,
-              '--greenix-config',
-              greenixConfigPath
-            ],
-            workingDirectory: dataDir,
-            runtime: runtime,
-            timeout: kCliDataSourceTimeout,
-          );
-        } on TimeoutException {
-          Log().error('数据源拉取超时', data: {
+          validateFileCachePaths(parsed);
+        } on FormatException catch (e) {
+          debugPrint(
+              '[DataSource] ❌ $name $kFileCacheViolationPrefix: ${e.message}');
+          Log().error('数据源拉取失败（文件缓存路径越界）', data: {
+            'kind': 'data-source',
             'plugin': pluginId,
             'name': name,
-            'script': script,
-            'timeoutSeconds': kCliDataSourceTimeout.inSeconds,
+            'paths': fileCachePathsOf(parsed),
+            'error': e.message,
           });
-          throw Exception(
-              '数据脚本 "$script" 执行超时（>${kCliDataSourceTimeout.inSeconds}s），已终止子进程');
-        } on ProcessException catch (e) {
-          debugPrint('[DataSource] ❌ 无法启动脚本 $script: ${e.message}');
-          Log().error('数据源拉取失败（无法启动脚本）', data: {
-            'plugin': pluginId,
-            'name': name,
-            'script': script,
-            'error': e.message
-          });
-          throw Exception('无法启动数据脚本 "$script": ${e.message}');
+          throw Exception(e.message);
         }
-        // 兼容后续 stdout/stderr/exitCode 读取
-        final ProcessResult result =
-            ProcessResult(0, res.exitCode, res.stdout, res.stderr);
-        final elapsedMs = sw.elapsedMilliseconds;
-        final stdoutRaw = result.stdout as String;
-        final stderrRaw = (result.stderr as String).trim();
-        debugPrint('[DataSource] $name exitCode=${result.exitCode}, '
-            'elapsed=${elapsedMs}ms, '
-            'stdoutLen=${stdoutRaw.length}, stderrLen=${stderrRaw.length}');
-        if (result.exitCode != 0) {
-          String errMsg = stderrRaw.isNotEmpty
-              ? stderrRaw
-              : '$script 异常退出 (code ${result.exitCode})';
-          try {
-            final stdoutJson = jsonDecode(stdoutRaw) as Map<String, dynamic>;
-            if (stdoutJson.containsKey('error')) {
-              errMsg = stdoutJson['error'] as String? ?? errMsg;
-            }
-          } catch (_) {}
-          debugPrint('[DataSource] ❌ $name exitCode!=0: '
-              'stderr=${stderrRaw.length > 200 ? stderrRaw.substring(0, 200) : stderrRaw}, '
-              'stdout=${stdoutRaw.length > 200 ? stdoutRaw.substring(0, 200) : stdoutRaw}');
-          Log().error('数据源拉取失败（exitCode != 0）', data: {
-            'plugin': pluginId,
-            'name': name,
-            'exitCode': result.exitCode,
-            'elapsedMs': elapsedMs,
-            'stderr': stderrRaw.length > 800
-                ? '${stderrRaw.substring(0, 800)}…'
-                : stderrRaw,
-            'stdoutTail': stdoutRaw.length > 300
-                ? stdoutRaw.substring(0, 300)
-                : stdoutRaw,
-          });
-          throw Exception(errMsg);
-        }
-        final parsed = jsonDecode(stdoutRaw) as Map<String, dynamic>;
-        if (parsed.containsKey('error')) {
-          final err = parsed['error'] as String? ?? '$script 返回了错误';
-          debugPrint('[DataSource] ❌ $name stdout含error: $err');
-          Log().error('数据源拉取失败（脚本返回 error JSON）', data: {
-            'plugin': pluginId,
-            'name': name,
-            'elapsedMs': elapsedMs,
-            'error': err
-          });
-          throw Exception(err);
-        }
-        debugPrint('[DataSource] ✅ $name 成功: keys=${parsed.keys.toList()}');
-        final stderrDiag = stderrRaw.isNotEmpty ? stderrRaw : '';
-        Log().info('数据源拉取成功', data: {
-          'plugin': pluginId,
-          'name': name,
-          'elapsedMs': elapsedMs,
-          'stdoutBytes': stdoutRaw.length,
-          'keys': parsed.keys.toList(),
-          if (stderrDiag.isNotEmpty)
-            'stderr': stderrDiag.length > 2000
-                ? '${stderrDiag.substring(0, 2000)}…'
-                : stderrDiag,
-        });
         return parsed;
       });
 
@@ -247,6 +171,7 @@ List<String> registerDataSourcesFromManifest({
         'typeArg': typeArg,
         'scriptExists': scriptExists,
         'ttl': ttl.toString(),
+        'timeoutSeconds': effectiveTimeout.inSeconds,
         'persistentKey': persistentKey
       });
     }

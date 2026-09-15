@@ -10,6 +10,8 @@
   - evg_lib.cas    : `cas_login(session, username, password)` + `_rsa_encrypt`
                      （ZJU CAS + RSA no-padding；依赖 requests）
   - evg_lib.jsonio : stdout JSON 输出契约（`emit` / `fail` / `validate_and_output`）
+  - evg_lib.download : 文件型数据源统一下载 + 内容寻址缓存（`ensure`；同 HEAD
+                       指纹绝不重下，冷/热插件共享同一缓存）
 
 零新第三方依赖：config / jsonio 仅用标准库；cas 额外用 requests（平台嵌入式
 Python 已内置）。
@@ -29,6 +31,12 @@ try:
     from evg_lib import jsonio  # noqa: F401
     __all__ += ['jsonio']
 except Exception:  # pragma: no cover - 标准库，理论不会失败
+    pass
+
+try:
+    from evg_lib import download  # noqa: F401
+    __all__ += ['download']
+except Exception:  # 标准库实现，理论不会失败；不阻断其余模块
     pass
 
 try:

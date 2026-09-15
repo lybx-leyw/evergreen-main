@@ -201,6 +201,35 @@ String get greenixMemoriesDir => p.join(_greenixBaseDir, 'memories');
 /// Skill 文件目录（旧版平铺路径，仅保留兼容读取）。
 String get greenixSkillsDir => p.join(_greenixBaseDir, 'skills');
 
+/// 文件型数据源的**内容寻址缓存目录**（`<greenixBase>/file_cache/`）。
+///
+/// 协议：`docs/plugin-registry/file-data-plugin-protocol-v1.md` §2。
+///
+/// **单一真相源**：Python 侧 `evg_lib.download` 与 Dart 侧消费者共用本约定。
+/// 脚本经 `--greenix-config` 的父目录派生同一路径（无需新增命令行参数）；
+/// 本 getter 是 Dart 侧对应入口，供清理（协议 §9）与越界校验（协议 §7）使用。
+///
+/// [initGreenixPaths] 之后本值为**绝对路径**（安卓为应用私有可写目录，
+/// 桌面为 exe/cwd 下的 `.greenix`），因此可直接用于前缀包含判断。
+///
+/// 命名约定（协议 §3）：`<sha256(url)[:16]>-<sha256(指纹)[:16]><ext>`，
+/// 命中判定 = 文件是否存在 ⇒ **无索引文件、无锁、崩溃安全**。
+String get greenixFileCacheDir => p.join(_greenixBaseDir, 'file_cache');
+
+/// 判断 [path] 是否位于 [greenixFileCacheDir] 内（协议 §7 越界校验）。
+///
+/// 规范化后做前缀包含判断，**同前缀兄弟目录不算命中**
+/// （如 `file_cache_evil/` 不被误判为 `file_cache/` 内）。
+/// 相对路径、空值、目录本身一律返回 `false`（协议要求 `path` 为绝对文件路径）。
+bool isUnderFileCache(String? path) {
+  if (path == null || path.isEmpty) return false;
+  if (!p.isAbsolute(path)) return false;
+  final root = p.normalize(p.absolute(greenixFileCacheDir));
+  final target = p.normalize(p.absolute(path));
+  if (target == root) return false; // 目录本身不是文件
+  return p.isWithin(root, target);
+}
+
 /// 归一化 Skill 名 → 插件 id / 文件名（空白转 `-`、转小写）。
 ///
 /// 与旧 [greenixSkillPath] 的命名规则一致，保证「Skill 即插件」迁移后

@@ -66,6 +66,22 @@ bool parseDataSourceAndroidSupport(dynamic raw) {
   return raw is bool ? raw : false;
 }
 
+/// 共享 per-type 超时解析器——`dataTypes[].timeoutSeconds` → [Duration]。
+///
+/// 有效范围 `1..3600` 秒（上限 [kDataSourceMaxTimeoutSeconds]，防 manifest 声明
+/// 天文数字导致拉取永不超时）。以下一律返回 `null`（调用方回落
+/// [kCliDataSourceTimeout] 的 60s，**不抛**）：
+/// - 缺失 / `null` / 非整数（含数字字符串 `"90"`——与 `ttl` 不同，此处严格）；
+/// - `<= 0` 或 `> 3600`。
+Duration? parseDataSourceTimeoutSeconds(dynamic raw) {
+  if (raw is! int) return null;
+  if (raw <= 0 || raw > kDataSourceMaxTimeoutSeconds) return null;
+  return Duration(seconds: raw);
+}
+
+/// per-type 超时上限（秒）。见 [parseDataSourceTimeoutSeconds]。
+const int kDataSourceMaxTimeoutSeconds = 3600;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // DataSourceAuth（可选声明：凭据/会话引用）
 // ═══════════════════════════════════════════════════════════════════════════
@@ -467,6 +483,16 @@ class DataSourceTypeDecl {
   /// [DataOrchestrator] 返回该 JSON（顶层 Map），并标记 lastError「使用静态兜底」。
   final Map<String, dynamic>? fallbackJson;
 
+  /// 本类型的 CLI 拉取超时（可选，缺省 null → 回落全局
+  /// [kCliDataSourceTimeout] = 60s）。
+  ///
+  /// 来源 manifest `dataTypes[].timeoutSeconds`。**per-type 而非 per-plugin**：
+  /// 同一插件可同时声明「秒级」的元数据源与「分钟级」的文件型数据源
+  /// （协议 `file-data-plugin-protocol-v1.md` §10，大文件冷启动必需）。
+  ///
+  /// 有效范围 `1..3600` 秒；越界或非整数 → null（回落默认，不抛）。
+  final Duration? timeout;
+
   const DataSourceTypeDecl({
     required this.name,
     this.typeArg,
@@ -478,6 +504,7 @@ class DataSourceTypeDecl {
     this.stream,
     this.file,
     this.fallbackJson,
+    this.timeout,
   });
 
   factory DataSourceTypeDecl.fromJson(Map<String, dynamic> json) {
@@ -495,6 +522,7 @@ class DataSourceTypeDecl {
       fallbackJson: json['fallbackJson'] is Map
           ? Map<String, dynamic>.from(json['fallbackJson'] as Map)
           : null,
+      timeout: parseDataSourceTimeoutSeconds(json['timeoutSeconds']),
     );
   }
 
@@ -509,6 +537,7 @@ class DataSourceTypeDecl {
         if (stream != null && stream!.enabled) 'stream': stream!.toJson(),
         if (file != null && file!.enabled) 'file': file!.toJson(),
         if (fallbackJson != null) 'fallbackJson': fallbackJson,
+        if (timeout != null) 'timeoutSeconds': timeout!.inSeconds,
       };
 
   /// 转换为 DataOrchestrator 可用的 [DataType]。

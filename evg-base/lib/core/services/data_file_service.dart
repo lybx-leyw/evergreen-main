@@ -12,17 +12,25 @@
 /// 复用 `release_downloader.dart` 的 `_download` 模式，但服务化 + [Result] +
 /// headers + 沙箱。
 ///
+/// **流式落盘（P0，2026-09-15）**：响应体以 64 KiB 分块**边读边写**磁盘，
+/// 不驻留内存（旧实现全量 `BytesBuilder` 后整块 `writeAsBytes`，大文件必 OOM）。
+/// 写入 `<target>.part.<pid>.<ts>` 后原子改名；失败/超时/重试均清理临时文件。
+///
+/// > ⚠️ 默认 `timeout` 为 30s，**大文件必须显式传更长超时**（文件型插件经
+/// > manifest `files[].timeoutSeconds` 声明，见
+/// > `docs/plugin-registry/file-source-plugin-plan-v1.md`）。
+///
 /// # 公开 API
 /// | 成员 | 说明 |
 /// |------|------|
 /// | `DataFileService({sandboxRoot?, timeout?, retryBackoff?})` | 构造；sandboxRoot 设置后 targetPath 必须位于其内 |
-/// | `downloadFile({url, targetPath, headers?, timeout?, maxRetries})` | 下载单文件，返回 `Result<String>`（Ok=本地绝对路径） |
-/// | `downloadFiles({urls, targetDir, headers?, timeout?, maxRetries})` | 串行批量下载，返回逐项 `Result<String>` |
+/// | `downloadFile({url, targetPath, headers?, timeout?, maxRetries, onProgress?})` | 下载单文件，返回 `Result<String>`（Ok=本地绝对路径） |
+/// | `downloadFiles({urls, targetDir, headers?, timeout?, maxRetries, onProgress?})` | 串行批量下载，返回逐项 `Result<String>` |
+/// | `DownloadProgressCallback` | `(int received, int? total)` 流式进度回调 |
 library;
 
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
 
@@ -30,6 +38,19 @@ import '../log.dart';
 import '../result.dart';
 import '../errors.dart';
 import '../utils/path_sandbox.dart';
+
+/// 下载进度回调：`received` = 已落盘字节数，`total` = 总字节数
+/// （响应无 `Content-Length` 时为 `null`）。
+///
+/// **语义保证**：
+/// - 首次分块必回调一次（让 UI 立刻进入"下载中"）；
+/// - 之后按**百分比变化**回调（已知 total 时，1GB 文件最多 100 次）；
+/// - 未知 total 时按时间节流（≥200ms）；
+/// - **完成时必回调一次**（`received == total`，UI 可据此收尾）。
+typedef DownloadProgressCallback = void Function(int received, int? total);
+
+/// 进度回调的最小间隔（未知 total 时的节流窗口）。
+const Duration kDownloadProgressThrottle = Duration(milliseconds: 200);
 
 /// 重试判定：HTTP 状态码是否可重试（限流 429 与服务端 5xx 视为瞬态可重试；
 /// 其余 4xx 视为确定性客户端错误，不重试）。
@@ -89,6 +110,7 @@ class DataFileService {
     Map<String, String>? headers,
     Duration? timeout,
     int maxRetries = 3,
+    DownloadProgressCallback? onProgress,
   }) async {
     if (url.trim().isEmpty) {
       return Err(AppError.validationError('下载地址为空'));
@@ -122,11 +144,14 @@ class DataFileService {
         await Future<void>.delayed(_backoffFor(attempt));
       }
       try {
-        final bytes =
-            await _downloadOnce(url, headers).timeout(effectiveTimeout);
-        await _writeFile(resolvedPath, bytes);
+        final bytes = await _downloadStreamed(
+          url,
+          resolvedPath,
+          headers,
+          onProgress: onProgress,
+        ).timeout(effectiveTimeout);
         Log().info('DataFileService: 下载成功',
-            data: {'url': url, 'target': resolvedPath, 'bytes': bytes.length});
+            data: {'url': url, 'target': resolvedPath, 'bytes': bytes});
         return Ok(resolvedPath);
       } on _DownloadHttpError catch (e) {
         if (!e.retryable || attempt >= maxRetries) {
@@ -171,6 +196,8 @@ class DataFileService {
     Map<String, String>? headers,
     Duration? timeout,
     int maxRetries = 3,
+    /// 逐项进度回调；批量场景由调用方按"当前项"归因（本层不额外包装）。
+    DownloadProgressCallback? onProgress,
   }) async {
     final results = <Result<String>>[];
     for (var i = 0; i < urls.length; i++) {
@@ -183,18 +210,65 @@ class DataFileService {
         headers: headers,
         timeout: timeout,
         maxRetries: maxRetries,
+        onProgress: onProgress,
       ));
     }
     return results;
   }
 
-  /// 单次 HTTP 下载（返回字节；HTTP 非 200 → 抛 [_DownloadHttpError]）。
+  /// 单次 HTTP **流式**下载：边读边写 `<target>.part`，成功后原子改名。
+  ///
+  /// 返回落盘字节数。HTTP 非 200 → 抛 [_DownloadHttpError]。
+  ///
+  /// **关键契约（P0 核心）**：
+  /// - **不把响应体驻留内存**——分块（64 KiB）直接写入磁盘，
+  ///   故 1GB 文件也不随体积增长内存占用（旧实现 `BytesBuilder` + `writeAsBytes`
+  ///   会全量驻留，视频必 OOM）；
+  /// - **`.part` + 原子改名**：进程被杀/超时/网络中断时不会留下
+  ///   "看起来完整但实际截断"的缓存文件；
+  /// - 失败路径**清理自己的 `.part`**（含重试之间的残留）。
   ///
   /// 超时由调用方外层 `.timeout()` 统一施加（覆盖连接 + 响应体读取全程），
   /// 这里仅设置 [HttpClient.connectionTimeout] 作为连接层兜底。
-  Future<List<int>> _downloadOnce(
-      String url, Map<String, String>? headers) async {
+  Future<int> _downloadStreamed(
+    String url,
+    String targetPath,
+    Map<String, String>? headers, {
+    DownloadProgressCallback? onProgress,
+  }) async {
+    final target = File(targetPath);
+    await target.parent.create(recursive: true);
+    // 带 pid + 时间戳：并发下载/多次重试互不覆盖（与 evg_lib.download 同思路）。
+    final part = File('$targetPath.part.$pid.${DateTime.now().microsecondsSinceEpoch}');
+
     final client = HttpClient()..connectionTimeout = timeout;
+    IOSink? sink;
+    var received = 0;
+    int? total;
+    var lastPct = -1;
+    var lastEmit = DateTime.now();
+    var emittedFirst = false;
+
+    void emit({bool force = false}) {
+      if (onProgress == null) return;
+      final t = total;
+      if (t != null && t > 0) {
+        final pct = (received * 100) ~/ t;
+        if (!force && pct == lastPct) return;
+        lastPct = pct;
+      } else {
+        final now = DateTime.now();
+        if (!force &&
+            emittedFirst &&
+            now.difference(lastEmit) < kDownloadProgressThrottle) {
+          return;
+        }
+        lastEmit = now;
+      }
+      emittedFirst = true;
+      onProgress(received, total);
+    }
+
     try {
       final request = await client.getUrl(Uri.parse(url));
       if (headers != null) {
@@ -206,21 +280,34 @@ class DataFileService {
         await response.drain<void>();
         throw _DownloadHttpError(response.statusCode, url);
       }
-      final builder = BytesBuilder(copy: false);
+      final cl = response.headers.contentLength;
+      total = cl > 0 ? cl : null;
+
+      sink = part.openWrite();
       await for (final chunk in response) {
-        builder.add(chunk);
+        sink.add(chunk);
+        received += chunk.length;
+        emit();
       }
-      return builder.takeBytes();
+      await sink.flush();
+      await sink.close();
+      sink = null;
+
+      // 原子改名（同目录同设备）；此时才对外可见为"完整文件"。
+      await part.rename(targetPath);
+      emit(force: true);
+      return received;
+    } catch (e) {
+      try {
+        await sink?.close();
+      } catch (_) {}
+      try {
+        if (await part.exists()) await part.delete();
+      } catch (_) {}
+      rethrow;
     } finally {
       client.close(force: true);
     }
-  }
-
-  /// 写文件：确保父目录存在后整块写入。
-  Future<void> _writeFile(String path, List<int> bytes) async {
-    final file = File(path);
-    await file.parent.create(recursive: true);
-    await file.writeAsBytes(bytes, flush: true);
   }
 
   /// 第 [attempt] 次重试（1 起）前的退避时长。

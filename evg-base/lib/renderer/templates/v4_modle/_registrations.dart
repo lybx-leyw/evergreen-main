@@ -23,6 +23,7 @@ import 'components/data/timeline_slot.dart';
 import 'components/data/map_slot.dart';
 import 'components/data/calendar_slot.dart';
 import 'components/data/timetable_slot.dart';
+import 'components/data/file_source_slot.dart';
 
 // ═══════ document/ ═══════
 import 'components/document/markdown_slot.dart';
@@ -108,6 +109,9 @@ void initV4ModleRegistrations() {
   SlotRegistry.register('video-player', (ctx) => VideoSlot(
       config: ctx.config, moduleId: ctx.moduleDescriptor.id, pluginsDir: ctx.pluginsDir!),
       aliases: ['video']);
+  // 文件型数据源：选择性下载列表（方案 P2）。别名 file-list / files。
+  SlotRegistry.register('file-source', (ctx) => FileSourceSlot(config: ctx.config),
+      aliases: ['file-list', 'files']);
   SlotRegistry.register('audio-player', (ctx) => AudioPlayerSlot(
       config: ctx.config, moduleId: ctx.moduleDescriptor.id, pluginsDir: ctx.pluginsDir!));
   SlotRegistry.register('image-gallery', (ctx) => ImageGallerySlot(
