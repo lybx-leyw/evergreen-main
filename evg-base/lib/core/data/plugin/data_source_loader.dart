@@ -22,6 +22,7 @@ import 'package:evergreen_base/core/plugin/plugin_runner.dart';
 
 import '../orchestrator.dart';
 import '../type.dart';
+import '../file_cache.dart';
 import '../../utils/greenix_path.dart';
 import 'data_source_manifest.dart';
 
@@ -349,7 +350,14 @@ class DataSourceLoader {
       throw HttpException('获取 $name 失败: ${response.statusCode}');
     }
     final body = await response.transform(utf8.decoder).join();
-    return jsonDecode(body);
+    final parsed = jsonDecode(body);
+    // 文件型数据源路径越界校验（协议 §7）：模型 B 与模型 A 同一契约。
+    // payload 含 path / files[].path 时必须是 file_cache/ 内绝对路径；
+    // 无 path 声明的既有数据源零行为变化。越界抛异常 → 上游落 lastError。
+    if (parsed is Map<String, dynamic>) {
+      validateFileCachePaths(parsed);
+    }
+    return parsed;
   }
 }
 

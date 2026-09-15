@@ -380,6 +380,7 @@ flutter:
     - assets/scripts_bundle/evg_lib/__init__.py
     - assets/scripts_bundle/evg_lib/cas.py
     - assets/scripts_bundle/evg_lib/config.py
+    - assets/scripts_bundle/evg_lib/download.py
     - assets/scripts_bundle/evg_lib/jsonio.py
     - assets/scripts_bundle/paper_reader.py
     - assets/scripts_bundle/requirements.txt

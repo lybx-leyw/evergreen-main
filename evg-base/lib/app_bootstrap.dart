@@ -45,8 +45,10 @@ import 'package:evergreen_base/core/agent/tools/write_global_memory.dart';
 import 'package:evergreen_base/core/config/config.dart';
 import 'package:evergreen_base/core/data/cache.dart';
 import 'package:evergreen_base/core/data/data_http_server.dart';
+import 'package:evergreen_base/core/data/file_cache_cleaner.dart';
 import 'package:evergreen_base/core/data/orchestrator.dart';
 import 'package:evergreen_base/core/data/register_data_source.dart';
+import 'package:evergreen_base/core/data/register_file_source.dart';
 import 'package:evergreen_base/core/errors.dart';
 import 'package:evergreen_base/core/log.dart';
 import 'package:evergreen_base/core/module/module_http_server.dart';
@@ -815,6 +817,32 @@ class AppBootstrap {
   Future<Result<void>> _stepDataSources() async {
     Log().info('[BOOT] 开始扫描数据插件: pluginsDir=$pluginsDir');
     _scanAndRegisterDataSources(pluginsDir, orchestrator!);
+    // 文件型插件（`type: "file-source"`）——与 data-source 并列的独立类型，
+    // 扫描 `plugins/<id>/files/manifest.json`。二者共用同一 DataOrchestrator 与
+    // 同一 file_cache（F1 跨类型共享，见 file-source-plugin-plan-v1.md §3）。
+    final fileTypes = await scanAndLoadFileSources(
+      pluginsDir: pluginsDir,
+      orchestrator: orchestrator!,
+      projectRoot: projectRoot,
+    );
+    if (fileTypes.isNotEmpty) {
+      Log().info('[BOOT] 文件型数据源注册完成: count=${fileTypes.length}, '
+          'types=$fileTypes');
+    }
+    // 文件缓存维护（P4）：回收孤儿 `.part`（下载中断/kill 残留）+ 按配额 LRU 裁剪。
+    // 内容寻址缓存只增不减，启动期清一次即可（协议 §9：平台可随时清理，
+    // 插件必须容忍缺失）。失败不影响启动。
+    try {
+      final clean = trimFileCache();
+      if (clean.removedFiles > 0 || clean.removedPartials > 0) {
+        Log().info('[BOOT] 文件缓存维护完成: '
+            'removedFiles=${clean.removedFiles}, '
+            'removedPartials=${clean.removedPartials}, '
+            'reclaimedBytes=${clean.reclaimedBytes}');
+      }
+    } catch (e) {
+      Log().warn('[BOOT] 文件缓存维护失败（忽略）', data: {'error': '$e'});
+    }
     // zju 内置数据源（Dart fetcher，不依赖插件）：B2 注册 zdbk 6 类型骨架，
     // B3 移植 service 后替换 fetcher。双版 release：通用版（kZjuEnabled=false）
     // 时本调用不可达，浙大依赖被 AOT tree-shaker 整体剔除出产物。
